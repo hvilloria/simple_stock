@@ -1,0 +1,21 @@
+%h1 Productos
+
+- if @products.any?
+  %table
+    %thead
+      %tr
+        %th SKU
+        %th Nombre
+        %th Categoría
+        %th Stock actual
+        %th Activo
+    %tbody
+      - @products.each do |product|
+        %tr
+          %td= product.sku
+          %td= product.name
+          %td= product.category
+          %td= Inventory::CalculateStockLevel.call(product: product)
+          %td= product.active? ? "Sí" : "No"
+- else
+  %p No hay productos cargados todavía.
