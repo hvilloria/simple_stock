@@ -23,18 +23,21 @@ module Inventory
     def call
       raise ArgumentError, "quantity cannot be 0" if @quantity.zero?
 
-      ActiveRecord::Base.transaction do
-        StockMovement.create!(
-          product:        @product,
-          stock_location: @stock_location,
-          quantity:       @quantity,
-          movement_type:  @movement_type,
-          reference:      @reference,
-          note:           @note
-        )
-
-        @product.update!(current_stock: @product.current_stock + @quantity)
+      new_stock = @product.current_stock + @quantity
+      if new_stock.negative?
+        raise ArgumentError, "Not enough stock to perform this operation"
       end
+
+      StockMovement.create!(
+        product:        @product,
+        stock_location: @stock_location,
+        quantity:       @quantity,
+        movement_type:  @movement_type,
+        reference:      @reference,
+        note:           @note
+      )
+
+      @product.update!(current_stock: new_stock)
 
       @product
     end

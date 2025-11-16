@@ -1,0 +1,43 @@
+%h1 Órdenes de venta
+
+- if flash[:notice]
+  .notice= flash[:notice]
+- if flash[:alert]
+  .alert= flash[:alert]
+
+%p
+  = link_to "Nueva venta rápida", new_web_order_path
+
+%table
+  %thead
+    %tr
+      %th ID
+      %th Fecha
+      %th Estado
+      %th Cliente
+      %th Ítems
+      %th Total
+      %th Acciones
+  %tbody
+    - @orders.each do |order|
+      %tr
+        %td= order.id
+        %td= l(order.created_at, format: :short)
+        %td= order.status
+        %td
+          - if order.customer
+            = order.customer.name
+          - else
+            = "-"
+        %td
+          - order.order_items.each do |item|
+            %div
+              = "#{item.product.name} x #{item.quantity}"
+        %td= number_to_currency(order.total_amount)
+        %td
+          - if order.confirmed_status?
+            = button_to "Cancelar", cancel_web_order_path(order),
+                        method: :post,
+                        data: { confirm: "¿Seguro que quieres cancelar esta venta?" }
+          - else
+            Cancelada

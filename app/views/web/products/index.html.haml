@@ -9,6 +9,7 @@
         %th Categoría
         %th Stock actual
         %th Activo
+        %th Acciones
     %tbody
       - @products.each do |product|
         %tr
@@ -17,5 +18,8 @@
           %td= product.category
           %td= Inventory::CalculateStockLevel.call(product: product)
           %td= product.active? ? "Sí" : "No"
+          %td
+            = link_to "Ajustar stock",
+                      new_web_product_stock_movement_path(product)
 - else
   %p No hay productos cargados todavía.

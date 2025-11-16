@@ -1,0 +1,33 @@
+%h1 Ajustar stock
+
+%p
+  Producto:
+  %strong= @product.name
+  (
+  = @product.sku
+  )
+
+- if flash[:alert]
+  %p{:style => "color: red;"}= flash[:alert]
+
+= form_with url: web_product_stock_movements_path(@product), method: :post, local: true do |f|
+  .field
+    = label_tag :movement_type, "Tipo de movimiento"
+    = select_tag :movement_type, options_for_select([["Compra (entra stock)", "purchase"], ["Venta (sale stock)", "sale"], ["Ajuste manual (+/-)", "adjustment"]], @movement_type)
+
+  .field
+    = label_tag :quantity, "Cantidad"
+    = number_field_tag :quantity, nil, step: 1, required: true
+
+  .field
+    = label_tag :reference, "Referencia (opcional)"
+    = text_field_tag :reference
+
+  .field
+    = label_tag :note, "Nota (opcional)"
+    = text_area_tag :note, nil, rows: 3
+
+  .actions
+    = f.submit "Guardar movimiento"
+    = " "
+    = link_to "Cancelar", web_products_path

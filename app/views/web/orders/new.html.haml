@@ -1,0 +1,20 @@
+%h1 Nueva venta rápida
+
+- if flash[:alert]
+  .alert= flash[:alert]
+
+= form_with url: web_orders_path, scope: :order, local: true do |f|
+  .field
+    = f.label :product_id, "Producto"
+    = f.collection_select :product_id, @products, :id, :name, include_blank: "Selecciona un producto"
+
+  .field
+    = f.label :quantity, "Cantidad"
+    = f.number_field :quantity, min: 1, value: 1
+
+  .actions
+    = f.submit "Registrar venta"
+
+%hr/
+
+= link_to "Volver a órdenes", web_orders_path
