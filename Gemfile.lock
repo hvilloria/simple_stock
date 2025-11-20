@@ -153,7 +153,7 @@ GEM
     marcel (1.1.0)
     matrix (0.4.3)
     mini_mime (1.1.5)
-    minitest (5.26.1)
+    minitest (5.26.2)
     msgpack (1.8.0)
     net-imap (0.5.12)
       date
@@ -289,8 +289,8 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 3.0)
       websocket (~> 1.0)
-    shoulda-matchers (6.5.0)
-      activesupport (>= 5.2.0)
+    shoulda-matchers (7.0.1)
+      activesupport (>= 7.1)
     sprockets (4.2.2)
       concurrent-ruby (~> 1.0)
       logger
@@ -355,7 +355,7 @@ DEPENDENCIES
   rspec-rails
   rubocop-rails-omakase
   selenium-webdriver
-  shoulda-matchers (~> 6.0)
+  shoulda-matchers (~> 7.0)
   sprockets-rails
   stimulus-rails
   tailwindcss-rails (~> 4.4)
