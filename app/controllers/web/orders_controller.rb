@@ -14,42 +14,46 @@ module Web
       @order = Order.new
     end
 
-    def create
-      product = Product.find(order_params[:product_id])
-      quantity = order_params[:quantity].to_i
+  def create
+    product = Product.find(order_params[:product_id])
+    quantity = order_params[:quantity].to_i
 
-      if quantity <= 0
-        flash.now[:alert] = "The quantity must be greater than 0."
-        @order = Order.new
-        render :new, status: :unprocessable_entity
-        return
-      end
+    if quantity <= 0
+      flash.now[:alert] = "The quantity must be greater than 0."
+      @order = Order.new
+      render :new, status: :unprocessable_entity
+      return
+    end
 
-      @order = Sales::CreateOrder.call(
-        customer: nil,
-        lines: [
-          {
-            product:    product,
-            quantity:   quantity,
-            unit_price: product.price_unit
-          }
-        ]
-      )
+    result = Sales::CreateOrder.call(
+      customer: nil,
+      lines: [
+        {
+          product:    product,
+          quantity:   quantity,
+          unit_price: product.price_unit
+        }
+      ]
+    )
 
+    if result.success?
       redirect_to web_orders_path, notice: "Order registered successfully."
-    rescue ArgumentError => e
-      flash.now[:alert] = e.message
+    else
+      flash.now[:alert] = result.errors.join(", ")
       @order = Order.new
       render :new, status: :unprocessable_entity
     end
+  end
 
-    def cancel
-      Sales::CancelOrder.call(order: @order, reason: "Cancelled from UI")
+  def cancel
+    result = Sales::CancelOrder.call(order: @order, reason: "Cancelled from UI")
 
+    if result.success?
       redirect_to web_orders_path, notice: "Order cancelled and stock returned."
-    rescue ArgumentError => e
-      redirect_to web_orders_path, alert: e.message
+    else
+      redirect_to web_orders_path, alert: result.errors.join(", ")
     end
+  end
 
     private
 

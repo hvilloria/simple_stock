@@ -57,7 +57,7 @@ Reglas, principios y convenciones para este proyecto Rails.
 - Devoluciones parciales
 
 **Documentos relacionados:**
-- `DOMAIN_SPEC.md` - Especificación funcional completa
+- `FLUJOS.md` - Especificación funcional completa
 - `UI_DESIGN_SPEC.md` - Diseño de interfaces
 - `CODE_PATTERNS.md` - Ejemplos de código y patrones
 
@@ -234,7 +234,7 @@ Result = Struct.new(:success?, :record, :errors, keyword_init: true)
 
 ## 3. REGLAS DE NEGOCIO OBLIGATORIAS
 
-> Para detalle completo, consultar `DOMAIN_SPEC.md`
+> Para detalle completo, consultar `FLUJOS.md`
 
 ### 3.1. Stock
 
@@ -271,7 +271,6 @@ Result = Struct.new(:success?, :record, :errors, keyword_init: true)
 
 1. **Contado** (`cash`)
    - No genera saldo
-   - Cliente siempre es "Cliente Mostrador"
    - No crea Payment
 
 2. **Cuenta Corriente** (`credit`)
@@ -280,7 +279,7 @@ Result = Struct.new(:success?, :record, :errors, keyword_init: true)
    - Se paga luego con Payment
 
 **Estados:**
-- `active`: venta activa
+- `confirmed`: venta confirmada
 - `cancelled`: venta anulada
 
 **Canales:**
@@ -425,7 +424,7 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 
 **Pasos:**
 
-1. Revisar reglas en `DOMAIN_SPEC.md`
+1. Revisar reglas en `FLUJOS.md`
 2. Crear service en `app/services/[area]/[accion].rb`
 3. Implementar lógica:
    - Recibir parámetros claros
@@ -454,7 +453,7 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 
 **Pasos:**
 
-1. Revisar `DOMAIN_SPEC.md`
+1. Revisar `FLUJOS.md`
 2. Cambiar lógica en models/services (NO en controllers)
 3. Ajustar controllers y vistas mínimamente
 4. Actualizar/crear tests
@@ -466,10 +465,10 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 ### 6.1. Convenciones
 
 **Idioma:**
-- Código (clases, métodos, variables, comentarios): **inglés**
+- Código (clases, métodos, variables, comentarios, mensajes de error): **inglés**
 - Tests (describe, it, let): **inglés**
 - Commits: **inglés**
-- Textos visibles al usuario (flash messages, labels, emails): **español (voseo argentino)**
+- Textos visibles al usuario (flash messages, labels, emails): **español (voseo neutral)**
 
 **Ejemplos:**
 
@@ -558,7 +557,7 @@ Cuando un agente (Cursor, Claude, ChatGPT) genere código:
 - TailwindCSS para estilos
 
 ✅ **Reglas de negocio:**
-- Todas las de `DOMAIN_SPEC.md`
+- Todas las de `FLUJOS.md`
 - Stock por movimientos (nunca edición directa)
 - Validaciones antes de operaciones
 - Transacciones para operaciones complejas
@@ -587,7 +586,7 @@ Cuando un agente (Cursor, Claude, ChatGPT) genere código:
 ### 7.4. Antes de Generar Código
 
 1. Leer este documento completo
-2. Consultar `DOMAIN_SPEC.md` para reglas específicas
+2. Consultar `FLUJOS.md` para reglas específicas
 3. Consultar `CODE_PATTERNS.md` para ejemplos
 4. Consultar `UI_DESIGN_SPEC.md` para diseño
 5. Revisar código existente similar
@@ -607,7 +606,7 @@ Cuando un agente (Cursor, Claude, ChatGPT) genere código:
 
 ### Documentación del Proyecto
 
-1. **DOMAIN_SPEC.md**
+1. **FLUJOS.md**
    - Especificación funcional completa
    - Reglas de negocio detalladas
    - Flujos de usuario
@@ -690,7 +689,7 @@ Ver ejemplos en `CODE_PATTERNS.md`, pero en resumen:
 Antes de considerar una feature completa:
 
 - [ ] Código sigue la arquitectura (models/services/controllers/views)
-- [ ] Respeta todas las reglas de negocio de DOMAIN_SPEC.md
+- [ ] Respeta todas las reglas de negocio de FLUJOS.md
 - [ ] Sigue el diseño de UI_DESIGN_SPEC.md
 - [ ] Usa HAML para vistas
 - [ ] Usa TailwindCSS para estilos

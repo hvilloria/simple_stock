@@ -21,14 +21,37 @@ module Inventory
     end
 
     def call
-      raise ArgumentError, "quantity cannot be 0" if @quantity.zero?
-
-      new_stock = @product.current_stock + @quantity
-      if new_stock.negative?
-        raise ArgumentError, "Not enough stock to perform this operation"
+      validate_params
+      
+      ActiveRecord::Base.transaction do
+        create_stock_movement
+        update_product_stock
+        
+        Result.new(success?: true, record: @stock_movement, errors: [])
       end
+    rescue ValidationError => e
+      Result.new(success?: false, record: nil, errors: [e.message])
+    rescue StandardError => e
+      Rails.logger.error("Error in Inventory::AdjustStock: #{e.message}")
+      Result.new(success?: false, record: nil, errors: ['Error adjusting stock'])
+    end
 
-      StockMovement.create!(
+    private
+
+    class ValidationError < StandardError; end
+
+    def validate_params
+      raise ValidationError, "Quantity cannot be zero" if @quantity.zero?
+
+      # Validate that resulting stock won't be negative
+      projected_stock = @product.current_stock + @quantity
+      if projected_stock.negative?
+        raise ValidationError, "Insufficient stock to perform this operation"
+      end
+    end
+
+    def create_stock_movement
+      @stock_movement = StockMovement.create!(
         product:        @product,
         stock_location: @stock_location,
         quantity:       @quantity,
@@ -36,10 +59,11 @@ module Inventory
         reference:      @reference,
         note:           @note
       )
+    end
 
-      @product.update!(current_stock: new_stock)
-
-      @product
+    def update_product_stock
+      # Recalcular stock desde stock_movements en lugar de editar manualmente
+      @product.recalculate_current_stock!
     end
   end
 end

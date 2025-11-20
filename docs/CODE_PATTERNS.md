@@ -103,18 +103,21 @@ class Product < ApplicationRecord
 
   # Scopes útiles
   scope :active, -> { where(status: 'active') }
-  scope :with_low_stock, -> { where('stock_level < ?', 5) }
-  scope :search, ->(query) { 
+  scope :with_low_stock, -> { where('current_stock < ?', 5) }
+  scope :search, ->(query) {
     where('code ILIKE ? OR name ILIKE ?', "%#{query}%", "%#{query}%") if query.present?
   }
 
-  # Cálculo de stock (NUNCA editar directamente)
-  def current_stock
-    stock_movements.sum(:quantity)
+  # Stock cacheado:
+  # - current_stock es una columna en products
+  # - SOLO se debe modificar desde services de inventario
+  # - NUNCA desde controllers o vistas
+  def recalculate_current_stock!
+    update!(current_stock: stock_movements.sum(:quantity))
   end
 
   def low_stock?
-    current_stock < 5
+    current_stock.to_i < 5
   end
 end
 ```
@@ -449,21 +452,16 @@ end
 ### ❌ NO: Editar stock directamente
 
 ```ruby
-# MAL - NUNCA hacer esto
-product.update(stock: 50)
-```
+# MAL - NUNCA hacer esto desde un controller / vista / helper
+product.update(current_stock: 50)
 
-### ✅ SÍ: Crear movimiento de stock
-
-```ruby
-# BIEN
-StockMovement.create!(
+# BIEN - Siempre usar un service dedicado de inventario
+result = Inventory::AdjustStock.new(
   product: product,
-  quantity: 50,
-  movement_type: 'purchase',
-  reference: purchase,
-  created_by: current_user
-)
+  quantity_diff: 10,
+  reason: "Reconteo físico",
+  user: current_user
+).call
 ```
 
 ### ❌ NO: Lógica de negocio en controller
@@ -605,15 +603,13 @@ end
 - ✅ Usar transacciones en services
 - ✅ Devolver Result desde services
 - ✅ Controllers delgados
-- ✅ Stock por movimientos (nunca directo)
+- ✅ Manejar stock SIEMPRE a través de StockMovement y/o services de inventario
 
 ### Nunca Hacer:
 - ❌ Lógica de negocio en controllers
 - ❌ Lógica de negocio en vistas
-- ❌ Editar stock directamente en Product
-- ❌ Queries en vistas
-- ❌ Olvidar validar stock disponible
-- ❌ Olvidar transacciones en operaciones multi-modelo
+- ❌ Editar `current_stock` directamente desde controllers, helpers o vistas
+- ❌ Crear/actualizar StockMovement "a mano" fuera de los services de inventario
 
 ---
 

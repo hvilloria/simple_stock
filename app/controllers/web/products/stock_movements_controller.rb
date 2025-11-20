@@ -8,25 +8,30 @@ module Web
           @movement_type = params[:movement_type] || "purchase"
         end
 
-        def create
-          quantity = movement_quantity_param
+      def create
+        quantity = movement_quantity_param
 
-          Inventory::AdjustStock.call(
-            product:        @product,
-            stock_location: @stock_location,
-            movement_type:  movement_type_param.to_sym,
-            quantity:       quantity,
-            reference:      params[:reference],
-            note:           params[:note]
-          )
+        result = Inventory::AdjustStock.call(
+          product:        @product,
+          stock_location: @stock_location,
+          movement_type:  movement_type_param.to_sym,
+          quantity:       quantity,
+          reference:      params[:reference],
+          note:           params[:note]
+        )
 
+        if result.success?
           redirect_to web_products_path, notice: "Stock updated successfully."
-        rescue StandardError => e
-
-            flash.now[:alert] = "Could not update stock: #{e.message}"
+        else
+          flash.now[:alert] = result.errors.join(", ")
           @movement_type = movement_type_param
           render :new, status: :unprocessable_entity
         end
+      rescue ArgumentError => e
+        flash.now[:alert] = "Could not update stock: #{e.message}"
+        @movement_type = movement_type_param
+        render :new, status: :unprocessable_entity
+      end
 
         private
 

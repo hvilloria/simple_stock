@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_16_194812) do
+ActiveRecord::Schema[7.2].define(version: 2025_11_20_024354) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -20,6 +20,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_16_194812) do
     t.string "phone"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "has_credit_account", default: false, null: false
+    t.string "customer_type", default: "retail", null: false
     t.index ["document"], name: "index_customers_on_document"
   end
 
@@ -40,7 +42,9 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_16_194812) do
     t.bigint "customer_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "order_type", default: "cash", null: false
     t.index ["customer_id"], name: "index_orders_on_customer_id"
+    t.index ["order_type"], name: "index_orders_on_order_type"
     t.index ["status"], name: "index_orders_on_status"
   end
 

@@ -1,0 +1,60 @@
+# simple_stock - Sistema de Gestión de Repuestos (Gente del Sol)
+
+## DOCUMENTACIÓN DEL PROYECTO
+
+Este proyecto debe seguir ESTRICTAMENTE los siguientes documentos que están en la raíz del proyecto:
+
+1. **FLUJOS.md** - Flujos de negocio obligatorios del sistema
+2. **CODE_PATTERNS.md** - Patrones de código que DEBEN seguirse
+3. **DEVELOPMENT_GUIDE.md** - Guía de desarrollo Rails
+4. **UI_DESIGN_SPEC.md** - Especificación de diseño UI/UX
+
+## REGLAS CRÍTICAS
+
+### Stock Management (NUNCA VIOLAR)
+- ❌ PROHIBIDO: Editar stock directamente en Product (product.stock = X)
+- ✅ OBLIGATORIO: Todo cambio de stock debe hacerse vía StockMovement
+- El stock se CALCULA siempre: `stock_movements.sum(:quantity)`
+
+### Services Pattern (SIEMPRE USAR)
+- Todo service DEBE devolver Result struct
+- Structure: Result.new(success?: bool, record: object, errors: array)
+- NO lanzar excepciones al controller, capturarlas y devolver Result
+- Usar transacciones para operaciones multi-modelo
+
+### Controllers (THIN CONTROLLERS)
+- Controllers solo llaman services y manejan respuestas
+- CERO lógica de negocio en controllers
+- Pattern:
+```ruby
+  result = Service.new(**params).call
+  if result.success?
+    redirect_to result.record
+  else
+    flash.now[:alert] = result.errors.join(", ")
+    render :new
+  end
+```
+
+### Testing (OBLIGATORIO)
+- Generar tests junto con cada feature
+- RSpec para models y services
+- FactoryBot para fixtures
+
+### Idioma
+- Código en inglés
+- Mensajes de usuario en ingles
+- Mensajes de inputs en español para facilitar uso de los usuarios
+- Comentarios en español cuando sean necesarios
+
+## ANTES DE ESCRIBIR CÓDIGO
+1. Lee el documento relevante (FLUJOS.md, code-patterns.md, etc.)
+2. Verifica que sigues el patrón establecido
+3. Si no estás seguro, pregunta
+
+## CONSULTA LOS DOCS
+Cuando trabajes en una feature, SIEMPRE referencia primero:
+- Para flujos de negocio → FLUJOS.md
+- Para patrones de código → code-patterns.md  
+- Para UI/UX → sistema-repuestos-design.md
+- Para guidelines Rails → development-guide-rails.md
