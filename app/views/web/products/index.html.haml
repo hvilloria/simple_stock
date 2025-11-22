@@ -1,25 +1,98 @@
-%h1 Productos
+- content_for :page_title, "Productos"
 
-- if @products.any?
-  %table
-    %thead
+-# Header con botón de acción principal
+.flex.items-center.justify-between.mb-6
+  %div
+    %h2.text-2xl.font-bold.text-slate-900 Productos
+    %p.text-sm.text-slate-600.mt-1 Gestiona tu inventario de repuestos
+  
+  = link_to new_web_product_path, class: "btn-primary" do
+    %span +
+    %span Nuevo Producto
+
+-# Filtros
+.bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
+  .flex.flex-col.md:flex-row.gap-3
+    -# Búsqueda
+    .flex-1
+      %input.w-full.px-4.py-2.text-sm.border.border-slate-300.rounded-lg.focus:outline-none.focus:ring-2.focus:ring-slate-500.focus:border-transparent{type: "text", placeholder: "Buscar por SKU, nombre o marca...", name: "q"}
+    
+    -# Filtro categoría
+    %select.px-3.py-2.text-sm.border.border-slate-300.rounded-lg.focus:outline-none.focus:ring-2.focus:ring-slate-500{name: "category"}
+      %option{value: ""} Todas las categorías
+      %option{value: "motor"} Motor
+      %option{value: "frenos"} Frenos
+      %option{value: "suspension"} Suspensión
+    
+    -# Filtro estado
+    %select.px-3.py-2.text-sm.border.border-slate-300.rounded-lg.focus:outline-none.focus:ring-2.focus:ring-slate-500{name: "status"}
+      %option{value: ""} Todos los estados
+      %option{value: "active"} Activo
+      %option{value: "inactive"} Inactivo
+
+-# Tabla
+.bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+  %table.min-w-full.divide-y.divide-slate-200
+    %thead.bg-slate-50
       %tr
-        %th SKU
-        %th Nombre
-        %th Categoría
-        %th Stock actual
-        %th Activo
-        %th Acciones
-    %tbody
-      - @products.each do |product|
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+          CÓDIGO
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+          NOMBRE
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+          CATEGORÍA
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+          STOCK
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+          ESTADO
+        %th.w-20.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
+          ACCIONES
+    
+    %tbody.divide-y.divide-slate-100.bg-white
+      - if @products.any?
+        - @products.each do |product|
+          %tr.hover:bg-slate-50.transition-colors
+            -# Código
+            %td.px-4.py-3.whitespace-nowrap
+              = link_to product.sku, web_product_path(product), class: "font-mono text-sm font-semibold text-slate-900 hover:text-slate-700 hover:underline"
+            
+            -# Nombre
+            %td.px-4.py-3
+              = link_to product.name, web_product_path(product), class: "text-sm text-slate-900 hover:text-slate-700 font-medium hover:underline"
+            
+            -# Categoría
+            %td.px-4.py-3.whitespace-nowrap
+              %span.text-sm.text-slate-600= product.category
+            
+            -# Stock
+            %td.px-4.py-3.whitespace-nowrap
+              - if product.current_stock > 10
+                %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
+                  %span.w-1.5.h-1.5.rounded-full.bg-emerald-500
+                  = product.current_stock
+              - elsif product.current_stock > 0
+                %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-800
+                  %span.w-1.5.h-1.5.rounded-full.bg-amber-500
+                  = product.current_stock
+              - else
+                %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-red-100.text-red-800
+                  %span.w-1.5.h-1.5.rounded-full.bg-red-500
+                  = "0"
+            
+            -# Estado
+            %td.px-4.py-3.whitespace-nowrap
+              - if product.active?
+                %span.badge-success Activo
+              - else
+                %span.badge-neutral Inactivo
+            
+            -# Acciones
+            %td.px-4.py-3.text-right
+              .flex.items-center.justify-end.gap-1
+                = link_to new_web_product_stock_movement_path(product), class: "text-sm text-slate-600 hover:text-slate-900 px-2 py-1 hover:bg-slate-100 rounded transition-colors" do
+                  Ajustar stock
+                %button.btn-icon{type: "button"}
+                  ⋮
+      - else
         %tr
-          %td= product.sku
-          %td= product.name
-          %td= product.category
-          %td= Inventory::CalculateStockLevel.call(product: product)
-          %td= product.active? ? "Sí" : "No"
-          %td
-            = link_to "Ajustar stock",
-                      new_web_product_stock_movement_path(product)
-- else
-  %p No hay productos cargados todavía.
+          %td.px-6.py-8.text-center.text-slate-500{colspan: 6} No hay productos cargados todavía.

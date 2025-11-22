@@ -12,13 +12,16 @@ Rails.application.routes.draw do
   namespace :web do
     get "dashboard", to: "dashboard#index"
 
-    resources :products, only: [ :index ] do
+    resources :products, only: [ :index, :show, :new, :create, :edit, :update ] do
       resources :stock_movements, only: [ :new, :create ], module: :products
     end
 
     resources :orders, only: [ :index, :new, :create ] do
       post :cancel, on: :member
     end
+
+    resources :customers, only: [ :index ]
+    resources :purchases, only: [ :index ]
   end
 
   root "web/dashboard#index"

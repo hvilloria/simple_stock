@@ -10,18 +10,50 @@
 * Se vende en **pesos argentinos (ARS)**.
 * La mayoría de las compras de mercadería se hacen en **USD**, tomando un tipo de cambio manual.
 * No se maneja número de chasis / VIN en V1.
-* Hay dos tipos de “cliente”:
+* Hay dos tipos de "cliente":
 
   * **Cliente Mostrador** (genérico, para consumidores finales).
   * **Clientes con cuenta corriente** (talleres, mecánicos, tiendas, empresas).
 * No se modela contabilidad completa ni gastos generales en el sistema (eso va por fuera).
 * El costo de courier / flete **no se incluye** en el costo del producto en V1.
 
+### 0.1. Tipos de productos
+
+El negocio maneja dos tipos de productos:
+
+* **Productos OEM (Original Equipment Manufacturer)**:
+  * Repuestos de la marca original del vehículo (ej: Honda, Toyota, etc.)
+  * Son los productos "originales" o de fábrica
+  * Generalmente más caros pero con garantía de calidad original
+
+* **Productos Aftermarket (Alternativos)**:
+  * Repuestos compatibles fabricados por otras marcas (ej: TRW, Bosch, etc.)
+  * Son alternativas más económicas o de diferentes calidades
+  * Los clientes suelen preguntar por el **origen/país de fabricación**:
+    * Japón (premium, mayor calidad)
+    * Taiwan (calidad intermedia)
+    * China (económico)
+    * USA, Alemania, Corea, Brasil, etc.
+
+**Ejemplo de venta típica:**
+1. Cliente pregunta por pastillas de freno para Honda Fit 2015
+2. Alfredo ofrece:
+   - Opción 1: Pastillas Honda originales (OEM) - $15,000
+   - Opción 2: Pastillas TRW fabricadas en Japón - $12,000
+   - Opción 3: Pastillas TRW fabricadas en China - $8,000
+3. Cliente decide según su presupuesto y preferencia de calidad
+
+**Almacenamiento en el sistema:**
+- Cada variante es un producto distinto con su propio SKU
+- El sistema debe permitir identificar si es OEM o aftermarket
+- Para aftermarket, debe registrarse el país de origen
+- Un mismo código de producto puede tener múltiples versiones según origen
+
 ---
 
 ## 1. Venta de mostrador contado (cliente genérico)
 
-Flujo típico cuando viene alguien “suelo” a comprar al local.
+Flujo típico cuando viene alguien "suelo" a comprar al local.
 
 1. El vendedor (Alfredo u otro) determina el repuesto correcto usando su experiencia o sistemas externos.
 
@@ -30,11 +62,11 @@ Flujo típico cuando viene alguien “suelo” a comprar al local.
 
    * Se crea una **nueva venta**.
    * Cliente = `Cliente Mostrador` (cliente genérico).
-   * Tipo de venta = `contado`.
-   * Canal (opcional): `mostrador`, `whatsapp`, `mercado_libre_manual`, etc.
+   * Tipo de venta = `cash` (contado).
+   * Canal (opcional): `counter`, `whatsapp`, `mercadolibre`, etc.
    * Se agregan los ítems:
 
-     * producto,
+     * producto (puede ser OEM o aftermarket),
      * cantidad,
      * precio unitario en ARS (normalmente tomado del precio del producto).
 3. El sistema:
@@ -50,7 +82,7 @@ Flujo típico cuando viene alguien “suelo” a comprar al local.
 
    * Se **anula** la venta:
 
-     * estado de la venta pasa a `anulada`,
+     * estado de la venta pasa a `cancelled`,
      * se generan movimientos de stock inversos (el stock vuelve).
    * Se crea una **nueva venta** con los datos correctos.
 
@@ -65,18 +97,19 @@ Flujo cuando se vende a crédito a un cliente que tiene cuenta corriente.
 1. El cliente ya existe registrado como:
 
    * taller, mecánico, empresa, u otra tienda,
-   * con flag de que maneja **cuenta corriente**.
+   * con flag de que maneja **cuenta corriente** (`has_credit_account = true`).
 2. El cliente encarga repuestos (en persona, por teléfono, WhatsApp, etc.).
 3. En el sistema:
 
    * Se crea una **nueva venta**.
    * Cliente = cliente real (taller/mecánico/tienda).
-   * Tipo de venta = `cuenta_corriente`.
-   * Canal: `mostrador`, `whatsapp`, etc.
+   * Tipo de venta = `credit` (cuenta corriente).
+   * Canal: `counter`, `whatsapp`, etc.
    * Se agregan ítems con producto, cantidad, precio unitario.
 4. El sistema:
 
    * Valida stock disponible.
+   * Valida que el customer tenga `has_credit_account = true`.
    * Calcula el total.
 5. Al **confirmar**:
 
@@ -87,17 +120,20 @@ Flujo cuando se vende a crédito a un cliente que tiene cuenta corriente.
 Cálculo de saldo del cliente:
 
 ```text
-saldo = SUM(ventas_a_credito_no_anuladas.total) - SUM(pagos.amount)
+saldo = SUM(ventas_a_credito_no_canceladas.total) - SUM(pagos.amount)
 ```
 
 6. Si la venta fue mal cargada (precio, cantidad, producto):
 
-   * Se **anula** la venta original.
+   * Se **anula** la venta original (status = `cancelled`).
    * Se crean movimientos de stock inversos que devuelven el stock.
    * Se registra una nueva venta con los datos correctos.
 
-> Importante: los pagos no se ligan a una venta específica, sino al cliente en general.
-> Al anular una venta, el saldo se recalcula automáticamente con la fórmula global.
+> **Importante:** 
+> - Un mismo cliente puede tener ventas `cash` (contado) Y ventas `credit` (a crédito)
+> - Solo las ventas tipo `credit` entran en el cálculo de saldo
+> - Los pagos no se ligan a una venta específica, sino al cliente en general
+> - Al anular una venta, el saldo se recalcula automáticamente con la fórmula global
 
 ---
 
@@ -124,10 +160,10 @@ Flujo cuando un cliente de cuenta corriente viene a pagar algo de su deuda.
    * Recalcula el saldo del cliente con la fórmula:
 
      ```text
-     saldo = SUM(ventas_a_credito_no_anuladas.total) - SUM(payments.amount)
+     saldo = SUM(ventas_credit_no_canceladas.total) - SUM(payments.amount)
      ```
 
-4. No se hace “matching” del pago contra una venta específica en V1:
+4. No se hace "matching" del pago contra una venta específica en V1:
 
    * es un modelo global de saldo (estado de cuenta).
 
@@ -152,26 +188,34 @@ Flujo cuando llega mercadería importada (por ejemplo desde USA, China, Taiwán,
 
      * proveedor (texto libre o listado),
      * fecha de la compra,
-     * moneda = `USD`,
-     * tipo de cambio usado para esta compra (ej: 1 USD = 1200 ARS).
+     * moneda = `USD` o `ARS`,
+     * tipo de cambio usado para esta compra si es USD (ej: 1 USD = 1200 ARS).
    * Se agregan ítems:
 
-     * producto,
+     * producto (debe existir previamente con su SKU, origin, product_type),
      * cantidad,
-     * costo unitario en USD.
+     * costo unitario en la moneda especificada (USD o ARS).
 3. El sistema:
 
-   * Calcula para cada ítem:
-
-     * `costo_unitario_ars = costo_unitario_usd * tipo_cambio`.
-   * Puede actualizar el costo promedio en ARS del producto (dependiendo de cómo se implemente la lógica de costos).
+   * Si la compra es en USD:
+     * Calcula para cada ítem: `costo_unitario_ars = costo_unitario_usd * tipo_cambio`.
+     * Guarda en el producto: `cost_unit` en la moneda original y `cost_currency` ('USD' o 'ARS').
+   * Si la compra es en ARS:
+     * Guarda directamente `cost_unit` en ARS y `cost_currency = 'ARS'`.
+   * Puede actualizar el costo promedio del producto (dependiendo de cómo se implemente la lógica de costos).
 4. Al **confirmar** la compra:
 
    * Se crean **movimientos de stock positivos** para cada producto (entra stock).
+   * Se actualiza el `cost_unit` y `cost_currency` del producto con el último costo de compra.
 5. El costo de courier, impuestos, flete y otros gastos logísticos:
 
    * **no se incluye** en el costo del producto dentro del sistema en V1.
    * Se asume que esos costos se manejan por fuera (Excel, contabilidad externa, etc.).
+
+**Nota sobre productos OEM vs Aftermarket:**
+- Los productos OEM y aftermarket con diferentes orígenes tienen SKUs distintos
+- Al hacer una compra, se selecciona el producto específico (ej: "Pastillas TRW - Japón" vs "Pastillas TRW - China")
+- El sistema no convierte automáticamente entre variantes; cada una es independiente
 
 ---
 
@@ -182,7 +226,7 @@ Flujo para corregir diferencias entre el stock del sistema y el stock real en el
 1. Se realiza un reconteo físico de ciertos productos (o de todo el depósito).
 2. Para cada producto con diferencia:
 
-   * Se compara el stock “esperado” (según el sistema) con el stock real contado.
+   * Se compara el stock "esperado" (según el sistema) con el stock real contado.
 3. En el sistema:
 
    * Se crea un **ajuste de stock**:
@@ -201,7 +245,7 @@ Flujo para corregir diferencias entre el stock del sistema y el stock real en el
 
    * el stock del producto vuelve a reflejar la realidad física.
 
-> Los ajustes de stock son explícitos, no se modifican números “a mano” en el producto.
+> Los ajustes de stock son explícitos, no se modifican números "a mano" en el producto.
 > Siempre se ve el historial de por qué el stock cambió.
 
 ---
@@ -218,28 +262,28 @@ Flujo para deshacer una venta completa por error o devolución total.
 2. En el sistema:
 
    * Se abre la venta.
-   * Se usa la acción **“Anular venta”** (o equivalente).
+   * Se usa la acción **"Anular venta"** (o equivalente).
 
 3. El sistema:
 
-   * Cambia el estado de la venta a `anulada`.
+   * Cambia el estado de la venta a `cancelled`.
    * Genera movimientos de stock inversos a los originales:
 
      * por cada ítem vendido, se crea un movimiento con la cantidad opuesta (vuelve al stock).
 
 4. Impacto en saldo:
 
-   * Si es venta de **contado**:
+   * Si es venta de **cash** (contado):
 
      * no afecta saldo porque esa venta nunca entró al saldo.
      * el efecto es solo en stock e historial.
-   * Si es venta de **cuenta_corriente**:
+   * Si es venta de **credit** (cuenta corriente):
 
      * la venta deja de contarse en la suma de ventas a crédito.
      * el saldo del cliente se recalcula automáticamente:
 
        ```text
-       saldo = SUM(ventas_a_credito_no_anuladas.total) - SUM(payments.amount)
+       saldo = SUM(ventas_credit_no_canceladas.total) - SUM(payments.amount)
        ```
 
 5. Correcciones parciales:
@@ -269,15 +313,98 @@ Flujo para subir precios cuando sube el dólar o cambian los costos.
    * Muestra un resumen antes de aplicar.
 4. Al confirmar:
 
-   * Actualiza los precios de venta de los productos.
-5. El costo histórico no se modifica; solo el **precio de venta**.
+   * Actualiza los `price_unit` de los productos seleccionados.
+5. El costo histórico (`cost_unit`) no se modifica; solo el **precio de venta** (`price_unit`).
 
-> Este flujo puede ser simple en V1 (por ejemplo, un campo “nuevo multiplicador” + botón “aplicar”),
+> Este flujo puede ser simple en V1 (por ejemplo, un campo "nuevo multiplicador" + botón "aplicar"),
 > y evolucionar a algo más detallado más adelante.
 
 ---
 
-Si quieres, el siguiente paso puede ser:
+## 8. Gestión de productos OEM vs Aftermarket
 
-* tomar este documento y yo te lo convierto en un esqueleto más tipo `DOMAIN_SPEC.md` completo (agregando una pequeña sección de entidades arriba),
-  o lo dejamos así tal cual como “Flujos V1” y le sumamos solo una mini intro para Claude tipo: “Este documento describe cómo debe comportarse el sistema a nivel negocio. No hables de Rails, solo respeta estos flujos”.
+### 8.1. Creación de productos
+
+Al crear un nuevo producto en el sistema:
+
+1. Se debe especificar:
+   * SKU único
+   * Nombre descriptivo
+   * Marca (ej: Honda, TRW, Bosch)
+   * Categoría (frenos, motor, suspensión, etc.)
+   * Precio de venta (`price_unit`)
+   * Costo (`cost_unit` y `cost_currency`: USD o ARS)
+   * **Tipo de producto**: OEM o aftermarket
+   * **Origen** (opcional para OEM, importante para aftermarket): japan, china, taiwan, usa, germany, korea, brazil
+
+2. Ejemplos de productos:
+
+   **Producto OEM:**
+   ```
+   SKU: HDC001-OEM
+   Nombre: Disco de Freno Delantero Honda Fit 2015-2020
+   Marca: Honda
+   Tipo: OEM
+   Origen: japan
+   Precio: $15,000
+   Costo: $80 USD
+   ```
+
+   **Productos Aftermarket (diferentes orígenes):**
+   ```
+   SKU: TRW-DF-FIT-JP
+   Nombre: Disco de Freno Delantero Fit (TRW - Japón)
+   Marca: TRW
+   Tipo: aftermarket
+   Origen: japan
+   Precio: $12,000
+   Costo: $60 USD
+   
+   SKU: TRW-DF-FIT-CN
+   Nombre: Disco de Freno Delantero Fit (TRW - China)
+   Marca: TRW
+   Tipo: aftermarket
+   Origen: china
+   Precio: $8,000
+   Costo: $35 USD
+   ```
+
+### 8.2. Búsqueda y selección durante la venta
+
+1. Alfredo busca el producto por nombre, código o compatibilidad
+2. El sistema muestra todas las variantes disponibles:
+   - Original (OEM) si existe
+   - Alternativos con sus respectivos orígenes
+3. Se muestra claramente el origen en la lista de resultados
+4. Alfredo selecciona el producto específico que el cliente eligió
+5. La venta registra exactamente qué variante se vendió
+
+---
+
+## Apéndice: Campos del modelo Product
+
+Para referencia técnica, los productos tienen los siguientes campos clave:
+
+* `sku` - Código único del producto (string, unique)
+* `name` - Nombre descriptivo (string)
+* `category` - Categoría (string): frenos, motor, suspension, transmision, electrico, carroceria, filtros, lubricantes
+* `cost_unit` - Costo promedio ponderado de todas las compras confirmadas (decimal)
+  * Se recalcula automáticamente al confirmar/anular compras
+  * Usado para calcular márgenes y rentabilidad
+  * NO es el "último costo" sino el promedio ponderado histórico
+* `cost_currency` - Moneda del costo promedio (string): 'USD' o 'ARS' (típicamente 'USD')
+* `price_unit` - Precio de venta en ARS (decimal)
+* `current_stock` - Stock actual (integer, campo cacheado)
+* `active` - Producto activo (boolean)
+* `origin` - País de origen (string): japan, china, taiwan, usa, germany, korea, brazil, etc.
+* `product_type` - Tipo de producto (string): 'oem' o 'aftermarket'
+* `brand` - Marca del producto (string)
+
+**Notas importantes:**
+- `current_stock` es un campo cacheado que se actualiza automáticamente via callbacks de StockMovement
+- `cost_unit` es el costo promedio ponderado de todas las compras confirmadas
+  * Ejemplo: Compra 1 (5 unidades @ $10 USD) + Compra 2 (5 unidades @ $20 USD) = Costo promedio $15 USD
+  * Se recalcula automáticamente cuando se confirma o anula una compra
+  * Para calcular el promedio, todas las compras se convierten a USD para uniformidad
+- Para calcular margen, si el costo es en USD, debe convertirse a ARS usando el tipo de cambio actual
+- `origin` y `product_type` son opcionales pero recomendados para mejor gestión del inventario

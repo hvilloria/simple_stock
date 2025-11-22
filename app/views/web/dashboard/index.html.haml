@@ -1,2 +1,120 @@
-%h1 SimpleStock
-%p Dashboard inicial.
+- content_for :page_title, "Dashboard"
+
+-# Header con saludo y acción principal
+.flex.items-center.justify-between.mb-6
+  %div
+    %h2.text-2xl.font-bold.text-slate-900 ¡Hola, Alfredo!
+    %p.text-sm.text-slate-600.mt-1 Resumen de hoy
+
+  = link_to new_web_order_path, class: "btn-primary" do
+    %span +
+    %span Nueva Venta
+
+-# Grid de métricas (estilo Stampede - minimalista)
+.grid.grid-cols-1.md:grid-cols-2.lg:grid-cols-4.gap-6.mb-6
+  
+  -# Ventas de Hoy
+  .bg-white.border.border-slate-200.rounded-lg.p-6
+    .flex.items-start.justify-between.mb-4
+      .flex-1
+        %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Ventas de Hoy
+        %h3.text-3xl.font-bold.text-slate-900= number_to_currency(@sales_today, precision: 0)
+      .w-10.h-10.bg-slate-100.rounded-lg.flex.items-center.justify-center.text-xl
+        💰
+    .flex.items-center.gap-2.text-sm
+      %span.text-slate-500 Solo confirmadas
+  
+  -# Stock Bajo
+  .bg-white.border.border-slate-200.rounded-lg.p-6
+    .flex.items-start.justify-between.mb-4
+      .flex-1
+        %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Stock Bajo
+        %h3.text-3xl.font-bold.text-slate-900= @low_stock_count
+      .w-10.h-10.bg-amber-100.rounded-lg.flex.items-center.justify-center.text-xl
+        ⚠️
+    .flex.items-center.gap-2.text-sm
+      - if @low_stock_count > 0
+        %span.text-amber-600 ⚠
+        %span.text-amber-600.font-medium Requiere atención
+      - else
+        %span.text-emerald-600 ✓
+        %span.text-emerald-600.font-medium Todo bien
+  
+  -# Cuentas por Cobrar
+  .bg-white.border.border-slate-200.rounded-lg.p-6
+    .flex.items-start.justify-between.mb-4
+      .flex-1
+        %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Por Cobrar
+        %h3.text-3xl.font-bold.text-slate-900= number_to_currency(@total_receivable, precision: 0)
+      .w-10.h-10.bg-blue-100.rounded-lg.flex.items-center.justify-center.text-xl
+        📋
+    .flex.items-center.gap-2.text-sm
+      - customers_count = Customer.with_credit_account.count
+      %span.text-slate-500= "#{customers_count} #{'cliente'.pluralize(customers_count)}"
+  
+  -# Compras del Mes
+  .bg-white.border.border-slate-200.rounded-lg.p-6
+    .flex.items-start.justify-between.mb-4
+      .flex-1
+        %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Compras del Mes
+        %h3.text-3xl.font-bold.text-slate-900= number_to_currency(@purchases_this_month, precision: 0)
+      .w-10.h-10.bg-slate-100.rounded-lg.flex.items-center.justify-center.text-xl
+        📥
+    .flex.items-center.gap-2.text-sm
+      %span.text-slate-500 Mes actual
+
+-# Grid de contenido secundario
+.grid.grid-cols-1.lg:grid-cols-2.gap-6
+  -# Ventas recientes
+  .bg-white.border.border-slate-200.rounded-lg
+    .px-6.py-4.border-b.border-slate-200
+      .flex.items-center.justify-between
+        %h3.text-base.font-semibold.text-slate-900 Ventas Recientes
+        = link_to "Ver todas →", web_orders_path, class: "text-sm text-slate-600 hover:text-slate-900"
+    .divide-y.divide-slate-100
+      - if @recent_orders.any?
+        - @recent_orders.each do |order|
+          .px-6.py-4.hover:bg-slate-50.transition-colors
+            .flex.items-center.justify-between
+              .flex-1
+                .flex.items-center.gap-3.mb-1
+                  %span.text-xs.font-mono.text-slate-500= "##{order.id}"
+                  - if order.cash_order_type?
+                    %span.inline-flex.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700 Contado
+                  - else
+                    %span.inline-flex.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-700 Crédito
+                %p.text-sm.font-medium.text-slate-900= order.customer&.name || "Sin cliente"
+                %p.text-xs.text-slate-500= time_ago_in_words(order.created_at)
+              .text-right
+                %p.text-base.font-semibold.text-slate-900= number_to_currency(order.total_amount, precision: 0)
+      - else
+        .px-6.py-8.text-center
+          %p.text-sm.text-slate-500 No hay ventas recientes
+  
+  -# Productos con stock crítico
+  .bg-white.border.border-slate-200.rounded-lg
+    .px-6.py-4.border-b.border-slate-200
+      .flex.items-center.justify-between
+        %h3.text-base.font-semibold.text-slate-900 Stock Crítico
+        = link_to "Ver todos →", web_products_path(low_stock: true), class: "text-sm text-slate-600 hover:text-slate-900"
+    .divide-y.divide-slate-100
+      - if @low_stock_products.any?
+        - @low_stock_products.each do |product|
+          .px-6.py-4.hover:bg-slate-50.transition-colors
+            .flex.items-center.justify-between
+              .flex-1
+                %p.text-sm.font-medium.text-slate-900.mb-1= product.name
+                %p.text-xs.text-slate-500= product.sku
+              .text-right
+                - if product.current_stock == 0
+                  %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-red-100.text-red-800
+                    ✕
+                    Sin stock
+                - else
+                  %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-800
+                    ⚠
+                    = "#{product.current_stock} #{'unidad'.pluralize(product.current_stock)}"
+      - else
+        .px-6.py-8.text-center
+          .text-3xl.mb-2 ✓
+          %p.text-sm.text-slate-500 Todo el stock está en niveles normales

@@ -1,0 +1,42 @@
+%aside.w-64.bg-white.border-r.border-slate-200.flex.flex-col.h-screen.fixed.left-0.top-0
+  -# Logo
+  .flex.items-center.justify-between.px-6.py-4.border-b.border-slate-200
+    = link_to root_path, class: "flex items-center gap-3" do
+      -# Logo con fondo rojo (único uso del color corporativo)
+      .w-10.h-10.rounded-lg.bg-brand.flex.items-center.justify-center.shadow-sm
+        %span.font-bold.text-lg.text-white GS
+      
+      %div
+        %h1.font-bold.text-base.text-slate-900 Gente del Sol
+        %p.text-xs.text-slate-500 Sistema de Gestión
+  
+  -# Navegación
+  %nav.flex-1.px-3.py-4.space-y-1
+    = link_to web_dashboard_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'dashboard' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 📊
+      %span Dashboard
+    
+    = link_to web_products_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'products' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 📦
+      %span Productos
+    
+    = link_to web_orders_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'orders' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 🛒
+      %span Ventas
+    
+    = link_to web_customers_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'customers' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 👥
+      %span Clientes
+    
+    = link_to web_purchases_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'purchases' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 📥
+      %span Compras
+  
+  -# Usuario
+  .px-3.py-4.border-t.border-slate-200
+    .flex.items-center.gap-3.px-3.py-2
+      .w-8.h-8.rounded-full.bg-slate-200.flex.items-center.justify-center.text-slate-700.text-sm.font-semibold
+        A
+      .flex-1.min-w-0
+        %p.text-sm.font-medium.text-slate-900.truncate Alfredo
+        %p.text-xs.text-slate-500 Admin

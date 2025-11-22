@@ -1,0 +1,450 @@
+# PROMPT DE CONTEXTO - Sistema de Gestión Gente del Sol
+
+---
+
+## 📋 INSTRUCCIONES DE USO
+
+**Copiar este prompt completo al iniciar una nueva conversación, junto con los siguientes archivos:**
+
+1. `FLUJOS.md` - Reglas de negocio y flujos funcionales
+2. `DEVELOPMENT_GUIDE.md` - Arquitectura y guía de desarrollo
+3. `CODE_PATTERNS.md` - Patrones de código y ejemplos
+4. `UI_DESIGN_SPEC.md` - Especificación de diseño UI/UX
+5. Archivos adicionales según necesidad (modelos, services, controllers, etc.)
+
+---
+
+## 🎯 CONTEXTO DEL PROYECTO
+
+Estoy desarrollando un **sistema de gestión de inventario y ventas** para **Gente del Sol**, un negocio de venta de repuestos de autos Honda en Buenos Aires, Argentina, con 35+ años de trayectoria.
+
+### Información del Negocio
+- **Nombre:** Gente del Sol
+- **Ubicación:** Av. Warnes 620, CABA, Buenos Aires, Argentina
+- **Especialidad:** Repuestos Honda originales (OEM) y alternativos (Aftermarket)
+- **Tipo:** Un solo local físico (no es cadena)
+- **Usuario principal:** Alfredo (dueño/vendedor)
+
+---
+
+## 🛠️ STACK TÉCNICO
+
+- **Backend:** Ruby on Rails 7+
+- **Base de datos:** PostgreSQL
+- **Frontend:** Hotwire (Turbo + Stimulus)
+- **Vistas:** HAML (NO ERB)
+- **Estilos:** TailwindCSS (tailwindcss-rails gem)
+- **Arquitectura:** Service-Oriented (thin controllers, lógica en services)
+- **Testing:** RSpec
+
+---
+
+## 📐 ARQUITECTURA Y PRINCIPIOS
+
+### Estructura de Carpetas
+```
+app/
+  controllers/web/       # Namespace principal
+  models/               # Active Record models
+  services/             # Casos de uso (Sales, Purchasing, Inventory, Payments)
+  views/web/            # Vistas HAML
+  javascript/controllers/ # Stimulus controllers
+```
+
+### Principios Clave
+1. **Service-Oriented:** Lógica de negocio compleja en services, NO en controllers
+2. **Result Pattern:** Todos los services devuelven `Result.new(success?: bool, record: obj, errors: array)`
+3. **Stock por Movimientos:** NUNCA editar `current_stock` directamente, siempre via `StockMovement`
+4. **Thin Controllers:** Controllers solo reciben params, llaman services, y responden
+5. **Transacciones:** Operaciones complejas siempre dentro de `ActiveRecord::Base.transaction`
+
+---
+
+## 📊 MODELOS PRINCIPALES
+
+### Productos e Inventario
+- **Product:** SKU, nombre, precio, costo promedio ponderado, stock actual (cached), origen, tipo (OEM/aftermarket)
+- **StockMovement:** Movimientos de stock con reference polimórfico (Order, Purchase, o manual)
+- **StockLocation:** Ubicaciones físicas de almacenamiento
+
+### Ventas
+- **Order:** Ventas (cash o credit), con status (confirmed/cancelled)
+- **OrderItem:** Items de cada venta
+- **Customer:** Clientes (mostrador genérico + clientes con cuenta corriente)
+
+### Pagos
+- **Payment:** Pagos globales (no matched a ventas específicas)
+- Cálculo de saldo: `SUM(ventas_credit) - SUM(payments)`
+
+### Compras
+- **Purchase:** Compras en USD o ARS con tipo de cambio
+- **PurchaseItem:** Items de cada compra
+- **Supplier:** Proveedores
+
+---
+
+## 🎨 DISEÑO Y UI/UX
+
+### Filosofía de Diseño
+- **Estilo:** Limpio, minimalista, profesional (inspirado en dashboards modernos)
+- **Colores:** Predominantemente blanco/gris, con rojo corporativo (#DC3545) como acento principal
+- **Sin gradientes en:** Botones grandes, cards de contenido, backgrounds extensos
+- **Con gradientes solo en:** Íconos pequeños decorativos (opcional)
+
+### Paleta de Colores
+- **Primary (Rojo):** #DC3545 - Botones principales, acciones, alertas
+- **Success (Verde):** #10B981 - Estados positivos, confirmaciones
+- **Warning (Amarillo):** #F59E0B - Alertas, stock bajo
+- **Info (Azul):** #3B82F6 - Información neutral
+- **Grises:** gray-50 a gray-900 para interfaz base
+
+### Componentes Clave
+- **Metric Cards:** Fondo blanco, ícono con fondo de color claro, sin gradientes en la card
+- **Botones:** Primario rojo sólido, secundario outline, ghost para terciario
+- **Badges:** Colores sólidos semánticos (verde/amarillo/rojo)
+- **Inputs:** Border gris, focus ring rojo, rounded-xl
+- **Cards:** Fondo blanco, shadow-soft, hover:shadow-card
+
+### Layout
+- **Sidebar:** Fondo slate-900 (gris oscuro), fixed left
+- **Header:** Blanco con border-b, sticky top
+- **Main Content:** Fondo gray-50
+
+---
+
+## 🔑 REGLAS DE NEGOCIO CRÍTICAS
+
+### 1. Stock Management
+- ❌ **NUNCA:** `product.update(current_stock: X)`
+- ✅ **SIEMPRE:** Usar `Inventory::AdjustStock` service
+- Stock = suma de todos los `StockMovement`
+- Campo `current_stock` es cacheado, actualizado automáticamente via callbacks
+
+### 2. Costos de Productos
+- `cost_unit` = **costo promedio ponderado** de TODAS las compras confirmadas
+- Se recalcula automáticamente al confirmar/anular compras via `recalculate_average_cost!`
+- ❌ NO editar manualmente desde controllers/vistas
+- Todas las compras se convierten a USD para uniformidad en el cálculo
+
+### 3. Tipos de Venta
+- **Cash (contado):** No genera saldo, no crea Payment
+- **Credit (cuenta corriente):** Genera saldo, requiere cliente con `has_credit_account: true`
+
+### 4. Clientes
+- **Cliente Mostrador:** Genérico, para todas las ventas de contado
+- **Clientes registrados:** Con/sin cuenta corriente, para ventas a crédito
+
+### 5. Saldo de Cliente
+```ruby
+saldo = SUM(orders.credit.not_cancelled.total_amount) - SUM(payments.amount)
+```
+- Los pagos NO se matchean a ventas específicas (modelo global de saldo)
+
+### 6. Productos OEM vs Aftermarket
+- **OEM:** Repuestos originales de la marca del vehículo
+- **Aftermarket:** Repuestos compatibles de otras marcas
+- Cada variante (origen diferente) = SKU distinto
+- Clientes preguntan por origen: Japón (premium), Taiwan, China, USA, etc.
+
+### 7. Anulación de Ventas
+- Status = `cancelled`
+- Genera `StockMovement` inversos (devuelve stock)
+- El saldo se recalcula automáticamente (ventas canceladas no cuentan)
+- NO hay devoluciones parciales en V1
+
+---
+
+## 📝 CONVENCIONES DE CÓDIGO
+
+### Idioma
+- **Código (clases, métodos, variables):** Inglés
+- **Comentarios:** Inglés
+- **Tests:** Inglés
+- **Commits:** Inglés
+- **Textos visibles al usuario:** Español (voseo neutral argentino)
+
+### Nomenclatura
+```ruby
+# ✅ BIEN
+class Sales::CreateOrder
+  def validate_stock_availability
+    # ...
+  end
+end
+
+# ❌ MAL
+class Ventas::CrearOrden
+  def validar_disponibilidad_stock
+    # ...
+  end
+end
+```
+
+### Services Pattern
+```ruby
+module Sales
+  class CreateOrder
+    # Método de clase
+    def self.call(customer:, items:, order_type:, channel: nil)
+      new(customer:, items:, order_type:, channel:).call
+    end
+    
+    def initialize(customer:, items:, order_type:, channel: nil)
+      @customer = customer
+      @items = items
+      @order_type = order_type
+      @channel = channel
+    end
+    
+    def call
+      validate_params
+      
+      ActiveRecord::Base.transaction do
+        create_order
+        create_order_items
+        create_stock_movements
+        
+        Result.new(success?: true, record: @order, errors: [])
+      end
+    rescue ValidationError => e
+      Result.new(success?: false, record: nil, errors: [e.message])
+    rescue StandardError => e
+      Rails.logger.error("Error in #{self.class}: #{e.message}")
+      Result.new(success?: false, record: nil, errors: ["Error creating order"])
+    end
+    
+    private
+    
+    class ValidationError < StandardError; end
+    
+    def validate_params
+      # Validaciones...
+      raise ValidationError, "mensaje" if condicion_invalida
+    end
+  end
+end
+```
+
+### Controllers Pattern
+```ruby
+class OrdersController < ApplicationController
+  def create
+    result = Sales::CreateOrder.call(
+      customer: find_customer,
+      items: parse_items,
+      order_type: params[:order_type],
+      channel: params[:channel]
+    )
+    
+    if result.success?
+      redirect_to result.record, notice: "Venta creada exitosamente"
+    else
+      flash.now[:alert] = result.errors.join(", ")
+      render :new, status: :unprocessable_entity
+    end
+  end
+end
+```
+
+---
+
+## 🎯 ESTADO ACTUAL DEL PROYECTO
+
+### ✅ Backend Implementado
+- Modelos principales (Product, Order, Customer, Payment, Purchase, StockMovement)
+- Services principales (Sales::CreateOrder, Sales::CancelOrder, Inventory::AdjustStock)
+- Validaciones y lógica de negocio
+- Reference polimórfico para trazabilidad
+- Cálculo de costo promedio ponderado
+- Cálculo de saldo de clientes
+
+### 🚧 En Desarrollo
+- Vistas/Frontend (HAML + TailwindCSS)
+- Controllers completos
+- Stimulus controllers para interactividad
+- Dashboard con métricas
+
+### ❌ NO Implementado (Futuro)
+- Autenticación de usuarios (Devise)
+- Manejo de chasis/VIN de vehículos
+- Integración con Mercado Libre
+- Courier/flete en costos
+- Matching de pagos a ventas específicas
+- Notas de crédito detalladas
+- Devoluciones parciales
+
+---
+
+## 📂 ARCHIVOS CLAVE DEL PROYECTO
+
+### Modelos
+- `app/models/product.rb` - Productos con validaciones, scopes, métodos de costo/margen
+- `app/models/order.rb` - Ventas con enums, validaciones, asociaciones
+- `app/models/customer.rb` - Clientes con método de cálculo de saldo
+- `app/models/stock_movement.rb` - Movimientos con reference polimórfico
+
+### Services
+- `app/services/sales/create_order.rb` - Crear venta con validación de stock
+- `app/services/sales/cancel_order.rb` - Anular venta y reversar stock
+- `app/services/inventory/adjust_stock.rb` - Crear movimientos de stock
+- `app/services/purchasing/create_purchase.rb` - Crear compra y actualizar costos
+
+### Configuración
+- `config/routes.rb` - Rutas del sistema (namespace :web)
+- `config/tailwind.config.js` - Configuración de Tailwind con paleta custom
+- `app/assets/stylesheets/application.tailwind.css` - Clases helper y gradientes
+
+---
+
+## 🎬 TAREAS TÍPICAS
+
+### Crear una nueva vista
+1. Leer `UI_DESIGN_SPEC.md` para diseño
+2. Crear controller action (thin)
+3. Crear vista HAML en `app/views/web/`
+4. Usar componentes definidos en UI_DESIGN_SPEC
+5. Aplicar TailwindCSS según paleta establecida
+
+### Crear un nuevo service
+1. Leer `CODE_PATTERNS.md` para estructura
+2. Crear en `app/services/[dominio]/[accion].rb`
+3. Método de clase `.call`
+4. Validar params
+5. Usar transacción si afecta múltiples modelos
+6. Devolver `Result`
+7. Agregar tests en `spec/services/`
+
+### Modificar lógica de negocio
+1. Revisar `FLUJOS.md` para entender flujo actual
+2. Modificar en model o service (NO en controller)
+3. Actualizar tests
+4. Ajustar controller/vista si es necesario
+
+---
+
+## ⚠️ ANTI-PATRONES A EVITAR
+
+❌ **NO hacer:**
+- Editar `current_stock` directamente
+- Editar `cost_unit` manualmente (usar `recalculate_average_cost!`)
+- Poner lógica de negocio en controllers
+- Poner lógica de negocio en vistas
+- Crear `StockMovement` fuera de `Inventory::AdjustStock`
+- Olvidar validar stock antes de ventas
+- Olvidar transacciones en operaciones multi-modelo
+- Usar gradientes en botones/cards grandes
+- Usar colores que no estén en la paleta definida
+
+✅ **SÍ hacer:**
+- Usar services para operaciones complejas
+- Controllers delgados
+- Validar antes de ejecutar
+- Usar transacciones
+- Devolver `Result` desde services
+- Stock SIEMPRE vía `Inventory::AdjustStock`
+- Recalcular costo promedio al confirmar/anular compras
+- Seguir `UI_DESIGN_SPEC.md` para diseño
+- Usar HAML (no ERB)
+- Código en inglés, UI en español
+
+---
+
+## 💬 CÓMO PEDIRME AYUDA
+
+### Para vistas/UI:
+```
+@UI_DESIGN_SPEC.md
+Crear [vista de X] siguiendo el diseño minimalista con:
+- Cards blancas
+- Botones primarios rojos
+- Badges con colores semánticos
+[Describir funcionalidad específica]
+```
+
+### Para lógica de negocio:
+```
+@FLUJOS.md @CODE_PATTERNS.md
+Necesito [acción específica, ej: implementar anulación de compra]
+[Describir contexto y duda específica]
+```
+
+### Para código backend:
+```
+@DEVELOPMENT_GUIDE.md @CODE_PATTERNS.md
+Crear service para [acción] que:
+- [Requisito 1]
+- [Requisito 2]
+Siguiendo el patrón Result
+```
+
+---
+
+## 🎯 PRÓXIMOS PASOS SUGERIDOS
+
+1. **Completar vistas principales:**
+   - Dashboard con métricas
+   - Listado de productos con búsqueda/filtros
+   - Formulario de nueva venta
+   - Listado de ventas
+   - Detalle de cliente con saldo
+
+2. **Implementar interactividad:**
+   - Búsqueda de productos con autocomplete
+   - Formulario dinámico de venta (agregar/quitar items)
+   - Modales de confirmación
+   - Flash messages con Turbo
+
+3. **Refinar UI:**
+   - Responsive design
+   - Estados de loading
+   - Empty states
+   - Validaciones en tiempo real
+
+4. **Testing:**
+   - Tests de services críticos
+   - Tests de modelos con lógica importante
+   - System tests de flujos principales
+
+---
+
+## 📚 DOCUMENTACIÓN DE REFERENCIA
+
+**Leer SIEMPRE antes de generar código:**
+1. `FLUJOS.md` - Para entender reglas de negocio
+2. `DEVELOPMENT_GUIDE.md` - Para arquitectura y convenciones
+3. `CODE_PATTERNS.md` - Para ejemplos de código y patrones
+4. `UI_DESIGN_SPEC.md` - Para diseño de interfaces
+
+**Archivos del proyecto a consultar según necesidad:**
+- `app/models/` - Para ver estructura de modelos
+- `app/services/` - Para ver services existentes
+- `config/routes.rb` - Para ver rutas disponibles
+- `db/schema.rb` - Para ver estructura de DB
+
+---
+
+## ✨ FILOSOFÍA DEL PROYECTO
+
+Este sistema debe ser:
+- **Simple y práctico:** Para uso diario de Alfredo
+- **Confiable:** Sin perder datos, con trazabilidad completa
+- **Rápido:** Respuestas inmediatas, sin fricción
+- **Visual:** Interfaz clara y agradable
+- **Mantenible:** Código limpio, testeado, documentado
+
+El objetivo es que Alfredo pueda gestionar su negocio de forma eficiente, sin complicaciones técnicas, con una interfaz moderna y profesional.
+
+---
+
+## 🤝 TIPS PARA COLABORAR EFECTIVAMENTE
+
+1. **Siempre adjuntar archivos .md relevantes** al iniciar la conversación
+2. **Ser específico** en lo que necesito (vista, service, corrección, etc.)
+3. **Mencionar el archivo** que necesito modificar o crear
+4. **Revisar** que el código generado siga los patrones establecidos
+5. **Pedir confirmación** antes de cambios grandes en arquitectura
+6. **Consultar** si algo no está claro en la documentación
+
+
+---
+ ## pregunta cualquier cosa que necesites, ya sea sobre el codigo, el negocio, el diseño, etc.tambien te puedo compartir archivos del proyecto paraque tengas mas contexto.

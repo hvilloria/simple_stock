@@ -1,0 +1,33 @@
+!!!
+%html
+  %head
+    %meta{:content => "text/html; charset=UTF-8", "http-equiv" => "Content-Type"}/
+    %title Simple Stock - Gente del Sol
+    %meta{:name => "viewport", :content => "width=device-width,initial-scale=1"}
+    %meta{:name => "turbo-cache-control", :content => "no-preview"}
+    = csrf_meta_tags
+    = csp_meta_tag
+    
+    = stylesheet_link_tag "tailwind", "data-turbo-track": "reload"
+    = stylesheet_link_tag "application", "data-turbo-track": "reload"
+    = javascript_importmap_tags
+
+  %body.antialiased
+    .flex.min-h-screen.bg-gray-50
+      = render "layouts/web/sidebar"
+      
+      .flex-1.ml-64
+        = render "layouts/web/header"
+        
+        %main.p-6
+          -# Flash messages
+          - if flash[:notice]
+            .mb-6
+              = render "shared/flash", type: "success", message: flash[:notice]
+          - if flash[:alert]
+            .mb-6
+              = render "shared/flash", type: "error", message: flash[:alert]
+          
+          -# Page content
+          = yield
+

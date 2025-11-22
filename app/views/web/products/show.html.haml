@@ -1,0 +1,209 @@
+- content_for :page_title, @product.name
+
+.max-w-7xl.mx-auto
+
+  -# Header con navegación
+  .flex.items-center.justify-between.mb-6
+    = link_to web_products_path, class: "inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors" do
+      %span ←
+      %span Volver a Productos
+    
+    = link_to edit_web_product_path(@product), class: "btn-primary" do
+      %span Editar Producto
+
+  -# Alert si producto inactivo
+  - unless @product.active?
+    .mb-6.rounded-xl.border-l-4.border-amber-500.bg-amber-50.p-4
+      .flex.gap-3.items-center
+        .text-2xl ⚠
+        %p.text-sm.font-medium.text-amber-800 Este producto está inactivo
+
+  -# Grid principal
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+    
+    -# COLUMNA IZQUIERDA
+    .lg:col-span-2.space-y-6
+      
+      -# Card 1 - Información Principal
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        -# SKU y Nombre
+        %h1.font-mono.text-2xl.font-bold.text-slate-900.mb-2= @product.sku
+        %p.text-xl.text-slate-600.mb-4= @product.name
+        
+        -# Badges
+        .flex.flex-wrap.gap-2.mb-6
+          -# Badge de estado
+          - if @product.active?
+            %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-emerald-100.text-emerald-800
+              ✓
+              Activo
+          - else
+            %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
+              Inactivo
+          
+          -# Badge de tipo
+          - if @product.oem?
+            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
+              OEM
+          - elsif @product.aftermarket?
+            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-blue-100.text-blue-700
+              Aftermarket
+          
+          -# Badge de origen
+          - if @product.origin.present?
+            %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
+              🌍
+              = @product.origin.titleize
+          
+          -# Badge de categoría
+          - if @product.category.present?
+            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
+              = @product.category.titleize
+        
+        -# Separador
+        .border-t.border-slate-200.my-6
+        
+        -# Grid de información
+        .grid.grid-cols-2.gap-4.mb-6
+          .div
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Marca
+            %p.text-sm.text-slate-900= @product.brand.presence || "Sin especificar"
+          
+          .div
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Categoría
+            %p.text-sm.text-slate-900= @product.category&.titleize || "Sin especificar"
+          
+          .div
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Origen
+            %p.text-sm.text-slate-900= @product.origin&.titleize || "Sin especificar"
+          
+          .div
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Tipo
+            - if @product.product_type.present?
+              %p.text-sm.text-slate-900= @product.product_type == 'oem' ? 'OEM' : 'Aftermarket'
+            - else
+              %p.text-sm.text-slate-900 Sin especificar
+        
+        -# Separador
+        .border-t.border-slate-200.my-6
+        
+        -# Información Financiera
+        .div
+          %h3.text-base.font-semibold.text-slate-900.mb-4 Información Financiera
+          
+          .space-y-3
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Precio de Venta
+              %p.text-2xl.font-bold.text-slate-900= number_to_currency(@product.price_unit || 0, precision: 0)
+            
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
+              - if @product.cost_unit.present?
+                %p.text-lg.text-slate-600
+                  = number_to_currency(@product.cost_unit, precision: 2)
+                  %span.text-sm.ml-1= "[#{@product.cost_currency}]"
+              - else
+                %p.text-lg.text-slate-400 Sin costo registrado
+            
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Margen
+              - if @product.cost_unit.present? && @product.price_unit.present?
+                - margin = @product.margin
+                - margin_pct = @product.margin_percentage
+                %p.text-lg{class: margin >= 0 ? 'text-emerald-600' : 'text-red-600'}
+                  = number_to_currency(margin, precision: 0)
+                  %span.text-sm.ml-1= "(#{margin_pct}%)"
+              - else
+                %p.text-lg.text-slate-400 -
+            
+            %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
+      
+      -# Card 2 - Movimientos Recientes
+      .bg-white.border.border-slate-200.rounded-lg
+        .px-6.py-4.border-b.border-slate-200
+          %h3.text-base.font-semibold.text-slate-900 Movimientos de Stock Recientes
+        
+        - if @recent_movements.any?
+          .divide-y.divide-slate-100
+            - @recent_movements.each do |movement|
+              .px-6.py-4.hover:bg-slate-50.transition-colors
+                .flex.items-center.justify-between
+                  .flex-1
+                    .flex.items-center.gap-3.mb-1
+                      -# Badge de tipo
+                      - case movement.movement_type
+                      - when 'sale'
+                        %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-red-100.text-red-700
+                          Venta
+                      - when 'purchase'
+                        %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-emerald-100.text-emerald-700
+                          Compra
+                      - when 'adjustment'
+                        %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-amber-100.text-amber-700
+                          Ajuste
+                      
+                      -# Fecha y hora
+                      %span.text-xs.text-slate-500
+                        = l(movement.created_at, format: :short)
+                    
+                    -# Referencia
+                    - if movement.reference.present?
+                      %p.text-sm.text-slate-600
+                        - if movement.reference_type == 'Order'
+                          Order ##{movement.reference_id}
+                        - elsif movement.reference_type == 'Purchase'
+                          Purchase ##{movement.reference_id}
+                        - else
+                          = movement.note || "-"
+                    - elsif movement.note.present?
+                      %p.text-sm.text-slate-600= movement.note
+                  
+                  -# Cantidad
+                  .text-right
+                    %p.text-base.font-bold{class: movement.quantity >= 0 ? 'text-emerald-600' : 'text-red-600'}
+                      = movement.quantity >= 0 ? "+#{movement.quantity}" : movement.quantity
+          
+          .px-6.py-3.border-t.border-slate-200.bg-slate-50
+            %p.text-sm.text-slate-600.text-center Mostrando últimos 10 movimientos
+        - else
+          .px-6.py-12.text-center
+            .text-4xl.mb-3 📦
+            %p.text-sm.text-slate-500 Sin movimientos de stock aún
+    
+    -# COLUMNA DERECHA
+    .lg:col-span-1
+      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
+        %h3.text-base.font-semibold.text-slate-900.mb-6 Stock Actual
+        
+        -# Número de stock grande
+        .text-center.mb-6
+          %p.text-5xl.font-bold.mb-3{class: @product.current_stock > 10 ? 'text-emerald-600' : (@product.current_stock > 0 ? 'text-amber-600' : 'text-red-600')}
+            = @product.current_stock || 0
+          
+          -# Badge de estado
+          - if @product.current_stock > 10
+            %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-emerald-100.text-emerald-800
+              ✓
+              Stock Alto
+          - elsif @product.current_stock > 0
+            %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-amber-100.text-amber-800
+              ⚠
+              Stock Bajo
+          - else
+            %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800
+              ✕
+              Sin Stock
+        
+        -# Separador
+        .border-t.border-slate-200.my-6
+        
+        -# Info adicional
+        .space-y-3.text-sm
+          .div
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Creado
+            %p.text-slate-700= l(@product.created_at, format: :long)
+          
+          .div
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Última actualización
+            %p.text-slate-700= l(@product.updated_at, format: :long)
+

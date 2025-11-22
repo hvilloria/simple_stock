@@ -1,35 +1,35 @@
 module Sales
   class CreateOrder
-    Line = Struct.new(:product, :quantity, :unit_price, keyword_init: true)
+    # Estructura para representar un item de la venta
+    Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
-    def self.call(customer: nil, lines:)
-      new(customer: customer, lines: lines).call
+    def self.call(customer:, items:, order_type:, channel: nil)
+      new(customer: customer, items: items, order_type: order_type, channel: channel).call
     end
 
-    def initialize(customer:, lines:)
+    def initialize(customer:, items:, order_type:, channel: nil)
       @customer = customer
-      @lines    = lines.map do |line|
-        line.is_a?(Line) ? line : Line.new(line)
-      end
+      @items = items.map { |item| item.is_a?(Item) ? item : Item.new(item) }
+      @order_type = order_type
+      @channel = channel
     end
 
     def call
       validate_params
-      
+
       ActiveRecord::Base.transaction do
         create_order
         create_order_items
-        adjust_stock
-        
-        @order.calculate_total!
-        
+        create_stock_movements
+
         Result.new(success?: true, record: @order, errors: [])
       end
     rescue ValidationError => e
-      Result.new(success?: false, record: nil, errors: [e.message])
+      Result.new(success?: false, record: nil, errors: [ e.message ])
     rescue StandardError => e
       Rails.logger.error("Error in Sales::CreateOrder: #{e.message}")
-      Result.new(success?: false, record: nil, errors: ['Error creating order'])
+      Rails.logger.error(e.backtrace.join("\n"))
+      Result.new(success?: false, record: nil, errors: [ "Error creating order" ])
     end
 
     private
@@ -37,44 +37,77 @@ module Sales
     class ValidationError < StandardError; end
 
     def validate_params
-      raise ValidationError, "Lines cannot be empty" if @lines.empty?
+      # Validar order_type
+      unless %w[cash credit].include?(@order_type)
+        raise ValidationError, "Invalid order type"
+      end
 
-      @lines.each do |line|
-        raise ValidationError, "Product is required" unless line.product
-        raise ValidationError, "Quantity must be greater than zero" unless line.quantity.to_i > 0
+      # Validar customer
+      raise ValidationError, "Customer is required" if @customer.nil?
+
+      # Si es credit, validar has_credit_account
+      if @order_type == "credit" && !@customer.has_credit_account?
+        raise ValidationError, "Customer does not have credit account enabled"
+      end
+
+      # Validar items
+      raise ValidationError, "At least one product is required" if @items.blank?
+
+      @items.each do |item|
+        raise ValidationError, "Product ID is required" unless item.product_id
+        raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
+      end
+
+      # Validar stock ANTES de crear nada
+      @items.each do |item|
+        product = Product.find(item.product_id)
+        if product.current_stock < item.quantity
+          raise ValidationError, "Insufficient stock for #{product.name}. Available: #{product.current_stock}"
+        end
       end
     end
 
     def create_order
       @order = Order.create!(
-        customer:     @customer,
-        status:       :confirmed,
-        total_amount: 0
+        customer: @customer,
+        order_type: @order_type,
+        channel: @channel,
+        status: "confirmed",
+        total_amount: calculate_total
       )
     end
 
+    def calculate_total
+      @items.sum do |item|
+        product = Product.find(item.product_id)
+        unit_price = item.unit_price || product.price_unit
+        item.quantity * unit_price
+      end
+    end
+
     def create_order_items
-      @lines.each do |line|
+      @items.each do |item|
+        product = Product.find(item.product_id)
         OrderItem.create!(
-          order:      @order,
-          product:    line.product,
-          quantity:   line.quantity,
-          unit_price: line.unit_price || line.product.price_unit
+          order: @order,
+          product: product,
+          quantity: item.quantity,
+          unit_price: item.unit_price || product.price_unit
         )
       end
     end
 
-    def adjust_stock
+    def create_stock_movements
       stock_location = StockLocation.first!
 
-      @lines.each do |line|
+      @order.order_items.each do |order_item|
         result = Inventory::AdjustStock.call(
-          product:        line.product,
+          product: order_item.product,
           stock_location: stock_location,
-          movement_type:  :sale,
-          quantity:       -line.quantity.to_i,
-          reference:      "ORDER-#{@order.id}",
-          note:           "Sale #{@order.id}"
+          movement_type: "sale",
+          quantity: -order_item.quantity,
+          reference: @order,
+          note: "Sale ##{@order.id}"
         )
 
         raise ValidationError, result.errors.join(", ") if result.failure?

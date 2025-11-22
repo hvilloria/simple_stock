@@ -22,18 +22,18 @@ module Inventory
 
     def call
       validate_params
-      
+
       ActiveRecord::Base.transaction do
         create_stock_movement
         update_product_stock
-        
+
         Result.new(success?: true, record: @stock_movement, errors: [])
       end
     rescue ValidationError => e
-      Result.new(success?: false, record: nil, errors: [e.message])
+      Result.new(success?: false, record: nil, errors: [ e.message ])
     rescue StandardError => e
       Rails.logger.error("Error in Inventory::AdjustStock: #{e.message}")
-      Result.new(success?: false, record: nil, errors: ['Error adjusting stock'])
+      Result.new(success?: false, record: nil, errors: [ "Error adjusting stock" ])
     end
 
     private
@@ -51,13 +51,24 @@ module Inventory
     end
 
     def create_stock_movement
+      # Handle deprecated string references
+      reference_value = @reference
+      note_value = @note
+
+      if @reference.is_a?(String)
+        Rails.logger.warn("DEPRECATION WARNING: Passing string to Inventory::AdjustStock reference is deprecated. Pass Order/Purchase object or nil instead.")
+        # Move string reference to note
+        note_value = note_value.present? ? "#{note_value} [Ref: #{@reference}]" : "[Ref: #{@reference}]"
+        reference_value = nil
+      end
+
       @stock_movement = StockMovement.create!(
         product:        @product,
         stock_location: @stock_location,
         quantity:       @quantity,
         movement_type:  @movement_type,
-        reference:      @reference,
-        note:           @note
+        reference:      reference_value,
+        note:           note_value
       )
     end
 

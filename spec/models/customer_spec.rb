@@ -3,8 +3,7 @@ require 'rails_helper'
 RSpec.describe Customer, type: :model do
   describe 'associations' do
     it { should have_many(:orders).dependent(:nullify) }
-    # Payment model doesn't exist yet, will be tested when implemented
-    # it { should have_many(:payments).dependent(:destroy) }
+    it { should have_many(:payments).dependent(:destroy) }
   end
 
   describe 'validations' do
@@ -67,6 +66,26 @@ RSpec.describe Customer, type: :model do
     end
   end
 
+  describe '.mostrador' do
+    it 'returns the generic counter customer' do
+      customer = Customer.mostrador
+      expect(customer.name).to eq('Cliente Mostrador')
+      expect(customer.has_credit_account).to be false
+      expect(customer.customer_type).to eq('retail')
+    end
+
+    it 'reuses the same customer on multiple calls' do
+      customer1 = Customer.mostrador
+      customer2 = Customer.mostrador
+      expect(customer1.id).to eq(customer2.id)
+    end
+
+    it 'is persisted to the database' do
+      customer = Customer.mostrador
+      expect(customer).to be_persisted
+    end
+  end
+
   describe '#current_balance' do
     let(:customer) { create(:customer, :workshop) }
 
@@ -114,6 +133,41 @@ RSpec.describe Customer, type: :model do
 
         it 'does not include cash orders in balance' do
           expect(customer.current_balance).to eq(0)
+        end
+      end
+
+      context 'with payments' do
+        before do
+          create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 10000)
+        end
+
+        it 'subtracts payments from credit orders' do
+          create(:payment, customer: customer, amount: 3000)
+          expect(customer.current_balance).to eq(7000)
+        end
+
+        it 'handles multiple payments' do
+          create(:payment, customer: customer, amount: 3000)
+          create(:payment, customer: customer, amount: 2000)
+          expect(customer.current_balance).to eq(5000)
+        end
+
+        it 'can have negative balance if overpaid' do
+          create(:payment, customer: customer, amount: 12000)
+          expect(customer.current_balance).to eq(-2000)
+        end
+      end
+
+      context 'with credit orders and payments' do
+        before do
+          create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 10000)
+          create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 5000)
+          create(:payment, customer: customer, amount: 3000)
+        end
+
+        it 'calculates balance correctly' do
+          # 10000 + 5000 - 3000 = 12000
+          expect(customer.current_balance).to eq(12000)
         end
       end
     end

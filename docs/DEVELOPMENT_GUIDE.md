@@ -154,6 +154,31 @@ spec/                            # o test/ si usás Minitest
   system/
 ```
 
+### 2.1.1. Modelos Principales Implementados
+
+**Productos e Inventario:**
+- `Product` - Productos con SKU, precios, costos, origen, tipo (OEM/aftermarket)
+- `StockMovement` - Movimientos de stock (con reference polimórfico)
+- `StockLocation` - Ubicaciones de stock
+
+**Ventas:**
+- `Order` - Ventas/Órdenes (cash o credit)
+- `OrderItem` - Items de cada venta
+
+**Clientes y Pagos:**
+- `Customer` - Clientes (con/sin cuenta corriente)
+- `Payment` - Pagos de cuenta corriente
+
+**Compras:**
+- `Purchase` - Compras de mercadería (USD o ARS)
+- `PurchaseItem` - Items de cada compra
+- `Supplier` - Proveedores
+
+**Usuarios:**
+- `User` - Usuarios del sistema (pendiente autenticación)
+
+---
+
 ### 2.2. Responsabilidades de Cada Capa
 
 #### Models (app/models)
@@ -329,19 +354,58 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 - Si error de carga: borrar el pago
 - No se modela anulación formal en V1
 
-### 3.6. Compras
+### 3.6 Compras / Purchases
 
-**Características:**
-- Se registran en USD con tipo de cambio
-- Conversión automática a ARS
-- Al confirmar: movimientos de stock POSITIVOS
-- Courier/flete NO incluido en V1
+**Tipos de moneda:**
 
-**Proceso:**
-1. Crear Purchase en USD
-2. Crear PurchaseItems con costos
-3. Crear movimientos de stock positivos
-4. (Opcional) Actualizar costo promedio
+1. **USD** (dólares)
+   - Requiere tipo de cambio (exchange_rate)
+   - Se convierte a ARS para cálculos
+
+2. **ARS** (pesos argentinos)
+   - No requiere tipo de cambio
+
+**Campos clave:**
+- `supplier`: proveedor
+- `currency`: 'USD' o 'ARS'
+- `exchange_rate`: tipo de cambio si es USD
+- `purchase_date`: fecha de la compra
+- `status`: 'confirmed' o 'cancelled'
+
+**Al confirmar compra:**
+1. Crear purchase y purchase_items
+2. Crear movimientos de stock POSITIVOS
+3. **Recalcular costo promedio** de cada producto
+
+**Costo Promedio Ponderado:**
+
+El `cost_unit` del producto NO es el "último costo", sino el **costo promedio ponderado** de todas las compras confirmadas.
+
+**Ejemplo:**
+```
+Compra 1: 5 pastillas @ $10 USD = $50 USD total
+Compra 2: 5 pastillas @ $20 USD = $100 USD total
+────────────────────────────────────────────────
+Total: 10 pastillas por $150 USD
+Costo promedio: $150 / 10 = $15 USD por unidad
+```
+
+**Se recalcula automáticamente:**
+- Al confirmar una compra nueva
+- Al anular una compra existente
+
+**Método en Product:**
+```ruby
+product.recalculate_average_cost!
+```
+
+Este método:
+1. Obtiene TODAS las compras confirmadas del producto
+2. Convierte todo a USD para uniformidad
+3. Calcula promedio ponderado: `total_costo_usd / total_cantidad`
+4. Actualiza `cost_unit` y `cost_currency`
+
+---
 
 ### 3.7. Tipo de Cambio
 
@@ -356,6 +420,128 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 - Compatibilidad se determina fuera del sistema
 - Vendedor usa herramientas externas
 - Sistema solo registra la venta del producto
+
+---
+
+### 3.9. Reference Polimórfico en StockMovement
+
+**Problema resuelto:**
+
+Antes, `reference` era un string como `"ORDER-123"`. Esto no permitía queries eficientes ni integridad referencial.
+
+**Solución: Reference polimórfico**
+
+```ruby
+# StockMovement ahora tiene:
+t.string :reference_type   # 'Order', 'Purchase', NULL
+t.integer :reference_id    # 123, 456, NULL
+```
+
+**Ventajas:**
+1. Trazabilidad completa: `movement.reference` devuelve el objeto Order o Purchase
+2. Queries eficientes: `order.stock_movements` funciona automáticamente
+3. Integridad referencial
+
+**Uso:**
+```ruby
+# Al crear movimiento
+StockMovement.create!(
+  product: product,
+  quantity: -5,
+  reference: order  # Rails guarda reference_type='Order', reference_id=order.id
+)
+
+# Consultas
+order.stock_movements         # Todos los movements de esta orden
+purchase.stock_movements      # Todos los movements de esta compra
+movement.reference           # Devuelve Order o Purchase
+```
+
+**Casos de uso:**
+- **Ventas**: `reference` apunta a Order
+- **Compras**: `reference` apunta a Purchase
+- **Ajustes manuales**: `reference` es NULL
+
+---
+
+### 4.0. Services - Método de Clase `.call`
+
+**Patrón obligatorio:**
+
+TODOS los services deben tener un método de clase `.call` que instancia y ejecuta.
+
+**❌ Incorrecto:**
+```ruby
+service = Sales::CreateOrder.new(params)
+result = service.call
+```
+
+**✅ Correcto:**
+```ruby
+result = Sales::CreateOrder.call(params)
+```
+
+**Implementación:**
+```ruby
+module Sales
+  class CreateOrder
+    # Método de clase
+    def self.call(**params)
+      new(**params).call
+    end
+
+    def initialize(**params)
+      @param1 = params[:param1]
+      # ...
+    end
+
+    def call
+      # lógica del service
+    end
+  end
+end
+```
+
+**Razón:**
+- Más conciso
+- Interfaz consistente
+- Oculta detalles de instanciación
+
+---
+
+### 4.1. Costo Promedio - Cuándo Recalcular
+
+**SIEMPRE recalcular `cost_unit` después de:**
+
+1. Confirmar una compra nueva
+   ```ruby
+   # En Purchasing::CreatePurchase
+   @purchase.purchase_items.each do |item|
+     item.product.recalculate_average_cost!
+   end
+   ```
+
+2. Anular una compra existente
+   ```ruby
+   # En Purchasing::CancelPurchase
+   @purchase.purchase_items.each do |item|
+     item.product.recalculate_average_cost!
+   end
+   ```
+
+**NUNCA:**
+- Editar `cost_unit` manualmente
+- Asumir que `cost_unit` es el "último costo"
+- Usar `cost_unit` sin considerar `cost_currency`
+
+**Para reportes de margen:**
+```ruby
+# Margen de una venta
+order_item.unit_price - product.cost_in_ars(exchange_rate)
+
+# Margen sugerido del producto
+product.margin(exchange_rate)
+```
 
 ---
 
@@ -524,6 +710,55 @@ redirect_to @order, notice: "Venta registrada exitosamente"
 - Nombres descriptivos
 - Evitar duplicación
 - Comentarios solo cuando es necesario (preferir código auto-explicativo)
+
+---
+
+### 6.1.1. Testing de Services de Purchase
+
+**Casos críticos a testear:**
+
+```ruby
+RSpec.describe Purchasing::CreatePurchase do
+  # 1. Creación exitosa
+  it 'creates purchase and increases stock'
+  
+  # 2. Actualización de costo promedio
+  it 'recalculates product average cost after purchase'
+  
+  # 3. Múltiples compras
+  it 'calculates weighted average from multiple purchases'
+  
+  # 4. Validaciones
+  it 'requires exchange_rate for USD purchases'
+  it 'validates currency is USD or ARS'
+  
+  # 5. Reference polimórfico
+  it 'creates stock movements with purchase reference'
+end
+```
+
+---
+
+### 6.1.2. Testing de Payment
+
+**Casos críticos:**
+
+```ruby
+RSpec.describe Payments::RegisterPayment do
+  # 1. Reducción de saldo
+  it 'reduces customer balance after payment'
+  
+  # 2. Validaciones
+  it 'requires customer with credit account'
+  it 'validates amount is positive'
+  it 'validates payment_method'
+  
+  # 3. Métodos de pago
+  it 'accepts all payment methods'
+end
+```
+
+---
 
 ### 6.2. Testing
 

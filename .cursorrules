@@ -9,52 +9,218 @@ Este proyecto debe seguir ESTRICTAMENTE los siguientes documentos que están en 
 3. **DEVELOPMENT_GUIDE.md** - Guía de desarrollo Rails
 4. **UI_DESIGN_SPEC.md** - Especificación de diseño UI/UX
 
+## ANTES DE ESCRIBIR CÓDIGO
+
+**CRÍTICO:** Antes de implementar CUALQUIER feature:
+
+1. Lee el documento relevante según la tarea:
+   - Flujos de negocio → FLUJOS.md
+   - Patrones de código → CODE_PATTERNS.md
+   - Estructura Rails → DEVELOPMENT_GUIDE.md
+   - UI/UX → UI_DESIGN_SPEC.md
+
+2. Verifica que tu implementación sigue TODOS los patrones documentados
+
+3. Si no estás seguro, pregunta antes de implementar
+
 ## REGLAS CRÍTICAS
 
 ### Stock Management (NUNCA VIOLAR)
-- ❌ PROHIBIDO: Editar stock directamente en Product (product.stock = X)
+- ❌ PROHIBIDO: Actualizar current_stock manualmente desde controllers/views
 - ✅ OBLIGATORIO: Todo cambio de stock debe hacerse vía StockMovement
-- El stock se CALCULA siempre: `stock_movements.sum(:quantity)`
+- current_stock es un CACHE que se actualiza automáticamente vía callbacks en StockMovement
+- La fuente de verdad es SIEMPRE: `stock_movements.sum(:quantity)`
+- Permitido: Services de inventario pueden actualizar current_stock via callbacks
 
 ### Services Pattern (SIEMPRE USAR)
-- Todo service DEBE devolver Result struct
-- Structure: Result.new(success?: bool, record: object, errors: array)
-- NO lanzar excepciones al controller, capturarlas y devolver Result
-- Usar transacciones para operaciones multi-modelo
 
-### Controllers (THIN CONTROLLERS)
-- Controllers solo llaman services y manejan respuestas
-- CERO lógica de negocio en controllers
-- Pattern:
+Estructura OBLIGATORIA:
+
 ```ruby
-  result = Service.new(**params).call
-  if result.success?
-    redirect_to result.record
-  else
-    flash.now[:alert] = result.errors.join(", ")
-    render :new
+module Dominio
+  class Accion
+    # Método de clase que instancia y ejecuta
+    def self.call(**params)
+      new(**params).call
+    end
+    
+    def initialize(**params)
+      # Asignar parámetros a variables de instancia
+      @param1 = param1
+      @param2 = param2
+    end
+    
+    def call
+      validate_params
+      
+      ActiveRecord::Base.transaction do
+        # Lógica principal
+        Result.new(success?: true, record: @record, errors: [])
+      end
+    rescue ValidationError => e
+      Result.new(success?: false, record: nil, errors: [e.message])
+    rescue StandardError => e
+      Rails.logger.error("Error en #{self.class.name}: #{e.message}")
+      Result.new(success?: false, record: nil, errors: ['Mensaje genérico'])
+    end
+    
+    private
+    
+    class ValidationError < StandardError; end
+    
+    def validate_params
+      raise ValidationError, 'mensaje' if condicion_invalida
+    end
   end
+end
 ```
 
+**Reglas de Services:**
+- TODO service DEBE devolver Result struct
+- Structure: `Result.new(success?: bool, record: object, errors: array)`
+- NO lanzar excepciones al controller, capturarlas y devolver Result
+- Usar transacciones para operaciones multi-modelo
+- Validar ANTES de modificar datos (en validate_params)
+- Uso: `MiService.call(param1: x, param2: y)` (NO usar .new)
+
+### Controllers (THIN CONTROLLERS)
+
+Controllers solo llaman services y manejan respuestas. CERO lógica de negocio.
+
+Pattern OBLIGATORIO:
+
+```ruby
+def create
+  result = MiService.call(
+    param1: value1,
+    param2: value2,
+    user: current_user
+  )
+  
+  if result.success?
+    redirect_to result.record, notice: "Mensaje de éxito"
+  else
+    flash.now[:alert] = result.errors.join(", ")
+    render :new, status: :unprocessable_entity
+  end
+end
+```
+
+### Models
+
+- Validaciones según Rails best practices
+- Scopes para queries comunes
+- Métodos para cálculos (NO en controllers/views)
+- Asociaciones claras y documentadas
+- Callbacks solo para side-effects simples (actualizar cache)
+- Enums para campos con valores fijos
+
+### Naming Conventions
+
+- Services: `Dominio::Verbo` (ej: Sales::CreateOrder, Inventory::AdjustStock)
+- Models: Singular (Product, Order, Customer)
+- Controllers: Plural (ProductsController, OrdersController)
+- Variables: snake_case
+- Clases/Módulos: PascalCase
+- Constantes: SCREAMING_SNAKE_CASE
+
 ### Testing (OBLIGATORIO)
+
 - Generar tests junto con cada feature
 - RSpec para models y services
 - FactoryBot para fixtures
+- System tests para flujos críticos (opcional)
+
+Tests DEBEN cubrir:
+- Validaciones en models
+- Lógica de negocio en services
+- Casos de éxito Y error
+- Edge cases (stock insuficiente, validaciones fallidas, etc.)
 
 ### Idioma
-- Código en inglés
-- Mensajes de usuario en ingles
-- Mensajes de inputs en español para facilitar uso de los usuarios
-- Comentarios en español cuando sean necesarios
 
-## ANTES DE ESCRIBIR CÓDIGO
-1. Lee el documento relevante (FLUJOS.md, code-patterns.md, etc.)
-2. Verifica que sigues el patrón establecido
-3. Si no estás seguro, pregunta
+- Código en inglés (clases, métodos, variables, tablas, columnas, errores)
+- Mensajes flash/notice en español neutral
+- Labels de formulario en español
+- Comentarios en español cuando sean necesarios para claridad
 
-## CONSULTA LOS DOCS
-Cuando trabajes en una feature, SIEMPRE referencia primero:
-- Para flujos de negocio → FLUJOS.md
-- Para patrones de código → code-patterns.md  
-- Para UI/UX → sistema-repuestos-design.md
-- Para guidelines Rails → development-guide-rails.md
+## FLUJOS DE NEGOCIO CRÍTICOS (de FLUJOS.md)
+
+### Ventas
+- `order_type`: 'cash' (contado) o 'credit' (cuenta corriente)
+- cash: cualquier customer, NO genera saldo, pago inmediato
+- credit: requiere `has_credit_account = true`, genera saldo
+- VALIDAR stock ANTES de crear orden (en validate_params)
+- Crear StockMovements negativos al confirmar venta
+- Status: 'confirmed' (activa) o 'cancelled' (anulada)
+
+### Clientes
+- `customer_type`: 'retail', 'workshop', 'mechanic', 'store'
+- `has_credit_account`: boolean - si puede comprar a crédito
+- Saldo calculado: `ventas_credit_no_canceladas.sum(:total) - payments.sum(:amount)`
+- Cliente Mostrador: cliente genérico para ventas cash a consumidores finales
+
+### Stock
+- StockMovement es la FUENTE DE VERDAD
+- Compras: movements positivos
+- Ventas: movements negativos  
+- Ajustes: movements positivos o negativos según diferencia
+- current_stock es cache, se actualiza por callbacks
+- NUNCA editar current_stock desde controllers
+
+### Productos
+- Campos: sku, name, category, cost_unit, cost_currency, price_unit, current_stock, active
+- `cost_currency`: 'USD' o 'ARS' - indica moneda de cost_unit
+- `origin`: país de fabricación (japan, china, taiwan, usa, germany, korea, brazil)
+- `product_type`: 'oem' (original) o 'aftermarket' (alternativo)
+- `brand`: marca del producto
+
+### Anulaciones
+- Cambiar status a 'cancelled'
+- Crear StockMovements inversos (cantidades opuestas)
+- Saldo del cliente se recalcula automáticamente
+
+## ANTI-PATRONES A EVITAR
+
+❌ NUNCA:
+1. Actualizar current_stock manualmente desde controllers/views
+2. Lógica de negocio en controllers
+3. Lógica de negocio en vistas
+4. Queries en vistas
+5. Services que lanzan excepciones sin capturar
+6. Olvidar validar stock antes de vender
+7. Olvidar transacciones en operaciones multi-modelo
+8. Crear registros sin validar params primero
+9. Usar `.new().call` en vez de `.call()` para services
+
+✅ SIEMPRE:
+1. Services para operaciones complejas (crear, actualizar, procesar)
+2. Result struct en todos los services
+3. Validar ANTES de modificar datos (validate_params)
+4. Transacciones para atomicidad
+5. Tests para lógica de negocio
+6. Stock vía StockMovement
+7. Controllers delgados (solo llaman services)
+8. Seguir convenciones de Rails
+9. Método de clase `.call` en services
+
+## VALIDACIÓN POST-GENERACIÓN
+
+Después de generar código, verifica:
+
+1. ✅ ¿Sigue el patrón de CODE_PATTERNS.md?
+2. ✅ ¿Respeta los flujos de FLUJOS.md?
+3. ✅ ¿Usa Result struct correctamente?
+4. ✅ ¿Valida antes de modificar datos?
+5. ✅ ¿Tiene tests de éxito y error?
+6. ✅ ¿Maneja stock correctamente?
+7. ✅ ¿Controller está delgado?
+
+## PERFORMANCE
+
+- Evitar N+1 queries (usar includes/joins/preload)
+- Indexes en foreign keys y campos de búsqueda
+- Cache para cálculos costosos (current_stock ya está cacheado)
+- Scopes eficientes con SQL correcto
+- Usar `pluck` cuando solo necesites ciertos campos
+- `find_each` para procesar muchos registros

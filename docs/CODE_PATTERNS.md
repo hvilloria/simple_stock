@@ -25,6 +25,11 @@ end
 # app/services/[dominio]/[accion].rb
 module Sales
   class CreateOrder
+    # Método de clase que instancia y ejecuta
+    def self.call(customer:, items:, order_type:, user:)
+      new(customer: customer, items: items, order_type: order_type, user: user).call
+    end
+
     def initialize(customer:, items:, order_type:, user:)
       @customer = customer
       @items = items
@@ -67,12 +72,12 @@ end
 
 ```ruby
 def create
-  result = Sales::CreateOrder.new(
+  result = Sales::CreateOrder.call(
     customer: @customer,
     items: parse_items,
     order_type: params[:order_type],
     user: current_user
-  ).call
+  )
 
   if result.success?
     redirect_to result.record, notice: "Creado exitosamente"
@@ -93,31 +98,81 @@ end
 class Product < ApplicationRecord
   # Asociaciones
   has_many :stock_movements
+  has_many :purchase_items
   belongs_to :category, optional: true
 
   # Validaciones
-  validates :code, presence: true, uniqueness: true
+  validates :sku, presence: true, uniqueness: true
   validates :name, presence: true
-  validates :sale_price, numericality: { greater_than_or_equal_to: 0 }
-  validates :status, inclusion: { in: %w[active inactive] }
+  validates :price_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :cost_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :cost_currency, inclusion: { in: %w[USD ARS] }
+  validates :origin, inclusion: { in: ORIGINS, allow_blank: true }
+  validates :product_type, inclusion: { in: %w[oem aftermarket], allow_blank: true }
 
   # Scopes útiles
-  scope :active, -> { where(status: 'active') }
+  scope :active, -> { where(active: true) }
   scope :with_low_stock, -> { where('current_stock < ?', 5) }
+  scope :by_origin, ->(origin) { where(origin: origin) if origin.present? }
+  scope :oem, -> { where(product_type: 'oem') }
+  scope :aftermarket, -> { where(product_type: 'aftermarket') }
   scope :search, ->(query) {
-    where('code ILIKE ? OR name ILIKE ?', "%#{query}%", "%#{query}%") if query.present?
+    where('sku ILIKE ? OR name ILIKE ? OR brand ILIKE ?', 
+          "%#{query}%", "%#{query}%", "%#{query}%") if query.present?
   }
 
   # Stock cacheado:
   # - current_stock es una columna en products
-  # - SOLO se debe modificar desde services de inventario
-  # - NUNCA desde controllers o vistas
-  def recalculate_current_stock!
-    update!(current_stock: stock_movements.sum(:quantity))
+  # - Se actualiza automáticamente cuando se crean/destruyen StockMovements
+  # - NUNCA editar directamente desde controllers o vistas
+  
+  # Costo promedio ponderado:
+  # - cost_unit representa el costo promedio de TODAS las compras confirmadas
+  # - Se recalcula con recalculate_average_cost! al confirmar/anular compras
+  def recalculate_average_cost!
+    purchase_items = PurchaseItem.joins(:purchase)
+                                  .where(product: self)
+                                  .where(purchases: { status: 'confirmed' })
+    
+    return if purchase_items.empty?
+    
+    total_cost_usd = 0.0
+    total_quantity = 0
+    
+    purchase_items.find_each do |item|
+      if item.purchase.currency == 'USD'
+        total_cost_usd += item.unit_cost * item.quantity
+      else
+        cost_in_usd = item.unit_cost / (item.purchase.exchange_rate || 1200)
+        total_cost_usd += cost_in_usd * item.quantity
+      end
+      
+      total_quantity += item.quantity
+    end
+    
+    if total_quantity > 0
+      average_cost = (total_cost_usd / total_quantity).round(2)
+      update_columns(cost_unit: average_cost, cost_currency: 'USD')
+    end
   end
+  
+  alias_method :average_cost, :cost_unit
 
   def low_stock?
     current_stock.to_i < 5
+  end
+  
+  def margin(exchange_rate = nil)
+    return 0 if price_unit.nil?
+    price_unit - cost_in_ars(exchange_rate)
+  end
+  
+  def cost_in_ars(exchange_rate = nil)
+    return 0 if cost_unit.nil?
+    return cost_unit if cost_currency == 'ARS'
+    
+    rate = exchange_rate || 1000
+    cost_unit * rate
   end
 end
 ```
@@ -133,13 +188,35 @@ class Customer < ApplicationRecord
     return 0 unless has_credit_account?
     
     total_credit_sales = orders
-                          .where(order_type: 'credit', status: 'active')
-                          .sum(:total)
+                          .where(order_type: 'credit')
+                          .where.not(status: 'cancelled')
+                          .sum(:total_amount)
     
     total_payments = payments.sum(:amount)
     
     total_credit_sales - total_payments
   end
+end
+```
+
+### Reference Polimórfico en StockMovement
+
+```ruby
+class StockMovement < ApplicationRecord
+  belongs_to :product
+  belongs_to :stock_location
+  belongs_to :reference, polymorphic: true, optional: true
+  
+  # reference puede ser Order, Purchase, o nil (ajustes manuales)
+  # reference_type + reference_id se guardan automáticamente
+end
+
+class Order < ApplicationRecord
+  has_many :stock_movements, as: :reference
+end
+
+class Purchase < ApplicationRecord
+  has_many :stock_movements, as: :reference
 end
 ```
 
@@ -176,7 +253,7 @@ class ProductsController < ApplicationController
   end
 
   def product_params
-    params.require(:product).permit(:code, :name, :sale_price)
+    params.require(:product).permit(:sku, :name, :price_unit, :cost_unit, :cost_currency)
   end
 end
 ```
@@ -186,15 +263,50 @@ end
 ```ruby
 class OrdersController < ApplicationController
   def create
-    result = Sales::CreateOrder.new(
+    result = Sales::CreateOrder.call(
       customer: find_customer,
       items: parse_items,
       order_type: order_params[:order_type],
       user: current_user
-    ).call
+    )
 
     if result.success?
       redirect_to result.record, notice: "Venta registrada"
+    else
+      flash.now[:alert] = result.errors.join(", ")
+      render :new, status: :unprocessable_entity
+    end
+  end
+end
+
+class PurchasesController < ApplicationController
+  def create
+    result = Purchasing::CreatePurchase.call(
+      supplier: @supplier,
+      items: parse_items,
+      currency: params[:currency],
+      exchange_rate: params[:exchange_rate]
+    )
+
+    if result.success?
+      redirect_to result.record, notice: "Compra registrada"
+    else
+      flash.now[:alert] = result.errors.join(", ")
+      render :new, status: :unprocessable_entity
+    end
+  end
+end
+
+class PaymentsController < ApplicationController
+  def create
+    result = Payments::RegisterPayment.call(
+      customer: @customer,
+      amount: params[:amount],
+      payment_method: params[:payment_method]
+    )
+
+    if result.success?
+      redirect_to @customer, notice: "Pago registrado"
     else
       flash.now[:alert] = result.errors.join(", ")
       render :new, status: :unprocessable_entity
@@ -231,15 +343,17 @@ end
       %table.table
         %thead
           %tr
-            %th Código
+            %th SKU
             %th Nombre
             %th Precio
+            %th Stock
         %tbody
           - @products.each do |product|
             %tr
-              %td= product.code
+              %td= product.sku
               %td= product.name
-              %td= number_to_currency(product.sale_price)
+              %td= number_to_currency(product.price_unit)
+              %td= product.current_stock
     
     = paginate @products
   - else
@@ -261,16 +375,16 @@ end
           %li= msg
 
   .form-group
-    = f.label :code, "Código", class: "label"
-    = f.text_field :code, class: "input-text"
+    = f.label :sku, "SKU", class: "label"
+    = f.text_field :sku, class: "input-text"
   
   .form-group
     = f.label :name, "Nombre", class: "label"
     = f.text_field :name, class: "input-text"
   
   .form-group
-    = f.label :sale_price, "Precio", class: "label"
-    = f.number_field :sale_price, step: 0.01, class: "input-text"
+    = f.label :price_unit, "Precio", class: "label"
+    = f.number_field :price_unit, step: 0.01, class: "input-text"
 
   .flex.gap-3
     = link_to "Cancelar", products_path, class: "btn-secondary"
@@ -374,18 +488,25 @@ require 'rails_helper'
 
 RSpec.describe Product do
   describe 'validations' do
-    it { should validate_presence_of(:code) }
-    it { should validate_uniqueness_of(:code) }
+    it { should validate_presence_of(:sku) }
+    it { should validate_uniqueness_of(:sku) }
   end
 
-  describe '#current_stock' do
+  describe '#recalculate_average_cost!' do
     let(:product) { create(:product) }
+    let(:supplier) { create(:supplier) }
 
-    it 'calculates stock from all movements' do
-      create(:stock_movement, product: product, quantity: 50)
-      create(:stock_movement, product: product, quantity: -10)
+    it 'calculates weighted average from multiple purchases' do
+      purchase1 = create(:purchase, supplier: supplier, currency: 'USD')
+      create(:purchase_item, purchase: purchase1, product: product, quantity: 5, unit_cost: 10)
       
-      expect(product.current_stock).to eq(40)
+      purchase2 = create(:purchase, supplier: supplier, currency: 'USD')
+      create(:purchase_item, purchase: purchase2, product: product, quantity: 5, unit_cost: 20)
+      
+      product.recalculate_average_cost!
+      
+      # (5×10 + 5×20) / 10 = 15
+      expect(product.cost_unit).to eq(15.0)
     end
   end
 end
@@ -398,22 +519,17 @@ end
 require 'rails_helper'
 
 RSpec.describe Sales::CreateOrder do
-  let(:customer) { create(:customer) }
-  let(:product) { create(:product) }
-  let(:user) { create(:user) }
+  let(:customer) { create(:customer, has_credit_account: true) }
+  let(:product) { create(:product, current_stock: 50) }
+  let!(:stock_location) { create(:stock_location) }
   
-  before do
-    create(:stock_movement, product: product, quantity: 50)
-  end
-
-  describe '#call' do
+  describe '.call' do
     it 'creates order successfully' do
-      result = described_class.new(
+      result = described_class.call(
         customer: customer,
         items: [{ product_id: product.id, quantity: 2, unit_price: 100 }],
-        order_type: 'credit',
-        user: user
-      ).call
+        order_type: 'credit'
+      )
 
       expect(result.success?).to be true
       expect(result.record).to be_a(Order)
@@ -421,22 +537,20 @@ RSpec.describe Sales::CreateOrder do
 
     it 'reduces product stock' do
       expect {
-        described_class.new(
+        described_class.call(
           customer: customer,
           items: [{ product_id: product.id, quantity: 2, unit_price: 100 }],
-          order_type: 'credit',
-          user: user
-        ).call
+          order_type: 'credit'
+        )
       }.to change { product.reload.current_stock }.by(-2)
     end
 
     it 'fails with insufficient stock' do
-      result = described_class.new(
+      result = described_class.call(
         customer: customer,
         items: [{ product_id: product.id, quantity: 100, unit_price: 100 }],
-        order_type: 'credit',
-        user: user
-      ).call
+        order_type: 'credit'
+      )
 
       expect(result.success?).to be false
       expect(result.errors).to include(/Stock insuficiente/)
@@ -452,16 +566,17 @@ end
 ### ❌ NO: Editar stock directamente
 
 ```ruby
-# MAL - NUNCA hacer esto desde un controller / vista / helper
+# MAL - NUNCA hacer esto
 product.update(current_stock: 50)
 
-# BIEN - Siempre usar un service dedicado de inventario
-result = Inventory::AdjustStock.new(
+# BIEN - Usar service de inventario
+result = Inventory::AdjustStock.call(
   product: product,
-  quantity_diff: 10,
-  reason: "Reconteo físico",
-  user: current_user
-).call
+  stock_location: stock_location,
+  movement_type: :adjustment,
+  quantity: 10,
+  note: "Reconteo físico"
+)
 ```
 
 ### ❌ NO: Lógica de negocio en controller
@@ -472,7 +587,7 @@ def create
   @order = Order.create!(order_params)
   @order.items.each do |item|
     product = item.product
-    product.stock -= item.quantity
+    product.current_stock -= item.quantity
     product.save!
   end
   redirect_to @order
@@ -484,7 +599,11 @@ end
 ```ruby
 # BIEN
 def create
-  result = Sales::CreateOrder.new(...).call
+  result = Sales::CreateOrder.call(
+    customer: @customer,
+    items: parse_items,
+    order_type: params[:order_type]
+  )
   
   if result.success?
     redirect_to result.record
@@ -499,7 +618,7 @@ end
 ```ruby
 # MAL
 -# En la vista
-- Product.where(status: 'active').each do |product|
+- Product.where(active: true).each do |product|
   = product.name
 ```
 
@@ -519,49 +638,67 @@ end
 
 ---
 
-## 8. REGLAS CRÍTICAS DE STOCK
+## 8. REGLAS CRÍTICAS DE STOCK Y COSTOS
 
 ### Crear Venta (genera movimientos negativos)
 
 ```ruby
-# En el service
-order.order_items.each do |item|
-  StockMovement.create!(
-    product: item.product,
-    quantity: -item.quantity,  # NEGATIVO
-    movement_type: 'sale',
-    reference: order
-  )
-end
+# En el service Sales::CreateOrder
+result = Inventory::AdjustStock.call(
+  product: product,
+  stock_location: stock_location,
+  movement_type: 'sale',
+  quantity: -item.quantity,  # NEGATIVO
+  reference: @order  # Polimórfico
+)
 ```
 
 ### Anular Venta (genera movimientos inversos)
 
 ```ruby
-# En el service
-order.order_items.each do |item|
-  StockMovement.create!(
-    product: item.product,
-    quantity: item.quantity,  # POSITIVO (reversa)
-    movement_type: 'adjustment',
-    reference: order,
-    notes: "Anulación de venta ##{order.id}"
-  )
-end
+# En el service Sales::CancelOrder
+result = Inventory::AdjustStock.call(
+  product: product,
+  stock_location: stock_location,
+  movement_type: 'adjustment',
+  quantity: item.quantity,  # POSITIVO (reversa)
+  reference: @order,
+  note: "Anulación de venta ##{@order.id}"
+)
 ```
 
-### Crear Compra (genera movimientos positivos)
+### Crear Compra (genera movimientos positivos + actualiza costo)
 
 ```ruby
-# En el service
-purchase.purchase_items.each do |item|
-  StockMovement.create!(
-    product: item.product,
-    quantity: item.quantity,  # POSITIVO
-    movement_type: 'purchase',
-    reference: purchase
-  )
-end
+# En el service Purchasing::CreatePurchase
+# 1. Crear movimientos de stock
+result = Inventory::AdjustStock.call(
+  product: product,
+  stock_location: stock_location,
+  movement_type: 'purchase',
+  quantity: item.quantity,  # POSITIVO
+  reference: @purchase
+)
+
+# 2. Recalcular costo promedio
+product.recalculate_average_cost!
+```
+
+### Anular Compra (reversa movimientos + recalcula costo)
+
+```ruby
+# En el service Purchasing::CancelPurchase
+# 1. Revertir stock
+result = Inventory::AdjustStock.call(
+  product: product,
+  stock_location: stock_location,
+  movement_type: 'adjustment',
+  quantity: -item.quantity,  # NEGATIVO (reversa)
+  reference: @purchase
+)
+
+# 2. Recalcular costo promedio (sin la compra cancelada)
+product.recalculate_average_cost!
 ```
 
 ---
@@ -582,7 +719,7 @@ end
 ```haml
 -# Botón primario
 .btn-primary  # Definir en CSS o usar:
-.px-4.py-2.bg-primary.text-white.rounded-lg.hover:bg-primary-dark
+.px-4.py-2.bg-teal-600.text-white.rounded-lg.hover:bg-teal-700
 
 -# Card
 .card  # O:
@@ -590,7 +727,7 @@ end
 
 -# Input
 .input-text  # O:
-.w-full.px-3.py-2.border.border-gray-300.rounded-lg.focus:ring-2.focus:ring-primary
+.w-full.px-3.py-2.border.border-gray-300.rounded-lg.focus:ring-2.focus:ring-teal-500
 ```
 
 ---
@@ -598,19 +735,26 @@ end
 ## 10. RECORDATORIOS FINALES
 
 ### Siempre Hacer:
-- ✅ Services para operaciones complejas
+- ✅ Services para operaciones complejas (ventas, compras, pagos)
+- ✅ Método de clase `.call` en todos los services
 - ✅ Validar stock ANTES de crear ventas
 - ✅ Usar transacciones en services
 - ✅ Devolver Result desde services
-- ✅ Controllers delgados
-- ✅ Manejar stock SIEMPRE a través de StockMovement y/o services de inventario
+- ✅ Controllers delgados (solo llaman services)
+- ✅ Stock SIEMPRE vía Inventory::AdjustStock
+- ✅ Recalcular costo promedio al confirmar/anular compras
+- ✅ Reference polimórfico para trazabilidad
 
 ### Nunca Hacer:
 - ❌ Lógica de negocio en controllers
 - ❌ Lógica de negocio en vistas
-- ❌ Editar `current_stock` directamente desde controllers, helpers o vistas
-- ❌ Crear/actualizar StockMovement "a mano" fuera de los services de inventario
+- ❌ Editar `current_stock` directamente
+- ❌ Editar `cost_unit` manualmente (usar recalculate_average_cost!)
+- ❌ Crear StockMovement fuera de Inventory::AdjustStock
+- ❌ Olvidar validar stock antes de vender
+- ❌ Olvidar transacciones en operaciones multi-modelo
+- ❌ Usar `.new().call` en vez de `.call()` en services
 
 ---
 
-**Para más detalles:** Consultar `DEVELOPMENT_GUIDE.md`
+**Para más detalles:** Consultar `DEVELOPMENT_GUIDE.md` y `FLUJOS.md`

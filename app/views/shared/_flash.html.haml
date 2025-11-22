@@ -1,0 +1,29 @@
+- type_classes = { success: "border-emerald-500 bg-emerald-50 text-emerald-800", error: "border-red-500 bg-red-50 text-red-800", warning: "border-amber-500 bg-amber-50 text-amber-800", info: "border-blue-500 bg-blue-50 text-blue-800" }
+
+%div{class: "rounded-xl border-l-4 p-4 shadow-sm flex gap-3 items-start #{type_classes[type.to_sym]}"}
+  -# Ícono
+  - if type.to_sym == :success
+    .w-10.h-10.rounded-xl.bg-emerald-500.flex.items-center.justify-center.text-white.flex-shrink-0
+      ✓
+  - elsif type.to_sym == :error
+    .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+      ✕
+  - elsif type.to_sym == :warning
+    .w-10.h-10.rounded-xl.bg-amber-500.flex.items-center.justify-center.text-white.flex-shrink-0
+      ⚠
+  - else
+    .w-10.h-10.rounded-xl.bg-blue-500.flex.items-center.justify-center.text-white.flex-shrink-0
+      ℹ
+  
+  -# Mensaje
+  .flex-1
+    - if type.to_sym == :success
+      %h4.font-semibold.mb-1 Éxito
+    - elsif type.to_sym == :error
+      %h4.font-semibold.mb-1 Error
+    - elsif type.to_sym == :warning
+      %h4.font-semibold.mb-1 Atención
+    - else
+      %h4.font-semibold.mb-1 Información
+    
+    %p.text-sm= message

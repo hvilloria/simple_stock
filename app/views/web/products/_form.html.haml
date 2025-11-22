@@ -1,0 +1,178 @@
+= form_with model: product, url: web_products_path, local: true do |f|
+  
+  -# Mostrar errores si los hay
+  - if product.errors.any?
+    .mb-6.rounded-xl.border-l-4.border-red-500.bg-red-50.p-4.shadow-sm
+      .flex.gap-3.items-start
+        .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+          ✕
+        .flex-1
+          %h4.font-semibold.text-red-800.mb-1 Error al guardar
+          %ul.text-sm.text-red-700.list-disc.list-inside
+            - product.errors.full_messages.each do |message|
+              %li= message
+
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+    
+    -# Columna izquierda: Formulario
+    .lg:col-span-2.space-y-6
+      
+      -# Card 1 - Información Básica
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-base.font-semibold.text-slate-900.mb-4 Información Básica
+        
+        .space-y-4
+          %div
+            = f.label :sku, "SKU", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.text_field :sku, 
+                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all #{product.errors[:sku].any? ? 'border-red-300' : ''}",
+                          placeholder: "Ej: HDC001",
+                          autofocus: true,
+                          required: true
+            - if product.errors[:sku].any?
+              %p.text-sm.text-red-600.mt-1= product.errors[:sku].first
+          
+          %div
+            = f.label :name, "Nombre del Producto", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.text_field :name,
+                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all #{product.errors[:name].any? ? 'border-red-300' : ''}",
+                          placeholder: "Ej: Disco de Freno Delantero",
+                          required: true
+            - if product.errors[:name].any?
+              %p.text-sm.text-red-600.mt-1= product.errors[:name].first
+          
+          %div
+            = f.label :brand, "Marca", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.text_field :brand,
+                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                          placeholder: "Ej: Honda, TRW, Bosch"
+      
+      -# Card 2 - Precio y Costo
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-base.font-semibold.text-slate-900.mb-4 Precio y Costo
+        
+        .space-y-4
+          %div
+            = f.label :price_unit, "Precio de Venta (ARS)", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.number_field :price_unit,
+                            class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                            placeholder: "0.00",
+                            step: 0.01,
+                            min: 0
+          
+          %div
+            = f.label :cost_unit, "Costo Unitario (opcional)", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.number_field :cost_unit,
+                            class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                            placeholder: "0.00",
+                            step: 0.01,
+                            min: 0
+            %p.text-xs.text-slate-500.mt-1 El costo se actualiza automáticamente con las compras
+          
+          %div
+            %label.block.text-sm.font-medium.text-slate-700.mb-3 Moneda del Costo
+            .grid.grid-cols-2.gap-4
+              %div{class: "relative flex items-center gap-3 p-4 border-2 border-slate-200 rounded-lg cursor-pointer hover:border-slate-500 transition-all"}
+                %span
+                  = f.radio_button :cost_currency, "USD", checked: product.cost_currency == 'USD', id: "cost_currency_usd"
+                %label.cursor-pointer.flex-1{for: "cost_currency_usd"}
+                  %p.font-medium.text-slate-900 USD
+                  %p.text-xs.text-slate-500 Dólar estadounidense
+              
+              %div{class: "relative flex items-center gap-3 p-4 border-2 border-slate-200 rounded-lg cursor-pointer hover:border-slate-500 transition-all"}
+                %span
+                  = f.radio_button :cost_currency, "ARS", checked: product.cost_currency == 'ARS', id: "cost_currency_ars"
+                %label.cursor-pointer.flex-1{for: "cost_currency_ars"}
+                  %p.font-medium.text-slate-900 ARS
+                  %p.text-xs.text-slate-500 Peso argentino
+      
+      -# Card 3 - Clasificación
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-base.font-semibold.text-slate-900.mb-4 Clasificación
+        
+        .space-y-4
+          %div
+            %label.block.text-sm.font-medium.text-slate-700.mb-3 Tipo de Producto
+            .grid.grid-cols-2.gap-4
+              %div{class: "relative flex items-center gap-3 p-4 border-2 border-slate-200 rounded-lg cursor-pointer hover:border-slate-500 transition-all"}
+                %span
+                  = f.radio_button :product_type, "oem", checked: product.product_type == 'oem', id: "product_type_oem"
+                %label.cursor-pointer.flex-1{for: "product_type_oem"}
+                  %p.font-medium.text-slate-900 OEM
+                  %p.text-xs.text-slate-500 Repuesto original de fábrica
+              
+              %div{class: "relative flex items-center gap-3 p-4 border-2 border-slate-200 rounded-lg cursor-pointer hover:border-slate-500 transition-all"}
+                %span
+                  = f.radio_button :product_type, "aftermarket", checked: product.product_type == 'aftermarket', id: "product_type_aftermarket"
+                %label.cursor-pointer.flex-1{for: "product_type_aftermarket"}
+                  %p.font-medium.text-slate-900 Aftermarket
+                  %p.text-xs.text-slate-500 Repuesto compatible
+          
+          %div
+            = f.label :category, "Categoría", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.select :category,
+                      options_for_select([["Seleccionar categoría", ""]] + Product::CATEGORIES.map { |c| [c.titleize, c] }, product.category),
+                      {},
+                      class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+          
+          %div
+            = f.label :origin, "Origen", class: "block text-sm font-medium text-slate-700 mb-2"
+            = f.select :origin,
+                      options_for_select([["Seleccionar origen", ""]] + Product::ORIGINS.map { |o| [o.titleize, o] }, product.origin),
+                      {},
+                      class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+      
+      -# Botones
+      .flex.gap-3.justify-end
+        = link_to "Cancelar", web_products_path, class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-slate-700 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+        = f.submit "Guardar Producto", class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
+    
+    -# Columna derecha: Preview
+    .lg:col-span-1
+      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
+        %h3.text-base.font-semibold.text-slate-900.mb-4 Vista Previa
+        
+        .space-y-4
+          - if product.sku.present?
+            %div
+              %p.text-xs.text-slate-500.mb-1 SKU
+              %p.text-lg.font-mono.font-bold.text-slate-900= product.sku
+          - else
+            %div
+              %p.text-sm.text-slate-400.italic Sin SKU
+          
+          - if product.name.present?
+            %div
+              %p.text-xs.text-slate-500.mb-1 Nombre
+              %p.text-sm.font-medium.text-slate-900= product.name
+          
+          %div
+            %p.text-xs.text-slate-500.mb-2 Características
+            .flex.flex-wrap.gap-2
+              - if product.product_type.present?
+                - if product.product_type == 'oem'
+                  %span.inline-flex.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
+                    OEM
+                - elsif product.product_type == 'aftermarket'
+                  %span.inline-flex.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-700
+                    Aftermarket
+              
+              - if product.origin.present?
+                %span.inline-flex.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
+                  🌍
+                  = product.origin.titleize
+              
+              - if product.product_type.blank? && product.origin.blank?
+                %span.text-xs.text-slate-400.italic Sin características
+          
+          .border-t.border-slate-200.pt-4
+            %label.flex.items-center.gap-3.cursor-pointer
+              = f.check_box :active, class: "w-5 h-5 rounded border-slate-300 text-slate-700 focus:ring-slate-500"
+              %span.text-sm.font-medium.text-slate-700 Producto activo
+          
+          .border-t.border-slate-200.pt-4
+            .bg-slate-50.rounded-lg.p-3
+              %p.text-xs.text-slate-600.leading-relaxed
+                %span.font-semibold Stock:
+                Se gestiona por movimientos de inventario. El stock inicial será 0 hasta que se registre una compra o ajuste.
+
