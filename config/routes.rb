@@ -13,10 +13,13 @@ Rails.application.routes.draw do
     get "dashboard", to: "dashboard#index"
 
     resources :products, only: [ :index, :show, :new, :create, :edit, :update ] do
+      collection do
+        get :search
+      end
       resources :stock_movements, only: [ :new, :create ], module: :products
     end
 
-    resources :orders, only: [ :index, :new, :create ] do
+    resources :orders, only: [ :index, :show, :new, :create ] do
       post :cancel, on: :member
     end
 

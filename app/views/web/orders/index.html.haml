@@ -11,7 +11,7 @@
     %thead.bg-gray-50
       %tr
         %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
-          ID
+          Productos
         %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
           Fecha
         %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
@@ -27,7 +27,8 @@
       - @orders.each do |order|
         %tr.hover:bg-gray-50.transition-colors
           %td.px-6.py-4.whitespace-nowrap
-            %span.font-mono.text-sm.font-semibold.text-gray-900= "##{order.id}"
+            = link_to web_order_path(order), class: "font-mono text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline" do
+              = "#{order.stock_movements.count}"
           %td.px-6.py-4.whitespace-nowrap
             %span.text-sm.text-gray-900= l(order.created_at, format: :short)
           %td.px-6.py-4

@@ -1,0 +1,299 @@
+- content_for :page_title, "Venta ##{@order.id}"
+
+.container.mx-auto.px-6.py-6
+
+  -# Header con botón volver y acción
+  .flex.items-center.justify-between.mb-6
+    = link_to web_orders_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
+      %span ←
+      %span Volver a Ventas
+    
+    - if @order.confirmed_status?
+      = button_to cancel_web_order_path(@order), method: :post, data: { turbo_confirm: "¿Estás seguro de cancelar esta venta? Esta acción reintegrará el stock." }, class: "btn-danger" do
+        %span ✕
+        %span Cancelar Venta
+
+  -# Banner de alerta si está cancelada
+  - if @order.cancelled_status?
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Venta Cancelada
+        %p.text-sm.text-red-700
+          Esta venta fue cancelada el
+          = l(@order.updated_at, format: :long)
+
+  -# Grid principal de 2 columnas
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+
+    -# ============ COLUMNA IZQUIERDA (2/3) ============
+    .lg:col-span-2.space-y-6
+
+      -# CARD 1 - Información Principal
+      .bg-white.rounded-2xl.shadow-soft.p-6{ class: @order.cancelled_status? ? 'opacity-75' : '' }
+        .flex.items-center.justify-between.mb-6
+          %h3.text-lg.font-semibold.text-gray-900 Información de la Venta
+
+        .grid.grid-cols-1.md:grid-cols-2.gap-6
+
+          -# Columna 1
+          .space-y-4
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 ID Venta
+              %span.text-2xl.font-bold.font-mono.text-gray-900= "##{@order.id}"
+            
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Cliente
+              - if @order.customer && @order.customer.has_credit_account?
+                = link_to @order.customer.name, "#", class: "text-base font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              - elsif @order.customer
+                %span.text-base.font-medium.text-gray-900= @order.customer.name
+              - else
+                %span.text-base.text-gray-500 Cliente Mostrador
+            
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Fecha
+              %span.text-base.font-medium.text-gray-900= l(@order.created_at, format: :long)
+              %span.text-sm.text-gray-500.mt-1
+                Hace
+                = time_ago_in_words(@order.created_at)
+
+          -# Columna 2
+          .space-y-4
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Estado
+              - if @order.confirmed_status?
+                %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-emerald-100.text-emerald-800.w-fit
+                  %span ✓
+                  %span Confirmada
+              - else
+                %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800.w-fit
+                  %span ✕
+                  %span Cancelada
+            
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Tipo de Venta
+              - if @order.cash_order_type?
+                %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-gray-100.text-gray-700.w-fit
+                  %span 💵
+                  %span Contado
+              - else
+                %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-blue-50.text-blue-700.w-fit
+                  %span 📋
+                  %span Cuenta Corriente
+            
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Canal
+              - if @order.channel.present?
+                - case @order.channel
+                - when 'counter'
+                  %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-gray-50.text-gray-600.w-fit
+                    %span 🏪
+                    %span Mostrador
+                - when 'whatsapp'
+                  %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-green-50.text-green-700.w-fit
+                    %span 💬
+                    %span WhatsApp
+                - when 'mercadolibre'
+                  %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-yellow-50.text-yellow-700.w-fit
+                    %span 🛒
+                    %span Mercado Libre
+              - else
+                %span.text-base.text-gray-400 -
+
+        .border-t.border-gray-200.my-4
+
+        .flex.flex-col
+          %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Registrado por
+          %span.text-sm.text-gray-700 Sistema
+
+      -# CARD 2 - Productos Vendidos
+      .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
+        .px-6.py-4.border-b.border-gray-100
+          %h3.text-lg.font-semibold.text-gray-900
+            Productos Vendidos
+            %span.text-gray-500.font-normal (#{@order_items.count})
+
+        .overflow-x-auto
+          %table.min-w-full.divide-y.divide-gray-200
+            %thead.bg-gray-50
+              %tr
+                %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider CÓDIGO
+                %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider PRODUCTO
+                %th.px-6.py-3.text-center.text-xs.font-medium.text-gray-500.uppercase.tracking-wider CANTIDAD
+                %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider PRECIO UNIT.
+                %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider COSTO UNIT.
+                %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider SUBTOTAL
+            
+            %tbody.divide-y.divide-gray-100.bg-white
+              - @order_items.each do |item|
+                %tr.hover:bg-gray-50.transition-colors
+                  %td.px-6.py-4.whitespace-nowrap
+                    %span.font-mono.text-sm.text-gray-900= item.product.sku
+                  
+                  %td.px-6.py-4
+                    .flex.items-center.gap-2
+                      %span.text-sm.text-gray-900= item.product.name
+                      - if item.product.oem?
+                        %span.px-2.py-0.5.bg-gray-100.text-gray-700.rounded.text-xs.font-medium OEM
+                      - elsif item.product.aftermarket?
+                        %span.px-2.py-0.5.bg-blue-50.text-blue-700.rounded.text-xs.font-medium ALT
+                  
+                  %td.px-6.py-4.whitespace-nowrap.text-center
+                    %span.text-sm.font-medium.text-gray-900= number_with_delimiter(item.quantity)
+                  
+                  %td.px-6.py-4.whitespace-nowrap.text-right
+                    %span.text-sm.text-gray-900= number_to_currency(item.unit_price)
+                  
+                  %td.px-6.py-4.whitespace-nowrap.text-right
+                    %span.text-sm.text-gray-500= number_to_currency(item.product.cost_in_ars)
+                  
+                  %td.px-6.py-4.whitespace-nowrap.text-right
+                    %span.text-sm.font-bold.text-gray-900= number_to_currency(item.quantity * item.unit_price)
+            
+            %tfoot.bg-gray-50
+              %tr
+                %td.px-6.py-4{colspan: "5"}
+                  %span.text-base.font-bold.text-gray-900 Total:
+                %td.px-6.py-4.text-right
+                  %span.text-xl.font-bold.text-gray-900= number_to_currency(@order.total_amount)
+
+      -# CARD 3 - Movimientos de Stock
+      .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
+        .px-6.py-4.border-b.border-gray-100
+          %h3.text-lg.font-semibold.text-gray-900 Movimientos de Stock Relacionados
+
+        - if @stock_movements.any?
+          .overflow-x-auto
+            %table.min-w-full.divide-y.divide-gray-200
+              %thead.bg-gray-50
+                %tr
+                  %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider FECHA/HORA
+                  %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider PRODUCTO
+                  %th.px-6.py-3.text-center.text-xs.font-medium.text-gray-500.uppercase.tracking-wider CANTIDAD
+                  %th.px-6.py-3.text-center.text-xs.font-medium.text-gray-500.uppercase.tracking-wider TIPO
+                  %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider UBICACIÓN
+              
+              %tbody.divide-y.divide-gray-100.bg-white
+                - @stock_movements.each do |movement|
+                  %tr.hover:bg-gray-50.transition-colors
+                    %td.px-6.py-3.whitespace-nowrap
+                      %span.text-sm.text-gray-900= l(movement.created_at, format: :short)
+                    
+                    %td.px-6.py-3
+                      %span.font-mono.text-xs.text-gray-500= movement.product.sku
+                      %span.text-sm.text-gray-900.ml-2= movement.product.name.truncate(30)
+                    
+                    %td.px-6.py-3.whitespace-nowrap.text-center
+                      - if movement.quantity.negative?
+                        %span.text-sm.font-semibold.text-red-600= movement.quantity
+                      - else
+                        %span.text-sm.font-semibold.text-green-600= "+#{movement.quantity}"
+                    
+                    %td.px-6.py-3.whitespace-nowrap.text-center
+                      - if movement.sale_movement_type?
+                        %span.inline-flex.px-2.py-1.rounded.text-xs.font-medium.bg-red-100.text-red-800 Venta
+                      - elsif movement.purchase_movement_type?
+                        %span.inline-flex.px-2.py-1.rounded.text-xs.font-medium.bg-green-100.text-green-800 Compra
+                      - else
+                        %span.inline-flex.px-2.py-1.rounded.text-xs.font-medium.bg-gray-100.text-gray-700 Ajuste
+                    
+                    %td.px-6.py-3
+                      %span.text-sm.text-gray-700= movement.stock_location.name
+        - else
+          .p-12.text-center
+            .inline-flex.w-16.h-16.rounded-full.bg-gray-100.items-center.justify-center.text-3xl.mb-3
+              📦
+            %p.text-sm.text-gray-500 Sin movimientos de stock registrados
+
+    -# ============ COLUMNA DERECHA (1/3) ============
+    .lg:col-span-1
+      .bg-white.rounded-2xl.shadow-soft.p-6.sticky.top-24{ class: @order.cancelled_status? ? 'opacity-75' : '' }
+        %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen
+
+        -# Total principal
+        .text-center.mb-6
+          %p.text-sm.text-gray-500.mb-2 Total de la Venta
+          %p.text-4xl.font-bold.text-gray-900= number_to_currency(@order.total_amount)
+
+        .border-t.border-gray-200.py-4.space-y-3
+
+          .flex.justify-between.text-sm
+            %span.text-gray-600 Items
+            %span.font-medium.text-gray-900= "#{@order_items.count} productos"
+          
+          .flex.justify-between.text-sm
+            %span.text-gray-600 Cantidad total
+            %span.font-medium.text-gray-900= "#{@order_items.sum(:quantity)} unidades"
+          
+          .flex.justify-between.text-sm
+            %span.text-gray-600 Subtotal
+            %span.font-medium.text-gray-900= number_to_currency(@order.total_amount)
+
+        -# Análisis de Costos
+        .border-t.border-gray-200.py-4
+          %h4.text-sm.font-semibold.text-gray-900.mb-3 Análisis de Costos
+
+          - costo_total = @order_items.sum { |item| item.product.cost_in_ars * item.quantity }
+          - margen_bruto = @order.total_amount - costo_total
+          - porcentaje_margen = costo_total > 0 ? ((margen_bruto / costo_total) * 100).round(1) : 0
+
+          .space-y-2
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Costo Total
+              %span.font-medium.text-gray-700= number_to_currency(costo_total)
+            
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Margen Bruto
+              %span.font-medium.text-gray-900= number_to_currency(margen_bruto)
+            
+            .flex.justify-between.text-sm
+              %span.text-gray-600 % Margen
+              - if porcentaje_margen > 0
+                %span.font-bold.text-green-600= "#{porcentaje_margen}%"
+              - elsif porcentaje_margen < 0
+                %span.font-bold.text-red-600= "#{porcentaje_margen}%"
+              - else
+                %span.font-medium.text-gray-500= "#{porcentaje_margen}%"
+            
+            %p.text-xs.text-gray-500.italic.mt-2 Basado en costos promedio
+
+        -# Info del cliente (solo si es venta a crédito)
+        - if @order.credit_order_type? && @order.customer
+          .border-t.border-gray-200.py-4
+            %h4.text-sm.font-semibold.text-gray-900.mb-3 Info del Cliente
+            
+            = link_to @order.customer.name, "#", class: "text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline block mb-2"
+            
+            - saldo = @order.customer.current_balance
+            .flex.justify-between.items-center
+              %span.text-sm.text-gray-600 Saldo actual
+              %span.text-sm.font-bold.text-gray-900= number_to_currency(saldo)
+            
+            - if saldo < 50000
+              %span.inline-flex.items-center.gap-1.px-2.py-1.rounded.text-xs.font-medium.bg-green-100.text-green-800.mt-2
+                ✓ Saldo saludable
+            - else
+              %span.inline-flex.items-center.gap-1.px-2.py-1.rounded.text-xs.font-medium.bg-yellow-100.text-yellow-800.mt-2
+                ⚠ Revisar saldo
+
+        -# Botón de acción
+        .border-t.border-gray-200.py-4
+          - if @order.confirmed_status?
+            = button_to cancel_web_order_path(@order), method: :post, data: { turbo_confirm: "¿Estás seguro de cancelar esta venta?" }, class: "btn-danger w-full" do
+              %span ✕
+              %span Cancelar Venta
+          - else
+            .text-center
+              %span.inline-flex.px-4.py-2.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800 Cancelada
+
+        -# Metadatos
+        .border-t.border-gray-200.pt-4.space-y-2
+          .text-xs.text-gray-500
+            %span.font-medium Creado:
+            = l(@order.created_at, format: :long)
+          .text-xs.text-gray-500
+            %span.font-medium Actualizado:
+            = l(@order.updated_at, format: :long)
+

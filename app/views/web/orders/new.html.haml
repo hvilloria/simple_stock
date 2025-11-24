@@ -1,20 +1,111 @@
-%h1 Nueva venta rápida
+- content_for :page_title, "Nueva Venta"
 
-- if flash[:alert]
-  .alert= flash[:alert]
+.container.mx-auto.px-6.py-6
 
-= form_with url: web_orders_path, scope: :order, local: true do |f|
-  .field
-    = f.label :product_id, "Producto"
-    = f.collection_select :product_id, @products, :id, :name, include_blank: "Selecciona un producto"
+  -# Header con navegación
+  .flex.items-center.justify-between.mb-6
+    = link_to web_orders_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
+      %span ←
+      %span Volver a Ventas
+    
+    %h1.text-3xl.font-bold.text-gray-900 Nueva Venta
 
-  .field
-    = f.label :quantity, "Cantidad"
-    = f.number_field :quantity, min: 1, value: 1
+  -# Mostrar errores si existen
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Error
+        %p.text-sm.text-red-700= flash[:alert]
 
-  .actions
-    = f.submit "Registrar venta"
+  = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form" } do |f|
+    
+    .grid.grid-cols-1.md:grid-cols-2.gap-6
 
-%hr/
+      -# ============ CARD 1 - Información del Cliente (izquierda, arriba) ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Información del Cliente
 
-= link_to "Volver a órdenes", web_orders_path
+        .space-y-4
+          -# Tipo de venta (radio buttons visuales)
+          %div
+            %label.block.text-sm.font-medium.text-gray-700.mb-3 Tipo de Venta
+            .grid.grid-cols-2.gap-4
+              %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                %span
+                  = f.radio_button :order_type, "cash", checked: true, id: "order_type_cash", data: { action: "change->order-form#updateOrderType" }
+                %label.cursor-pointer.flex-1{ for: "order_type_cash" }
+                  %p.font-medium.text-gray-900 💵 Contado
+                  %p.text-xs.text-gray-500 Pago inmediato
+              
+              %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                %span
+                  = f.radio_button :order_type, "credit", id: "order_type_credit", data: { action: "change->order-form#updateOrderType" }
+                %label.cursor-pointer.flex-1{ for: "order_type_credit" }
+                  %p.font-medium.text-gray-900 📋 Cuenta Corriente
+                  %p.text-xs.text-gray-500 A crédito
+          
+          -# Selector de cliente
+          %div
+            = f.label :customer_id, "Cliente", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.select :customer_id, options_for_select([["Cliente Mostrador", "mostrador"]] + @customers.map { |c| ["#{c.name}#{c.has_credit_account? ? ' (Cuenta Corriente)' : ''}", c.id] }), { selected: "mostrador" }, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+            %p.text-xs.text-gray-500.mt-1 Para ventas a crédito, selecciona un cliente con cuenta corriente
+          
+          -# Canal de venta
+          %div
+            = f.label :channel, "Canal de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.select :channel, options_for_select([["🏪 Mostrador", "counter"], ["💬 WhatsApp", "whatsapp"], ["🛒 Mercado Libre", "mercadolibre"]], "counter"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+
+      -# ============ CARD 2 - Resumen de Venta (derecha, ocupando 2 filas) ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24.md:row-span-2
+        %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Venta
+
+        -# Total principal (calculado dinámicamente)
+        .text-center.mb-6
+          %p.text-sm.text-gray-500.mb-2 Total
+          %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0
+
+        .border-t.border-gray-200.py-4.space-y-3
+          .flex.justify-between.text-sm
+            %span.text-gray-600 Items
+            %span.font-medium.text-gray-900{ data: { order_form_target: "itemCount" } } 0 productos
+
+          .flex.justify-between.text-sm
+            %span.text-gray-600 Cantidad total
+            %span.font-medium.text-gray-900{ data: { order_form_target: "totalQuantity" } } 0 unidades
+
+        .border-t.border-gray-200.py-4
+          %h4.text-sm.font-semibold.text-gray-900.mb-3 Información de Pago
+          
+          .space-y-2
+            .flex.items-center.gap-2.text-sm{ data: { order_form_target: "orderTypeInfo" } }
+              %span 💵
+              %span.text-gray-600 Contado - Pago inmediato
+            
+            .flex.items-center.gap-2.text-sm
+              %span 🏪
+              %span.text-gray-600 Mostrador
+
+        .border-t.border-gray-200.pt-4
+          = f.submit "Registrar Venta", disabled: true, class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors opacity-50 cursor-not-allowed", data: { order_form_target: "submitButton" }
+
+        .mt-4.text-center
+          %p.text-xs.text-gray-500 Se validará el stock disponible antes de confirmar
+
+      -# ============ CARD 3 - Productos (izquierda, abajo) ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
+
+        -# Search input con dropdown
+        %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
+          %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
+          %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
+
+        -# Lista de productos agregados
+        .mt-6
+          #order-items{ data: { 'order-form-target': 'items' } }
+            .text-center.py-12.text-gray-400
+              %p.text-5xl.mb-3 📦
+              %p.text-gray-600.font-medium No hay productos agregados
+              %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba

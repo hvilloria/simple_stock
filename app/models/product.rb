@@ -19,7 +19,7 @@ class Product < ApplicationRecord
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
-  ORIGINS = %w[japan china taiwan usa germany korea brazil].freeze
+  ORIGINS = %w[japan china taiwan usa germany korea brazil india].freeze
   PRODUCT_TYPES = %w[oem aftermarket].freeze
 
   # Validations
@@ -29,6 +29,7 @@ class Product < ApplicationRecord
   validates :cost_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_currency, inclusion: { in: %w[USD ARS] }
   validates :origin, inclusion: { in: ORIGINS, allow_blank: true }
+  validates :origin, presence: true, if: :aftermarket?
   validates :product_type, inclusion: { in: PRODUCT_TYPES, allow_blank: true }
   validates :category, inclusion: { in: CATEGORIES, allow_blank: true }
 
@@ -39,11 +40,20 @@ class Product < ApplicationRecord
   scope :by_category, ->(cat) { where(category: cat) if cat.present? }
   scope :by_origin, ->(origin) { where(origin: origin) if origin.present? }
   scope :by_product_type, ->(type) { where(product_type: type) if type.present? }
+  scope :by_status, lambda { |status|
+    return active if status.blank?
+
+    case status.to_s.downcase
+    when "active" then active
+    when "inactive" then inactive
+    else active # default to active for invalid values
+    end
+  }
   scope :oem, -> { where(product_type: "oem") }
   scope :aftermarket, -> { where(product_type: "aftermarket") }
   scope :search, lambda { |query|
-    where("sku ILIKE ? OR name ILIKE ? OR brand ILIKE ?",
-          "%#{query}%", "%#{query}%", "%#{query}%") if query.present?
+    where("sku ILIKE ? OR name ILIKE ?",
+          "%#{query}%", "%#{query}%") if query.present?
   }
 
   # Stock cacheado: current_stock es una columna en products

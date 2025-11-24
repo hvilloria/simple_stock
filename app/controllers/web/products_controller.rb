@@ -1,7 +1,10 @@
 module Web
   class ProductsController < ApplicationController
     def index
-      @products = Product.active.order(:name)
+      @products = Product.search(params[:q])
+                         .by_category(params[:category])
+                         .by_status(params[:status])
+                         .order(:name)
     end
 
     def show
@@ -24,6 +27,17 @@ module Web
       else
         render :new, status: :unprocessable_entity
       end
+    end
+
+    def search
+      @products = Product.active
+                         .search(params[:q])
+                         .limit(10)
+
+      render json: @products.as_json(
+        only: [ :id, :sku, :name, :price_unit, :current_stock, :brand, :origin, :product_type ],
+        methods: []
+      )
     end
 
     private

@@ -2,7 +2,11 @@ class Order < ApplicationRecord
   # Associations
   belongs_to :customer, optional: true
   has_many :order_items, dependent: :destroy
+  has_many :products, through: :order_items
   has_many :stock_movements, as: :reference, dependent: :nullify
+
+  # Nested attributes
+  accepts_nested_attributes_for :order_items, allow_destroy: true, reject_if: :all_blank
 
   # Enums
   enum :status, {

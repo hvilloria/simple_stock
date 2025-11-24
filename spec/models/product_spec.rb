@@ -67,8 +67,19 @@ RSpec.describe Product, type: :model do
         end
       end
 
-      it 'allows blank origin' do
-        product = build(:product, origin: nil)
+      it 'allows blank origin for OEM products' do
+        product = build(:product, product_type: 'oem', origin: nil)
+        expect(product).to be_valid
+      end
+
+      it 'requires origin for aftermarket products' do
+        product = build(:product, product_type: 'aftermarket', origin: nil)
+        expect(product).not_to be_valid
+        expect(product.errors[:origin]).to include("can't be blank")
+      end
+
+      it 'allows origin for aftermarket products' do
+        product = build(:product, product_type: 'aftermarket', origin: 'china')
         expect(product).to be_valid
       end
 

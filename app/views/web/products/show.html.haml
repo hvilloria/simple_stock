@@ -7,9 +7,11 @@
     = link_to web_products_path, class: "inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors" do
       %span ←
       %span Volver a Productos
-    
-    = link_to edit_web_product_path(@product), class: "btn-primary" do
-      %span Editar Producto
+    %div.flex.items-center.gap-2
+      = link_to new_web_order_path(product_id: @product.id), class: "btn-primary" do
+        %span Registrar Venta
+      = link_to edit_web_product_path(@product), class: "btn-primary" do
+        %span Editar Producto
 
   -# Alert si producto inactivo
   - unless @product.active?
