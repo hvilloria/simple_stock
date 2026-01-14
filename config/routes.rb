@@ -1,5 +1,16 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
+  # Devise routes (solo sessions, sin registro)
+  devise_for :users, skip: [ :registrations ]
+
+  # Root depende de si el usuario está logueado
+  authenticated :user do
+    root to: "web/dashboard#index", as: :authenticated_root
+  end
+
+  # Usuarios no autenticados van al login
+  devise_scope :user do
+    root to: "devise/sessions#new"
+  end
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
@@ -24,11 +35,6 @@ Rails.application.routes.draw do
     end
 
     resources :customers, only: [ :index ]
-    resources :purchases, only: [ :index ]
+    resources :purchases, only: [ :index, :new, :create ]
   end
-
-  root "web/dashboard#index"
-
-  # Defines the root path route ("/")
-  # root "posts#index"
 end

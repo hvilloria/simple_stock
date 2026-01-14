@@ -21,6 +21,25 @@
 
   = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form" } do |f|
     
+    -# Hidden fields para ventas-lite
+    = hidden_field_tag :source, 'from_paper'
+    
+    -# Campos de ventas-lite
+    .bg-white.border.border-slate-200.rounded-lg.p-6.mb-6
+      %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Venta
+      
+      .grid.grid-cols-1.md:grid-cols-2.gap-4
+        -# Campo de fecha de venta (editable, default hoy)
+        %div
+          = label_tag :sale_date, "Fecha de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
+          = date_field_tag :sale_date, Date.today, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+        
+        -# Campo de número de talonario
+        %div
+          = label_tag :paper_number, "N° Talonario", class: "block text-sm font-medium text-gray-700 mb-2"
+          = text_field_tag :paper_number, nil, placeholder: "Ej: 0045", class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+          %p.text-xs.text-gray-500.mt-1 Número del talonario físico
+    
     .grid.grid-cols-1.md:grid-cols-2.gap-6
 
       -# ============ CARD 1 - Información del Cliente (izquierda, arriba) ============

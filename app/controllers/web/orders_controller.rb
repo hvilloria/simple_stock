@@ -5,6 +5,7 @@ module Web
     before_action :load_order, only: [ :show, :cancel ]
 
     def index
+      authorize Order
       @orders = Order
         .includes(:customer, order_items: :product)
         .order(created_at: :desc)
@@ -12,12 +13,14 @@ module Web
     end
 
     def show
+      authorize @order
       @order_items = @order.order_items.includes(:product)
       @stock_movements = @order.stock_movements.includes(:product, :stock_location).order(created_at: :desc)
     end
 
     def new
       @order = Order.new
+      authorize @order
 
       # Contexto: viene desde product show con producto pre-seleccionado
       if params[:product_id].present?
@@ -39,11 +42,15 @@ module Web
     end
 
     def create
+      authorize Order, :create?
       result = Sales::CreateOrder.call(
         customer: find_or_create_customer,
         items: parse_items,
         order_type: params[:order_type] || "cash",
-        channel: params[:channel]
+        channel: params[:channel],
+        source: params[:source] || "live",
+        sale_date: params[:sale_date],
+        paper_number: params[:paper_number]
       )
 
       if result.success?
@@ -56,6 +63,7 @@ module Web
     end
 
     def cancel
+      authorize @order, :cancel?
       result = Sales::CancelOrder.call(
         order: @order,
         reason: params[:reason] || "Anulada desde interfaz"
@@ -85,15 +93,14 @@ module Web
     end
 
     def parse_items
-      # Parsear items desde nested attributes
-      return [] unless order_params[:order_items_attributes]
+      # Parsear items desde purchase_items params
+      return [] unless params[:purchase_items]
 
-      order_params[:order_items_attributes].values.map do |item_attrs|
-        product = Product.find(item_attrs[:product_id])
+      params[:purchase_items].map do |item|
         {
-          product_id: product.id,
-          quantity: item_attrs[:quantity].to_i,
-          unit_price: product.price_unit # Siempre usar precio actual del producto
+          product_id: item[:product_id].to_i,
+          quantity: item[:quantity].to_i,
+          unit_price: item[:unit_price].present? ? item[:unit_price].to_f : nil # Permitir nil
         }
       end.reject { |item| item[:quantity] <= 0 }
     end

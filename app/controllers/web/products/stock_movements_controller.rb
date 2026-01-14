@@ -5,10 +5,12 @@ module Web
         before_action :load_stock_location
 
         def new
+          authorize @product, :adjust_stock?
           @movement_type = params[:movement_type] || "purchase"
         end
 
       def create
+        authorize @product, :adjust_stock?
         quantity = movement_quantity_param
 
         result = Inventory::AdjustStock.call(

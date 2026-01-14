@@ -24,7 +24,14 @@ class Order < ApplicationRecord
 
   # Validations
   validates :order_type, presence: true
-  validates :total_amount, numericality: { greater_than: 0 }
+  validates :total_amount,
+            numericality: { greater_than: 0 },
+            unless: :from_paper?
+  validates :total_amount,
+            numericality: { greater_than_or_equal_to: 0 },
+            if: :from_paper?
+  validates :sale_date, presence: true
+  validates :source, inclusion: { in: %w[live from_paper] }
   validates :channel, inclusion: { in: ALLOWED_CHANNELS, allow_nil: true }
   validate :credit_order_requires_credit_account
 
@@ -32,6 +39,29 @@ class Order < ApplicationRecord
   scope :cash, -> { where(order_type: "cash") }
   scope :credit, -> { where(order_type: "credit") }
   scope :active, -> { where.not(status: "cancelled") }
+  scope :from_paper, -> { where(source: "from_paper") }
+  scope :live, -> { where(source: "live") }
+  scope :by_sale_date, ->(date) { where(sale_date: date) if date.present? }
+
+  # === VENTAS-LITE MODE ===
+  # source: Indica el origen de la venta
+  #   - 'live': Venta registrada en tiempo real (precios confiables)
+  #   - 'from_paper': Venta cargada desde talonario físico (precios aproximados/opcionales)
+  #
+  # sale_date: Fecha REAL de la venta (puede ser distinta a created_at si se carga con retraso)
+  # paper_number: Número del talonario físico (para cruzar con registros en papel)
+  #
+  # Validación de total_amount:
+  #   - Ventas 'live': total_amount DEBE ser > 0
+  #   - Ventas 'from_paper': total_amount PUEDE ser >= 0 (incluso 0 si precios desconocidos)
+
+  def from_paper?
+    source == "from_paper"
+  end
+
+  def live?
+    source == "live"
+  end
 
   def calculate_total!
     update!(total_amount: order_items.sum("quantity * unit_price"))

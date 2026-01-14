@@ -2,6 +2,29 @@ class Product < ApplicationRecord
   # Associations
   has_many :stock_movements, dependent: :destroy
 
+  # === SKU Y VARIANTES ===
+  # sku representa el CÓDIGO OEM del repuesto (ej: código original Honda)
+  # PUEDE REPETIRSE entre múltiples variantes del mismo repuesto
+  #
+  # Las VARIANTES se diferencian por la combinación única de:
+  #   - sku (código OEM común)
+  #   - product_type ('oem' o 'aftermarket')
+  #   - brand (marca del fabricante)
+  #   - origin (país de fabricación)
+  #
+  # Ejemplo: Un mismo OEM "12345-111-111" puede tener:
+  #   - Variante 1: OEM Honda de Japón
+  #   - Variante 2: Aftermarket Marca1 de China
+  #   - Variante 3: Aftermarket Marca2 de China
+  #   - Variante 4: Aftermarket Marca3 de India
+  #
+  # Cada variante es un registro separado con su propio:
+  #   - product_id (único)
+  #   - current_stock (independiente)
+  #   - cost_unit (costo promedio independiente)
+  #   - price_unit (precio de venta independiente)
+  #
+  # === STOCK Y COSTOS ===
   # current_stock es un campo cacheado que se actualiza automáticamente
   # vía callbacks en StockMovement. NO actualizar manualmente.
   #
@@ -11,27 +34,34 @@ class Product < ApplicationRecord
   # cost_currency: moneda del costo promedio (típicamente 'USD')
   # Se actualiza automáticamente vía recalculate_average_cost!
   # NO actualizar manualmente desde controllers/vistas
-  #
-  # Según FLUJOS.md sección 8:
-  # - product_type: 'oem' (original) o 'aftermarket' (alternativo)
-  # - origin: país de fabricación (japan, china, taiwan, etc.)
-  # - cost_currency: 'USD' o 'ARS' - indica en qué moneda está cost_unit
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
   ORIGINS = %w[japan china taiwan usa germany korea brazil india].freeze
   PRODUCT_TYPES = %w[oem aftermarket].freeze
 
+  # Formato de ubicación física en el depósito
+  # [pasillo: 1-9][lado: I/D][posición: 0-9][nivel: 0-9]
+  # Ejemplo: "2D31" = Pasillo 2, Derecho, posición 3, nivel 1
+  LOCATION_FORMAT = /\A[1-9][ID][0-9][0-9]\z/
+
   # Validations
-  validates :sku, presence: true, uniqueness: true
+  # SKU es el código OEM, puede repetirse entre variantes
+  # La unicidad se garantiza por la combinación: sku + product_type + brand + origin
+  validates :sku, presence: true, uniqueness: { scope: [ :product_type, :brand, :origin ] }
   validates :name, presence: true
   validates :price_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_currency, inclusion: { in: %w[USD ARS] }
   validates :origin, inclusion: { in: ORIGINS, allow_blank: true }
-  validates :origin, presence: true, if: :aftermarket?
+  # NOTE: origin es opcional - no todos los productos tienen origen conocido
   validates :product_type, inclusion: { in: PRODUCT_TYPES, allow_blank: true }
   validates :category, inclusion: { in: CATEGORIES, allow_blank: true }
+  validates :location_code, format: {
+    with: LOCATION_FORMAT,
+    message: "debe tener el formato NPnn (ej: 2D31 = Pasillo 2, Derecho, posición 3, nivel 1)",
+    allow_blank: true
+  }
 
   # Scopes
   scope :active, -> { where(active: true) }
@@ -52,8 +82,22 @@ class Product < ApplicationRecord
   scope :oem, -> { where(product_type: "oem") }
   scope :aftermarket, -> { where(product_type: "aftermarket") }
   scope :search, lambda { |query|
-    where("sku ILIKE ? OR name ILIKE ?",
-          "%#{query}%", "%#{query}%") if query.present?
+    where("sku ILIKE ? OR name ILIKE ? OR brand ILIKE ?",
+          "%#{query}%", "%#{query}%", "%#{query}%") if query.present?
+  }
+  scope :at_location, ->(code) { where(location_code: code) if code.present? }
+  scope :sorted_by, lambda { |sort_column, direction|
+    # Ordenamiento por defecto
+    return order(:name) if sort_column.blank?
+
+    # Validar columnas permitidas para prevenir SQL injection
+    allowed_columns = %w[sku name brand category current_stock]
+    column = allowed_columns.include?(sort_column.to_s) ? sort_column : "name"
+
+    # Validar dirección
+    dir = %w[asc desc].include?(direction.to_s.downcase) ? direction.downcase : "asc"
+
+    order("#{column} #{dir}")
   }
 
   # Stock cacheado: current_stock es una columna en products
@@ -132,6 +176,19 @@ class Product < ApplicationRecord
     cost = cost_in_ars(exchange_rate)
     return 0 if cost.zero? || price_unit.nil?
     ((price_unit - cost) / cost * 100).round(2)
+  end
+
+  # Convierte el código de ubicación a formato legible
+  # Ejemplo: "2D31" → "Pasillo 2, lado derecho, posición 3, nivel 1"
+  def location_human
+    return "Sin ubicación asignada" if location_code.blank?
+
+    pasillo = location_code[0]
+    lado = location_code[1] == "I" ? "izquierdo" : "derecho"
+    posicion = location_code[2]
+    nivel = location_code[3]
+
+    "Pasillo #{pasillo}, lado #{lado}, posición #{posicion}, nivel #{nivel}"
   end
 
   def oem?

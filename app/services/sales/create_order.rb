@@ -1,17 +1,35 @@
 module Sales
+  # Sales::CreateOrder
+  #
+  # Service para crear órdenes de venta.
+  #
+  # Soporta dos modos:
+  # 1. LIVE (default): Venta en tiempo real con precios de BD
+  # 2. FROM_PAPER: Venta cargada desde talonario físico
+  #    - Permite unit_price nil (se trata como 0)
+  #    - Permite total_amount = 0
+  #    - Requiere paper_number para cruzar con talonario físico
+  #
+  # En ambos modos:
+  # - Valida stock disponible
+  # - Crea stock_movements de salida
+  # - Actualiza current_stock de productos
   class CreateOrder
     # Estructura para representar un item de la venta
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
-    def self.call(customer:, items:, order_type:, channel: nil)
-      new(customer: customer, items: items, order_type: order_type, channel: channel).call
+    def self.call(customer:, items:, order_type:, channel: nil, source: "live", sale_date: nil, paper_number: nil)
+      new(customer: customer, items: items, order_type: order_type, channel: channel, source: source, sale_date: sale_date, paper_number: paper_number).call
     end
 
-    def initialize(customer:, items:, order_type:, channel: nil)
+    def initialize(customer:, items:, order_type:, channel: nil, source: "live", sale_date: nil, paper_number: nil)
       @customer = customer
       @items = items.map { |item| item.is_a?(Item) ? item : Item.new(item) }
       @order_type = order_type
       @channel = channel
+      @source = source
+      @sale_date = sale_date || Date.today
+      @paper_number = paper_number
     end
 
     def call
@@ -72,6 +90,9 @@ module Sales
         customer: @customer,
         order_type: @order_type,
         channel: @channel,
+        source: @source,
+        sale_date: @sale_date,
+        paper_number: @paper_number,
         status: "confirmed",
         total_amount: calculate_total
       )
@@ -80,7 +101,8 @@ module Sales
     def calculate_total
       @items.sum do |item|
         product = Product.find(item.product_id)
-        unit_price = item.unit_price || product.price_unit
+        # Si unit_price es nil, intentar usar el del producto, si no 0
+        unit_price = item.unit_price || product.price_unit || 0
         item.quantity * unit_price
       end
     end
@@ -88,11 +110,14 @@ module Sales
     def create_order_items
       @items.each do |item|
         product = Product.find(item.product_id)
+        # Si unit_price es nil, usar el del producto o 0
+        final_price = item.unit_price || product.price_unit || 0
+
         OrderItem.create!(
           order: @order,
           product: product,
           quantity: item.quantity,
-          unit_price: item.unit_price || product.price_unit
+          unit_price: final_price
         )
       end
     end

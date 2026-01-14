@@ -13,21 +13,25 @@
     = javascript_importmap_tags
 
   %body.antialiased
-    .flex.min-h-screen.bg-gray-50
-      = render "layouts/web/sidebar"
-      
-      .flex-1.ml-64
-        = render "layouts/web/header"
+    - if user_signed_in?
+      .flex.min-h-screen.bg-gray-50
+        = render "layouts/web/sidebar"
         
-        %main.p-6
-          -# Flash messages
-          - if flash[:notice]
-            .mb-6
-              = render "shared/flash", type: "success", message: flash[:notice]
-          - if flash[:alert]
-            .mb-6
-              = render "shared/flash", type: "error", message: flash[:alert]
+        .flex-1.ml-64
+          = render "layouts/web/header"
           
-          -# Page content
-          = yield
+          %main.p-6
+            -# Flash messages
+            - if flash[:notice]
+              .mb-6
+                = render "shared/flash", type: "success", message: flash[:notice]
+            - if flash[:alert]
+              .mb-6
+                = render "shared/flash", type: "error", message: flash[:alert]
+            
+            -# Page content
+            = yield
+    - else
+      -# Login page (sin sidebar ni header)
+      = yield
 

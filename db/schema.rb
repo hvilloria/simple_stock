@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_21_180246) do
+ActiveRecord::Schema[7.2].define(version: 2025_12_26_192733) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -29,7 +29,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_21_180246) do
     t.bigint "order_id", null: false
     t.bigint "product_id", null: false
     t.integer "quantity", null: false
-    t.decimal "unit_price", precision: 10, scale: 2, null: false
+    t.decimal "unit_price", precision: 10, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["order_id"], name: "index_order_items_on_order_id"
@@ -44,8 +44,14 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_21_180246) do
     t.datetime "updated_at", null: false
     t.string "order_type", default: "cash", null: false
     t.string "channel"
+    t.string "source", default: "live", null: false
+    t.date "sale_date", default: -> { "CURRENT_DATE" }, null: false
+    t.string "paper_number"
     t.index ["customer_id"], name: "index_orders_on_customer_id"
     t.index ["order_type"], name: "index_orders_on_order_type"
+    t.index ["paper_number"], name: "index_orders_on_paper_number"
+    t.index ["sale_date"], name: "index_orders_on_sale_date"
+    t.index ["source"], name: "index_orders_on_source"
     t.index ["status"], name: "index_orders_on_status"
   end
 
@@ -75,7 +81,10 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_21_180246) do
     t.string "origin"
     t.string "product_type"
     t.string "brand"
-    t.index ["sku"], name: "index_products_on_sku", unique: true
+    t.string "location_code"
+    t.index ["location_code"], name: "index_products_on_location_code"
+    t.index ["sku", "product_type", "brand", "origin"], name: "index_products_on_variant_uniqueness", unique: true
+    t.index ["sku"], name: "index_products_on_sku"
   end
 
   create_table "purchase_items", force: :cascade do |t|
@@ -128,7 +137,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_21_180246) do
   end
 
   create_table "suppliers", force: :cascade do |t|
-    t.string "name"
+    t.string "name", null: false
     t.string "contact_name"
     t.string "phone"
     t.string "email"
@@ -136,6 +145,22 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_21_180246) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.string "email", default: "", null: false
+    t.string "encrypted_password", default: "", null: false
+    t.datetime "current_sign_in_at"
+    t.datetime "last_sign_in_at"
+    t.string "current_sign_in_ip"
+    t.string "last_sign_in_ip"
+    t.integer "sign_in_count", default: 0, null: false
+    t.string "name", null: false
+    t.string "role", default: "vendedor", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["role"], name: "index_users_on_role"
   end
 
   add_foreign_key "order_items", "orders"

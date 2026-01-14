@@ -1,0 +1,4 @@
+sku,name,category,product_type,origin,brand,price_unit,active
+PF-CIVIC-2014,"Pastillas de freno Civic 2014","frenos","oem","japan","Honda",45000,true
+FO-FIT-2016,"Filtro de aceite Fit 2016","filtros","aftermarket","china","MarcaX",12000,true
+AM-COR-2012,"Amortiguador delantero Corolla 2012","suspension","aftermarket","taiwan","MarcaY",90000,true

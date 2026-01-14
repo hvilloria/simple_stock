@@ -88,12 +88,56 @@ RSpec.describe Order, type: :model do
         expect(order).to be_valid
       end
     end
+
+    describe 'source validation' do
+      it 'allows live source' do
+        order = build(:order, source: 'live')
+        expect(order).to be_valid
+      end
+
+      it 'allows from_paper source' do
+        order = build(:order, source: 'from_paper', total_amount: 0)
+        expect(order).to be_valid
+      end
+
+      it 'rejects invalid source' do
+        order = build(:order, source: 'invalid')
+        expect(order).not_to be_valid
+      end
+    end
+
+    describe 'total_amount validation with from_paper source' do
+      it 'allows total_amount = 0 for from_paper orders' do
+        order = build(:order, source: 'from_paper', total_amount: 0)
+        expect(order).to be_valid
+      end
+
+      it 'requires total_amount > 0 for live orders' do
+        order = build(:order, source: 'live', total_amount: 0)
+        expect(order).not_to be_valid
+        expect(order.errors[:total_amount]).to be_present
+      end
+    end
+
+    describe 'sale_date validation' do
+      it 'requires sale_date' do
+        order = build(:order, sale_date: nil)
+        expect(order).not_to be_valid
+      end
+
+      it 'allows past sale_date' do
+        order = build(:order, sale_date: 1.week.ago.to_date)
+        expect(order).to be_valid
+      end
+    end
   end
 
   describe 'scopes' do
     let!(:cash_order) { create(:order, order_type: 'cash') }
     let!(:credit_order) { create(:order, :credit_order) }
     let!(:cancelled_order) { create(:order, :cancelled) }
+    let!(:live_order) { create(:order, source: 'live') }
+    let!(:paper_order) { create(:order, source: 'from_paper', total_amount: 0) }
 
     describe '.cash' do
       it 'returns only cash orders' do
@@ -115,6 +159,20 @@ RSpec.describe Order, type: :model do
         expect(Order.active).not_to include(cancelled_order)
       end
     end
+
+    describe '.live' do
+      it 'returns only live orders' do
+        expect(Order.live).to include(live_order)
+        expect(Order.live).not_to include(paper_order)
+      end
+    end
+
+    describe '.from_paper' do
+      it 'returns only from_paper orders' do
+        expect(Order.from_paper).to include(paper_order)
+        expect(Order.from_paper).not_to include(live_order)
+      end
+    end
   end
 
   describe '#calculate_total!' do
@@ -129,6 +187,18 @@ RSpec.describe Order, type: :model do
       order.calculate_total!
 
       expect(order.reload.total_amount).to eq(80) # (2 * 10) + (3 * 20)
+    end
+  end
+
+  describe '#from_paper?' do
+    it 'returns true for from_paper orders' do
+      order = build(:order, source: 'from_paper')
+      expect(order.from_paper?).to be true
+    end
+
+    it 'returns false for live orders' do
+      order = build(:order, source: 'live')
+      expect(order.from_paper?).to be false
     end
   end
 

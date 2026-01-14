@@ -1,0 +1,144 @@
+- content_for :page_title, "Nueva Compra"
+
+.container.mx-auto.px-6.py-6
+
+  -# Header con navegación
+  .flex.items-center.justify-between.mb-6
+    = link_to web_purchases_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
+      %span ←
+      %span Volver a Compras
+    
+    %h1.text-3xl.font-bold.text-gray-900 Nueva Compra
+
+  -# Mostrar errores si existen
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Error
+        %p.text-sm.text-red-700= flash[:alert]
+
+  = form_with url: web_purchases_path, method: :post, local: true, data: { controller: "purchase-form", action: "product-selected->purchase-form#addProduct" } do |f|
+    
+    .grid.grid-cols-1.lg:grid-cols-3.gap-6
+      
+      -# ============ COLUMNA IZQUIERDA (2/3) ============
+      .lg:col-span-2.space-y-6
+
+        -# CARD 1 - Información de Compra
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de Compra
+
+          .space-y-4
+            -# Proveedor
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Proveedor
+              = select_tag :supplier_id, 
+                          options_for_select([["Seleccionar proveedor", ""]] + @suppliers.map { |s| [s.name, s.id] }), 
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                          required: true
+              %p.text-xs.text-gray-500.mt-1 Selecciona el proveedor de esta compra
+            
+            -# Moneda (radio buttons visuales)
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-3 Moneda
+              .grid.grid-cols-2.gap-4
+                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                  %span
+                    = radio_button_tag :currency, 'USD', true, id: "currency_usd", data: { action: "change->purchase-form#changeCurrency", 'purchase-form-target': 'currencyUsd' }
+                  %label.cursor-pointer.flex-1{ for: "currency_usd" }
+                    %p.font-medium.text-gray-900 💵 USD
+                    %p.text-xs.text-gray-500 Dólares estadounidenses
+                
+                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                  %span
+                    = radio_button_tag :currency, 'ARS', false, id: "currency_ars", data: { action: "change->purchase-form#changeCurrency", 'purchase-form-target': 'currencyArs' }
+                  %label.cursor-pointer.flex-1{ for: "currency_ars" }
+                    %p.font-medium.text-gray-900 🇦🇷 ARS
+                    %p.text-xs.text-gray-500 Pesos argentinos
+            
+            -# Tipo de Cambio (solo si USD)
+            %div{ data: { 'purchase-form-target': 'exchangeRateField' } }
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo de Cambio
+              = number_field_tag :exchange_rate, nil,
+                                step: 0.01,
+                                placeholder: "Ej: 1200.00",
+                                class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                                data: { action: "input->purchase-form#updateExchangeRate" },
+                                required: true
+              %p.text-xs.text-gray-500.mt-1 Tipo de cambio USD → ARS al momento de la compra
+            
+            -# Fecha de compra
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Compra
+              = date_field_tag :purchase_date, Date.today,
+                              class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                              required: true
+            
+            -# Notas
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Notas (Opcional)
+              = text_area_tag :notes, nil,
+                            rows: 3,
+                            placeholder: "Información adicional sobre la compra...",
+                            class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
+
+        -# CARD 2 - Búsqueda y Lista de Productos
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
+
+          -# Search input con dropdown
+          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside" }, class: "mb-6 relative" }
+            %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
+            %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
+
+          -# Lista de productos agregados
+          .mt-6
+            #purchase-items{ data: { 'purchase-form-target': 'items' } }
+              .text-center.py-12.text-gray-400
+                %p.text-5xl.mb-3 📦
+                %p.text-gray-600.font-medium No hay productos agregados
+                %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba
+
+      -# ============ COLUMNA DERECHA (1/3) ============
+      .lg:col-span-1
+        .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
+          %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Compra
+
+          -# Total principal (calculado dinámicamente)
+          .text-center.mb-4
+            %p.text-sm.text-gray-500.mb-2 Costo Total
+            %p.text-4xl.font-bold.text-gray-900{ data: { 'purchase-form-target': 'total' } } USD 0.00
+
+          -# Conversión a ARS (si aplica)
+          .text-center.mb-6{ data: { 'purchase-form-target': 'totalArs' } }
+
+          .border-t.border-gray-200.py-4.space-y-3
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Items
+              %span.font-medium.text-gray-900{ data: { 'purchase-form-target': 'itemCount' } } 0 productos
+
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Cantidad total
+              %span.font-medium.text-gray-900{ data: { 'purchase-form-target': 'totalQuantity' } } 0 unidades
+
+          .border-t.border-gray-200.py-4
+            %h4.text-sm.font-semibold.text-gray-900.mb-3 Información
+            
+            .space-y-2
+              .flex.items-center.gap-2.text-sm
+                %span 📥
+                %span.text-gray-600 Entrada de stock
+              
+              .flex.items-center.gap-2.text-sm
+                %span 💰
+                %span.text-gray-600 Costos se actualizarán
+
+          .border-t.border-gray-200.pt-4
+            = submit_tag "Registrar Compra", disabled: true, class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors opacity-50 cursor-not-allowed", data: { 'purchase-form-target': 'submitButton' }
+
+          .mt-4.text-center
+            %p.text-xs.text-gray-500 Se generarán movimientos de stock automáticamente
+            %p.text-xs.text-gray-500.mt-1 Los costos promedio se recalcularán
+

@@ -5,6 +5,8 @@ FactoryBot.define do
     order_type { "cash" }
     total_amount { 100.0 }
     channel { nil }
+    source { "live" }
+    sale_date { Date.today }
 
     trait :credit_order do
       order_type { "credit" }
@@ -25,6 +27,18 @@ FactoryBot.define do
 
     trait :with_mercadolibre_channel do
       channel { "mercadolibre" }
+    end
+
+    trait :from_paper do
+      source { "from_paper" }
+      paper_number { "0001" }
+      total_amount { 0 }
+      sale_date { Date.today }
+    end
+
+    trait :live do
+      source { "live" }
+      sale_date { Date.today }
     end
   end
 end

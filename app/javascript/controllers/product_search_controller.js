@@ -103,7 +103,9 @@ export default class extends Controller {
   selectProduct(event) {
     const product = JSON.parse(event.currentTarget.dataset.product)
     
-    if (product.current_stock <= 0) {
+    // Solo validar stock si NO estamos en un formulario de compra
+    const isPurchaseForm = this.element.closest('[data-controller*="purchase-form"]')
+    if (!isPurchaseForm && product.current_stock <= 0) {
       alert('Este producto no tiene stock disponible')
       return
     }

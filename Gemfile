@@ -36,6 +36,13 @@ gem "bootsnap", require: false
 # Use Haml for HTML templates
 gem "haml"
 
+# Autenticación y autorización
+gem "devise", "~> 4.9"
+gem "pundit", "~> 2.3"
+
+# Excel parsing
+gem "roo", "~> 2.10"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"

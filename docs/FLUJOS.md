@@ -217,6 +217,210 @@ Flujo cuando llega mercadería importada (por ejemplo desde USA, China, Taiwán,
 - Al hacer una compra, se selecciona el producto específico (ej: "Pastillas TRW - Japón" vs "Pastillas TRW - China")
 - El sistema no convierte automáticamente entre variantes; cada una es independiente
 
+### 4.1. Compra de mercadería - Interfaz Web (Nueva Compra)
+
+Flujo detallado de uso de la interfaz web para registrar una compra de mercadería.
+
+**Acceso:**
+* Navegación: `Compras → Nueva Compra`
+* URL: `/web/purchases/new`
+
+**Paso 1: Información de la compra**
+
+1. **Seleccionar proveedor:**
+   * Lista desplegable con todos los proveedores activos
+   * Campo requerido
+   * Ejemplo: "Toyota Japan Co", "USA Auto Parts Inc", etc.
+
+2. **Seleccionar moneda:**
+   * Radio buttons visuales: USD o ARS
+   * Por defecto: USD (mayoría de compras son en dólares)
+   * USD: compras de importación (China, USA, Japón, etc.)
+   * ARS: compras locales (excepcionales)
+
+3. **Tipo de cambio (solo si USD):**
+   * Campo numérico que aparece solo al seleccionar USD
+   * Campo requerido para compras en USD
+   * Ejemplo: 1200.00 (representa 1 USD = 1200 ARS)
+   * Este TC se guarda con la compra y se usa para calcular el costo en ARS
+
+4. **Fecha de compra:**
+   * Campo de fecha
+   * Por defecto: fecha actual
+   * Permite registrar compras pasadas si es necesario
+
+5. **Notas (opcional):**
+   * Campo de texto libre
+   * Ejemplo: "Envío marítimo - Contenedor #ABC123", "Compra urgente vía aérea"
+
+**Paso 2: Búsqueda y selección de productos**
+
+1. **Búsqueda en tiempo real:**
+   * Campo de búsqueda con autocompletado
+   * Busca por: SKU, nombre del producto, marca
+   * Búsqueda con debounce de 300ms (evita requests excesivos)
+   * Muestra dropdown con resultados mientras se escribe
+
+2. **Resultados de búsqueda:**
+   * Cada producto muestra:
+     * SKU (código único)
+     * Nombre completo
+     * Marca
+     * Origen (país de fabricación)
+     * Tipo (OEM o Aftermarket)
+     * Stock actual (informativo, NO bloquea agregar)
+   * **Importante:** A diferencia de ventas, en compras NO se valida stock porque justamente se está agregando stock nuevo
+
+3. **Agregar producto:**
+   * Click en un producto del dropdown → se agrega a la lista
+   * Si el producto ya estaba agregado → incrementa cantidad en 1
+   * El producto aparece en la lista de items con:
+     * Información del producto (SKU, nombre, marca, origen)
+     * Cantidad (editable, por defecto: 1)
+     * Costo unitario (editable, por defecto: último costo conocido del producto)
+     * Subtotal calculado automáticamente
+     * Botón eliminar
+
+4. **Editar items agregados:**
+   * **Cantidad:** Input numérico inline, mínimo 1
+     * Al cambiar: recalcula subtotal y total general
+   * **Costo unitario:** Input numérico inline con decimales
+     * Este costo puede variar por compra (diferente proveedor, momento, negociación)
+     * Al cambiar: recalcula subtotal y total general
+   * Los cálculos se actualizan en tiempo real sin hacer submit
+
+**Paso 3: Resumen y confirmación**
+
+El panel derecho (sticky) muestra:
+
+1. **Total de la compra:**
+   * Suma de todos los subtotales
+   * Muestra en la moneda seleccionada (USD o ARS)
+   * Si es USD con TC: también muestra conversión estimada a ARS
+
+2. **Estadísticas:**
+   * Cantidad de productos distintos
+   * Cantidad total de unidades
+
+3. **Validaciones:**
+   * Botón "Registrar Compra" deshabilitado hasta que:
+     * Haya al menos 1 producto agregado
+     * Si moneda es USD, tenga tipo de cambio válido
+     * Proveedor esté seleccionado
+
+4. **Al confirmar (click en "Registrar Compra"):**
+
+   El sistema ejecuta (vía `Purchasing::CreatePurchase`):
+
+   * **Validaciones:**
+     * Proveedor existe
+     * Todos los productos existen
+     * Cantidades son > 0
+     * Costos son >= 0
+     * TC es > 0 si moneda es USD
+
+   * **Si validaciones OK:**
+     * Crea registro `Purchase` con:
+       - Proveedor
+       - Moneda (USD o ARS)
+       - Tipo de cambio (si USD)
+       - Fecha de compra
+       - Total calculado
+       - Notas
+       - Status: 'confirmed'
+     
+     * Crea `PurchaseItem` por cada producto con:
+       - Producto
+       - Cantidad
+       - Costo unitario (en la moneda de la compra)
+     
+     * Crea `StockMovement` positivos (entrada) por cada item:
+       - Tipo: 'purchase'
+       - Cantidad: positiva (entra stock)
+       - Referencia: polimórfica a la compra
+       - Ubicación: depósito principal
+     
+     * Actualiza stock automáticamente:
+       - `current_stock` se incrementa vía callbacks de StockMovement
+     
+     * **Recalcula costo promedio ponderado:**
+       - Para cada producto, calcula nuevo `cost_unit`:
+         ```
+         Todas las compras confirmadas → convertir a USD
+         Promedio ponderado = SUM(cantidad × costo) / SUM(cantidad)
+         ```
+       - Guarda en `cost_unit` y `cost_currency = 'USD'`
+       - Este costo promedio se usa para calcular márgenes y rentabilidad
+     
+     * Redirección a listado de compras con mensaje de éxito
+
+   * **Si hay errores:**
+     * Muestra mensaje de error en la parte superior del formulario
+     * Mantiene el formulario con los datos ingresados
+     * Usuario puede corregir y reintentar
+
+**Ejemplo de compra típica:**
+
+```
+Proveedor: Toyota Japan Co
+Moneda: USD
+Tipo de cambio: 1,200.00
+Fecha: 15/11/2024
+Notas: Importación contenedor #CON123
+
+Productos:
+1. HDC001 - Filtro de Aceite Honda
+   Cantidad: 50 unidades
+   Costo unitario: $8.50 USD
+   Subtotal: $425.00 USD
+
+2. HDC015 - Pastillas de Freno Honda (OEM - Japan)
+   Cantidad: 30 unidades
+   Costo unitario: $25.00 USD
+   Subtotal: $750.00 USD
+
+Total: $1,175.00 USD
+Equivalente en ARS: ~$1,410,000 (TC: 1,200)
+
+Al confirmar:
+- Se crea la compra con status 'confirmed'
+- Stock de HDC001 aumenta +50
+- Stock de HDC015 aumenta +30
+- Costo promedio de cada producto se recalcula
+```
+
+**Diferencias clave vs Nueva Venta:**
+
+| Aspecto | Nueva Venta | Nueva Compra |
+|---------|-------------|--------------|
+| **Validación stock** | ✅ Requiere stock disponible | ❌ No valida (es para agregar stock) |
+| **Cliente/Proveedor** | Cliente (Mostrador o con CC) | Proveedor |
+| **Precio/Costo** | Precio fijo del producto | **Costo editable** por item |
+| **Moneda** | Siempre ARS | **USD o ARS** |
+| **Tipo de cambio** | No aplica | **Requerido si USD** |
+| **Movimiento stock** | Negativo (sale) | **Positivo (entra)** |
+| **Actualización costos** | No | **Sí - recalcula promedio ponderado** |
+
+**Notas importantes:**
+
+* El costo unitario es editable por item porque:
+  - Puede variar según negociación con proveedor
+  - Puede haber descuentos por volumen en esa compra específica
+  - Diferentes proveedores cobran precios distintos
+  - El sistema usa estos costos para calcular el promedio ponderado
+
+* El tipo de cambio se guarda con cada compra porque:
+  - Permite trazabilidad histórica
+  - El TC varía día a día
+  - Necesario para calcular el costo real en ARS de esa compra específica
+  - Usado para convertir costos ARS a USD en el cálculo del promedio
+
+* El costo promedio ponderado permite:
+  - Saber el costo "real" del inventario
+  - Calcular márgenes de ganancia precisos
+  - Tomar decisiones de precios informadas
+  - Valuar correctamente el inventario
+
 ---
 
 ## 5. Ajuste de stock (reconteo físico)
@@ -408,3 +612,389 @@ Para referencia técnica, los productos tienen los siguientes campos clave:
   * Para calcular el promedio, todas las compras se convierten a USD para uniformidad
 - Para calcular margen, si el costo es en USD, debe convertirse a ARS usando el tipo de cambio actual
 - `origin` y `product_type` son opcionales pero recomendados para mejor gestión del inventario
+
+---
+
+## 9. Ventas-Lite (Desde Talonarios Físicos)
+
+### Contexto
+
+Durante la transición de ventas en papel a sistema digital, se implementó un modo "ventas-lite" 
+que prioriza el control de stock sobre la precisión financiera.
+
+### Objetivo
+
+- Registrar qué productos se vendieron y en qué cantidad (control de inventario)
+- Mantener trazabilidad de ventas por producto/variante
+- Permitir análisis de qué se vende más (OEM vs Aftermarket, orígenes)
+
+### Campos Específicos
+
+#### `source` (string)
+
+Indica el origen de la venta:
+
+- `'live'` (default): Venta registrada en tiempo real con precios de BD
+- `'from_paper'`: Venta cargada desde talonario físico
+
+#### `sale_date` (date)
+
+Fecha REAL de la venta (puede diferir de `created_at` si se carga con retraso).
+
+- Ejemplo: Venta del 16/12 cargada el 23/12
+  - `sale_date`: 16/12/2024
+  - `created_at`: 23/12/2024 10:30
+
+#### `paper_number` (string, opcional)
+
+Número del talonario físico para cruzar con registros en papel.
+
+- Ejemplo: "0045", "0123"
+- Permite match: "Venta sistema #234 = Talonario #0045"
+
+### Reglas de Validación
+
+#### Ventas Live (`source = 'live'`)
+
+- `total_amount` DEBE ser > 0
+- `unit_price` en items DEBE tener valor
+- Precios vienen de la BD (confiables para reportes financieros)
+
+#### Ventas From Paper (`source = 'from_paper'`)
+
+- `total_amount` PUEDE ser >= 0 (incluso 0 si precios desconocidos)
+- `unit_price` en items PUEDE ser nil o 0
+- Precios son aproximados (NO usar para reportes financieros)
+
+### Control de Stock
+
+**AMBOS modos funcionan igual:**
+
+- Validan stock disponible antes de crear venta
+- Crean `StockMovement` de tipo `sale` (cantidad negativa)
+- Actualizan `current_stock` del producto
+- Pueden ser cancelados (reintegran stock)
+
+### Flujo de Carga desde Talonario
+
+1. Usuario accede a "Nueva Venta"
+
+2. Completa campos:
+   - **Fecha de venta**: Fecha real del talonario (default: hoy)
+   - **N° Talonario**: Número impreso en el talonario físico
+   - **Cliente**: "Cliente Mostrador" (default)
+   - **Productos**: Busca y agrega productos vendidos
+   - **Cantidad**: Unidades vendidas (obligatorio)
+   - **Precio**: Precio de venta (editable, puede dejarse en 0 si desconocido)
+
+3. Sistema valida stock disponible
+
+4. Crea Order con:
+   - `source = 'from_paper'`
+   - `paper_number` del talonario
+   - `sale_date` real de la venta
+   - `total_amount` suma de items (puede ser 0)
+
+5. Genera StockMovements de salida
+
+6. Actualiza stock de productos
+
+### Reportes y Métricas
+
+#### Para Control de Stock (usar ambos modos)
+
+```ruby
+# Productos más vendidos
+Order.includes(:order_items)
+     .group('products.name')
+     .sum('order_items.quantity')
+
+# Ventas por variante
+Product.where(product_type: 'oem').joins(:order_items).sum('order_items.quantity')
+```
+
+#### Para Reportes Financieros (usar SOLO live)
+
+```ruby
+# Ingresos reales
+Order.live.sum(:total_amount)
+
+# Márgenes
+Order.live.includes(:order_items, :products).map(&:margin).sum
+```
+
+⚠️ **IMPORTANTE:** NO usar ventas `from_paper` para cálculos financieros. 
+Los precios son aproximados y pueden ser cero.
+
+### Evolución Futura
+
+Cuando el sistema esté en uso diario:
+
+1. Cambiar `source` default a `'live'`
+2. Ventas se registran en tiempo real con precios de BD
+3. Ventas `from_paper` pasan a ser históricas (para análisis de transición)
+
+## 10. Autenticación y Autorización
+
+### Roles de Usuario
+
+El sistema tiene 3 roles de usuario con permisos diferenciados:
+
+#### Vendedor
+
+**Usuarios:** Alfredo, Ariel (personal de mostrador)
+
+**Permisos:**
+
+- ✅ Ver productos
+- ✅ Crear ventas (cash y credit)
+- ✅ Ver listado de ventas
+- ✅ Ver detalle de ventas
+- ❌ Cancelar ventas
+- ❌ Ver reportes financieros
+- ❌ Gestionar stock manualmente
+- ❌ Crear/editar productos
+- ❌ Crear compras
+- ❌ Ver/registrar pagos
+
+#### Caja
+
+**Usuarios:** Mari (contabilidad/caja)
+
+**Permisos:**
+
+- ✅ Ver ventas
+- ✅ Ver listado de pagos
+- ✅ Registrar pagos de clientes
+- ✅ Ver saldos de clientes
+- ❌ Crear ventas
+- ❌ Cancelar ventas
+- ❌ Gestionar productos
+- ❌ Gestionar stock
+- ❌ Crear compras
+
+#### Admin
+
+**Usuarios:** Owner y socio
+
+**Permisos:**
+
+- ✅ Acceso completo a todas las funcionalidades
+- ✅ Gestionar usuarios (crear, editar, eliminar vía consola)
+- ✅ Ver todos los reportes
+- ✅ Configuración del sistema
+- ✅ Todas las acciones de vendedor y caja
+
+### Gestión de Usuarios
+
+Por ahora, los usuarios se crean/gestionan manualmente vía Rails console:
+
+```ruby
+# Crear usuario vendedor
+User.create!(
+  email: 'alfredo@gentedelsol.com',
+  password: 'password123',
+  name: 'Alfredo',
+  role: 'vendedor'
+)
+
+# Crear usuario caja
+User.create!(
+  email: 'mari@gentedelsol.com',
+  password: 'password123',
+  name: 'Mari',
+  role: 'caja'
+)
+
+# Cambiar rol de usuario
+user = User.find_by(email: 'alfredo@gentedelsol.com')
+user.update(role: 'admin')
+
+# Cambiar contraseña
+user.update(password: 'nueva_password', password_confirmation: 'nueva_password')
+```
+
+En el futuro se implementará ActiveAdmin para gestión visual de usuarios.
+
+### Implementación Técnica
+
+- **Autenticación:** Devise (database_authenticatable + trackable)
+- **Autorización:** Pundit (policies por modelo)
+- **Roles:** Enum simple (un usuario = un rol)
+- **Tracking:** Se registra `last_sign_in_at` y `sign_in_count`
+
+### Seguridad
+
+- Passwords hasheados con bcrypt
+- No hay auto-registro (solo admin crea usuarios)
+- Sesiones expiradas requieren re-login
+- Intentos de acceso no autorizado muestran mensaje y redirigen
+
+## 11. Sincronización de Inventario desde Excel
+
+### Contexto
+
+El inventario se gestiona inicialmente en Excel. Para mantener el sistema actualizado, existe un script que sincroniza productos y stock desde archivo Excel.
+
+### Comando
+
+```bash
+rails inventory:sync_from_excel['/path/to/archivo.xlsx']
+```
+
+### Funcionamiento
+
+#### Productos Nuevos
+
+1. Lee fila del Excel
+2. Valida datos (stock >= 0, precio > 0, SKU presente)
+3. Limpia SKU (quita sufijo `-IMP`)
+4. Crea producto con:
+   - `product_type = 'aftermarket'`
+   - `origin` mapeado desde código (JAP/TAI/CHI)
+   - `brand = NULL`, `category = NULL`
+   - `current_stock = 0`
+5. Si stock Excel > 0:
+   - Crea `StockMovement` tipo `adjustment`
+   - Cantidad = stock del Excel
+   - Note = "Initial stock from Excel import"
+   - Recalcula `current_stock`
+
+#### Productos Existentes
+
+1. Busca producto por SKU + `product_type = 'aftermarket'`
+2. Si precio cambió: actualiza `price_unit`
+3. Calcula diferencia: `diff = stock_excel - current_stock`
+4. Si `diff != 0`:
+   - Crea `StockMovement` tipo `adjustment`
+   - Cantidad = diff (puede ser +/-)
+   - Note = "Stock adjustment from Excel import"
+   - Recalcula `current_stock`
+
+### Validaciones
+
+- **Stock:** No puede ser negativo
+- **Precio:** Debe ser mayor a 0
+- **SKU y Nombre:** Obligatorios
+- **Errores:** No detienen el proceso, se registran y continúa
+
+### Reglas de Negocio
+
+#### SKU
+
+- Todos los SKUs en Excel terminan en `-IMP` (importado/aftermarket)
+- Se almacenan SIN el sufijo `-IMP` en la BD
+- Ejemplo: `91503-SZ3-003-IMP` → se guarda como `91503-SZ3-003`
+
+#### Origen
+
+- `JAP` → `japan`
+- `TAI` → `taiwan`
+- `CHI` → `china`
+- Otros códigos → `NULL`
+
+#### Product Type
+
+- Todos los productos del Excel son `aftermarket` (por tener sufijo `-IMP`)
+- `product_type = 'aftermarket'`
+
+#### Brand y Category
+
+- Todos `NULL` por ahora (no hay columna de marca en Excel)
+- Clasificación manual posterior
+
+#### Precio y Costo
+
+- `cost_unit` = Precio Lista (USD) del Excel
+- `cost_currency` = 'USD'
+- `price_unit` = Precio Venta (ARS) del Excel
+
+### Logging
+
+Cada ejecución genera un log detallado en:
+
+```
+log/inventory_sync_YYYY-MM-DD_HH-MM-SS.log
+```
+
+El log incluye:
+
+- Timestamp de inicio/fin
+- Cada producto procesado (creado/actualizado/error)
+- Cambios realizados (precio, stock)
+- Movimientos de stock generados
+- Resumen final con estadísticas:
+  - Productos creados
+  - Productos actualizados
+  - Productos sin cambios (skipped)
+  - Errores encontrados
+  - Movimientos de stock creados
+  - Valor total del inventario
+
+### Ejemplo de uso
+
+```bash
+# Sincronizar desde archivo específico
+rails inventory:sync_from_excel['/path/to/productos.xlsx']
+
+# Si el archivo está en tmp/productos.xlsx (valor por defecto)
+rails inventory:sync_from_excel
+```
+
+### Output esperado
+
+```
+================================================================================
+📊 INVENTORY SYNC FROM EXCEL
+================================================================================
+File: /path/to/productos.xlsx
+Started at: 2025-12-26 10:30:00 -0300
+================================================================================
+
+📦 Procesando 150 productos...
+
+✅ 91503-SZ3-003 → Creado
+   📦 Stock inicial: 799
+✅ 12342-P2F-A01 → Creado
+   📦 Stock inicial: 160
+🔄 91503-AAA-999 → Actualizado
+   Price: $1.200 ARS → $1.300 ARS (+$100 ARS)
+   Stock: 50 → 75 (+25 units)
+⚠️  ERROR: 88888-XXX-000 → Stock cannot be negative (value: -10)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 RESUMEN:
+  ✅ Productos creados: 120
+  🔄 Productos actualizados: 25
+  ⏭️  Productos sin cambios: 3
+  ⚠️  Errores: 2
+  📈 Stock Movements: 145
+  
+  📦 Total productos: 520
+  📊 Stock total: 8,450 unidades
+  💰 Valor inventario: $12.450.000 ARS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Sincronización completada exitosamente
+📄 Log guardado en: /path/to/simple_stock/log/inventory_sync_2025-12-26_10-30-00.log
+```
+
+### Consideraciones
+
+- **Performance:** El proceso puede tardar varios minutos para archivos grandes (1000+ productos)
+- **Transacciones:** Cada producto se procesa en su propia transacción para aislar errores
+- **Idempotencia:** Se puede ejecutar múltiples veces de forma segura
+- **Stock:** Los ajustes negativos son validados para evitar stock negativo
+- **Auditoría:** Todos los cambios quedan registrados en `stock_movements`
+
+### Evolución futura
+
+Posibles mejoras para V2:
+
+- Sincronización automática programada (cron job)
+- Upload de Excel desde la UI web
+- Preview de cambios antes de aplicar
+- Soporte para actualizar `brand` y `category`
+- Validación de duplicados por `(sku, product_type, brand, origin)`
+- Notificaciones por email al completar
+- Rollback de sincronizaciones anteriores

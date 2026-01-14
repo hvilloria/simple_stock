@@ -21,8 +21,8 @@ export default class extends Controller {
         sku: product.sku,
         name: product.name,
         brand: product.brand,
-        price_unit: product.price_unit,
         quantity: 1,
+        price_unit: product.price_unit || 0,  // Guardar precio del producto
         max_stock: product.current_stock,
         origin: product.origin,
         product_type: product.product_type
@@ -46,8 +46,39 @@ export default class extends Controller {
     
     if (newQuantity > 0 && newQuantity <= this.items[index].max_stock) {
       this.items[index].quantity = newQuantity
-      this.renderItems()
+      this.updateItemSubtotal(index)
       this.updateSummary()
+    }
+  }
+
+  updatePrice(event) {
+    const index = parseInt(event.currentTarget.dataset.index)
+    const newPrice = parseFloat(event.currentTarget.value) || 0
+    
+    if (newPrice >= 0) {
+      this.items[index].price_unit = newPrice
+      this.updateItemSubtotal(index)
+      this.updateSummary()
+    }
+  }
+
+  updateItemSubtotal(index) {
+    const item = this.items[index]
+    const subtotal = item.price_unit * item.quantity
+    
+    // Buscar el elemento del item por su índice y actualizar solo el subtotal
+    const itemElements = this.itemsTarget.querySelectorAll('[data-item-index]')
+    if (itemElements[index]) {
+      const subtotalElement = itemElements[index].querySelector('[data-subtotal]')
+      if (subtotalElement) {
+        subtotalElement.textContent = `$${this.formatCurrency(subtotal)}`
+      }
+      
+      // Actualizar hidden inputs
+      const quantityInput = itemElements[index].querySelector('input[name="purchase_items[][quantity]"]')
+      const priceInput = itemElements[index].querySelector('input[name="purchase_items[][unit_price]"]')
+      if (quantityInput) quantityInput.value = item.quantity
+      if (priceInput) priceInput.value = item.price_unit
     }
   }
 
@@ -84,7 +115,7 @@ export default class extends Controller {
     }
 
     const html = this.items.map((item, index) => `
-      <div class="flex items-center gap-4 p-4 border border-gray-200 rounded-xl bg-white hover:shadow-sm transition-all">
+      <div class="flex items-center gap-4 p-4 border border-gray-200 rounded-xl bg-white hover:shadow-sm transition-all" data-item-index="${index}">
         <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">
           📦
         </div>
@@ -97,8 +128,9 @@ export default class extends Controller {
           </div>
           <h4 class="font-semibold text-gray-900 text-sm truncate">${item.name}</h4>
           <p class="text-xs text-gray-500 mt-0.5">${item.brand || ''} ${item.origin ? '• ' + item.origin : ''}</p>
-          <input type="hidden" name="order[order_items_attributes][${index}][product_id]" value="${item.product_id}" />
-          <input type="hidden" name="order[order_items_attributes][${index}][quantity]" value="${item.quantity}" />
+          <input type="hidden" name="purchase_items[][product_id]" value="${item.product_id}" />
+          <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
+          <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />
         </div>
         
         <div class="flex items-center gap-3">
@@ -116,13 +148,22 @@ export default class extends Controller {
           </div>
           
           <div class="text-right">
-            <p class="text-xs text-gray-500">Precio</p>
-            <p class="font-bold text-sm">$${this.formatCurrency(item.price_unit)}</p>
+            <p class="text-xs text-gray-500">Precio Unit.</p>
+            <input 
+              type="number" 
+              value="${item.price_unit}"
+              min="0"
+              step="0.01"
+              data-index="${index}"
+              data-action="input->order-form#updatePrice"
+              class="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-right font-semibold"
+              placeholder="0.00"
+            />
           </div>
           
-          <div class="text-right min-w-[100px]">
+          <div class="text-right min-w-[110px]">
             <p class="text-xs text-gray-500">Subtotal</p>
-            <p class="text-lg font-bold text-gray-900">$${this.formatCurrency(item.price_unit * item.quantity)}</p>
+            <p class="text-lg font-bold text-gray-900" data-subtotal>$${this.formatCurrency(item.price_unit * item.quantity)}</p>
           </div>
           
           <button 

@@ -1,6 +1,7 @@
 module Web
   class DashboardController < ApplicationController
     def index
+      authorize :dashboard, :index?
       # Métricas principales
       @sales_today = calculate_sales_today
       @low_stock_count = Product.with_low_stock.count

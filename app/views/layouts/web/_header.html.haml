@@ -12,21 +12,18 @@
         %h1.text-xl.font-semibold.text-slate-900= yield :page_title
     
     -# Acciones de usuario
-    .flex.items-center.gap-3
-      -# Notificaciones
-      %button.relative.w-9.h-9.flex.items-center.justify-center.text-slate-500.hover:text-slate-700.hover:bg-slate-100.rounded-lg.transition-colors{type: "button"}
-        %span.text-lg= "🔔"
-        -# Badge contador
-        %span.absolute.top-1.right-1.w-2.h-2.bg-red-500.rounded-full.ring-2.ring-white
-      
-      -# Avatar + Info
-      .flex.items-center.gap-2.cursor-pointer.hover:bg-slate-50.px-2.py-1.5.rounded-lg.transition-colors
-        .w-8.h-8.rounded-full.bg-slate-800.flex.items-center.justify-center
-          %span.text-white.text-sm.font-semibold A
-        .hidden.lg:block
-          %p.text-sm.font-medium.text-slate-900 Alfredo
-          %p.text-xs.text-slate-500 Admin
-      
-      -# Menú hamburguesa (más opciones)
-      %button.w-9.h-9.flex.items-center.justify-center.text-slate-500.hover:text-slate-700.hover:bg-slate-100.rounded-lg.transition-colors{type: "button"}
-        %span ⋮
+    - if user_signed_in?
+      .flex.items-center.gap-3
+        -# Avatar + Info
+        .flex.items-center.gap-2.px-2.py-1.5.rounded-lg
+          .w-8.h-8.rounded-full.bg-slate-700.flex.items-center.justify-center
+            %span.text-white.text-sm.font-semibold= current_user.name.first.upcase
+          .hidden.lg:block
+            %p.text-sm.font-medium.text-slate-900= current_user.name
+            %p.text-xs.text-slate-500= current_user.role.titleize
+        
+        -# Botón Salir
+        = link_to destroy_user_session_path, 
+                 data: { turbo_method: :delete },
+                 class: "inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" do
+          %span Salir

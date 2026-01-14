@@ -3,9 +3,30 @@
 # Limpiar solo en development
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
-  [Payment, OrderItem, Order, PurchaseItem, Purchase,
-   StockMovement, Product, Customer, Supplier, StockLocation].each(&:destroy_all)
+  [ Payment, OrderItem, Order, PurchaseItem, Purchase,
+   StockMovement, Product, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
   puts "✅ Base de datos limpiada"
+end
+
+# ============================================
+# 0. USUARIOS
+# ============================================
+puts "\n🔐 Creando usuarios iniciales..."
+if User.count.zero?
+  admin = User.create!(
+    email: "admin@gentedelsol.com",
+    password: "password123",
+    password_confirmation: "password123",
+    name: "Administrador",
+    role: "admin"
+  )
+
+  puts "✅ Usuario admin creado:"
+  puts "   Email: #{admin.email}"
+  puts "   Password: password123"
+  puts "   ⚠️  CAMBIAR PASSWORD EN PRODUCCIÓN"
+else
+  puts "✅ Usuarios ya existen, saltando creación"
 end
 
 # ============================================
@@ -28,7 +49,7 @@ supplier_germany = FactoryBot.create(:supplier, :germany)
 supplier_taiwan = FactoryBot.create(:supplier, :taiwan)
 supplier_brazil = FactoryBot.create(:supplier, :brazil)
 
-suppliers = [supplier_japan, supplier_usa, supplier_germany, supplier_taiwan, supplier_brazil]
+suppliers = [ supplier_japan, supplier_usa, supplier_germany, supplier_taiwan, supplier_brazil ]
 puts "✅ #{suppliers.count} proveedores creados"
 
 # ============================================
@@ -74,7 +95,7 @@ particular = FactoryBot.create(:customer, :with_credit,
   customer_type: "retail"
 )
 
-clientes_con_credito = talleres + [particular]
+clientes_con_credito = talleres + [ particular ]
 puts "✅ Cliente Mostrador + #{clientes_con_credito.count} clientes con cuenta corriente"
 
 # ============================================
@@ -159,24 +180,34 @@ PRODUCTOS_REALES.each do |categoria, nombres|
   nombres.each do |nombre|
     break if counter > 200
 
-    # Determinar tipo y origen (40% OEM Japan, 20% OEM USA, 40% Aftermarket)
+    # Determinar tipo, origen y marca (40% OEM Japan, 20% OEM USA, 40% Aftermarket)
     rand_val = rand(100)
 
     if rand_val < 40
       # OEM Japan
       trait_origen = :oem_japan
+      brand = "Honda"
       cost_usd = rand(20..150).round(2)
       price_multiplier = 1.8
     elsif rand_val < 60
       # OEM USA
       trait_origen = :oem_usa
+      brand = "Honda"
       cost_usd = rand(15..120).round(2)
       price_multiplier = 1.6
     else
-      # Aftermarket (distribuir orígenes)
-      origins = [:aftermarket_germany, :aftermarket_korea, :aftermarket_brazil,
-                 :aftermarket_china, :aftermarket_taiwan, :aftermarket_india]
-      trait_origen = origins.sample
+      # Aftermarket (distribuir orígenes y marcas)
+      origins_brands = {
+        aftermarket_germany: [ "Bosch", "Continental", "Sachs" ],
+        aftermarket_korea: [ "Hyundai Mobis", "Mando", "CTR" ],
+        aftermarket_brazil: [ "Cofap", "Metal Leve", "TRW" ],
+        aftermarket_china: [ "KYB", "Moog", "Febi" ],
+        aftermarket_taiwan: [ "TYC", "Depo", "GMB" ],
+        aftermarket_india: [ "Valeo", "Mahle", "ZF" ]
+      }
+
+      trait_origen = origins_brands.keys.sample
+      brand = origins_brands[trait_origen].sample
       cost_usd = rand(10..100).round(2)
       price_multiplier = 1.3
     end
@@ -185,6 +216,18 @@ PRODUCTOS_REALES.each do |categoria, nombres|
     exchange_rate = rand(1150..1250)
     price_ars = (cost_usd * exchange_rate * price_multiplier * rand(1.3..1.9)).round(0)
 
+    # Generar ubicación física válida: [pasillo 1-9][lado I/D][posición 0-9][nivel 0-9]
+    # 80% de los productos tienen ubicación, 20% sin asignar
+    location_code = if rand(100) < 80
+      pasillo = rand(1..9)
+      lado = [ 'I', 'D' ].sample
+      posicion = rand(0..9)
+      nivel = rand(0..4)  # Niveles 0-4 (5 niveles máximo)
+      "#{pasillo}#{lado}#{posicion}#{nivel}"
+    else
+      nil  # Sin ubicación asignada
+    end
+
     producto = FactoryBot.create(
       :product,
       categoria,
@@ -192,10 +235,12 @@ PRODUCTOS_REALES.each do |categoria, nombres|
       :honda_part,
       name: "#{nombre} Honda",
       sku: "HDC#{counter.to_s.rjust(3, '0')}",
+      brand: brand,
       cost_unit: cost_usd,
       cost_currency: "USD",
       price_unit: price_ars,
-      current_stock: 0
+      current_stock: 0,
+      location_code: location_code
     )
 
     productos << producto
@@ -268,7 +313,7 @@ ventas_fallidas = 0
 
   items = productos_venta.map do |producto|
     producto.reload
-    cantidad = [rand(1..5), producto.current_stock].min
+    cantidad = [ rand(1..5), producto.current_stock ].min
     next if cantidad <= 0
 
     {
@@ -284,7 +329,7 @@ ventas_fallidas = 0
     customer: mostrador,
     items: items,
     order_type: "cash",
-    channel: ['counter', 'whatsapp', 'mercadolibre'].sample
+    channel: [ 'counter', 'whatsapp', 'mercadolibre' ].sample
   )
 
   if result.success?
@@ -308,7 +353,7 @@ end
 
   items = productos_venta.map do |producto|
     producto.reload
-    cantidad = [rand(2..8), producto.current_stock - 2].min
+    cantidad = [ rand(2..8), producto.current_stock - 2 ].min
     next if cantidad <= 0
 
     {
@@ -349,7 +394,7 @@ clientes_con_credito.each do |cliente|
 
   if saldo > 1000
     monto = (saldo * rand(0.3..0.7)).round(0)
-    metodo = ['cash', 'transfer', 'check'].sample
+    metodo = [ 'cash', 'transfer', 'check' ].sample
     fecha_pago = rand(3).days.ago.to_date
 
     result = Payments::RegisterPayment.call(
@@ -386,6 +431,8 @@ puts "  Stock total: #{Product.sum(:current_stock)} unidades"
 puts "  Valor inventario: $#{(Product.sum('current_stock * price_unit')).to_i}"
 puts "  Con stock bajo (<5): #{Product.with_low_stock.count}"
 puts "  Sin stock: #{Product.where(current_stock: 0).count}"
+puts "  Con ubicación asignada: #{Product.where.not(location_code: nil).count}"
+puts "  Sin ubicación: #{Product.where(location_code: nil).count}"
 
 puts "\n🏭 Proveedores: #{Supplier.count}"
 

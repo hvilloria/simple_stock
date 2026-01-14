@@ -89,7 +89,7 @@ RSpec.describe Sales::CreateOrder do
       it 'associates stock movements with order through polymorphic reference' do
         result = described_class.call(
           customer: customer_without_credit,
-          items: [{ product_id: product.id, quantity: 2, unit_price: 100 }],
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'cash'
         )
 
@@ -304,6 +304,91 @@ RSpec.describe Sales::CreateOrder do
 
         expect(result.success?).to be false
         expect(result.errors).to include('Quantity must be greater than zero')
+      end
+    end
+
+    context 'with from_paper source' do
+      let(:product) { create(:product, current_stock: 50, price_unit: 100) }
+
+      it 'creates order with source from_paper' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
+          order_type: 'cash',
+          source: 'from_paper',
+          paper_number: '0045'
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.source).to eq('from_paper')
+        expect(result.record.paper_number).to eq('0045')
+      end
+
+      it 'allows total_amount = 0' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
+          order_type: 'cash',
+          source: 'from_paper'
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.total_amount).to eq(0)
+      end
+
+      it 'allows nil unit_price (uses product price or 0)' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: nil } ],
+          order_type: 'cash',
+          source: 'from_paper'
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.order_items.first.unit_price).to eq(product.price_unit)
+      end
+
+      it 'sets sale_date correctly' do
+        sale_date = 1.week.ago.to_date
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          order_type: 'cash',
+          source: 'from_paper',
+          sale_date: sale_date
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.sale_date).to eq(sale_date)
+      end
+
+      it 'still validates stock' do
+        low_stock_product = create(:product, current_stock: 1, price_unit: 100)
+
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: low_stock_product.id, quantity: 10, unit_price: 0 } ],
+          order_type: 'cash',
+          source: 'from_paper'
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include(/Insufficient stock/)
+      end
+
+      it 'still creates stock movements' do
+        test_product = create(:product, current_stock: 0, price_unit: 100)
+        create(:stock_movement, product: test_product, stock_location: stock_location, quantity: 50, movement_type: 'purchase')
+        test_product.recalculate_current_stock!
+
+        described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: test_product.id, quantity: 2, unit_price: 0 } ],
+          order_type: 'cash',
+          source: 'from_paper'
+        )
+
+        expect(test_product.reload.current_stock).to eq(48)
       end
     end
 

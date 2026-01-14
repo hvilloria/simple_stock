@@ -199,6 +199,21 @@
         -# Separador
         .border-t.border-slate-200.my-6
         
+        -# Ubicación física
+        .mb-6
+          %p.text-xs.font-medium.text-slate-500.uppercase.mb-2 Ubicación en Depósito
+          - if @product.location_code.present?
+            .bg-slate-50.border.border-slate-200.rounded-lg.p-4
+              %p.font-mono.text-lg.font-bold.text-slate-900.text-center.mb-2= @product.location_code
+              %p.text-xs.text-slate-600.text-center= @product.location_human
+          - else
+            .bg-amber-50.border.border-amber-200.rounded-lg.p-4
+              %p.text-sm.text-amber-700.text-center.font-medium
+                ⚠️ Sin ubicación asignada
+        
+        -# Separador
+        .border-t.border-slate-200.my-6
+        
         -# Info adicional
         .space-y-3.text-sm
           .div
