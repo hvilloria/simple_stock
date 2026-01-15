@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class PurchasePolicy < ApplicationPolicy
+class SupplierPolicy < ApplicationPolicy
   def index?
     user.admin?
   end
@@ -18,18 +18,14 @@ class PurchasePolicy < ApplicationPolicy
   end
 
   def update?
-    user.admin? && record.pending_status?
+    user.admin?
   end
 
   def edit?
     update?
   end
 
-  def mark_as_paid?
-    user.admin? && record.simple_mode? && record.pending_status?
-  end
-
-  def cancel?
-    user.admin? && record.pending_status?
+  def destroy?
+    user.admin? && record.purchases.none?
   end
 end

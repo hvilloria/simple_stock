@@ -1,0 +1,136 @@
+- content_for :page_title, @supplier.name
+
+.container.mx-auto.px-6.py-6
+
+  -# Header
+  .flex.items-center.justify-between.mb-6
+    .flex.items-center.gap-4
+      = link_to web_suppliers_path, class: "text-gray-600 hover:text-gray-900" do
+        %span.text-xl ←
+      %h1.text-3xl.font-bold.text-gray-900= @supplier.name
+
+    .flex.items-center.gap-3
+      = link_to "Editar", edit_web_supplier_path(@supplier), class: "px-4 py-2 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+      
+      - if policy(@supplier).destroy?
+        = button_to "Eliminar", web_supplier_path(@supplier), 
+                   method: :delete,
+                   data: { turbo_confirm: "¿Estás seguro de eliminar este proveedor?" },
+                   class: "px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+
+    -# Columna Izquierda (2/3)
+    .lg:col-span-2.space-y-6
+
+      -# Card Información
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Información
+
+        .space-y-3
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-32.flex-shrink-0 Nombre:
+            %span.font-medium.text-gray-900= @supplier.name
+
+          - if @supplier.email.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Email:
+              %span.text-gray-900= @supplier.email
+
+          - if @supplier.phone.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Teléfono:
+              %span.text-gray-900= @supplier.phone
+
+          - if @supplier.cuit.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 CUIT:
+              %span.text-gray-900.font-mono= @supplier.cuit
+
+          - if @supplier.bank_alias.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Alias CBU:
+              %span.text-gray-900.font-mono= @supplier.bank_alias
+
+          - if @supplier.bank_account.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Cuenta:
+              %span.text-gray-900.font-mono= @supplier.bank_account
+
+          - if @supplier.payment_term_days.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Plazo de pago:
+              %span.text-gray-900
+                %strong= @supplier.payment_term_display
+
+      -# Card Facturas Pendientes
+      - if @pending_purchases.any?
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 
+            Facturas Pendientes
+            %span.text-sm.font-normal.text-gray-500
+              (#{@pending_purchases.count})
+
+          .space-y-3
+            - @pending_purchases.each do |purchase|
+              = link_to web_purchase_path(purchase), class: "block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" do
+                .flex.items-center.justify-between
+                  .flex-1
+                    .flex.items-center.gap-3.mb-2
+                      %span.font-mono.text-sm.font-semibold.text-gray-900= purchase.invoice_number
+                      - if purchase.overdue?
+                        %span.px-2.py-1.bg-red-100.text-red-700.text-xs.rounded-full.font-medium Vencida
+                      - elsif purchase.days_until_due && purchase.days_until_due <= 7
+                        %span.px-2.py-1.bg-yellow-100.text-yellow-700.text-xs.rounded-full.font-medium Próxima
+                    
+                    .text-sm.text-gray-600
+                      Vence:
+                      = purchase.due_date.strftime("%d/%m/%Y")
+                      - if purchase.days_until_due
+                        %span.text-gray-500
+                          (#{purchase.days_until_due} días)
+                  
+                  .text-right
+                    %p.text-lg.font-bold.text-gray-900
+                      = purchase.currency
+                      = number_with_delimiter(purchase.amount, delimiter: ".")
+
+      -# Card Facturas Pagadas
+      - if @paid_purchases.any?
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 
+            Facturas Pagadas
+            %span.text-sm.font-normal.text-gray-500 (últimas 10)
+
+          .space-y-2
+            - @paid_purchases.each do |purchase|
+              = link_to web_purchase_path(purchase), class: "block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-75" do
+                .flex.items-center.justify-between
+                  .flex-1
+                    %span.font-mono.text-sm.font-semibold.text-gray-700= purchase.invoice_number
+                    %span.text-xs.text-gray-500.ml-3
+                      ✓ Pagada el
+                      = purchase.paid_at.to_date.strftime("%d/%m/%Y")
+                  
+                  %span.text-sm.font-medium.text-gray-600
+                    = purchase.currency
+                    = number_with_delimiter(purchase.amount, delimiter: ".")
+
+    -# Columna Derecha (1/3)
+    .lg:col-span-1
+      .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Resumen
+
+        .space-y-4
+          .text-center.pb-4.border-b.border-gray-200
+            %p.text-sm.text-gray-500.mb-1 Facturas Pendientes
+            %p.text-3xl.font-bold.text-gray-900= @pending_purchases.count
+
+          .text-center
+            %p.text-sm.text-gray-500.mb-1 Total Adeudado
+            %p.text-2xl.font-bold.text-red-600
+              ARS
+              = number_with_delimiter(@supplier.total_pending_amount.to_i, delimiter: ".")
+
+        .border-t.border-gray-200.pt-4.mt-4
+          %p.text-xs.text-gray-500.text-center Valores aproximados en ARS

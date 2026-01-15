@@ -1,16 +1,16 @@
-- content_for :page_title, "Nueva Compra"
+- content_for :page_title, "Nueva Factura"
 
 .container.mx-auto.px-6.py-6
 
-  -# Header con navegación
+  -# Header
   .flex.items-center.justify-between.mb-6
     = link_to web_purchases_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
       %span ←
       %span Volver a Compras
     
-    %h1.text-3xl.font-bold.text-gray-900 Nueva Compra
+    %h1.text-3xl.font-bold.text-gray-900 Nueva Factura de Proveedor
 
-  -# Mostrar errores si existen
+  -# Errores
   - if flash[:alert]
     .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -19,126 +19,136 @@
         %h4.font-semibold.text-red-800.mb-1 Error
         %p.text-sm.text-red-700= flash[:alert]
 
-  = form_with url: web_purchases_path, method: :post, local: true, data: { controller: "purchase-form", action: "product-selected->purchase-form#addProduct" } do |f|
+  = form_with url: web_purchases_path, method: :post, local: true, data: { controller: "purchase-form", action: "submit->purchase-form#handleFormSubmit" } do |f|
     
     .grid.grid-cols-1.lg:grid-cols-3.gap-6
       
       -# ============ COLUMNA IZQUIERDA (2/3) ============
       .lg:col-span-2.space-y-6
 
-        -# CARD 1 - Información de Compra
+        -# CARD 1 - Información de la Factura
         .bg-white.border.border-slate-200.rounded-lg.p-6
-          %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de Compra
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Factura
 
           .space-y-4
             -# Proveedor
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Proveedor
               = select_tag :supplier_id, 
-                          options_for_select([["Seleccionar proveedor", ""]] + @suppliers.map { |s| [s.name, s.id] }), 
+                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0 }] }), 
                           class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                          required: true
-              %p.text-xs.text-gray-500.mt-1 Selecciona el proveedor de esta compra
+                          required: true,
+                          data: { purchase_form_target: "supplier", action: "change->purchase-form#onSupplierChange" }
+              .flex.items-center.justify-between.mt-1
+                %p.text-xs.text-gray-500 Selecciona el proveedor que emitió la factura
+                %div{ data: { purchase_form_target: "paymentTermInfo" }, style: "display: none;" }
+            
+            -# Número de Factura
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Número de Factura
+              = text_field_tag :invoice_number, nil,
+                              placeholder: "Ej: FAC-001234",
+                              class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                              required: true
+              %p.text-xs.text-gray-500.mt-1 Número de factura del proveedor
             
             -# Moneda (radio buttons visuales)
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-3 Moneda
               .grid.grid-cols-2.gap-4
-                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
-                  %span
-                    = radio_button_tag :currency, 'USD', true, id: "currency_usd", data: { action: "change->purchase-form#changeCurrency", 'purchase-form-target': 'currencyUsd' }
-                  %label.cursor-pointer.flex-1{ for: "currency_usd" }
+                %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_usd_label" }
+                  = radio_button_tag :currency, 'USD', true, id: "currency_usd", data: { action: "change->purchase-form#toggleExchangeRate" }
+                  .flex-1
                     %p.font-medium.text-gray-900 💵 USD
                     %p.text-xs.text-gray-500 Dólares estadounidenses
                 
-                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
-                  %span
-                    = radio_button_tag :currency, 'ARS', false, id: "currency_ars", data: { action: "change->purchase-form#changeCurrency", 'purchase-form-target': 'currencyArs' }
-                  %label.cursor-pointer.flex-1{ for: "currency_ars" }
+                %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_ars_label" }
+                  = radio_button_tag :currency, 'ARS', false, id: "currency_ars", data: { action: "change->purchase-form#toggleExchangeRate" }
+                  .flex-1
                     %p.font-medium.text-gray-900 🇦🇷 ARS
                     %p.text-xs.text-gray-500 Pesos argentinos
             
             -# Tipo de Cambio (solo si USD)
-            %div{ data: { 'purchase-form-target': 'exchangeRateField' } }
+            %div{ id: "exchange_rate_field", data: { purchase_form_target: "exchangeRateField" } }
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo de Cambio
               = number_field_tag :exchange_rate, nil,
                                 step: 0.01,
                                 placeholder: "Ej: 1200.00",
                                 class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                                data: { action: "input->purchase-form#updateExchangeRate" },
-                                required: true
-              %p.text-xs.text-gray-500.mt-1 Tipo de cambio USD → ARS al momento de la compra
+                                data: { purchase_form_target: "exchangeRateInput" }
+              %p.text-xs.text-gray-500.mt-1 Tipo de cambio USD → ARS
             
-            -# Fecha de compra
+            -# Monto de la Factura
             %div
-              %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Compra
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Monto Total
+              = text_field_tag :amount, nil, placeholder: "0,00", class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold", required: true, data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
+              %p.text-xs.text-gray-500.mt-1 Monto total de la factura (formato: 1.500.000,50)
+            
+            -# Fecha de Factura
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Factura
               = date_field_tag :purchase_date, Date.today,
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                              required: true
+                              required: true,
+                              data: { purchase_form_target: "purchaseDate", action: "change->purchase-form#onPurchaseDateChange" }
+            
+            -# Fecha de Vencimiento
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Vencimiento
+              = date_field_tag :due_date, 30.days.from_now.to_date,
+                              class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                              required: true,
+                              data: { purchase_form_target: "dueDate" }
+              %p.text-xs.text-gray-500.mt-1 Fecha límite de pago (se calcula automáticamente)
             
             -# Notas
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Notas (Opcional)
               = text_area_tag :notes, nil,
                             rows: 3,
-                            placeholder: "Información adicional sobre la compra...",
+                            placeholder: "Información adicional sobre la factura...",
                             class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
-
-        -# CARD 2 - Búsqueda y Lista de Productos
-        .bg-white.border.border-slate-200.rounded-lg.p-6
-          %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
-
-          -# Search input con dropdown
-          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside" }, class: "mb-6 relative" }
-            %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
-            %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
-
-          -# Lista de productos agregados
-          .mt-6
-            #purchase-items{ data: { 'purchase-form-target': 'items' } }
-              .text-center.py-12.text-gray-400
-                %p.text-5xl.mb-3 📦
-                %p.text-gray-600.font-medium No hay productos agregados
-                %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba
 
       -# ============ COLUMNA DERECHA (1/3) ============
       .lg:col-span-1
         .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
-          %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Compra
+          %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen
 
-          -# Total principal (calculado dinámicamente)
-          .text-center.mb-4
-            %p.text-sm.text-gray-500.mb-2 Costo Total
-            %p.text-4xl.font-bold.text-gray-900{ data: { 'purchase-form-target': 'total' } } USD 0.00
+          -# Info de modo simple
+          .bg-blue-50.border.border-blue-200.rounded-lg.p-4.mb-4
+            .flex.items-start.gap-3
+              %span.text-2xl ℹ️
+              .flex-1
+                %p.text-sm.font-medium.text-blue-900 Modo Simple
+                %p.text-xs.text-blue-700.mt-1 
+                  Registramos solo la factura sin detalle de productos.
+                  El stock NO se actualiza.
 
-          -# Conversión a ARS (si aplica)
-          .text-center.mb-6{ data: { 'purchase-form-target': 'totalArs' } }
-
-          .border-t.border-gray-200.py-4.space-y-3
+          .space-y-3.mb-6
             .flex.justify-between.text-sm
-              %span.text-gray-600 Items
-              %span.font-medium.text-gray-900{ data: { 'purchase-form-target': 'itemCount' } } 0 productos
+              %span.text-gray-600 Tipo de registro
+              %span.font-medium.text-gray-900 Factura
 
             .flex.justify-between.text-sm
-              %span.text-gray-600 Cantidad total
-              %span.font-medium.text-gray-900{ data: { 'purchase-form-target': 'totalQuantity' } } 0 unidades
+              %span.text-gray-600 Estado inicial
+              %span
+                %span.px-2.py-1.bg-yellow-100.text-yellow-700.text-xs.rounded-full.font-medium Pendiente de pago
 
           .border-t.border-gray-200.py-4
-            %h4.text-sm.font-semibold.text-gray-900.mb-3 Información
+            %h4.text-sm.font-semibold.text-gray-900.mb-3 Qué NO hace este registro:
             
             .space-y-2
-              .flex.items-center.gap-2.text-sm
-                %span 📥
-                %span.text-gray-600 Entrada de stock
+              .flex.items-start.gap-2.text-sm
+                %span.text-red-500 ✗
+                %span.text-gray-600 No actualiza stock de productos
               
-              .flex.items-center.gap-2.text-sm
-                %span 💰
-                %span.text-gray-600 Costos se actualizarán
+              .flex.items-start.gap-2.text-sm
+                %span.text-red-500 ✗
+                %span.text-gray-600 No recalcula costos promedio
 
           .border-t.border-gray-200.pt-4
-            = submit_tag "Registrar Compra", disabled: true, class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors opacity-50 cursor-not-allowed", data: { 'purchase-form-target': 'submitButton' }
+            = submit_tag "Registrar Factura", 
+                        class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors"
 
           .mt-4.text-center
-            %p.text-xs.text-gray-500 Se generarán movimientos de stock automáticamente
-            %p.text-xs.text-gray-500.mt-1 Los costos promedio se recalcularán
-
+            %p.text-xs.text-gray-500 La factura quedará pendiente de pago hasta que la marques como pagada

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_12_26_192733) do
+ActiveRecord::Schema[7.2].define(version: 2026_01_14_235113) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -108,6 +108,15 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_26_192733) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "invoice_number"
+    t.date "due_date"
+    t.datetime "paid_at"
+    t.boolean "has_items", default: false, null: false
+    t.decimal "amount", precision: 10, scale: 2
+    t.index ["due_date"], name: "index_purchases_on_due_date"
+    t.index ["has_items"], name: "index_purchases_on_has_items"
+    t.index ["invoice_number"], name: "index_purchases_on_invoice_number"
+    t.index ["paid_at"], name: "index_purchases_on_paid_at"
     t.index ["purchase_date"], name: "index_purchases_on_purchase_date"
     t.index ["supplier_id"], name: "index_purchases_on_supplier_id"
   end
@@ -138,13 +147,15 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_26_192733) do
 
   create_table "suppliers", force: :cascade do |t|
     t.string "name", null: false
-    t.string "contact_name"
     t.string "phone"
     t.string "email"
-    t.text "address"
-    t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "cuit"
+    t.string "bank_alias"
+    t.string "bank_account"
+    t.integer "payment_term_days"
+    t.index ["name"], name: "index_suppliers_on_name", unique: true
   end
 
   create_table "users", force: :cascade do |t|

@@ -998,3 +998,328 @@ Posibles mejoras para V2:
 - Validación de duplicados por `(sku, product_type, brand, origin)`
 - Notificaciones por email al completar
 - Rollback de sincronizaciones anteriores
+
+---
+
+## 12. Compras - Modo Simple vs Modo Completo
+
+### Contexto
+
+El modelo Purchase soporta dos modos de operación según el flag `has_items`:
+
+### Modo Simple (has_items: false)
+
+**Propósito:** Registrar facturas de proveedores sin detalle de productos (para HOY)
+
+**Campos principales:**
+- `supplier_id`: Proveedor que emitió la factura
+- `invoice_number`: Número de factura del proveedor
+- `amount`: Monto total de la factura
+- `currency`: USD o ARS
+- `exchange_rate`: Tipo de cambio (si USD)
+- `purchase_date`: Fecha de emisión de la factura
+- `due_date`: Fecha de vencimiento de pago
+- `status`: pending/paid
+- `paid_at`: Fecha de pago (cuando se marca como pagada)
+
+**Características:**
+- NO tiene `purchase_items` asociados
+- NO genera `stock_movements`
+- NO recalcula costos promedio de productos
+- Se usa para control de cuentas a pagar
+- Permite marcar como "pagada" con fecha
+
+**Uso:**
+```ruby
+Purchases::CreateSimplePurchase.call(
+  supplier: supplier,
+  invoice_number: 'FAC-001',
+  amount: 5000,
+  currency: 'USD',
+  exchange_rate: 1200,
+  purchase_date: Date.today,
+  due_date: 30.days.from_now,
+  notes: 'Factura IPC'
+)
+```
+
+### Modo Completo (has_items: true)
+
+**Propósito:** Registrar compras con detalle de productos (para DESPUÉS)
+
+**Campos principales:**
+- `supplier_id`: Proveedor
+- `currency`: USD o ARS
+- `exchange_rate`: Tipo de cambio
+- `purchase_date`: Fecha de compra
+- `status`: confirmed/cancelled
+- `purchase_items`: Detalle de productos comprados
+
+**Características:**
+- SÍ tiene `purchase_items` asociados (obligatorio)
+- SÍ genera `stock_movements` de entrada
+- SÍ recalcula costos promedio ponderado
+- Se usa para gestión de inventario
+- No se "paga" (concepto diferente)
+
+**Uso:**
+```ruby
+Purchasing::CreatePurchase.call(
+  supplier: supplier,
+  items: [
+    { product_id: 1, quantity: 10, unit_cost: 50 },
+    { product_id: 2, quantity: 5, unit_cost: 100 }
+  ],
+  currency: 'USD',
+  exchange_rate: 1200,
+  purchase_date: Date.today
+)
+```
+
+### Comparación
+
+| Característica | Modo Simple | Modo Completo |
+|---|---|---|
+| `has_items` | false | true |
+| Estado inicial | pending | confirmed |
+| `purchase_items` | No | Sí (obligatorio) |
+| `stock_movements` | No | Sí |
+| Recalcula costos | No | Sí |
+| Campo `amount` | Obligatorio | No usado |
+| Campo `due_date` | Obligatorio | No usado |
+| Se puede "pagar" | Sí | No |
+
+### Evolución Futura
+
+Cuando se tenga el inventario completo, se puede:
+
+1. Crear Purchase en modo completo (has_items: true)
+2. Opcionalmente vincular con factura en modo simple existente
+3. El modo simple queda para facturas históricas o sin detalle
+
+### Estados de Purchase
+
+**Para Modo Simple:**
+- `pending`: Factura pendiente de pago
+- `paid`: Factura pagada (con `paid_at` registrado)
+
+**Para Modo Completo:**
+- `confirmed`: Compra confirmada, stock actualizado
+- `cancelled`: Compra cancelada, stock revertido
+
+### Marcar Factura como Pagada
+
+Solo aplica a purchases en modo simple:
+
+```ruby
+purchase = Purchase.find(123)
+Purchases::MarkAsPaid.call(
+  purchase: purchase,
+  payment_date: Date.today
+)
+```
+
+Esto:
+1. Cambia status de `pending` → `paid`
+2. Registra `paid_at` con la fecha de pago
+3. NO genera movimientos contables (se hace en otro módulo)
+
+### Scopes Útiles
+
+```ruby
+# Facturas simples pendientes de pago
+Purchase.simple_mode.pending_payment
+
+# Facturas vencidas
+Purchase.overdue
+
+# Facturas con vencimiento próximo (7 días)
+Purchase.due_soon
+
+# Facturas ya pagadas
+Purchase.paid_purchases
+
+# Compras completas confirmadas
+Purchase.full_mode.confirmed_status
+```
+
+### Ejemplo de Uso Típico - Modo Simple
+
+**Escenario:** Llega factura de IPC (proveedor) por $5,000 USD, vence en 30 días.
+
+```ruby
+# 1. Buscar o crear proveedor
+supplier = Supplier.find_by(name: 'IPC') || 
+           Supplier.create!(name: 'IPC', contact_name: 'Juan Pérez')
+
+# 2. Registrar factura
+result = Purchases::CreateSimplePurchase.call(
+  supplier: supplier,
+  invoice_number: 'IPC-2024-001',
+  amount: 5000,
+  currency: 'USD',
+  exchange_rate: 1200,
+  purchase_date: Date.today,
+  due_date: 30.days.from_now,
+  notes: 'Factura mensual de repuestos'
+)
+
+if result.success?
+  puts "Factura registrada: #{result.record.invoice_number}"
+  puts "Monto: $#{result.record.amount} #{result.record.currency}"
+  puts "Vence: #{result.record.due_date}"
+else
+  puts "Error: #{result.errors.join(', ')}"
+end
+
+# 3. Consultar facturas pendientes
+pending = Purchase.simple_mode.pending_payment.order(:due_date)
+pending.each do |purchase|
+  puts "#{purchase.invoice_number} - $#{purchase.amount} - Vence: #{purchase.due_date}"
+end
+
+# 4. Al pagar la factura
+purchase = Purchase.find_by(invoice_number: 'IPC-2024-001')
+result = Purchases::MarkAsPaid.call(
+  purchase: purchase,
+  payment_date: Date.today
+)
+
+if result.success?
+  puts "Factura marcada como pagada"
+else
+  puts "Error: #{result.errors.join(', ')}"
+end
+```
+
+### Migración de Datos Existentes
+
+Al ejecutar la migration, todas las compras existentes se marcan automáticamente como `has_items: true` (modo completo), preservando el comportamiento actual del sistema.
+
+---
+
+## 13. Proveedores
+
+### Campos del Modelo
+
+- `name` (obligatorio, único) - Nombre del proveedor
+- `email` (opcional) - Email de contacto
+- `phone` (opcional) - Teléfono
+- `cuit` (opcional) - CUIT sin validación de formato
+- `bank_alias` (opcional) - Alias CBU
+- `bank_account` (opcional) - Número de cuenta/CBU
+- `payment_term_days` (opcional) - Días de gracia para pago
+
+### Reglas de Negocio
+
+1. **Nombre único:** No puede haber proveedores duplicados
+2. **Nombre no editable:** Una vez creado, el nombre no se puede cambiar
+3. **Otros campos editables:** Email, teléfono, CUIT, datos bancarios y plazo pueden editarse
+4. **Eliminación restringida:** No se puede eliminar si tiene facturas (purchases) asociadas
+5. **Payment term days:** Define los días de gracia que otorga el proveedor para pago
+6. **Solo administradores:** Solo usuarios con rol admin pueden gestionar proveedores
+
+### Uso del Payment Term Days
+
+El campo `payment_term_days` se usa para calcular automáticamente la fecha de vencimiento (`due_date`) al crear facturas:
+
+```ruby
+# Ejemplo:
+# Proveedor "IPC" tiene payment_term_days: 30
+# Factura creada el 14/01/2026
+# due_date = 14/01/2026 + 30 días = 13/02/2026
+```
+
+Este cálculo se hará manualmente por ahora. En el futuro se puede implementar con JavaScript/Stimulus.
+
+### Permisos (Pundit)
+
+Solo usuarios **admin** pueden:
+- Ver lista de proveedores
+- Ver detalle de proveedor
+- Crear nuevos proveedores
+- Editar proveedores (excepto nombre)
+- Eliminar proveedores (solo si no tienen facturas)
+
+### Vistas
+
+#### Index (`/web/suppliers`)
+- Lista alfabética de todos los proveedores
+- Muestra nombre, email, teléfono y plazo de pago
+- Card clicable que lleva al detalle
+- Botón "Nuevo Proveedor" (solo admin)
+
+#### Show (`/web/suppliers/:id`)
+- Información completa del proveedor
+- Datos bancarios si están disponibles
+- Lista de facturas pendientes (con alertas de vencimiento)
+- Últimas 10 facturas pagadas
+- Resumen: total de facturas pendientes y monto adeudado
+- Botones: Editar y Eliminar (si no tiene facturas)
+
+#### New (`/web/suppliers/new`)
+- Formulario de creación
+- Secciones: Información Básica, Información Bancaria, Condiciones de Pago
+- Nombre obligatorio (advertencia: no editable después)
+- Todos los demás campos opcionales
+
+#### Edit (`/web/suppliers/:id/edit`)
+- Formulario de edición
+- Nombre en campo readonly (no editable)
+- Todos los demás campos editables
+
+### Métodos Helper del Modelo
+
+**`bank_info_present?`**
+- Retorna true si tiene alias o cuenta bancaria
+
+**`bank_info_formatted`**
+- Retorna string formateado con información bancaria
+- Ej: "Alias: MI.ALIAS.CBU | Cuenta: 0170000040000012345678"
+
+**`total_pending_amount`**
+- Retorna el total adeudado en ARS de todas las facturas pendientes
+- Convierte USD a ARS automáticamente
+
+**`pending_purchases_count`**
+- Retorna cantidad de facturas pendientes de pago
+
+**`payment_term_display`**
+- Retorna "30 días" o "No definido"
+
+### Ejemplo de Uso
+
+```ruby
+# Crear proveedor
+supplier = Supplier.create!(
+  name: "IPC",
+  email: "ventas@ipc.com.ar",
+  phone: "11-4567-8901",
+  cuit: "30-12345678-9",
+  bank_alias: "IPC.REPUESTOS",
+  payment_term_days: 30
+)
+
+# Consultar información
+supplier.payment_term_display  # => "30 días"
+supplier.total_pending_amount   # => 1500000 (ARS)
+supplier.pending_purchases_count # => 3
+
+# Crear factura para este proveedor
+purchase = Purchases::CreateSimplePurchase.call(
+  supplier: supplier,
+  invoice_number: "FAC-001",
+  amount: 5000,
+  currency: "USD",
+  exchange_rate: 1200,
+  purchase_date: Date.today,
+  due_date: Date.today + supplier.payment_term_days.days  # Auto-calcula vencimiento
+)
+```
+
+### Relación con Facturas (Purchases)
+
+- Un proveedor puede tener muchas facturas (has_many :purchases)
+- No se puede eliminar un proveedor si tiene facturas asociadas
+- En la vista show se muestran facturas pendientes y pagadas
+- El total adeudado se calcula sumando facturas pendientes en ARS

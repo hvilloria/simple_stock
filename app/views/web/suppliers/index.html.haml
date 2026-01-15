@@ -1,0 +1,66 @@
+- content_for :page_title, "Proveedores"
+
+.container.mx-auto.px-6.py-6
+
+  -# Header
+  .flex.items-center.justify-between.mb-6
+    %h1.text-3xl.font-bold.text-gray-900 Proveedores
+
+    = link_to new_web_supplier_path, class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg transition-colors" do
+      %span +
+      %span Nuevo Proveedor
+
+  -# Mensajes
+  - if flash[:notice]
+    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ✓
+      .flex-1
+        %h4.font-semibold.text-green-800.mb-1 Éxito
+        %p.text-sm.text-green-700= flash[:notice]
+
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Error
+        %p.text-sm.text-red-700= flash[:alert]
+
+  -# Lista de proveedores
+  .space-y-4
+    - if @suppliers.any?
+      - @suppliers.each do |supplier|
+        = link_to web_supplier_path(supplier), class: "block" do
+          .bg-white.border.border-slate-200.rounded-lg.p-6.hover:shadow-md.transition-shadow
+            .flex.items-start.justify-between
+              .flex-1
+                .flex.items-center.gap-3.mb-2
+                  %span.text-2xl 🏭
+                  %h3.text-lg.font-semibold.text-gray-900= supplier.name
+                
+                .space-y-1.text-sm.text-gray-600
+                  - if supplier.email.present?
+                    .flex.items-center.gap-2
+                      %span 📧
+                      %span= supplier.email
+                  
+                  - if supplier.phone.present?
+                    .flex.items-center.gap-2
+                      %span 📞
+                      %span= supplier.phone
+                  
+                  - if supplier.payment_term_days.present?
+                    .flex.items-center.gap-2
+                      %span 📅
+                      %span
+                        Plazo de pago:
+                        %strong= supplier.payment_term_display
+              
+              %span.text-gray-400 →
+
+    - else
+      .bg-white.border.border-slate-200.rounded-lg.p-12.text-center
+        %p.text-5xl.mb-4 🏭
+        %p.text-gray-600.font-medium.mb-2 No hay proveedores registrados
+        %p.text-sm.text-gray-500 Creá tu primer proveedor para comenzar

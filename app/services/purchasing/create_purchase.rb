@@ -86,6 +86,7 @@ module Purchasing
         purchase_date: @purchase_date,
         status: "confirmed",
         total_cost: calculate_total,
+        has_items: true,
         notes: @notes
       )
     end
@@ -131,4 +132,3 @@ module Purchasing
     end
   end
 end
-

@@ -35,6 +35,12 @@ Rails.application.routes.draw do
     end
 
     resources :customers, only: [ :index ]
-    resources :purchases, only: [ :index, :new, :create ]
+    resources :suppliers
+    resources :purchases, only: [ :index, :new, :create, :show, :edit, :update ] do
+      member do
+        post :mark_as_paid
+        patch :cancel
+      end
+    end
   end
 end

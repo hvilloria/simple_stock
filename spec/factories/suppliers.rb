@@ -1,64 +1,55 @@
 FactoryBot.define do
   factory :supplier do
     sequence(:name) { |n| "Supplier #{n}" }
-    contact_name { nil }
-    phone { nil }
     email { nil }
-    address { nil }
-    notes { nil }
+    phone { nil }
+    cuit { nil }
+    bank_alias { nil }
+    bank_account { nil }
+    payment_term_days { nil }
 
-    trait :with_contact do
-      contact_name { "John Doe" }
-      phone { "+1 555-1234" }
+    trait :with_banking_info do
+      bank_alias { "MI.ALIAS.CBU" }
+      bank_account { "0170000040000012345678" }
     end
 
-    trait :with_email do
-      email { "supplier@example.com" }
+    trait :with_payment_terms do
+      payment_term_days { 30 }
     end
 
     trait :japan do
       name { "JDM Auto Parts Japan" }
-      contact_name { "Takeshi Yamamoto" }
       email { "orders@jdmautoparts.jp" }
       phone { "+81-3-1234-5678" }
-      address { "1-2-3 Shibuya, Tokyo 150-0002, Japan" }
-      notes { "Proveedor de partes OEM originales Honda de Japón" }
+      payment_term_days { 30 }
     end
 
     trait :usa do
       name { "USA Honda Parts Wholesale" }
-      contact_name { "Michael Johnson" }
       email { "sales@usahondaparts.com" }
       phone { "+1-305-555-0199" }
-      address { "1250 NW 79th Ave, Miami, FL 33126, USA" }
-      notes { "Distribuidor oficial de partes Honda en USA" }
+      payment_term_days { 45 }
     end
 
     trait :germany do
       name { "Euro Auto Parts GmbH" }
-      contact_name { "Hans Mueller" }
       email { "info@euroautoparts.de" }
       phone { "+49-89-1234567" }
-      address { "Industriestraße 45, 80939 Munich, Germany" }
-      notes { "Partes aftermarket premium alemanas - Bosch, TRW" }
+      payment_term_days { 15 }
     end
 
     trait :taiwan do
       name { "Taiwan Quality Auto Supply" }
-      contact_name { "Chen Wei" }
       email { "export@twautosupply.tw" }
       phone { "+886-2-2345-6789" }
-      address { "No. 123, Section 2, Taipei, Taiwan" }
-      notes { "Partes aftermarket de calidad intermedia" }
+      payment_term_days { 30 }
     end
 
     trait :brazil do
       name { "Brasil Motor Parts Ltda" }
-      contact_name { "Carlos Silva" }
       email { "vendas@brasilmotorparts.com.br" }
       phone { "+55-11-3456-7890" }
-      address { "Rua das Indústrias 456, São Paulo, SP, Brazil" }
-      notes { "Distribuidor de partes aftermarket para Latinoamérica" }
+      payment_term_days { 20 }
     end
   end
 end

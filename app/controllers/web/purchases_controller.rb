@@ -2,38 +2,113 @@
 
 module Web
   class PurchasesController < ApplicationController
-    before_action :load_suppliers, only: [ :new, :create ]
+    before_action :load_suppliers, only: [ :new, :create, :edit, :update ]
+    before_action :load_purchase, only: [ :show, :edit, :update, :mark_as_paid, :cancel ]
 
     def index
       authorize Purchase
-      @purchases = Purchase.includes(:supplier, purchase_items: :product)
-                          .order(purchase_date: :desc)
+      @purchases = Purchase.simple_mode
+                          .includes(:supplier)
+                          .order(status: :desc)
                           .limit(50)
+
+      # Métricas para las cards
+      @total_pending_amount = calculate_total_pending_amount
+      @due_today_purchases = Purchase.due_today.includes(:supplier)
+      @due_this_week_purchases = Purchase.due_this_week.includes(:supplier)
+    end
+
+    def show
+      authorize @purchase
     end
 
     def new
-      @purchase = Purchase.new(currency: "USD", purchase_date: Date.today)
+      @purchase = Purchase.new(
+        currency: "USD",
+        purchase_date: Date.today,
+        due_date: 30.days.from_now.to_date
+      )
       authorize @purchase
     end
 
     def create
       authorize Purchase, :create?
-      result = Purchasing::CreatePurchase.call(
+
+      result = Purchases::CreateSimplePurchase.call(
         supplier: find_supplier,
-        items: parse_items,
+        invoice_number: params[:invoice_number],
+        amount: params[:amount]&.to_f,
         currency: params[:currency] || "USD",
-        exchange_rate: params[:exchange_rate]&.to_f,
-        purchase_date: params[:purchase_date] || Date.today,
+        exchange_rate: parse_exchange_rate(params[:exchange_rate], params[:currency]),
+        purchase_date: parse_date(params[:purchase_date]),
+        due_date: parse_date(params[:due_date]),
         notes: params[:notes]
       )
 
       if result.success?
-        redirect_to web_purchases_path, notice: "Compra registrada exitosamente. Stock actualizado."
+        redirect_to web_purchase_path(result.record), notice: "Factura registrada exitosamente."
       else
         flash.now[:alert] = result.errors.join(", ")
         @purchase = Purchase.new
         load_suppliers
         render :new, status: :unprocessable_entity
+      end
+    end
+
+    def edit
+      authorize @purchase
+
+      unless @purchase.pending_status?
+        redirect_to web_purchase_path(@purchase), alert: "Solo se pueden editar facturas pendientes."
+        nil
+      end
+    end
+
+    def update
+      authorize @purchase
+
+      unless @purchase.pending_status?
+        redirect_to web_purchase_path(@purchase), alert: "Solo se pueden editar facturas pendientes."
+        return
+      end
+
+      if @purchase.update(purchase_update_params)
+        redirect_to web_purchase_path(@purchase), notice: "Factura actualizada exitosamente."
+      else
+        load_suppliers
+        render :edit, status: :unprocessable_entity
+      end
+    end
+
+    def mark_as_paid
+      authorize @purchase
+
+      payment_date = parse_date(params[:payment_date]) || Date.today
+
+      result = Purchases::MarkAsPaid.call(
+        purchase: @purchase,
+        payment_date: payment_date
+      )
+
+      if result.success?
+        redirect_to web_purchase_path(@purchase), notice: "Factura marcada como pagada."
+      else
+        redirect_to web_purchase_path(@purchase), alert: result.errors.join(", ")
+      end
+    end
+
+    def cancel
+      authorize @purchase
+
+      unless @purchase.pending_status?
+        redirect_to web_purchase_path(@purchase), alert: "Solo se pueden cancelar facturas pendientes."
+        return
+      end
+
+      if @purchase.update(status: "cancelled")
+        redirect_to web_purchases_path, notice: "Factura cancelada exitosamente."
+      else
+        redirect_to web_purchase_path(@purchase), alert: "Error al cancelar la factura."
       end
     end
 
@@ -43,20 +118,48 @@ module Web
       @suppliers = Supplier.order(:name)
     end
 
+    def load_purchase
+      @purchase = Purchase.find(params[:id])
+    end
+
     def find_supplier
       Supplier.find(params[:supplier_id])
     end
 
-    def parse_items
-      return [] unless params[:purchase_items]
+    def parse_date(date_string)
+      return Date.today if date_string.blank?
+      Date.parse(date_string)
+    rescue ArgumentError
+      Date.today
+    end
 
-      params[:purchase_items].map do |item|
-        {
-          product_id: item[:product_id].to_i,
-          quantity: item[:quantity].to_i,
-          unit_cost: item[:unit_cost].to_f
-        }
-      end.reject { |item| item[:quantity] <= 0 || item[:unit_cost] < 0 }
+    def parse_exchange_rate(rate_string, currency)
+      # Si la moneda es ARS, retornar nil (no se necesita tipo de cambio)
+      return nil if currency == "ARS"
+
+      # Si está vacío o es nil, retornar nil
+      return nil if rate_string.blank?
+
+      # Convertir a float
+      rate_string.to_f
+    end
+
+    def purchase_update_params
+      params.require(:purchase).permit(
+        :supplier_id,
+        :invoice_number,
+        :amount,
+        :exchange_rate,
+        :purchase_date,
+        :due_date,
+        :notes
+      )
+    end
+
+    def calculate_total_pending_amount
+      Purchase.simple_mode
+              .where(status: "pending")
+              .sum { |p| p.total_amount_ars }
     end
   end
 end

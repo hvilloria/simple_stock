@@ -1,14 +1,66 @@
-- content_for :page_title, "Compras"
+- content_for :page_title, "Facturas de Proveedores"
 
 .container.mx-auto.px-6.py-6
 
   -# Header con navegación
   .flex.items-center.justify-between.mb-6
-    %h1.text-3xl.font-bold.text-gray-900 Compras
+    %h1.text-3xl.font-bold.text-gray-900 Facturas de Proveedores
     
     = link_to new_web_purchase_path, class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
       %span +
-      %span Nueva Compra
+      %span Nueva Factura
+
+  -# Metric Cards
+  %div.grid.grid-cols-1.md:grid-cols-2.lg:grid-cols-3.gap-6.mb-6
+    -# Card 1: Deuda Total Pendiente
+    %div{ class: "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all p-6" }
+      .flex.items-start.justify-between.mb-4
+        .flex-1
+          %p.text-sm.font-medium.text-gray-600.mb-1 Deuda Total Pendiente
+          %h3.text-3xl.font-bold.text-gray-900
+            = number_to_currency(@total_pending_amount, unit: "ARS ", precision: 0, delimiter: ".")
+        
+        .w-12.h-12.bg-gray-100.rounded-xl.flex.items-center.justify-center.text-2xl
+          💰
+      
+      .text-sm.text-gray-500
+        %span.font-medium.text-gray-700
+          = Purchase.simple_mode.pending_payment.count
+        %span facturas pendientes
+
+    -# Card 2: Vencen Hoy
+    %div{ class: "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all p-6" }
+      .flex.items-start.justify-between.mb-4
+        .flex-1
+          %p.text-sm.font-medium.text-gray-600.mb-1 Vencen Hoy
+          %h3.text-3xl.font-bold{ class: @due_today_purchases.any? ? "text-red-600" : "text-gray-900" }
+            = number_to_currency(@due_today_purchases.sum { |p| p.total_amount_ars }, unit: "ARS ", precision: 0, delimiter: ".")
+        
+        .w-12.h-12{ class: @due_today_purchases.any? ? "bg-red-100" : "bg-gray-100" }
+          .rounded-xl.flex.items-center.justify-center.text-2xl.w-full.h-full
+            ⚠️
+      
+      .text-sm.text-gray-500
+        %span.font-medium{ class: @due_today_purchases.any? ? "text-red-700" : "text-gray-700" }
+          = @due_today_purchases.count
+        %span facturas vencen hoy
+
+    -# Card 3: Vencen Esta Semana
+    %div{ class: "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all p-6" }
+      .flex.items-start.justify-between.mb-4
+        .flex-1
+          %p.text-sm.font-medium.text-gray-600.mb-1 Vencen Esta Semana
+          %h3.text-3xl.font-bold{ class: @due_this_week_purchases.any? ? "text-amber-600" : "text-gray-900" }
+            = number_to_currency(@due_this_week_purchases.sum { |p| p.total_amount_ars }, unit: "ARS ", precision: 0, delimiter: ".")
+        
+        .w-12.h-12{ class: @due_this_week_purchases.any? ? "bg-amber-100" : "bg-gray-100" }
+          .rounded-xl.flex.items-center.justify-center.text-2xl.w-full.h-full
+            📅
+      
+      .text-sm.text-gray-500
+        %span.font-medium{ class: @due_this_week_purchases.any? ? "text-amber-700" : "text-gray-700" }
+          = @due_this_week_purchases.count
+        %span facturas vencen esta semana
 
   -# Mostrar mensaje de éxito si existe
   - if flash[:notice]
@@ -19,7 +71,16 @@
         %h4.font-semibold.text-green-800.mb-1 Éxito
         %p.text-sm.text-green-700= flash[:notice]
 
-  -# Lista de compras
+  -# Mostrar alerta si existe
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Error
+        %p.text-sm.text-red-700= flash[:alert]
+
+  -# Lista de facturas
   - if @purchases.any?
     .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
       %table.min-w-full.divide-y.divide-slate-200
@@ -30,32 +91,37 @@
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               Proveedor
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-              Productos
+              N° Factura
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Vencimiento
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               Moneda
             %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-              Total
+              Monto
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               Estado
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Acciones
         
         %tbody.divide-y.divide-slate-100.bg-white
           - @purchases.each do |purchase|
             %tr.hover:bg-slate-50.transition-colors
               %td.px-4.py-3.whitespace-nowrap
                 %p.text-sm.text-slate-900= purchase.purchase_date.strftime("%d/%m/%Y")
-                %p.text-xs.text-slate-500= purchase.created_at.strftime("%H:%M")
               
               %td.px-4.py-3.whitespace-nowrap
                 %p.text-sm.font-medium.text-slate-900= purchase.supplier.name
               
-              %td.px-4.py-3
-                = link_to web_product_path(purchase), class: "text-slate-700" do
-                  %p.text-sm.text-slate-700
-                    = purchase.purchase_items.count
-                    = purchase.purchase_items.count == 1 ? 'producto' : 'productos'
-                  %p.text-xs.text-slate-500
-                    = purchase.purchase_items.sum(:quantity)
-                    unidades
+              %td.px-4.py-3.whitespace-nowrap
+                %p.text-sm.font-mono.text-slate-700= purchase.invoice_number
+              
+              %td.px-4.py-3.whitespace-nowrap
+                - if purchase.due_date
+                  %p.text-sm.text-slate-900= purchase.due_date.strftime("%d/%m/%Y")
+                  - if purchase.overdue?
+                    %p.text-xs.text-red-600.font-medium ¡Vencida!
+                  - elsif purchase.days_until_due && purchase.days_until_due <= 7 && purchase.days_until_due > 0
+                    %p.text-xs.text-orange-600 Vence en #{purchase.days_until_due} días
               
               %td.px-4.py-3.whitespace-nowrap
                 %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium{ class: purchase.currency == 'USD' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }
@@ -64,26 +130,80 @@
               %td.px-4.py-3.whitespace-nowrap.text-right
                 %p.text-sm.font-bold.text-slate-900
                   = purchase.currency
-                  = number_with_delimiter(purchase.total_cost, delimiter: '.', separator: ',', precision: 2)
+                  = number_with_delimiter(purchase.amount, delimiter: '.', separator: ',', precision: 2)
                 - if purchase.currency == 'USD' && purchase.exchange_rate
                   %p.text-xs.text-slate-500
                     ≈ ARS
-                    = number_with_delimiter(purchase.calculate_total_ars, delimiter: '.', separator: ',', precision: 0)
+                    = number_with_delimiter(purchase.total_amount_ars, delimiter: '.', separator: ',', precision: 0)
               
               %td.px-4.py-3.whitespace-nowrap.text-center
-                - if purchase.confirmed_status?
-                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
-                    Confirmada
+                - if purchase.pending_status?
+                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-yellow-100.text-yellow-800
+                    Pendiente
+                - elsif purchase.paid_status?
+                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-green-100.text-green-800
+                    Pagada
                 - elsif purchase.cancelled_status?
                   %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
-                    Anulada
+                    Cancelada
+              
+                %td.px-4.py-3.whitespace-nowrap.text-center
+                  - if purchase.pending_status?
+                    %button{ type: "button", class: "inline-flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-700 text-white text-xs font-medium rounded-lg border border-green-300 transition-colors cursor-pointer", onclick: "openPaymentModal(#{purchase.id}, '#{purchase.invoice_number}')" }
+                      %span Confirmar pago
+                  - else
+                    = link_to "Ver Detalle", web_purchase_path(purchase), class: "inline-flex items-center px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-medium rounded-lg transition-colors"
 
   - else
     .bg-white.border.border-slate-200.rounded-lg.p-16.text-center
       .inline-flex.w-20.h-20.rounded-full.bg-gray-100.items-center.justify-center.text-4xl.mb-4
-        📥
-      %h3.text-xl.font-bold.text-gray-900.mb-2 No hay compras registradas
-      %p.text-gray-600.mb-6 Comenzá registrando la primera compra de mercadería
+        📄
+      %h3.text-xl.font-bold.text-gray-900.mb-2 No hay facturas registradas
+      %p.text-gray-600.mb-6 Comenzá registrando la primera factura de proveedor
       = link_to new_web_purchase_path, class: "inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
         %span +
-        %span Nueva Compra
+        %span Nueva Factura
+
+-# Modal fuera del container - position fixed lo pone sobre toda la pantalla
+#paymentModal{ style: "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center;", onclick: "closePaymentModal()" }
+  .bg-white.rounded-lg.p-6{ style: "max-width: 28rem; width: 100%; margin: 0 1rem;", onclick: "event.stopPropagation()" }
+    .flex.items-center.justify-between.mb-4
+      %h3#modalTitle.text-lg.font-semibold.text-gray-900 Marcar como pagada
+      %button.text-gray-400.hover:text-gray-600.cursor-pointer{ type: "button", onclick: "closePaymentModal()" }
+        %span.text-2xl ×
+
+    %form#paymentForm{ method: "post", action: "#" }
+      .mb-4
+        %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Pago
+        = date_field_tag :payment_date, Date.today,
+                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                        required: true
+        %p.text-xs.text-gray-500.mt-1 Fecha en que se realizó el pago
+
+      .flex.items-center.gap-3
+        %button.cursor-pointer.flex-1.px-4.py-2.border.border-slate-300.text-slate-700.font-semibold.rounded-lg.hover:bg-slate-50.transition-colors{ type: "button", onclick: "closePaymentModal()" }
+          Cancelar
+        
+        %button.cursor-pointer.flex-1.px-4.py-2.bg-slate-700.hover:bg-green-700.text-white.font-semibold.rounded-lg.transition-colors{ type: "submit" }
+          Confirmar Pago
+
+:javascript
+  function openPaymentModal(purchaseId, invoiceNumber) {
+    const modal = document.getElementById('paymentModal');
+    const form = document.getElementById('paymentForm');
+    const title = document.getElementById('modalTitle');
+    
+    // Actualizar título
+    title.textContent = `Marcar Factura ${invoiceNumber} como Pagada`;
+    
+    // Actualizar action del form
+    form.action = `/web/purchases/${purchaseId}/mark_as_paid`;
+    
+    // Mostrar modal con flex
+    modal.style.display = 'flex';
+  }
+  
+  function closePaymentModal() {
+    const modal = document.getElementById('paymentModal');
+    modal.style.display = 'none';
+  }
