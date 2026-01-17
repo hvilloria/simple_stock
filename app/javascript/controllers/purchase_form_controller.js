@@ -31,8 +31,9 @@ export default class extends Controller {
   // Limpiar formato al hacer focus
   unformatAmount(event) {
     const input = event.target
-    const cleanValue = this.cleanAmountValue(input.value)
-    input.value = cleanValue
+    // Solo remover separadores de miles (puntos), mantener coma decimal
+    // 1.500.000,50 → 1500000,50
+    input.value = input.value.replace(/\./g, '')
   }
 
   // Limpiar valor: 1.500.000,50 → 1500000.50

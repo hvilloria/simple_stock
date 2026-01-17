@@ -56,17 +56,17 @@
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-3 Moneda
               .grid.grid-cols-2.gap-4
-                %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_usd_label" }
-                  = radio_button_tag :currency, 'USD', true, id: "currency_usd", data: { action: "change->purchase-form#toggleExchangeRate" }
-                  .flex-1
-                    %p.font-medium.text-gray-900 💵 USD
-                    %p.text-xs.text-gray-500 Dólares estadounidenses
-                
                 %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_ars_label" }
-                  = radio_button_tag :currency, 'ARS', false, id: "currency_ars", data: { action: "change->purchase-form#toggleExchangeRate" }
+                  = radio_button_tag :currency, 'ARS', true, id: "currency_ars", data: { action: "change->purchase-form#toggleExchangeRate" }
                   .flex-1
                     %p.font-medium.text-gray-900 🇦🇷 ARS
                     %p.text-xs.text-gray-500 Pesos argentinos
+                
+                %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_usd_label" }
+                  = radio_button_tag :currency, 'USD', false, id: "currency_usd", data: { action: "change->purchase-form#toggleExchangeRate" }
+                  .flex-1
+                    %p.font-medium.text-gray-900 💵 USD
+                    %p.text-xs.text-gray-500 Dólares estadounidenses
             
             -# Tipo de Cambio (solo si USD)
             %div{ id: "exchange_rate_field", data: { purchase_form_target: "exchangeRateField" } }
