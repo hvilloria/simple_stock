@@ -22,7 +22,7 @@ module Web
                                 .for_supplier(@selected_supplier)
                                 .search_invoice(params[:invoice_search])
 
-      @purchases = purchases_scope.order(status: :desc).limit(50)
+      @purchases = purchases_scope.priority_order.limit(50)
 
       # Métricas calculadas desde el modelo (filtradas si aplica)
       metrics_scope = Purchase.simple_mode

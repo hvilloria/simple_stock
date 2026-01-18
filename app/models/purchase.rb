@@ -53,6 +53,15 @@ class Purchase < ApplicationRecord
   # Búsqueda por número de factura (case-insensitive, partial match)
   scope :search_invoice, ->(query) { where("invoice_number ILIKE ?", "%#{query}%") if query.present? }
 
+  # Ordenado por prioridad: 1) pending primero, 2) vencimiento más cercano
+  scope :priority_order, -> {
+    order(
+      Arel.sql("CASE WHEN status = 'pending' THEN 0 ELSE 1 END"),
+      Arel.sql("CASE WHEN due_date IS NULL THEN 1 ELSE 0 END"),
+      "due_date ASC"
+    )
+  }
+
   # === MÉTODOS DE CLASE (para métricas) ===
 
   # Calcula el total pendiente en ARS, opcionalmente filtrado por proveedor

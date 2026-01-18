@@ -108,29 +108,31 @@ RSpec.describe "Web::PurchasesController - Filters", type: :request do
         expect(response.body).to include("Limpiar")
       end
 
-      it "filters purchases due today by supplier" do
-        purchase_today_s1 = create(:purchase,
-                                   supplier: supplier1,
-                                   status: "pending",
-                                   amount: 500,
-                                   currency: "ARS",
-                                   has_items: false,
-                                   due_date: Date.current,
-                                   invoice_number: "INV-TODAY-1")
+      it "filters purchases due this week by supplier" do
+        purchase_this_week_s1 = create(:purchase,
+                                       supplier: supplier1,
+                                       status: "pending",
+                                       amount: 500,
+                                       currency: "ARS",
+                                       has_items: false,
+                                       due_date: Date.current,
+                                       invoice_number: "INV-TODAY-1")
 
-        purchase_today_s2 = create(:purchase,
-                                   supplier: supplier2,
-                                   status: "pending",
-                                   amount: 300,
-                                   currency: "ARS",
-                                   has_items: false,
-                                   due_date: Date.current,
-                                   invoice_number: "INV-TODAY-2")
+        purchase_this_week_s2 = create(:purchase,
+                                       supplier: supplier2,
+                                       status: "pending",
+                                       amount: 300,
+                                       currency: "ARS",
+                                       has_items: false,
+                                       due_date: Date.current,
+                                       invoice_number: "INV-TODAY-2")
 
         get web_purchases_path, params: { supplier_id: supplier1.id }
 
         # Should only show supplier1's in metrics
-        expect(response.body).to include("Vencen Hoy")
+        expect(response.body).to include("Vencen Esta Semana")
+        expect(response.body).to include("INV-TODAY-1")
+        expect(response.body).not_to include("INV-TODAY-2")
       end
     end
 

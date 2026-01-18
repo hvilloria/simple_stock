@@ -377,6 +377,76 @@ RSpec.describe Purchase, type: :model do
         expect(result).not_to include(purchase3, purchase_b)
       end
     end
+
+    describe ".priority_order" do
+      let(:supplier) { create(:supplier) }
+
+      it "orders pending purchases before paid purchases" do
+        paid_purchase = create(:purchase, :simple_mode, supplier: supplier, status: "paid", due_date: 1.day.from_now)
+        pending_purchase = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 5.days.from_now)
+
+        result = [ paid_purchase, pending_purchase ].map(&:id)
+        ordered_result = Purchase.where(id: result).priority_order.pluck(:id)
+
+        expect(ordered_result.first).to eq(pending_purchase.id)
+        expect(ordered_result.last).to eq(paid_purchase.id)
+      end
+
+      it "orders pending purchases by due_date (soonest first)" do
+        pending_far = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 10.days.from_now)
+        pending_soon = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 2.days.from_now)
+        pending_today = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: Date.current)
+
+        ids = [ pending_far, pending_soon, pending_today ].map(&:id)
+        result = Purchase.where(id: ids).priority_order.pluck(:id)
+
+        expect(result[0]).to eq(pending_today.id)
+        expect(result[1]).to eq(pending_soon.id)
+        expect(result[2]).to eq(pending_far.id)
+      end
+
+      it "orders overdue pending purchases first" do
+        overdue = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 3.days.ago)
+        pending_today = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: Date.current)
+        pending_future = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 5.days.from_now)
+        paid = create(:purchase, :simple_mode, supplier: supplier, status: "paid", due_date: 2.days.ago)
+
+        ids = [ overdue, pending_today, pending_future, paid ].map(&:id)
+        result = Purchase.where(id: ids).priority_order.pluck(:id)
+
+        expect(result[0]).to eq(overdue.id)
+        expect(result[1]).to eq(pending_today.id)
+        expect(result[2]).to eq(pending_future.id)
+        expect(result[3]).to eq(paid.id)
+      end
+
+      it "orders non-pending purchases by due_date after pending" do
+        pending = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 5.days.from_now)
+        paid = create(:purchase, :simple_mode, supplier: supplier, status: "paid", due_date: 3.days.from_now)
+        cancelled = create(:purchase, :simple_mode, supplier: supplier, status: "cancelled", due_date: 1.day.from_now)
+
+        ids = [ pending, paid, cancelled ].map(&:id)
+        result = Purchase.where(id: ids).priority_order.pluck(:id)
+
+        # pending primero, luego los demás ordenados por due_date (cancelled tiene fecha más cercana)
+        expect(result[0]).to eq(pending.id)
+        expect(result[1]).to eq(cancelled.id)
+        expect(result[2]).to eq(paid.id)
+      end
+
+      it "can be chained with other scopes" do
+        supplier_b = create(:supplier, name: "Supplier B")
+        purchase_a_pending = create(:purchase, :simple_mode, supplier: supplier, status: "pending", due_date: 5.days.from_now)
+        purchase_a_paid = create(:purchase, :simple_mode, supplier: supplier, status: "paid", due_date: 1.day.from_now)
+        purchase_b_pending = create(:purchase, :simple_mode, supplier: supplier_b, status: "pending", due_date: 2.days.from_now)
+
+        result = Purchase.simple_mode.for_supplier(supplier).priority_order
+
+        expect(result).to include(purchase_a_pending, purchase_a_paid)
+        expect(result).not_to include(purchase_b_pending)
+        expect(result.first).to eq(purchase_a_pending)
+      end
+    end
   end
 
   describe ".total_pending_amount_ars" do
