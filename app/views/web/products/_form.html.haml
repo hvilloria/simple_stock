@@ -1,4 +1,4 @@
-= form_with model: product, url: web_products_path, local: true do |f|
+= form_with model: product, url: web_products_path, local: true, data: { controller: "product-form", action: "turbo:submit-start->product-form#handleSubmit" } do |f|
   
   -# Mostrar errores si los hay
   - if product.errors.any?
@@ -54,19 +54,19 @@
         .space-y-4
           %div
             = f.label :price_unit, "Precio de Venta (ARS)", class: "block text-sm font-medium text-slate-700 mb-2"
-            = f.number_field :price_unit,
-                            class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
-                            placeholder: "0.00",
-                            step: 0.01,
-                            min: 0
+            = f.text_field :price_unit,
+                          value: (number_with_precision(product.price_unit, precision: 2, delimiter: '.', separator: ',') if product.price_unit.present?),
+                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                          placeholder: "0,00",
+                          data: { controller: "currency-input", action: "blur->currency-input#format focus->currency-input#unformat" }
           
           %div
             = f.label :cost_unit, "Costo Unitario (opcional)", class: "block text-sm font-medium text-slate-700 mb-2"
-            = f.number_field :cost_unit,
-                            class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
-                            placeholder: "0.00",
-                            step: 0.01,
-                            min: 0
+            = f.text_field :cost_unit,
+                          value: (number_with_precision(product.cost_unit, precision: 2, delimiter: '.', separator: ',') if product.cost_unit.present?),
+                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                          placeholder: "0,00",
+                          data: { controller: "currency-input", action: "blur->currency-input#format focus->currency-input#unformat" }
             %p.text-xs.text-slate-500.mt-1 El costo se actualiza automáticamente con las compras
           
           %div

@@ -10,7 +10,7 @@
       Editar Factura
       = @purchase.invoice_number
 
-  = form_with model: @purchase, url: web_purchase_path(@purchase), method: :patch, local: true, class: "space-y-6" do |f|
+  = form_with model: @purchase, url: web_purchase_path(@purchase), method: :patch, local: true, class: "space-y-6", data: { controller: "purchase-form", action: "turbo:submit-start->purchase-form#handleFormSubmit" } do |f|
     
     -# Errores
     - if @purchase.errors.any?
@@ -48,10 +48,12 @@
         -# Monto
         %div
           = f.label :amount, "Monto Total", class: "block text-sm font-medium text-gray-700 mb-2"
-          = f.number_field :amount,
-                          step: 0.01,
-                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold",
-                          required: true
+          = f.text_field :amount,
+                        value: number_with_precision(@purchase.amount, precision: 2, delimiter: '.', separator: ','),
+                        placeholder: "0,00",
+                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold",
+                        required: true,
+                        data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
 
         -# Moneda (readonly - no se puede cambiar)
         %div
@@ -63,10 +65,12 @@
         - if @purchase.currency == "USD"
           %div
             = f.label :exchange_rate, "Tipo de Cambio", class: "block text-sm font-medium text-gray-700 mb-2"
-            = f.number_field :exchange_rate,
-                            step: 0.01,
-                            class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                            required: true
+            = f.text_field :exchange_rate,
+                          value: number_with_precision(@purchase.exchange_rate, precision: 2, delimiter: '.', separator: ','),
+                          placeholder: "0,00",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                          required: true,
+                          data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
 
         -# Fecha de Factura
         %div

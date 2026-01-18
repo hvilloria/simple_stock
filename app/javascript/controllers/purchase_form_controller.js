@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["supplier", "purchaseDate", "dueDate", "exchangeRateField", "exchangeRateInput", "paymentTermInfo", "amount"]
+  static targets = ["supplier", "purchaseDate", "dueDate", "exchangeRateField", "exchangeRateInput", "paymentTermInfo", "amount", "currencyInput"]
   static values = { submitting: { type: Boolean, default: false } }
 
   connect() {
@@ -45,10 +45,18 @@ export default class extends Controller {
 
   // CRÍTICO: Limpiar antes de enviar el formulario
   handleFormSubmit(event) {
-    if (this.hasAmountTarget) {
+    // Limpiar campo de monto
+    if (this.hasAmountTarget && this.amountTarget.value) {
       const cleanValue = this.cleanAmountValue(this.amountTarget.value)
       this.amountTarget.value = cleanValue
-      console.log('Valor enviado al backend:', cleanValue) // Debug
+      console.log('Amount enviado:', cleanValue)
+    }
+    
+    // Limpiar campo de tipo de cambio
+    if (this.hasExchangeRateInputTarget && this.exchangeRateInputTarget.value) {
+      const cleanValue = this.cleanAmountValue(this.exchangeRateInputTarget.value)
+      this.exchangeRateInputTarget.value = cleanValue
+      console.log('Exchange rate enviado:', cleanValue)
     }
   }
 

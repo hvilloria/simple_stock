@@ -53,13 +53,41 @@ export default class extends Controller {
 
   updatePrice(event) {
     const index = parseInt(event.currentTarget.dataset.index)
-    const newPrice = parseFloat(event.currentTarget.value) || 0
+    const rawValue = event.currentTarget.value
+    // Limpiar formato argentino: 1.500,00 → 1500.00
+    const cleanValue = rawValue.replace(/\./g, '').replace(/,/g, '.')
+    const newPrice = parseFloat(cleanValue) || 0
     
     if (newPrice >= 0) {
       this.items[index].price_unit = newPrice
       this.updateItemSubtotal(index)
       this.updateSummary()
     }
+  }
+
+  formatPriceInput(event) {
+    const input = event.target
+    const rawValue = input.value.replace(/\./g, '').replace(/,/g, '.')
+    const numValue = parseFloat(rawValue)
+    
+    if (!isNaN(numValue) && numValue >= 0) {
+      input.value = new Intl.NumberFormat('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(numValue)
+    }
+  }
+
+  unformatPriceInput(event) {
+    const input = event.target
+    input.value = input.value.replace(/\./g, '')
+  }
+
+  formatInputValue(value) {
+    return new Intl.NumberFormat('es-AR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value || 0)
   }
 
   updateItemSubtotal(index) {
@@ -150,14 +178,13 @@ export default class extends Controller {
           <div class="text-right">
             <p class="text-xs text-gray-500">Precio Unit.</p>
             <input 
-              type="number" 
-              value="${item.price_unit}"
-              min="0"
-              step="0.01"
+              type="text" 
+              value="${this.formatInputValue(item.price_unit)}"
               data-index="${index}"
-              data-action="input->order-form#updatePrice"
+              data-action="input->order-form#updatePrice blur->order-form#formatPriceInput focus->order-form#unformatPriceInput"
+              data-controller="currency-input"
               class="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-right font-semibold"
-              placeholder="0.00"
+              placeholder="0,00"
             />
           </div>
           

@@ -37,7 +37,7 @@ module Web
       result = Purchases::CreateSimplePurchase.call(
         supplier: find_supplier,
         invoice_number: params[:invoice_number],
-        amount: params[:amount]&.to_f,
+        amount: parse_amount(params[:amount]),
         currency: params[:currency] || "USD",
         exchange_rate: parse_exchange_rate(params[:exchange_rate], params[:currency]),
         purchase_date: parse_date(params[:purchase_date]),
@@ -72,7 +72,12 @@ module Web
         return
       end
 
-      if @purchase.update(purchase_update_params)
+      # Parsear valores con formato argentino
+      update_params = purchase_update_params
+      update_params[:amount] = parse_amount(update_params[:amount]) if update_params[:amount].present?
+      update_params[:exchange_rate] = parse_amount(update_params[:exchange_rate]) if update_params[:exchange_rate].present?
+
+      if @purchase.update(update_params)
         redirect_to web_purchase_path(@purchase), notice: "Factura actualizada exitosamente."
       else
         load_suppliers
@@ -133,6 +138,15 @@ module Web
       Date.today
     end
 
+    def parse_amount(amount_string)
+      return nil if amount_string.blank?
+
+      # Limpiar formato argentino: remover puntos (miles) y cambiar coma por punto (decimal)
+      # "1.500.000,50" → "1500000.50"
+      cleaned = amount_string.to_s.gsub(/\./, "").gsub(/,/, ".")
+      cleaned.to_f
+    end
+
     def parse_exchange_rate(rate_string, currency)
       # Si la moneda es ARS, retornar nil (no se necesita tipo de cambio)
       return nil if currency == "ARS"
@@ -140,8 +154,8 @@ module Web
       # Si está vacío o es nil, retornar nil
       return nil if rate_string.blank?
 
-      # Convertir a float
-      rate_string.to_f
+      # Limpiar formato argentino y convertir a float
+      parse_amount(rate_string)
     end
 
     def purchase_update_params
