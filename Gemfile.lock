@@ -359,7 +359,7 @@ PLATFORMS
 
 DEPENDENCIES
   bootsnap
-  brakeman
+  brakeman (~> 7.1)
   capybara
   debug
   devise (~> 4.9)
