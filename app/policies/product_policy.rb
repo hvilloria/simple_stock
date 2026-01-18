@@ -37,4 +37,3 @@ class ProductPolicy < ApplicationPolicy
     true  # Todos pueden buscar productos
   end
 end
-

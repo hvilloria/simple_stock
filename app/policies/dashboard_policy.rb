@@ -5,4 +5,3 @@ class DashboardPolicy < ApplicationPolicy
     true  # Todos los usuarios autenticados pueden ver el dashboard
   end
 end
-

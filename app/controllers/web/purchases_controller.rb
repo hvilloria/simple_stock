@@ -29,14 +29,14 @@ module Web
                               .pending_payment
                               .for_supplier(@selected_supplier)
                               .search_invoice(params[:invoice_search])
-      
+
       @total_pending_amount = metrics_scope.sum { |p| p.total_amount_ars }
-      
+
       @due_today_purchases = Purchase.due_today
                                     .includes(:supplier)
                                     .for_supplier(@selected_supplier)
                                     .search_invoice(params[:invoice_search])
-      
+
       @due_this_week_purchases = Purchase.due_this_week
                                         .includes(:supplier)
                                         .for_supplier(@selected_supplier)

@@ -316,4 +316,3 @@ RSpec.describe Purchasing::CreatePurchase do
     end
   end
 end
-

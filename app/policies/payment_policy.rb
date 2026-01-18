@@ -25,4 +25,3 @@ class PaymentPolicy < ApplicationPolicy
     false  # No se eliminan pagos
   end
 end
-

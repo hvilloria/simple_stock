@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe SupplierPolicy do
   subject { described_class.new(user, supplier) }
-  
+
   let(:supplier) { build(:supplier) }
 
   context "for an admin" do
@@ -23,18 +23,18 @@ RSpec.describe SupplierPolicy do
     it "permits update" do
       expect(subject.update?).to be true
     end
-    
+
     context "when supplier has no purchases" do
       before { allow(supplier).to receive_message_chain(:purchases, :none?).and_return(true) }
-      
+
       it "permits destroy" do
         expect(subject.destroy?).to be true
       end
     end
-    
+
     context "when supplier has purchases" do
       before { allow(supplier).to receive_message_chain(:purchases, :none?).and_return(false) }
-      
+
       it "forbids destroy" do
         expect(subject.destroy?).to be false
       end

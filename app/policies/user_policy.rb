@@ -29,4 +29,3 @@ class UserPolicy < ApplicationPolicy
     user.admin? && record != user  # Admin puede eliminar, pero no a sí mismo
   end
 end
-

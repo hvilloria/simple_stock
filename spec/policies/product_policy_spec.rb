@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe ProductPolicy do
   subject { described_class.new(user, product) }
-  
+
   let(:product) { build(:product) }
 
   context 'for a vendedor' do
@@ -65,4 +65,3 @@ RSpec.describe ProductPolicy do
     end
   end
 end
-

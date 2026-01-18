@@ -35,7 +35,7 @@ FactoryBot.define do
       due_date { 30.days.from_now }
       status { "pending" }
       has_items { false }
-      
+
       after(:build) do |purchase|
         # Limpiar purchase_items para simple mode
         purchase.purchase_items.clear

@@ -10,7 +10,7 @@ RSpec.describe Supplier, type: :model do
 
     it { is_expected.to validate_presence_of(:name) }
     it { is_expected.to validate_uniqueness_of(:name).case_insensitive }
-    
+
     it "validates email format" do
       supplier = build(:supplier, email: "invalid-email")
       expect(supplier).not_to be_valid
@@ -64,12 +64,12 @@ RSpec.describe Supplier, type: :model do
 
   describe "#total_pending_amount" do
     let(:supplier) { create(:supplier) }
-    
+
     it "sums pending purchases in ARS" do
       create(:purchase, :simple_mode, supplier: supplier, amount: 1000, currency: "USD", exchange_rate: 1200, status: "pending")
       create(:purchase, :simple_mode, supplier: supplier, amount: 500000, currency: "ARS", status: "pending")
       create(:purchase, :simple_mode, supplier: supplier, amount: 500, currency: "USD", exchange_rate: 1200, status: "paid")
-      
+
       # 1000 * 1200 + 500000 = 1,700,000
       expect(supplier.total_pending_amount).to eq(1_700_000)
     end

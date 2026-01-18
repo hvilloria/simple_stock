@@ -85,7 +85,7 @@ RSpec.describe Purchase, type: :model do
     it { is_expected.to validate_presence_of(:invoice_number) }
     it { is_expected.to validate_presence_of(:due_date) }
     it { is_expected.to validate_presence_of(:amount) }
-    
+
     it "validates amount is greater than 0" do
       purchase = build(:purchase, :simple_mode, amount: 0)
       expect(purchase).not_to be_valid
@@ -139,7 +139,7 @@ RSpec.describe Purchase, type: :model do
         purchase = create(:purchase, :full_mode)
         purchase.purchase_items.destroy_all
         create(:purchase_item, purchase: purchase, quantity: 10, unit_cost: 50)
-        
+
         expect(purchase.reload.total_amount).to eq(500)
       end
     end
@@ -147,46 +147,46 @@ RSpec.describe Purchase, type: :model do
 
   describe "#total_amount_ars" do
     it "converts USD to ARS using exchange_rate" do
-      purchase = build(:purchase, :simple_mode, 
-                      amount: 1000, 
-                      currency: "USD", 
+      purchase = build(:purchase, :simple_mode,
+                      amount: 1000,
+                      currency: "USD",
                       exchange_rate: 1200)
-      
+
       expect(purchase.total_amount_ars).to eq(1_200_000)
     end
 
     it "returns amount directly for ARS" do
-      purchase = build(:purchase, :simple_mode, 
-                      amount: 500_000, 
+      purchase = build(:purchase, :simple_mode,
+                      amount: 500_000,
                       currency: "ARS",
                       exchange_rate: nil)
-      
+
       expect(purchase.total_amount_ars).to eq(500_000)
     end
   end
 
   describe "#overdue?" do
     it "returns true for pending purchases past due date" do
-      purchase = create(:purchase, :simple_mode, 
+      purchase = create(:purchase, :simple_mode,
                        status: "pending",
                        due_date: 1.day.ago)
-      
+
       expect(purchase.overdue?).to be true
     end
 
     it "returns false for pending purchases not yet due" do
-      purchase = create(:purchase, :simple_mode, 
+      purchase = create(:purchase, :simple_mode,
                        status: "pending",
                        due_date: 1.day.from_now)
-      
+
       expect(purchase.overdue?).to be false
     end
 
     it "returns false for paid purchases" do
-      purchase = create(:purchase, :simple_mode, 
+      purchase = create(:purchase, :simple_mode,
                        status: "paid",
                        due_date: 1.day.ago)
-      
+
       expect(purchase.overdue?).to be false
     end
   end
@@ -219,13 +219,13 @@ RSpec.describe Purchase, type: :model do
     it "records payment date" do
       payment_date = Date.yesterday
       purchase.mark_as_paid!(payment_date)
-      
+
       expect(purchase.reload.paid_at.to_date).to eq(payment_date)
     end
 
     it "raises error if not simple mode" do
       full_purchase = create(:purchase, :full_mode)
-      
+
       expect {
         full_purchase.mark_as_paid!
       }.to raise_error("Cannot mark as paid: not in simple mode")
@@ -233,7 +233,7 @@ RSpec.describe Purchase, type: :model do
 
     it "raises error if already paid" do
       purchase.mark_as_paid!
-      
+
       expect {
         purchase.mark_as_paid!
       }.to raise_error("Cannot mark as paid: already paid")
@@ -310,21 +310,21 @@ RSpec.describe Purchase, type: :model do
 
       it "filters purchases by supplier" do
         result = Purchase.for_supplier(supplier_a)
-        
+
         expect(result).to include(purchase_a1, purchase_a2)
         expect(result).not_to include(purchase_b1)
       end
 
       it "returns all purchases when supplier is nil" do
         result = Purchase.for_supplier(nil)
-        
+
         expect(result).to include(purchase_a1, purchase_a2, purchase_b1)
       end
 
       it "returns all purchases when supplier is not present" do
         # Simular supplier vacío pero no nil
         result = Purchase.all.for_supplier(nil)
-        
+
         expect(result).to include(purchase_a1, purchase_a2, purchase_b1)
       end
     end
@@ -337,42 +337,42 @@ RSpec.describe Purchase, type: :model do
 
       it "finds purchases by exact invoice number" do
         result = Purchase.search_invoice("FAC-001")
-        
+
         expect(result).to include(purchase1)
         expect(result).not_to include(purchase2, purchase3)
       end
 
       it "performs partial search" do
         result = Purchase.search_invoice("FAC")
-        
+
         expect(result).to include(purchase1, purchase2)
         expect(result).not_to include(purchase3)
       end
 
       it "performs case-insensitive search" do
         result = Purchase.search_invoice("fac-001")
-        
+
         expect(result).to include(purchase1)
       end
 
       it "returns all purchases when query is nil" do
         result = Purchase.search_invoice(nil)
-        
+
         expect(result).to include(purchase1, purchase2, purchase3)
       end
 
       it "returns all purchases when query is blank" do
         result = Purchase.search_invoice("")
-        
+
         expect(result).to include(purchase1, purchase2, purchase3)
       end
 
       it "can be chained with other scopes" do
         supplier_b = create(:supplier)
         purchase_b = create(:purchase, :simple_mode, supplier: supplier_b, invoice_number: "FAC-999")
-        
+
         result = Purchase.for_supplier(supplier).search_invoice("FAC")
-        
+
         expect(result).to include(purchase1, purchase2)
         expect(result).not_to include(purchase3, purchase_b)
       end
@@ -388,13 +388,13 @@ RSpec.describe Purchase, type: :model do
       create(:purchase, :simple_mode, supplier: supplier_a, status: "pending", amount: 1000, currency: "ARS")
       create(:purchase, :simple_mode, supplier: supplier_a, status: "pending", amount: 2000, currency: "ARS")
       create(:purchase, :simple_mode, supplier: supplier_b, status: "pending", amount: 5000, currency: "ARS")
-      
+
       # Purchase pagada (no debe contar)
       create(:purchase, :simple_mode, supplier: supplier_a, status: "paid", amount: 999, currency: "ARS")
-      
+
       # Purchase en USD
       create(:purchase, :simple_mode, supplier: supplier_a, status: "pending", amount: 100, currency: "USD", exchange_rate: 1200)
-      
+
       # Purchase en modo completo (no debe contar en simple_mode)
       create(:purchase, :full_mode, supplier: supplier_a, status: "confirmed", amount: 888)
     end
@@ -405,7 +405,7 @@ RSpec.describe Purchase, type: :model do
         # supplier_b: 5000
         # Total: 128000
         total = Purchase.total_pending_amount_ars
-        
+
         expect(total).to eq(128_000)
       end
     end
@@ -414,13 +414,13 @@ RSpec.describe Purchase, type: :model do
       it "calcula el total solo para el proveedor especificado" do
         # supplier_a: 1000 + 2000 + (100*1200) = 123000
         total = Purchase.total_pending_amount_ars(supplier: supplier_a)
-        
+
         expect(total).to eq(123_000)
       end
 
       it "no incluye facturas de otros proveedores" do
         total = Purchase.total_pending_amount_ars(supplier: supplier_b)
-        
+
         expect(total).to eq(5_000)
       end
     end
@@ -429,7 +429,7 @@ RSpec.describe Purchase, type: :model do
       it "retorna 0" do
         supplier_c = create(:supplier, name: "Supplier C")
         total = Purchase.total_pending_amount_ars(supplier: supplier_c)
-        
+
         expect(total).to eq(0)
       end
     end
@@ -437,7 +437,7 @@ RSpec.describe Purchase, type: :model do
     it "no incluye facturas pagadas" do
       # Ya creamos una pagada en el before, verificamos que no se cuenta
       total = Purchase.total_pending_amount_ars(supplier: supplier_a)
-      
+
       # No debe incluir los 999 de la factura pagada
       expect(total).to eq(123_000) # No 123_999
     end

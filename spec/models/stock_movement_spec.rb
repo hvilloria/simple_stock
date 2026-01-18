@@ -21,11 +21,11 @@ RSpec.describe StockMovement, type: :model do
         order = create(:order)
         movement = build(:stock_movement, reference_id: order.id, reference_type: "Order")
         expect(movement).to be_valid
-        
+
         purchase = create(:purchase)
         movement = build(:stock_movement, reference_id: purchase.id, reference_type: "Purchase")
         expect(movement).to be_valid
-        
+
         movement = build(:stock_movement, reference_id: 1, reference_type: "InvalidType")
         expect(movement).not_to be_valid
         expect(movement.errors[:reference_type]).to be_present
@@ -44,7 +44,7 @@ RSpec.describe StockMovement, type: :model do
     it "can associate with an Order" do
       order = create(:order)
       movement = create(:stock_movement, reference: order)
-      
+
       expect(movement.reference).to eq(order)
       expect(movement.reference_type).to eq("Order")
       expect(movement.reference_id).to eq(order.id)
@@ -53,7 +53,7 @@ RSpec.describe StockMovement, type: :model do
     it "can associate with a Purchase" do
       purchase = create(:purchase)
       movement = create(:stock_movement, reference: purchase)
-      
+
       expect(movement.reference).to eq(purchase)
       expect(movement.reference_type).to eq("Purchase")
       expect(movement.reference_id).to eq(purchase.id)
@@ -61,7 +61,7 @@ RSpec.describe StockMovement, type: :model do
 
     it "can have nil reference" do
       movement = create(:stock_movement, reference: nil)
-      
+
       expect(movement.reference).to be_nil
       expect(movement.reference_type).to be_nil
       expect(movement.reference_id).to be_nil

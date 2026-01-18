@@ -2,7 +2,7 @@
 
 module Purchases
   class CreateSimplePurchase
-    def self.call(supplier:, invoice_number:, amount:, currency:, 
+    def self.call(supplier:, invoice_number:, amount:, currency:,
                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil)
       new(
         supplier: supplier,
@@ -16,7 +16,7 @@ module Purchases
       ).call
     end
 
-    def initialize(supplier:, invoice_number:, amount:, currency:, 
+    def initialize(supplier:, invoice_number:, amount:, currency:,
                    exchange_rate: nil, purchase_date: nil, due_date:, notes: nil)
       @supplier = supplier
       @invoice_number = invoice_number
@@ -46,13 +46,13 @@ module Purchases
 
       Result.new(success?: true, record: @purchase, errors: [])
     rescue ActiveRecord::RecordInvalid => e
-      Result.new(success?: false, record: nil, errors: [e.record.errors.full_messages])
+      Result.new(success?: false, record: nil, errors: [ e.record.errors.full_messages ])
     rescue ValidationError => e
-      Result.new(success?: false, record: nil, errors: [e.message])
+      Result.new(success?: false, record: nil, errors: [ e.message ])
     rescue StandardError => e
       Rails.logger.error("Error in CreateSimplePurchase: #{e.message}")
       Rails.logger.error(e.backtrace.join("\n"))
-      Result.new(success?: false, record: nil, errors: ["Error creating purchase"])
+      Result.new(success?: false, record: nil, errors: [ "Error creating purchase" ])
     end
 
     private
@@ -70,13 +70,13 @@ module Purchases
 
       raise ValidationError, "Supplier is required" if @supplier.nil?
       raise ValidationError, "Invoice number is required" if @invoice_number.blank?
-      
+
       unless @amount.to_f > 0
         raise ValidationError, "Amount must be greater than zero"
       end
-      
+
       raise ValidationError, "Due date is required" if @due_date.nil?
-      
+
       if @due_date < @purchase_date
         raise ValidationError, "Due date cannot be before purchase date"
       end

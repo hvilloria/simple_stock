@@ -5,4 +5,3 @@ FactoryBot.define do
     address { "123 Main St" }
   end
 end
-

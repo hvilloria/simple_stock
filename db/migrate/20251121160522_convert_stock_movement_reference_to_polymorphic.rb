@@ -13,7 +13,7 @@ class ConvertStockMovementReferenceToPolymorphic < ActiveRecord::Migration[7.2]
       # Try to extract Order ID from reference like "ORDER-123"
       if movement.reference =~ /ORDER-(\d+)/i
         order_id = $1.to_i
-        
+
         if Order.exists?(order_id)
           movement.update_columns(
             reference_type: "Order",
@@ -49,7 +49,7 @@ class ConvertStockMovementReferenceToPolymorphic < ActiveRecord::Migration[7.2]
     remove_column :stock_movements, :reference
 
     # Add index for polymorphic association
-    add_index :stock_movements, [:reference_type, :reference_id]
+    add_index :stock_movements, [ :reference_type, :reference_id ]
   end
 
   def down
@@ -57,7 +57,7 @@ class ConvertStockMovementReferenceToPolymorphic < ActiveRecord::Migration[7.2]
     add_column :stock_movements, :reference, :string
 
     # Remove index
-    remove_index :stock_movements, [:reference_type, :reference_id]
+    remove_index :stock_movements, [ :reference_type, :reference_id ]
 
     # Migrate data back (best effort)
     StockMovement.where.not(reference_type: nil, reference_id: nil).find_each do |movement|

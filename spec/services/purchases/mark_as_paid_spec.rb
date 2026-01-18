@@ -46,7 +46,7 @@ RSpec.describe Purchases::MarkAsPaid do
     context "with invalid parameters" do
       it "fails if purchase is not in simple mode" do
         full_purchase = create(:purchase, :full_mode)
-        
+
         result = described_class.call(purchase: full_purchase)
 
         expect(result.success?).to be false
@@ -55,7 +55,7 @@ RSpec.describe Purchases::MarkAsPaid do
 
       it "fails if purchase is already paid" do
         paid_purchase = create(:purchase, :simple_mode, status: "paid")
-        
+
         result = described_class.call(purchase: paid_purchase)
 
         expect(result.success?).to be false
@@ -64,7 +64,7 @@ RSpec.describe Purchases::MarkAsPaid do
 
       it "fails if payment_date is before purchase_date" do
         purchase = create(:purchase, :simple_mode, status: "pending", purchase_date: Date.today)
-        
+
         result = described_class.call(
           purchase: purchase,
           payment_date: 1.day.ago
@@ -78,7 +78,7 @@ RSpec.describe Purchases::MarkAsPaid do
     context "does not change database on validation failure" do
       it "does not update status if validations fail" do
         full_purchase = create(:purchase, :full_mode)
-        
+
         expect {
           described_class.call(purchase: full_purchase)
         }.not_to change { full_purchase.reload.status }
@@ -86,7 +86,7 @@ RSpec.describe Purchases::MarkAsPaid do
 
       it "does not set paid_at if validations fail" do
         paid_purchase = create(:purchase, :simple_mode, status: "paid")
-        
+
         expect {
           described_class.call(purchase: paid_purchase)
         }.not_to change { paid_purchase.reload.paid_at }

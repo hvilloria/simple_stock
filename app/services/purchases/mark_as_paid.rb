@@ -18,10 +18,10 @@ module Purchases
 
       Result.new(success?: true, record: @purchase, errors: [])
     rescue ValidationError => e
-      Result.new(success?: false, record: nil, errors: [e.message])
+      Result.new(success?: false, record: nil, errors: [ e.message ])
     rescue StandardError => e
       Rails.logger.error("Error in MarkAsPaid: #{e.message}")
-      Result.new(success?: false, record: nil, errors: ["Error marking purchase as paid"])
+      Result.new(success?: false, record: nil, errors: [ "Error marking purchase as paid" ])
     end
 
     private

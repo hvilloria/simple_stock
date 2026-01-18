@@ -82,31 +82,31 @@ FactoryBot.define do
     trait :aftermarket_germany do
       product_type { "aftermarket" }
       origin { "germany" }
-      brand { ["Bosch", "TRW", "Mann Filter", "Sachs"].sample }
+      brand { [ "Bosch", "TRW", "Mann Filter", "Sachs" ].sample }
     end
 
     trait :aftermarket_korea do
       product_type { "aftermarket" }
       origin { "korea" }
-      brand { ["Mobis", "Mando", "CTR"].sample }
+      brand { [ "Mobis", "Mando", "CTR" ].sample }
     end
 
     trait :aftermarket_brazil do
       product_type { "aftermarket" }
       origin { "brazil" }
-      brand { ["Cofap", "Nakata", "TRW Brasil"].sample }
+      brand { [ "Cofap", "Nakata", "TRW Brasil" ].sample }
     end
 
     trait :aftermarket_india do
       product_type { "aftermarket" }
       origin { "india" }
-      brand { ["Gabriel", "Rane", "Bosch India"].sample }
+      brand { [ "Gabriel", "Rane", "Bosch India" ].sample }
     end
 
     trait :aftermarket_taiwan do
       product_type { "aftermarket" }
       origin { "taiwan" }
-      brand { ["TYC", "Depo", "Taiwan Golden Bee"].sample }
+      brand { [ "TYC", "Depo", "Taiwan Golden Bee" ].sample }
     end
 
     trait :oem_usa do

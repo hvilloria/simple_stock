@@ -16,7 +16,7 @@ RSpec.describe PurchaseItem, type: :model do
       it "converts unit cost to ARS" do
         purchase = create(:purchase, currency: "USD", exchange_rate: 1200)
         item = create(:purchase_item, purchase: purchase, unit_cost: 50)
-        
+
         expect(item.unit_cost_ars).to eq(60000) # 50 * 1200
       end
     end
@@ -25,7 +25,7 @@ RSpec.describe PurchaseItem, type: :model do
       it "returns unit cost without conversion" do
         purchase = create(:purchase, :in_ars)
         item = create(:purchase_item, purchase: purchase, unit_cost: 5000)
-        
+
         expect(item.unit_cost_ars).to eq(5000)
       end
     end
@@ -43,7 +43,7 @@ RSpec.describe PurchaseItem, type: :model do
       it "calculates subtotal in ARS" do
         purchase = create(:purchase, currency: "USD", exchange_rate: 1200)
         item = create(:purchase_item, purchase: purchase, quantity: 5, unit_cost: 50)
-        
+
         # quantity * unit_cost * exchange_rate
         # 5 * 50 * 1200 = 300000
         expect(item.subtotal_ars).to eq(300000)
@@ -54,7 +54,7 @@ RSpec.describe PurchaseItem, type: :model do
       it "calculates subtotal without conversion" do
         purchase = create(:purchase, :in_ars)
         item = create(:purchase_item, purchase: purchase, quantity: 5, unit_cost: 5000)
-        
+
         expect(item.subtotal_ars).to eq(25000) # 5 * 5000
       end
     end

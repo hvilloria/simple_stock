@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe OrderPolicy do
   subject { described_class.new(user, order) }
-  
+
   let(:order) { build(:order) }
 
   context 'for a vendedor' do
@@ -77,4 +77,3 @@ RSpec.describe OrderPolicy do
     end
   end
 end
-

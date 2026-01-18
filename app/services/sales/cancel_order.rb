@@ -19,11 +19,11 @@ module Sales
         Result.new(success?: true, record: @order, errors: [])
       end
     rescue ValidationError => e
-      Result.new(success?: false, record: nil, errors: [e.message])
+      Result.new(success?: false, record: nil, errors: [ e.message ])
     rescue StandardError => e
       Rails.logger.error("Error in Sales::CancelOrder: #{e.message}")
       Rails.logger.error(e.backtrace.join("\n"))
-      Result.new(success?: false, record: nil, errors: ['Error cancelling order'])
+      Result.new(success?: false, record: nil, errors: [ "Error cancelling order" ])
     end
 
     private
@@ -31,11 +31,11 @@ module Sales
     class ValidationError < StandardError; end
 
     def validate_params
-      raise ValidationError, 'Order is already cancelled' if @order.cancelled_status?
+      raise ValidationError, "Order is already cancelled" if @order.cancelled_status?
     end
 
     def cancel_order
-      @order.update!(status: 'cancelled')
+      @order.update!(status: "cancelled")
     end
 
     def reverse_stock_movements

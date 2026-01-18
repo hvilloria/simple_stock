@@ -6,4 +6,3 @@ FactoryBot.define do
     unit_price { 100.0 }
   end
 end
-

@@ -17,7 +17,7 @@ class AddSalesLiteFieldsToOrders < ActiveRecord::Migration[7.2]
     reversible do |dir|
       dir.up do
         execute <<-SQL
-          UPDATE orders 
+          UPDATE orders#{' '}
           SET sale_date = DATE(created_at)
           WHERE sale_date IS NULL
         SQL

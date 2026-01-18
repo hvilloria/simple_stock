@@ -63,4 +63,3 @@ module Purchasing
     end
   end
 end
-

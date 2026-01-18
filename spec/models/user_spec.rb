@@ -5,7 +5,7 @@ RSpec.describe User, type: :model do
     it { is_expected.to validate_presence_of(:email) }
     it { is_expected.to validate_presence_of(:name) }
     it { is_expected.to validate_presence_of(:role) }
-    
+
     it 'validates uniqueness of email' do
       create(:user, email: 'test@example.com')
       user = build(:user, email: 'test@example.com')

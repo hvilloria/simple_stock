@@ -232,9 +232,9 @@ RSpec.describe "Web::PurchasesController - Filters", type: :request do
       end
 
       it "filters by both supplier and invoice number" do
-        get web_purchases_path, params: { 
-          supplier_id: supplier1.id, 
-          invoice_search: "FAC-001" 
+        get web_purchases_path, params: {
+          supplier_id: supplier1.id,
+          invoice_search: "FAC-001"
         }
 
         expect(response).to have_http_status(:success)
@@ -244,9 +244,9 @@ RSpec.describe "Web::PurchasesController - Filters", type: :request do
       end
 
       it "shows clear button when filters are active" do
-        get web_purchases_path, params: { 
-          supplier_id: supplier1.id, 
-          invoice_search: "FAC" 
+        get web_purchases_path, params: {
+          supplier_id: supplier1.id,
+          invoice_search: "FAC"
         }
 
         expect(response.body).to include("Limpiar")

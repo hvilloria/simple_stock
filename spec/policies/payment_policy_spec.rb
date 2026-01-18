@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe PaymentPolicy do
   subject { described_class.new(user, payment) }
-  
+
   let(:payment) { build(:payment) }
 
   context 'for a vendedor' do
@@ -45,4 +45,3 @@ RSpec.describe PaymentPolicy do
     end
   end
 end
-

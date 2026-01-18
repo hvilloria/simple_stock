@@ -2,15 +2,15 @@ require 'rails_helper'
 
 RSpec.describe Inventory::SyncFromCsv do
   let!(:stock_location) { create(:stock_location) }
-  let(:csv_file) { Tempfile.new(['products', '.csv']) }
+  let(:csv_file) { Tempfile.new([ 'products', '.csv' ]) }
   let(:file_path) { csv_file.path }
 
   # Helper para crear archivo CSV de prueba
   def write_csv(rows)
     CSV.open(csv_file.path, 'w', encoding: 'UTF-8') do |csv|
       # Headers del CSV (mismos que products_inventory.csv)
-      csv << ['ID del artículo', 'Nombre del artículo', 'Compatibilidad', 'Precio Lista ( U$D)', 
-              'Precio Venta (ARS)', 'Stock', 'Estado', 'Origen', 'Pasillo', 'Notas']
+      csv << [ 'ID del artículo', 'Nombre del artículo', 'Compatibilidad', 'Precio Lista ( U$D)',
+              'Precio Venta (ARS)', 'Stock', 'Estado', 'Origen', 'Pasillo', 'Notas' ]
       rows.each { |row| csv << row }
     end
   end
@@ -28,7 +28,7 @@ RSpec.describe Inventory::SyncFromCsv do
     context 'with valid CSV data' do
       before do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '799', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '799', '', 'TAI', '', '' ]
         ])
       end
 
@@ -138,7 +138,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       before do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '799', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '799', '', 'TAI', '', '' ]
         ])
       end
 
@@ -241,7 +241,7 @@ RSpec.describe Inventory::SyncFromCsv do
     context 'with invalid data' do
       it 'rejects negative stock' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '-10', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '-10', '', 'TAI', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -252,7 +252,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'accepts zero price' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$0.00', '100', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$0.00', '100', '', 'TAI', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -264,7 +264,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'silently skips rows with missing SKU' do
         write_csv([
-          ['', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '100', '', 'TAI', '', '']
+          [ '', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '100', '', 'TAI', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -275,7 +275,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'silently skips rows with missing name' do
         write_csv([
-          ['91503-SZ3-003-IMP', '', 'Todos', '$0.13', '$1,300.00', '100', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', '', 'Todos', '$0.13', '$1,300.00', '100', '', 'TAI', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -286,7 +286,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'silently skips completely empty rows' do
         write_csv([
-          ['', '', '', '', '', '', '', '', '', '']
+          [ '', '', '', '', '', '', '', '', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -299,7 +299,7 @@ RSpec.describe Inventory::SyncFromCsv do
     context 'with origin mapping' do
       it 'maps JAP to japan' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'JAP', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'JAP', '', '' ]
         ])
 
         described_class.call(file_path: file_path)
@@ -310,7 +310,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'maps TAI to taiwan' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'TAI', '', '' ]
         ])
 
         described_class.call(file_path: file_path)
@@ -321,7 +321,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'maps CHI to china' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'CHI', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'CHI', '', '' ]
         ])
 
         described_class.call(file_path: file_path)
@@ -332,7 +332,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'handles unknown origin gracefully' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'USA', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', 'USA', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -345,7 +345,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'handles blank origin' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', '', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '100', '', '', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -359,9 +359,9 @@ RSpec.describe Inventory::SyncFromCsv do
     context 'with multiple products' do
       before do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '799', '', 'TAI', '', ''],
-          ['12342-P2F-A01-IMP', 'Sello de bujia', 'Varios', '$0.94', '$4,500.00', '160', '', 'JAP', '', ''],
-          ['88888-XXX-999-IMP', 'Producto inválido', 'Ninguno', '$0.50', '$0.00', '50', '', 'CHI', '', '']
+          [ '91503-SZ3-003-IMP', 'Grampa de paragolpe', 'Todos', '$0.13', '$1,300.00', '799', '', 'TAI', '', '' ],
+          [ '12342-P2F-A01-IMP', 'Sello de bujia', 'Varios', '$0.94', '$4,500.00', '160', '', 'JAP', '', '' ],
+          [ '88888-XXX-999-IMP', 'Producto inválido', 'Ninguno', '$0.50', '$0.00', '50', '', 'CHI', '', '' ]
         ])
       end
 
@@ -392,7 +392,7 @@ RSpec.describe Inventory::SyncFromCsv do
     context 'with zero stock in CSV' do
       before do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto sin stock', 'Todos', '$0.13', '$1,300.00', '0', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto sin stock', 'Todos', '$0.13', '$1,300.00', '0', '', 'TAI', '', '' ]
         ])
       end
 
@@ -414,7 +414,7 @@ RSpec.describe Inventory::SyncFromCsv do
     context 'with edge cases in CSV formatting' do
       it 'handles prices without currency symbol' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '0.13', '1300', '100', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '0.13', '1300', '100', '', 'TAI', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -427,7 +427,7 @@ RSpec.describe Inventory::SyncFromCsv do
 
       it 'handles stock with commas' do
         write_csv([
-          ['91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '1,500', '', 'TAI', '', '']
+          [ '91503-SZ3-003-IMP', 'Producto', 'Todos', '$0.13', '$1,300.00', '1,500', '', 'TAI', '', '' ]
         ])
 
         result = described_class.call(file_path: file_path)
@@ -439,4 +439,3 @@ RSpec.describe Inventory::SyncFromCsv do
     end
   end
 end
-

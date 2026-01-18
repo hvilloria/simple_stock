@@ -29,4 +29,3 @@ class CustomerPolicy < ApplicationPolicy
     false  # No se eliminan clientes
   end
 end
-

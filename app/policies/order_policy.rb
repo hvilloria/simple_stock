@@ -29,4 +29,3 @@ class OrderPolicy < ApplicationPolicy
     false  # No se permite eliminar ventas
   end
 end
-

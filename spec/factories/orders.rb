@@ -10,7 +10,7 @@ FactoryBot.define do
 
     trait :credit_order do
       order_type { "credit" }
-      association :customer, factory: [:customer, :with_credit]
+      association :customer, factory: [ :customer, :with_credit ]
     end
 
     trait :cancelled do
@@ -42,4 +42,3 @@ FactoryBot.define do
     end
   end
 end
-
