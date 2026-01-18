@@ -73,20 +73,20 @@
           - if @purchase.currency == "USD" && @purchase.exchange_rate
             .flex.items-start.gap-3
               %span.text-gray-500.w-40.flex-shrink-0 Tipo de Cambio:
-              %span.text-gray-900= number_with_delimiter(@purchase.exchange_rate, delimiter: ".")
+              %span.text-gray-900= number_with_precision(@purchase.exchange_rate, precision: 2, delimiter: ".", separator: ",")
 
           .flex.items-start.gap-3
             %span.text-gray-500.w-40.flex-shrink-0 Monto:
             %span.text-2xl.font-bold.text-gray-900
               = @purchase.currency
-              = number_with_delimiter(@purchase.amount, delimiter: ".")
+              = number_with_precision(@purchase.amount, precision: 2, delimiter: ".", separator: ",")
 
           - if @purchase.currency == "USD" && @purchase.exchange_rate
             .flex.items-start.gap-3
               %span.text-gray-500.w-40.flex-shrink-0 Equivalente ARS:
               %span.text-lg.font-semibold.text-gray-700
                 ARS
-                = number_with_delimiter(@purchase.total_amount_ars.to_i, delimiter: ".")
+                = number_with_precision(@purchase.total_amount_ars, precision: 2, delimiter: ".", separator: ",")
 
           .flex.items-start.gap-3
             %span.text-gray-500.w-40.flex-shrink-0 Estado:

@@ -18,7 +18,7 @@
     .flex.items-start.justify-between.mb-4
       .flex-1
         %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Ventas de Hoy
-        %h3.text-3xl.font-bold.text-slate-900= number_to_currency(@sales_today, precision: 0)
+        %h3.text-3xl.font-bold.text-slate-900= currency_ar_int(@sales_today)
       .w-10.h-10.bg-slate-100.rounded-lg.flex.items-center.justify-center.text-xl
         💰
     .flex.items-center.gap-2.text-sm
@@ -45,7 +45,7 @@
     .flex.items-start.justify-between.mb-4
       .flex-1
         %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Por Cobrar
-        %h3.text-3xl.font-bold.text-slate-900= number_to_currency(@total_receivable, precision: 0)
+        %h3.text-3xl.font-bold.text-slate-900= currency_ar_int(@total_receivable)
       .w-10.h-10.bg-blue-100.rounded-lg.flex.items-center.justify-center.text-xl
         📋
     .flex.items-center.gap-2.text-sm
@@ -57,7 +57,7 @@
     .flex.items-start.justify-between.mb-4
       .flex-1
         %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Compras del Mes
-        %h3.text-3xl.font-bold.text-slate-900= number_to_currency(@purchases_this_month, precision: 0)
+        %h3.text-3xl.font-bold.text-slate-900= currency_ar_int(@purchases_this_month)
       .w-10.h-10.bg-slate-100.rounded-lg.flex.items-center.justify-center.text-xl
         📥
     .flex.items-center.gap-2.text-sm
@@ -86,7 +86,7 @@
                 %p.text-sm.font-medium.text-slate-900= order.customer&.name || "Sin cliente"
                 %p.text-xs.text-slate-500= time_ago_in_words(order.created_at)
               .text-right
-                %p.text-base.font-semibold.text-slate-900= number_to_currency(order.total_amount, precision: 0)
+                %p.text-base.font-semibold.text-slate-900= currency_ar_int(order.total_amount)
       - else
         .px-6.py-8.text-center
           %p.text-sm.text-slate-500 No hay ventas recientes

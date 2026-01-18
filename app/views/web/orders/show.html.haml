@@ -141,23 +141,23 @@
                         %span.px-2.py-0.5.bg-blue-50.text-blue-700.rounded.text-xs.font-medium ALT
                   
                   %td.px-6.py-4.whitespace-nowrap.text-center
-                    %span.text-sm.font-medium.text-gray-900= number_with_delimiter(item.quantity)
+                    %span.text-sm.font-medium.text-gray-900= quantity_ar(item.quantity)
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
-                    %span.text-sm.text-gray-900= number_to_currency(item.unit_price)
+                    %span.text-sm.text-gray-900= currency_ar(item.unit_price)
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
-                    %span.text-sm.text-gray-500= number_to_currency(item.product.cost_in_ars)
+                    %span.text-sm.text-gray-500= currency_ar(item.product.cost_in_ars)
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
-                    %span.text-sm.font-bold.text-gray-900= number_to_currency(item.quantity * item.unit_price)
+                    %span.text-sm.font-bold.text-gray-900= currency_ar(item.quantity * item.unit_price)
             
             %tfoot.bg-gray-50
               %tr
                 %td.px-6.py-4{colspan: "5"}
                   %span.text-base.font-bold.text-gray-900 Total:
                 %td.px-6.py-4.text-right
-                  %span.text-xl.font-bold.text-gray-900= number_to_currency(@order.total_amount)
+                  %span.text-xl.font-bold.text-gray-900= currency_ar(@order.total_amount)
 
       -# CARD 3 - Movimientos de Stock
       .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
@@ -215,7 +215,7 @@
         -# Total principal
         .text-center.mb-6
           %p.text-sm.text-gray-500.mb-2 Total de la Venta
-          %p.text-4xl.font-bold.text-gray-900= number_to_currency(@order.total_amount)
+          %p.text-4xl.font-bold.text-gray-900= currency_ar(@order.total_amount)
 
         .border-t.border-gray-200.py-4.space-y-3
 
@@ -229,7 +229,7 @@
           
           .flex.justify-between.text-sm
             %span.text-gray-600 Subtotal
-            %span.font-medium.text-gray-900= number_to_currency(@order.total_amount)
+            %span.font-medium.text-gray-900= currency_ar(@order.total_amount)
 
         -# Análisis de Costos
         .border-t.border-gray-200.py-4
@@ -242,11 +242,11 @@
           .space-y-2
             .flex.justify-between.text-sm
               %span.text-gray-600 Costo Total
-              %span.font-medium.text-gray-700= number_to_currency(costo_total)
+              %span.font-medium.text-gray-700= currency_ar(costo_total)
             
             .flex.justify-between.text-sm
               %span.text-gray-600 Margen Bruto
-              %span.font-medium.text-gray-900= number_to_currency(margen_bruto)
+              %span.font-medium.text-gray-900= currency_ar(margen_bruto)
             
             .flex.justify-between.text-sm
               %span.text-gray-600 % Margen
@@ -269,7 +269,7 @@
             - saldo = @order.customer.current_balance
             .flex.justify-between.items-center
               %span.text-sm.text-gray-600 Saldo actual
-              %span.text-sm.font-bold.text-gray-900= number_to_currency(saldo)
+              %span.text-sm.font-bold.text-gray-900= currency_ar(saldo)
             
             - if saldo < 50000
               %span.inline-flex.items-center.gap-1.px-2.py-1.rounded.text-xs.font-medium.bg-green-100.text-green-800.mt-2

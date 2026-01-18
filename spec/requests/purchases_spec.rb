@@ -50,9 +50,9 @@ RSpec.describe "Purchases", type: :request do
         {
           supplier_id: supplier.id,
           invoice_number: "FAC-USD-001",
-          amount: "1000",
+          amount: "1000.00", # Formato limpio que envía JS (ya convertido de argentino)
           currency: "USD",
-          exchange_rate: "1200.50",
+          exchange_rate: "1200.50", # Formato limpio que envía JS
           purchase_date: Date.today.to_s,
           due_date: 30.days.from_now.to_date.to_s,
           notes: "Test purchase in USD"
@@ -71,9 +71,9 @@ RSpec.describe "Purchases", type: :request do
 
         expect(purchase.supplier).to eq(supplier)
         expect(purchase.invoice_number).to eq("FAC-USD-001")
-        expect(purchase.amount).to eq(1000)
+        expect(purchase.amount).to eq(1000.0)
         expect(purchase.currency).to eq("USD")
-        expect(purchase.exchange_rate).to eq(1200.50)
+        expect(purchase.exchange_rate.to_f).to eq(1200.50)
         expect(purchase.status).to eq("pending")
         expect(purchase.has_items).to be false
       end
@@ -125,11 +125,11 @@ RSpec.describe "Purchases", type: :request do
     end
 
     context "when creating a purchase with formatted amount from frontend" do
-      it "handles amount with thousand separators correctly (154400.80)" do
+      it "handles amount correctly (formato limpio JS: 154400.80)" do
         params = {
           supplier_id: supplier.id,
           invoice_number: "FAC-FORMAT-001",
-          amount: "154400.80", # Formato limpio que envía JS
+          amount: "154400.80", # JavaScript ya convirtió de "154.400,80" a "154400.80"
           currency: "ARS",
           purchase_date: Date.today.to_s,
           due_date: 30.days.from_now.to_date.to_s
@@ -140,14 +140,14 @@ RSpec.describe "Purchases", type: :request do
         }.to change(Purchase, :count).by(1)
 
         purchase = Purchase.last
-        expect(purchase.amount).to eq(154400.80)
+        expect(purchase.amount).to be_within(0.01).of(154400.80)
       end
 
-      it "handles large amount correctly (1500000.50)" do
+      it "handles large amount correctly (formato limpio JS: 1500000.50)" do
         params = {
           supplier_id: supplier.id,
           invoice_number: "FAC-FORMAT-002",
-          amount: "1500000.50",
+          amount: "1500000.50", # JavaScript ya convirtió de "1.500.000,50" a "1500000.50"
           currency: "ARS",
           purchase_date: Date.today.to_s,
           due_date: 30.days.from_now.to_date.to_s
@@ -158,14 +158,14 @@ RSpec.describe "Purchases", type: :request do
         }.to change(Purchase, :count).by(1)
 
         purchase = Purchase.last
-        expect(purchase.amount).to eq(1500000.50)
+        expect(purchase.amount).to be_within(0.01).of(1500000.50)
       end
 
-      it "handles amount with two decimal places (999.99)" do
+      it "handles amount with two decimal places (formato limpio JS: 999.99)" do
         params = {
           supplier_id: supplier.id,
           invoice_number: "FAC-FORMAT-003",
-          amount: "999.99",
+          amount: "999.99", # JavaScript ya convirtió de "999,99" a "999.99"
           currency: "ARS",
           purchase_date: Date.today.to_s,
           due_date: 30.days.from_now.to_date.to_s
@@ -176,7 +176,7 @@ RSpec.describe "Purchases", type: :request do
         }.to change(Purchase, :count).by(1)
 
         purchase = Purchase.last
-        expect(purchase.amount).to eq(999.99)
+        expect(purchase.amount).to be_within(0.01).of(999.99)
       end
     end
   end

@@ -46,7 +46,7 @@
                 %span ✕
                 %span Cancelada
           %td.px-6.py-4.whitespace-nowrap.text-right
-            %span.text-sm.font-bold.text-gray-900= number_to_currency(order.total_amount)
+            %span.text-sm.font-bold.text-gray-900= currency_ar(order.total_amount)
           %td.px-6.py-4.whitespace-nowrap.text-right.text-sm.font-medium
             - if order.confirmed_status?
               = button_to cancel_web_order_path(order),

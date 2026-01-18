@@ -6,7 +6,7 @@
   .flex.items-center.justify-between.mb-6
     %h1.text-3xl.font-bold.text-gray-900 Proveedores
 
-    = link_to new_web_supplier_path, class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg transition-colors" do
+    = link_to new_web_supplier_path, class: "inline-flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
       %span +
       %span Nuevo Proveedor
 
@@ -27,40 +27,94 @@
         %h4.font-semibold.text-red-800.mb-1 Error
         %p.text-sm.text-red-700= flash[:alert]
 
-  -# Lista de proveedores
-  .space-y-4
-    - if @suppliers.any?
-      - @suppliers.each do |supplier|
-        = link_to web_supplier_path(supplier), class: "block" do
-          .bg-white.border.border-slate-200.rounded-lg.p-6.hover:shadow-md.transition-shadow
-            .flex.items-start.justify-between
-              .flex-1
-                .flex.items-center.gap-3.mb-2
-                  %span.text-2xl 🏭
-                  %h3.text-lg.font-semibold.text-gray-900= supplier.name
-                
-                .space-y-1.text-sm.text-gray-600
-                  - if supplier.email.present?
-                    .flex.items-center.gap-2
-                      %span 📧
-                      %span= supplier.email
-                  
-                  - if supplier.phone.present?
-                    .flex.items-center.gap-2
-                      %span 📞
-                      %span= supplier.phone
-                  
-                  - if supplier.payment_term_days.present?
-                    .flex.items-center.gap-2
-                      %span 📅
-                      %span
-                        Plazo de pago:
-                        %strong= supplier.payment_term_display
+  -# Lista de proveedores en tabla
+  - if @suppliers.any?
+    .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+      %table.min-w-full.divide-y.divide-slate-200
+        %thead.bg-slate-50
+          %tr
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Proveedor
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Contacto
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              CUIT
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Plazo de Pago
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Deuda Pendiente
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Acciones
+        
+        %tbody.divide-y.divide-slate-100.bg-white
+          - @suppliers.each do |supplier|
+            %tr.hover:bg-slate-50.transition-colors
+              -# Nombre del proveedor
+              %td.px-4.py-3.whitespace-nowrap
+                .flex.items-center.gap-3
+                  .w-10.h-10.rounded-lg.bg-slate-100.flex.items-center.justify-center.text-xl.flex-shrink-0
+                    🏭
+                  %div
+                    %p.text-sm.font-semibold.text-slate-900= supplier.name
+                    - if supplier.bank_alias.present?
+                      %p.text-xs.text-slate-500.font-mono= supplier.bank_alias
               
-              %span.text-gray-400 →
+              -# Contacto (email y teléfono)
+              %td.px-4.py-3
+                - if supplier.email.present? || supplier.phone.present?
+                  .space-y-1
+                    - if supplier.email.present?
+                      .flex.items-center.gap-1.5.text-xs.text-slate-600
+                        %span 📧
+                        %span= supplier.email
+                    - if supplier.phone.present?
+                      .flex.items-center.gap-1.5.text-xs.text-slate-600
+                        %span 📞
+                        %span= supplier.phone
+                - else
+                  %span.text-xs.text-slate-400.italic Sin contacto
+              
+              -# CUIT
+              %td.px-4.py-3.whitespace-nowrap
+                - if supplier.cuit.present?
+                  %span.text-sm.font-mono.text-slate-700= supplier.cuit
+                - else
+                  %span.text-xs.text-slate-400.italic -
+              
+              -# Plazo de pago
+              %td.px-4.py-3.whitespace-nowrap
+                - if supplier.payment_term_days.present? && supplier.payment_term_days > 0
+                  %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
+                    📅
+                    = supplier.payment_term_display
+                - else
+                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
+                    Inmediato
+              
+              -# Deuda pendiente
+              %td.px-4.py-3.whitespace-nowrap.text-right
+                - pending_amount = supplier.total_pending_amount
+                - if pending_amount > 0
+                  %p.text-sm.font-bold.text-red-600
+                    = currency_ar_int(pending_amount)
+                - else
+                  %span.text-xs.text-slate-400 Sin deuda
+              
+              -# Acciones
+              %td.px-4.py-3.whitespace-nowrap.text-center
+                .flex.items-center.justify-center.gap-2
+                  = link_to web_supplier_path(supplier), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Ver detalle" do
+                    %span 👁️
+                  
+                  = link_to edit_web_supplier_path(supplier), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Editar" do
+                    %span ✏️
 
-    - else
-      .bg-white.border.border-slate-200.rounded-lg.p-12.text-center
-        %p.text-5xl.mb-4 🏭
-        %p.text-gray-600.font-medium.mb-2 No hay proveedores registrados
-        %p.text-sm.text-gray-500 Creá tu primer proveedor para comenzar
+  - else
+    .bg-white.border.border-slate-200.rounded-lg.p-12.text-center
+      .inline-flex.w-20.h-20.rounded-full.bg-slate-100.items-center.justify-center.text-4xl.mb-4
+        🏭
+      %h3.text-xl.font-bold.text-slate-900.mb-2 No hay proveedores registrados
+      %p.text-slate-600.mb-6 Creá tu primer proveedor para comenzar a gestionar compras
+      = link_to new_web_supplier_path, class: "inline-flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
+        %span +
+        %span Nuevo Proveedor

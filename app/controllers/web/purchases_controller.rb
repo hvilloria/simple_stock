@@ -2,20 +2,45 @@
 
 module Web
   class PurchasesController < ApplicationController
+    include CurrencyParser
+
     before_action :load_suppliers, only: [ :new, :create, :edit, :update ]
     before_action :load_purchase, only: [ :show, :edit, :update, :mark_as_paid, :cancel ]
 
     def index
       authorize Purchase
-      @purchases = Purchase.simple_mode
-                          .includes(:supplier)
-                          .order(status: :desc)
-                          .limit(50)
 
-      # Métricas para las cards
-      @total_pending_amount = calculate_total_pending_amount
-      @due_today_purchases = Purchase.due_today.includes(:supplier)
-      @due_this_week_purchases = Purchase.due_this_week.includes(:supplier)
+      # Cargar proveedores para el filtro
+      @suppliers = Supplier.alphabetical
+
+      # Filtrar por supplier_id si está presente
+      @selected_supplier = Supplier.find_by(id: params[:supplier_id]) if params[:supplier_id].present?
+
+      # Scope base con filtros opcionales (proveedor + búsqueda)
+      purchases_scope = Purchase.simple_mode
+                                .includes(:supplier)
+                                .for_supplier(@selected_supplier)
+                                .search_invoice(params[:invoice_search])
+
+      @purchases = purchases_scope.order(status: :desc).limit(50)
+
+      # Métricas calculadas desde el modelo (filtradas si aplica)
+      metrics_scope = Purchase.simple_mode
+                              .pending_payment
+                              .for_supplier(@selected_supplier)
+                              .search_invoice(params[:invoice_search])
+      
+      @total_pending_amount = metrics_scope.sum { |p| p.total_amount_ars }
+      
+      @due_today_purchases = Purchase.due_today
+                                    .includes(:supplier)
+                                    .for_supplier(@selected_supplier)
+                                    .search_invoice(params[:invoice_search])
+      
+      @due_this_week_purchases = Purchase.due_this_week
+                                        .includes(:supplier)
+                                        .for_supplier(@selected_supplier)
+                                        .search_invoice(params[:invoice_search])
     end
 
     def show
@@ -138,15 +163,6 @@ module Web
       Date.today
     end
 
-    def parse_amount(amount_string)
-      return nil if amount_string.blank?
-
-      # Limpiar formato argentino: remover puntos (miles) y cambiar coma por punto (decimal)
-      # "1.500.000,50" → "1500000.50"
-      cleaned = amount_string.to_s.gsub(/\./, "").gsub(/,/, ".")
-      cleaned.to_f
-    end
-
     def parse_exchange_rate(rate_string, currency)
       # Si la moneda es ARS, retornar nil (no se necesita tipo de cambio)
       return nil if currency == "ARS"
@@ -168,12 +184,6 @@ module Web
         :due_date,
         :notes
       )
-    end
-
-    def calculate_total_pending_amount
-      Purchase.simple_mode
-              .where(status: "pending")
-              .sum { |p| p.total_amount_ars }
     end
   end
 end

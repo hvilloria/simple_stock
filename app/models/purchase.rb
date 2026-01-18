@@ -47,6 +47,23 @@ class Purchase < ApplicationRecord
     simple_mode.where(status: "pending").where(due_date: start_of_week..end_of_week)
   }
 
+  # Filtro por proveedor (acepta nil para "todos")
+  scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
+
+  # Búsqueda por número de factura (case-insensitive, partial match)
+  scope :search_invoice, ->(query) { where("invoice_number ILIKE ?", "%#{query}%") if query.present? }
+
+  # === MÉTODOS DE CLASE (para métricas) ===
+
+  # Calcula el total pendiente en ARS, opcionalmente filtrado por proveedor
+  # @param supplier [Supplier, nil] Proveedor para filtrar, o nil para todos
+  # @return [Float] Total en ARS
+  def self.total_pending_amount_ars(supplier: nil)
+    scope = simple_mode.pending_payment
+    scope = scope.for_supplier(supplier) if supplier
+    scope.sum { |p| p.total_amount_ars }
+  end
+
   # === MÉTODOS MODO SIMPLE ===
 
   def simple_mode?

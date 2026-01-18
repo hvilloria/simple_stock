@@ -300,5 +300,146 @@ RSpec.describe Purchase, type: :model do
         expect(Purchase.due_this_week).not_to include(due_next_week)
       end
     end
+
+    describe ".for_supplier" do
+      let(:supplier_a) { create(:supplier, name: "Supplier A") }
+      let(:supplier_b) { create(:supplier, name: "Supplier B") }
+      let!(:purchase_a1) { create(:purchase, :simple_mode, supplier: supplier_a) }
+      let!(:purchase_a2) { create(:purchase, :simple_mode, supplier: supplier_a) }
+      let!(:purchase_b1) { create(:purchase, :simple_mode, supplier: supplier_b) }
+
+      it "filters purchases by supplier" do
+        result = Purchase.for_supplier(supplier_a)
+        
+        expect(result).to include(purchase_a1, purchase_a2)
+        expect(result).not_to include(purchase_b1)
+      end
+
+      it "returns all purchases when supplier is nil" do
+        result = Purchase.for_supplier(nil)
+        
+        expect(result).to include(purchase_a1, purchase_a2, purchase_b1)
+      end
+
+      it "returns all purchases when supplier is not present" do
+        # Simular supplier vacío pero no nil
+        result = Purchase.all.for_supplier(nil)
+        
+        expect(result).to include(purchase_a1, purchase_a2, purchase_b1)
+      end
+    end
+
+    describe ".search_invoice" do
+      let(:supplier) { create(:supplier) }
+      let!(:purchase1) { create(:purchase, :simple_mode, supplier: supplier, invoice_number: "FAC-001") }
+      let!(:purchase2) { create(:purchase, :simple_mode, supplier: supplier, invoice_number: "FAC-002") }
+      let!(:purchase3) { create(:purchase, :simple_mode, supplier: supplier, invoice_number: "INV-12345") }
+
+      it "finds purchases by exact invoice number" do
+        result = Purchase.search_invoice("FAC-001")
+        
+        expect(result).to include(purchase1)
+        expect(result).not_to include(purchase2, purchase3)
+      end
+
+      it "performs partial search" do
+        result = Purchase.search_invoice("FAC")
+        
+        expect(result).to include(purchase1, purchase2)
+        expect(result).not_to include(purchase3)
+      end
+
+      it "performs case-insensitive search" do
+        result = Purchase.search_invoice("fac-001")
+        
+        expect(result).to include(purchase1)
+      end
+
+      it "returns all purchases when query is nil" do
+        result = Purchase.search_invoice(nil)
+        
+        expect(result).to include(purchase1, purchase2, purchase3)
+      end
+
+      it "returns all purchases when query is blank" do
+        result = Purchase.search_invoice("")
+        
+        expect(result).to include(purchase1, purchase2, purchase3)
+      end
+
+      it "can be chained with other scopes" do
+        supplier_b = create(:supplier)
+        purchase_b = create(:purchase, :simple_mode, supplier: supplier_b, invoice_number: "FAC-999")
+        
+        result = Purchase.for_supplier(supplier).search_invoice("FAC")
+        
+        expect(result).to include(purchase1, purchase2)
+        expect(result).not_to include(purchase3, purchase_b)
+      end
+    end
+  end
+
+  describe ".total_pending_amount_ars" do
+    let(:supplier_a) { create(:supplier, name: "Supplier A") }
+    let(:supplier_b) { create(:supplier, name: "Supplier B") }
+
+    before do
+      # Purchases en ARS
+      create(:purchase, :simple_mode, supplier: supplier_a, status: "pending", amount: 1000, currency: "ARS")
+      create(:purchase, :simple_mode, supplier: supplier_a, status: "pending", amount: 2000, currency: "ARS")
+      create(:purchase, :simple_mode, supplier: supplier_b, status: "pending", amount: 5000, currency: "ARS")
+      
+      # Purchase pagada (no debe contar)
+      create(:purchase, :simple_mode, supplier: supplier_a, status: "paid", amount: 999, currency: "ARS")
+      
+      # Purchase en USD
+      create(:purchase, :simple_mode, supplier: supplier_a, status: "pending", amount: 100, currency: "USD", exchange_rate: 1200)
+      
+      # Purchase en modo completo (no debe contar en simple_mode)
+      create(:purchase, :full_mode, supplier: supplier_a, status: "confirmed", amount: 888)
+    end
+
+    context "sin filtro de proveedor" do
+      it "calcula el total de todas las facturas pendientes en ARS" do
+        # supplier_a: 1000 + 2000 + (100*1200) = 123000
+        # supplier_b: 5000
+        # Total: 128000
+        total = Purchase.total_pending_amount_ars
+        
+        expect(total).to eq(128_000)
+      end
+    end
+
+    context "con filtro de proveedor" do
+      it "calcula el total solo para el proveedor especificado" do
+        # supplier_a: 1000 + 2000 + (100*1200) = 123000
+        total = Purchase.total_pending_amount_ars(supplier: supplier_a)
+        
+        expect(total).to eq(123_000)
+      end
+
+      it "no incluye facturas de otros proveedores" do
+        total = Purchase.total_pending_amount_ars(supplier: supplier_b)
+        
+        expect(total).to eq(5_000)
+      end
+    end
+
+    context "con proveedor sin facturas pendientes" do
+      it "retorna 0" do
+        supplier_c = create(:supplier, name: "Supplier C")
+        total = Purchase.total_pending_amount_ars(supplier: supplier_c)
+        
+        expect(total).to eq(0)
+      end
+    end
+
+    it "no incluye facturas pagadas" do
+      # Ya creamos una pagada en el before, verificamos que no se cuenta
+      total = Purchase.total_pending_amount_ars(supplier: supplier_a)
+      
+      # No debe incluir los 999 de la factura pagada
+      expect(total).to eq(123_000) # No 123_999
+    end
   end
 end

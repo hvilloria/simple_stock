@@ -1,6 +1,8 @@
 module Web
   class ProductsController < ApplicationController
-  def index
+    include CurrencyParser
+    
+    def index
     authorize Product
     @products = Product.search(params[:q])
                        .by_category(params[:category])
@@ -23,7 +25,7 @@ module Web
     end
 
     def create
-      @product = Product.new(product_params)
+      @product = Product.new(sanitized_product_params)
       authorize @product
 
       if @product.save
@@ -52,6 +54,16 @@ module Web
         :sku, :name, :brand, :category, :product_type, :origin,
         :price_unit, :cost_unit, :cost_currency, :active
       )
+    end
+
+    def sanitized_product_params
+      params_hash = product_params.to_h
+      
+      # Convertir formato argentino a decimal para campos de moneda
+      params_hash[:price_unit] = parse_amount(params_hash[:price_unit]) if params_hash[:price_unit].present?
+      params_hash[:cost_unit] = parse_amount(params_hash[:cost_unit]) if params_hash[:cost_unit].present?
+      
+      params_hash
     end
   end
 end

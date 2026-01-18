@@ -93,7 +93,7 @@
                   .text-right
                     %p.text-lg.font-bold.text-gray-900
                       = purchase.currency
-                      = number_with_delimiter(purchase.amount, delimiter: ".")
+                      = number_ar(purchase.amount)
 
       -# Card Facturas Pagadas
       - if @paid_purchases.any?
@@ -114,7 +114,7 @@
                   
                   %span.text-sm.font-medium.text-gray-600
                     = purchase.currency
-                    = number_with_delimiter(purchase.amount, delimiter: ".")
+                    = number_ar(purchase.amount)
 
     -# Columna Derecha (1/3)
     .lg:col-span-1
@@ -129,8 +129,7 @@
           .text-center
             %p.text-sm.text-gray-500.mb-1 Total Adeudado
             %p.text-2xl.font-bold.text-red-600
-              ARS
-              = number_with_delimiter(@supplier.total_pending_amount.to_i, delimiter: ".")
+              = currency_ar_int(@supplier.total_pending_amount)
 
         .border-t.border-gray-200.pt-4.mt-4
           %p.text-xs.text-gray-500.text-center Valores aproximados en ARS
