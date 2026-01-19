@@ -1,0 +1,185 @@
+- content_for :page_title, "Nota de Crédito #{@credit_note.credit_note_number}"
+
+.container.mx-auto.px-6.py-6
+
+  -# Header
+  .flex.items-center.justify-between.mb-6
+    .flex.items-center.gap-4
+      = link_to web_credit_notes_path, class: "text-gray-600 hover:text-gray-900" do
+        %span.text-xl ←
+      %h1.text-3xl.font-bold.text-gray-900
+        Nota de Crédito
+        = @credit_note.credit_note_number
+
+    .flex.items-center.gap-3
+      - if policy(@credit_note).edit?
+        = link_to "Editar", edit_web_credit_note_path(@credit_note), class: "px-4 py-2 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+
+  -# Notices/Alerts
+  - if flash[:notice]
+    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6
+      %p.text-sm.text-green-700= flash[:notice]
+  
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6
+      %p.text-sm.text-red-700= flash[:alert]
+
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+
+    -# Columna Principal (2/3)
+    .lg:col-span-2.space-y-6
+
+      -# Card Información de la NC
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Nota de Crédito
+
+        .space-y-3
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Proveedor:
+            = link_to @credit_note.supplier.name, web_supplier_path(@credit_note.supplier), class: "font-medium text-blue-600 hover:text-blue-800 hover:underline", data: { turbo: false }
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 N° Nota:
+            %span.font-mono.font-semibold.text-gray-900= @credit_note.credit_note_number
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Factura Asociada:
+            - if @credit_note.invoice.present?
+              = link_to @credit_note.invoice.invoice_number, web_invoice_path(@credit_note.invoice), class: "font-mono font-medium text-blue-600 hover:text-blue-800 hover:underline", data: { turbo: false }
+            - else
+              %span.text-gray-500 Sin factura asociada
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Fecha de Emisión:
+            %span.text-gray-900= @credit_note.issue_date.strftime("%d/%m/%Y")
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Moneda:
+            %span.text-gray-900= @credit_note.currency
+
+          - if @credit_note.currency == "USD" && @credit_note.exchange_rate
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-40.flex-shrink-0 Tipo de Cambio:
+              %span.text-gray-900= number_with_precision(@credit_note.exchange_rate, precision: 2, delimiter: ".", separator: ",")
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Monto:
+            %span.text-2xl.font-bold.text-green-600
+              = @credit_note.currency
+              = number_with_precision(@credit_note.amount, precision: 2, delimiter: ".", separator: ",")
+
+          - if @credit_note.currency == "USD" && @credit_note.exchange_rate
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-40.flex-shrink-0 Equivalente ARS:
+              %span.text-lg.font-semibold.text-green-700
+                ARS
+                = number_with_precision(@credit_note.total_amount_ars, precision: 2, delimiter: ".", separator: ",")
+
+      -# Card Estado de la Nota
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Estado
+        
+        .flex.items-center.gap-3.mb-4
+          - if @credit_note.pending_status?
+            %span.inline-flex.items-center.px-3.py-1.rounded-md.text-sm.font-medium.bg-emerald-100.text-emerald-800
+              ✓ Disponible
+            %p.text-sm.text-gray-600 Esta nota de crédito está disponible para usar
+          - elsif @credit_note.applied_status?
+            %span.inline-flex.items-center.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
+              ✓ Aplicada
+            %p.text-sm.text-gray-600
+              Aplicada el
+              = @credit_note.applied_at&.strftime("%d/%m/%Y")
+          - elsif @credit_note.cancelled_status?
+            %span.inline-flex.items-center.px-3.py-1.rounded-md.text-sm.font-medium.bg-red-100.text-red-800
+              ✕ Cancelada
+        
+        -# Botón para marcar como aplicada (solo si pending Y sin factura asociada)
+        - if @credit_note.pending_status? && @credit_note.invoice_id.blank?
+          .mt-4.pt-4.border-t.border-slate-200
+            %p.text-sm.text-gray-600.mb-3
+              Esta nota de crédito no está asociada a una factura específica.
+              Cuando la uses como crédito a favor, márcala como aplicada.
+            
+            %button.inline-flex.items-center.justify-center.gap-2.px-4.py-2.5.bg-slate-700.hover:bg-slate-800.text-white.text-sm.font-medium.rounded-lg.shadow-sm.transition-colors{
+              type: "button",
+              onclick: "document.getElementById('applyModal').style.display = 'flex'"
+            }
+              Marcar como Aplicada
+
+      -# Card Notas (si existen)
+      - if @credit_note.notes.present?
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Notas
+
+          %p.text-gray-700.whitespace-pre-wrap= @credit_note.notes
+
+      -# Card Información del Proveedor
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        .flex.items-center.justify-between.mb-4
+          %h3.text-lg.font-semibold.text-gray-900 Información del Proveedor
+          = link_to "Ver completo →", web_supplier_path(@credit_note.supplier), class: "text-sm text-blue-600 hover:text-blue-800"
+
+        .space-y-2
+          - if @credit_note.supplier.payment_term_days
+            .flex.items-center.gap-2.text-sm
+              %span 📅
+              %span.text-gray-600
+                Plazo de pago:
+                %strong= @credit_note.supplier.payment_term_display
+
+          - if @credit_note.supplier.email.present?
+            .flex.items-center.gap-2.text-sm
+              %span 📧
+              %span.text-gray-600= @credit_note.supplier.email
+
+          - if @credit_note.supplier.phone.present?
+            .flex.items-center.gap-2.text-sm
+              %span 📞
+              %span.text-gray-600= @credit_note.supplier.phone
+
+    -# Columna Lateral (1/3)
+    .lg:col-span-1
+      .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Acciones
+
+        .space-y-3
+          - if policy(@credit_note).edit?
+            = link_to edit_web_credit_note_path(@credit_note), class: "block w-full px-4 py-3 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors text-center" do
+              ✏️ Editar Nota
+
+          - if policy(@credit_note).destroy?
+            = button_to web_credit_note_path(@credit_note),
+                       method: :delete,
+                       data: { turbo_confirm: "¿Estás seguro de eliminar esta nota de crédito?" },
+                       class: "w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors" do
+              ✗ Eliminar Nota
+
+          = link_to "Volver al Listado", web_credit_notes_path, class: "block w-full px-4 py-3 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors text-center"
+
+-# Modal de confirmación
+#applyModal{ style: "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center;", onclick: "if(event.target === this) this.style.display = 'none'" }
+  .bg-white.rounded-lg.p-6.max-w-md.w-full.mx-4{onclick: "event.stopPropagation()"}
+    .flex.items-center.justify-between.mb-4
+      %h3.text-lg.font-semibold.text-gray-900 Confirmar Aplicación
+      %button.text-gray-400.hover:text-gray-600{
+        type: "button",
+        onclick: "document.getElementById('applyModal').style.display = 'none'"
+      }
+        %span.text-2xl ×
+    
+    %p.text-sm.text-gray-600.mb-6
+      ¿Estás seguro que querés marcar esta nota de crédito como aplicada?
+      Esta acción no se puede deshacer.
+    
+    .flex.items-center.gap-3
+      %button.flex-1.px-4.py-2.5.border.border-slate-300.text-slate-700.text-sm.font-medium.rounded-lg.hover:bg-slate-50.transition-colors{
+        type: "button",
+        onclick: "document.getElementById('applyModal').style.display = 'none'"
+      }
+        Cancelar
+      
+      = button_to mark_as_applied_web_credit_note_path(@credit_note),
+                  method: :post,
+                  class: "flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors" do
+        Confirmar

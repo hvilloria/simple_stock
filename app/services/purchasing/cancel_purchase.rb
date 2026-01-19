@@ -2,23 +2,23 @@
 
 module Purchasing
   class CancelPurchase
-    def self.call(purchase:)
-      new(purchase: purchase).call
+    def self.call(invoice:)
+      new(invoice: invoice).call
     end
 
-    def initialize(purchase:)
-      @purchase = purchase
+    def initialize(invoice:)
+      @invoice = invoice
     end
 
     def call
       validate_params
 
       ActiveRecord::Base.transaction do
-        cancel_purchase
+        cancel_invoice_record
         reverse_stock_movements
         recalculate_product_costs
 
-        Result.new(success?: true, record: @purchase, errors: [])
+        Result.new(success?: true, record: @invoice, errors: [])
       end
     rescue ValidationError => e
       Result.new(success?: false, record: nil, errors: [ e.message ])
@@ -32,24 +32,24 @@ module Purchasing
     class ValidationError < StandardError; end
 
     def validate_params
-      raise ValidationError, "Purchase is already cancelled" if @purchase.cancelled_status?
+      raise ValidationError, "Invoice is already cancelled" if @invoice.cancelled_status?
     end
 
-    def cancel_purchase
-      @purchase.update!(status: "cancelled")
+    def cancel_invoice_record
+      @invoice.update!(status: "cancelled")
     end
 
     def reverse_stock_movements
       stock_location = StockLocation.first!
 
-      @purchase.purchase_items.each do |purchase_item|
+      @invoice.invoice_items.each do |invoice_item|
         result = Inventory::AdjustStock.call(
-          product: purchase_item.product,
+          product: invoice_item.product,
           stock_location: stock_location,
           movement_type: "adjustment",
-          quantity: -purchase_item.quantity, # NEGATIVO (reversa)
-          reference: @purchase,
-          note: "Purchase ##{@purchase.id} cancellation"
+          quantity: -invoice_item.quantity, # NEGATIVO (reversa)
+          reference: @invoice,
+          note: "Invoice ##{@invoice.id} cancellation"
         )
 
         raise ValidationError, result.errors.join(", ") if result.failure?
@@ -57,7 +57,7 @@ module Purchasing
     end
 
     def recalculate_product_costs
-      @purchase.purchase_items.each do |item|
+      @invoice.invoice_items.each do |item|
         item.product.recalculate_average_cost!
       end
     end

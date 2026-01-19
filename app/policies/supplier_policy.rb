@@ -26,6 +26,6 @@ class SupplierPolicy < ApplicationPolicy
   end
 
   def destroy?
-    user.admin? && record.purchases.none?
+    user.admin? && record.invoices.none?
   end
 end

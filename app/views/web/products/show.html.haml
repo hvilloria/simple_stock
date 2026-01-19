@@ -152,8 +152,8 @@
                       %p.text-sm.text-slate-600
                         - if movement.reference_type == 'Order'
                           Order ##{movement.reference_id}
-                        - elsif movement.reference_type == 'Purchase'
-                          Purchase ##{movement.reference_id}
+                        - elsif movement.reference_type == 'Invoice'
+                          Invoice ##{movement.reference_id}
                         - else
                           = movement.note || "-"
                     - elsif movement.note.present?

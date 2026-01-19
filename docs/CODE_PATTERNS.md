@@ -98,7 +98,7 @@ end
 class Product < ApplicationRecord
   # Asociaciones
   has_many :stock_movements
-  has_many :purchase_items
+  has_many :invoice_items
   belongs_to :category, optional: true
 
   # Validaciones
@@ -130,20 +130,20 @@ class Product < ApplicationRecord
   # - cost_unit representa el costo promedio de TODAS las compras confirmadas
   # - Se recalcula con recalculate_average_cost! al confirmar/anular compras
   def recalculate_average_cost!
-    purchase_items = PurchaseItem.joins(:purchase)
-                                  .where(product: self)
-                                  .where(purchases: { status: 'confirmed' })
+    invoice_items = InvoiceItem.joins(:invoice)
+                                .where(product: self)
+                                .where(invoices: { status: 'confirmed' })
     
-    return if purchase_items.empty?
+    return if invoice_items.empty?
     
     total_cost_usd = 0.0
     total_quantity = 0
     
-    purchase_items.find_each do |item|
-      if item.purchase.currency == 'USD'
+    invoice_items.find_each do |item|
+      if item.invoice.currency == 'USD'
         total_cost_usd += item.unit_cost * item.quantity
       else
-        cost_in_usd = item.unit_cost / (item.purchase.exchange_rate || 1200)
+        cost_in_usd = item.unit_cost / (item.invoice.exchange_rate || 1200)
         total_cost_usd += cost_in_usd * item.quantity
       end
       
@@ -207,7 +207,7 @@ class StockMovement < ApplicationRecord
   belongs_to :stock_location
   belongs_to :reference, polymorphic: true, optional: true
   
-  # reference puede ser Order, Purchase, o nil (ajustes manuales)
+  # reference puede ser Order, Invoice, o nil (ajustes manuales)
   # reference_type + reference_id se guardan automáticamente
 end
 
@@ -215,7 +215,7 @@ class Order < ApplicationRecord
   has_many :stock_movements, as: :reference
 end
 
-class Purchase < ApplicationRecord
+class Invoice < ApplicationRecord
   has_many :stock_movements, as: :reference
 end
 ```
@@ -279,17 +279,19 @@ class OrdersController < ApplicationController
   end
 end
 
-class PurchasesController < ApplicationController
+class InvoicesController < ApplicationController
   def create
-    result = Purchasing::CreatePurchase.call(
+    result = Invoices::CreateSimpleInvoice.call(
       supplier: @supplier,
-      items: parse_items,
+      invoice_number: params[:invoice_number],
+      amount: params[:amount],
       currency: params[:currency],
-      exchange_rate: params[:exchange_rate]
+      exchange_rate: params[:exchange_rate],
+      due_date: params[:due_date]
     )
 
     if result.success?
-      redirect_to result.record, notice: "Compra registrada"
+      redirect_to result.record, notice: "Factura registrada"
     else
       flash.now[:alert] = result.errors.join(", ")
       render :new, status: :unprocessable_entity
@@ -496,12 +498,12 @@ RSpec.describe Product do
     let(:product) { create(:product) }
     let(:supplier) { create(:supplier) }
 
-    it 'calculates weighted average from multiple purchases' do
-      purchase1 = create(:purchase, supplier: supplier, currency: 'USD')
-      create(:purchase_item, purchase: purchase1, product: product, quantity: 5, unit_cost: 10)
+    it 'calculates weighted average from multiple invoices' do
+      invoice1 = create(:invoice, supplier: supplier, currency: 'USD')
+      create(:invoice_item, invoice: invoice1, product: product, quantity: 5, unit_cost: 10)
       
-      purchase2 = create(:purchase, supplier: supplier, currency: 'USD')
-      create(:purchase_item, purchase: purchase2, product: product, quantity: 5, unit_cost: 20)
+      invoice2 = create(:invoice, supplier: supplier, currency: 'USD')
+      create(:invoice_item, invoice: invoice2, product: product, quantity: 5, unit_cost: 20)
       
       product.recalculate_average_cost!
       
@@ -677,7 +679,7 @@ result = Inventory::AdjustStock.call(
   stock_location: stock_location,
   movement_type: 'purchase',
   quantity: item.quantity,  # POSITIVO
-  reference: @purchase
+  reference: @invoice
 )
 
 # 2. Recalcular costo promedio
@@ -694,7 +696,7 @@ result = Inventory::AdjustStock.call(
   stock_location: stock_location,
   movement_type: 'adjustment',
   quantity: -item.quantity,  # NEGATIVO (reversa)
-  reference: @purchase
+  reference: @invoice
 )
 
 # 2. Recalcular costo promedio (sin la compra cancelada)

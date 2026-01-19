@@ -417,10 +417,10 @@ RSpec.describe Product, type: :model do
     let(:product) { create(:product) }
     let(:supplier) { create(:supplier) }
 
-    context 'with single purchase in USD' do
-      it 'sets cost to purchase unit cost' do
-        purchase = create(:purchase, supplier: supplier, currency: 'USD', exchange_rate: 1200)
-        create(:purchase_item, purchase: purchase, product: product, quantity: 10, unit_cost: 50)
+    context 'with single invoice in USD' do
+      it 'sets cost to invoice unit cost' do
+        purchase = create(:invoice, supplier: supplier, currency: 'USD', exchange_rate: 1200)
+        create(:invoice_item, invoice: purchase, product: product, quantity: 10, unit_cost: 50)
 
         product.recalculate_average_cost!
 
@@ -429,13 +429,13 @@ RSpec.describe Product, type: :model do
       end
     end
 
-    context 'with multiple purchases at different prices' do
+    context 'with multiple invoices at different prices' do
       it 'calculates weighted average cost' do
-        purchase1 = create(:purchase, supplier: supplier, currency: 'USD', exchange_rate: 1200)
-        create(:purchase_item, purchase: purchase1, product: product, quantity: 5, unit_cost: 10)
+        purchase1 = create(:invoice, supplier: supplier, currency: 'USD', exchange_rate: 1200)
+        create(:invoice_item, invoice: purchase1, product: product, quantity: 5, unit_cost: 10)
 
-        purchase2 = create(:purchase, supplier: supplier, currency: 'USD', exchange_rate: 1200)
-        create(:purchase_item, purchase: purchase2, product: product, quantity: 5, unit_cost: 20)
+        purchase2 = create(:invoice, supplier: supplier, currency: 'USD', exchange_rate: 1200)
+        create(:invoice_item, invoice: purchase2, product: product, quantity: 5, unit_cost: 20)
 
         product.recalculate_average_cost!
 
@@ -445,13 +445,13 @@ RSpec.describe Product, type: :model do
       end
     end
 
-    context 'with purchases in different currencies' do
+    context 'with invoices in different currencies' do
       it 'converts ARS to USD for averaging' do
-        purchase_usd = create(:purchase, supplier: supplier, currency: 'USD', exchange_rate: 1200)
-        create(:purchase_item, purchase: purchase_usd, product: product, quantity: 5, unit_cost: 10)
+        purchase_usd = create(:invoice, supplier: supplier, currency: 'USD', exchange_rate: 1200)
+        create(:invoice_item, invoice: purchase_usd, product: product, quantity: 5, unit_cost: 10)
 
-        purchase_ars = create(:purchase, supplier: supplier, currency: 'ARS', exchange_rate: 1200)
-        create(:purchase_item, purchase: purchase_ars, product: product, quantity: 5, unit_cost: 12000)
+        purchase_ars = create(:invoice, supplier: supplier, currency: 'ARS', exchange_rate: 1200)
+        create(:invoice_item, invoice: purchase_ars, product: product, quantity: 5, unit_cost: 12000)
 
         product.recalculate_average_cost!
 
@@ -462,13 +462,13 @@ RSpec.describe Product, type: :model do
       end
     end
 
-    context 'with cancelled purchases' do
-      it 'ignores cancelled purchases' do
-        purchase1 = create(:purchase, supplier: supplier, status: 'confirmed')
-        create(:purchase_item, purchase: purchase1, product: product, quantity: 10, unit_cost: 10)
+    context 'with cancelled invoices' do
+      it 'ignores cancelled invoices' do
+        purchase1 = create(:invoice, supplier: supplier, status: 'confirmed')
+        create(:invoice_item, invoice: purchase1, product: product, quantity: 10, unit_cost: 10)
 
-        purchase2 = create(:purchase, supplier: supplier, status: 'cancelled')
-        create(:purchase_item, purchase: purchase2, product: product, quantity: 10, unit_cost: 50)
+        purchase2 = create(:invoice, supplier: supplier, status: 'cancelled')
+        create(:invoice_item, invoice: purchase2, product: product, quantity: 10, unit_cost: 50)
 
         product.recalculate_average_cost!
 
@@ -488,16 +488,16 @@ RSpec.describe Product, type: :model do
     context 'with complex mixed scenario' do
       it 'calculates correct weighted average' do
         # Purchase 1: 5 units @ $10 USD
-        purchase1 = create(:purchase, supplier: supplier, currency: 'USD', exchange_rate: 1200)
-        create(:purchase_item, purchase: purchase1, product: product, quantity: 5, unit_cost: 10)
+        purchase1 = create(:invoice, supplier: supplier, currency: 'USD', exchange_rate: 1200)
+        create(:invoice_item, invoice: purchase1, product: product, quantity: 5, unit_cost: 10)
 
         # Purchase 2: 10 units @ $20 USD
-        purchase2 = create(:purchase, supplier: supplier, currency: 'USD', exchange_rate: 1300)
-        create(:purchase_item, purchase: purchase2, product: product, quantity: 10, unit_cost: 20)
+        purchase2 = create(:invoice, supplier: supplier, currency: 'USD', exchange_rate: 1300)
+        create(:invoice_item, invoice: purchase2, product: product, quantity: 10, unit_cost: 20)
 
         # Purchase 3: 5 units @ 15000 ARS (exchange_rate 1500 → 10 USD)
-        purchase3 = create(:purchase, supplier: supplier, currency: 'ARS', exchange_rate: 1500)
-        create(:purchase_item, purchase: purchase3, product: product, quantity: 5, unit_cost: 15000)
+        purchase3 = create(:invoice, supplier: supplier, currency: 'ARS', exchange_rate: 1500)
+        create(:invoice_item, invoice: purchase3, product: product, quantity: 5, unit_cost: 15000)
 
         product.recalculate_average_cost!
 

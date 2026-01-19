@@ -10,7 +10,7 @@ export default class extends Controller {
     
     // Actualizar el form action con el purchase_id correcto
     const form = this.modalTarget.querySelector('form')
-    form.action = `/web/purchases/${purchaseId}/mark_as_paid`
+    form.action = `/web/invoices/${invoiceId}/mark_as_paid`
     
     // Actualizar el título con el número de factura
     const title = this.modalTarget.querySelector('[data-modal-title]')

@@ -36,10 +36,22 @@ Rails.application.routes.draw do
 
     resources :customers, only: [ :index ]
     resources :suppliers
-    resources :purchases, only: [ :index, :new, :create, :show, :edit, :update ] do
+    resources :invoices, only: [ :index, :new, :create, :show, :edit, :update ] do
+      collection do
+        get :pending
+        post :mark_supplier_paid
+      end
       member do
         post :mark_as_paid
         patch :cancel
+      end
+    end
+    resources :credit_notes do
+      collection do
+        get :supplier_invoices
+      end
+      member do
+        post :mark_as_applied
       end
     end
   end

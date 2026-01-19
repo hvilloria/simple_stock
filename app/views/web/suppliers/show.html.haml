@@ -64,57 +64,57 @@
                 %strong= @supplier.payment_term_display
 
       -# Card Facturas Pendientes
-      - if @pending_purchases.any?
+      - if @pending_invoices.any?
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 
             Facturas Pendientes
             %span.text-sm.font-normal.text-gray-500
-              (#{@pending_purchases.count})
+              (#{@pending_invoices.count})
 
           .space-y-3
-            - @pending_purchases.each do |purchase|
-              = link_to web_purchase_path(purchase), class: "block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" do
+            - @pending_invoices.each do |invoice|
+              = link_to web_invoice_path(invoice), class: "block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" do
                 .flex.items-center.justify-between
                   .flex-1
                     .flex.items-center.gap-3.mb-2
-                      %span.font-mono.text-sm.font-semibold.text-gray-900= purchase.invoice_number
-                      - if purchase.overdue?
+                      %span.font-mono.text-sm.font-semibold.text-gray-900= invoice.invoice_number
+                      - if invoice.overdue?
                         %span.px-2.py-1.bg-red-100.text-red-700.text-xs.rounded-full.font-medium Vencida
-                      - elsif purchase.days_until_due && purchase.days_until_due <= 7
+                      - elsif invoice.days_until_due && invoice.days_until_due <= 7
                         %span.px-2.py-1.bg-yellow-100.text-yellow-700.text-xs.rounded-full.font-medium Próxima
                     
                     .text-sm.text-gray-600
                       Vence:
-                      = purchase.due_date.strftime("%d/%m/%Y")
-                      - if purchase.days_until_due
+                      = invoice.due_date.strftime("%d/%m/%Y")
+                      - if invoice.days_until_due
                         %span.text-gray-500
-                          (#{purchase.days_until_due} días)
+                          (#{invoice.days_until_due} días)
                   
                   .text-right
                     %p.text-lg.font-bold.text-gray-900
-                      = purchase.currency
-                      = number_ar(purchase.amount)
+                      = invoice.currency
+                      = number_ar(invoice.amount)
 
       -# Card Facturas Pagadas
-      - if @paid_purchases.any?
+      - if @paid_invoices.any?
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 
             Facturas Pagadas
             %span.text-sm.font-normal.text-gray-500 (últimas 10)
 
           .space-y-2
-            - @paid_purchases.each do |purchase|
-              = link_to web_purchase_path(purchase), class: "block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-75" do
+            - @paid_invoices.each do |invoice|
+              = link_to web_invoice_path(invoice), class: "block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-75" do
                 .flex.items-center.justify-between
                   .flex-1
-                    %span.font-mono.text-sm.font-semibold.text-gray-700= purchase.invoice_number
+                    %span.font-mono.text-sm.font-semibold.text-gray-700= invoice.invoice_number
                     %span.text-xs.text-gray-500.ml-3
                       ✓ Pagada el
-                      = purchase.paid_at.to_date.strftime("%d/%m/%Y")
+                      = invoice.paid_at.to_date.strftime("%d/%m/%Y")
                   
                   %span.text-sm.font-medium.text-gray-600
-                    = purchase.currency
-                    = number_ar(purchase.amount)
+                    = invoice.currency
+                    = number_ar(invoice.amount)
 
     -# Columna Derecha (1/3)
     .lg:col-span-1
@@ -124,12 +124,28 @@
         .space-y-4
           .text-center.pb-4.border-b.border-gray-200
             %p.text-sm.text-gray-500.mb-1 Facturas Pendientes
-            %p.text-3xl.font-bold.text-gray-900= @pending_purchases.count
+            %p.text-3xl.font-bold.text-gray-900= @pending_invoices.count
 
-          .text-center
-            %p.text-sm.text-gray-500.mb-1 Total Adeudado
+          .text-center.pb-4.border-b.border-gray-200
+            %p.text-sm.text-gray-500.mb-1 Total Facturas
             %p.text-2xl.font-bold.text-red-600
               = currency_ar_int(@supplier.total_pending_amount)
+
+          - if @supplier.credit_notes.any?
+            .text-center.pb-4.border-b.border-gray-200
+              %p.text-sm.text-gray-500.mb-1 Notas de Crédito
+              %p.text-2xl.font-bold.text-green-600
+                = "- #{currency_ar_int(@supplier.total_credit_notes_amount)}"
+              %p.text-xs.text-gray-500.mt-1
+                = "#{@supplier.credit_notes_count} #{@supplier.credit_notes_count == 1 ? 'nota' : 'notas'}"
+
+          .text-center
+            %p.text-sm.text-gray-500.mb-1 Balance Neto
+            - balance = @supplier.current_balance
+            %p.text-2xl.font-bold{ class: balance >= 0 ? 'text-amber-600' : 'text-green-600' }
+              = currency_ar_int(balance.abs)
+              - if balance < 0
+                %span.text-sm.font-normal (a favor)
 
         .border-t.border-gray-200.pt-4.mt-4
           %p.text-xs.text-gray-500.text-center Valores aproximados en ARS

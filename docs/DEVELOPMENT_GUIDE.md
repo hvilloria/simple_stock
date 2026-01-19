@@ -77,7 +77,7 @@ app/
       orders_controller.rb
       customers_controller.rb
       payments_controller.rb
-      purchases_controller.rb
+      invoices_controller.rb
       stock_movements_controller.rb
 
   models/                         # Active Record models
@@ -87,8 +87,8 @@ app/
     stock_movement.rb
     customer.rb
     payment.rb
-    purchase.rb
-    purchase_item.rb
+    invoice.rb                    # Factura de proveedor
+    invoice_item.rb
     supplier.rb
     exchange_rate.rb
     user.rb
@@ -129,7 +129,7 @@ app/
       orders/
       customers/
       payments/
-      purchases/
+      invoices/
       stock_movements/
 
   javascript/
@@ -170,8 +170,8 @@ spec/                            # o test/ si usás Minitest
 - `Payment` - Pagos de cuenta corriente
 
 **Compras:**
-- `Purchase` - Compras de mercadería (USD o ARS)
-- `PurchaseItem` - Items de cada compra
+- `Invoice` - Facturas de proveedores (USD o ARS)
+- `InvoiceItem` - Items de cada factura
 - `Supplier` - Proveedores
 
 **Usuarios:**
@@ -354,7 +354,7 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 - Si error de carga: borrar el pago
 - No se modela anulación formal en V1
 
-### 3.6 Compras / Purchases
+### 3.6 Compras / Invoices
 
 **Tipos de moneda:**
 
@@ -373,7 +373,7 @@ saldo = SUM(ventas_activas_a_credito.total) - SUM(pagos.amount)
 - `status`: 'confirmed' o 'cancelled'
 
 **Al confirmar compra:**
-1. Crear purchase y purchase_items
+1. Crear invoice y invoice_items
 2. Crear movimientos de stock POSITIVOS
 3. **Recalcular costo promedio** de cada producto
 
@@ -433,12 +433,12 @@ Antes, `reference` era un string como `"ORDER-123"`. Esto no permitía queries e
 
 ```ruby
 # StockMovement ahora tiene:
-t.string :reference_type   # 'Order', 'Purchase', NULL
+t.string :reference_type   # 'Order', 'Invoice', NULL
 t.integer :reference_id    # 123, 456, NULL
 ```
 
 **Ventajas:**
-1. Trazabilidad completa: `movement.reference` devuelve el objeto Order o Purchase
+1. Trazabilidad completa: `movement.reference` devuelve el objeto Order o Invoice
 2. Queries eficientes: `order.stock_movements` funciona automáticamente
 3. Integridad referencial
 
@@ -453,13 +453,13 @@ StockMovement.create!(
 
 # Consultas
 order.stock_movements         # Todos los movements de esta orden
-purchase.stock_movements      # Todos los movements de esta compra
-movement.reference           # Devuelve Order o Purchase
+invoice.stock_movements       # Todos los movements de esta compra
+movement.reference            # Devuelve Order o Invoice
 ```
 
 **Casos de uso:**
 - **Ventas**: `reference` apunta a Order
-- **Compras**: `reference` apunta a Purchase
+- **Compras**: `reference` apunta a Invoice
 - **Ajustes manuales**: `reference` es NULL
 
 ---
@@ -516,7 +516,7 @@ end
 1. Confirmar una compra nueva
    ```ruby
    # En Purchasing::CreatePurchase
-   @purchase.purchase_items.each do |item|
+   @invoice.invoice_items.each do |item|
      item.product.recalculate_average_cost!
    end
    ```
@@ -524,7 +524,7 @@ end
 2. Anular una compra existente
    ```ruby
    # En Purchasing::CancelPurchase
-   @purchase.purchase_items.each do |item|
+   @invoice.invoice_items.each do |item|
      item.product.recalculate_average_cost!
    end
    ```
@@ -713,27 +713,27 @@ redirect_to @order, notice: "Venta registrada exitosamente"
 
 ---
 
-### 6.1.1. Testing de Services de Purchase
+### 6.1.1. Testing de Services de Invoice
 
 **Casos críticos a testear:**
 
 ```ruby
 RSpec.describe Purchasing::CreatePurchase do
   # 1. Creación exitosa
-  it 'creates purchase and increases stock'
+  it 'creates invoice and increases stock'
   
   # 2. Actualización de costo promedio
-  it 'recalculates product average cost after purchase'
+  it 'recalculates product average cost after invoice'
   
   # 3. Múltiples compras
-  it 'calculates weighted average from multiple purchases'
+  it 'calculates weighted average from multiple invoices'
   
   # 4. Validaciones
-  it 'requires exchange_rate for USD purchases'
+  it 'requires exchange_rate for USD invoices'
   it 'validates currency is USD or ARS'
   
   # 5. Reference polimórfico
-  it 'creates stock movements with purchase reference'
+  it 'creates stock movements with invoice reference'
 end
 ```
 

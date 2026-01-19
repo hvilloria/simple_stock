@@ -10,9 +10,40 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_01_14_235113) do
+ActiveRecord::Schema[7.2].define(version: 2026_01_19_134720) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "credit_note_items", force: :cascade do |t|
+    t.bigint "credit_note_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "quantity", null: false
+    t.decimal "unit_price", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credit_note_id"], name: "index_credit_note_items_on_credit_note_id"
+    t.index ["product_id"], name: "index_credit_note_items_on_product_id"
+  end
+
+  create_table "credit_notes", force: :cascade do |t|
+    t.bigint "supplier_id", null: false
+    t.bigint "invoice_id"
+    t.string "credit_note_number", null: false
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.string "currency", default: "ARS", null: false
+    t.decimal "exchange_rate", precision: 10, scale: 4
+    t.date "issue_date", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "status", default: "pending", null: false
+    t.date "applied_at"
+    t.index ["credit_note_number"], name: "index_credit_notes_on_credit_note_number", unique: true
+    t.index ["invoice_id"], name: "index_credit_notes_on_invoice_id"
+    t.index ["status"], name: "index_credit_notes_on_status"
+    t.index ["supplier_id", "issue_date"], name: "index_credit_notes_on_supplier_id_and_issue_date"
+    t.index ["supplier_id"], name: "index_credit_notes_on_supplier_id"
+  end
 
   create_table "customers", force: :cascade do |t|
     t.string "name", null: false
@@ -23,6 +54,40 @@ ActiveRecord::Schema[7.2].define(version: 2026_01_14_235113) do
     t.boolean "has_credit_account", default: false, null: false
     t.string "customer_type", default: "retail", null: false
     t.index ["document"], name: "index_customers_on_document"
+  end
+
+  create_table "invoice_items", force: :cascade do |t|
+    t.bigint "invoice_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "quantity", null: false
+    t.decimal "unit_cost", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["invoice_id"], name: "index_invoice_items_on_invoice_id"
+    t.index ["product_id"], name: "index_invoice_items_on_product_id"
+  end
+
+  create_table "invoices", force: :cascade do |t|
+    t.bigint "supplier_id", null: false
+    t.string "currency", default: "USD", null: false
+    t.decimal "exchange_rate", precision: 10, scale: 4
+    t.date "purchase_date", null: false
+    t.string "status", default: "confirmed", null: false
+    t.decimal "total_cost", precision: 10, scale: 2
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "invoice_number"
+    t.date "due_date"
+    t.datetime "paid_at"
+    t.boolean "has_items", default: false, null: false
+    t.decimal "amount", precision: 10, scale: 2
+    t.index ["due_date"], name: "index_invoices_on_due_date"
+    t.index ["has_items"], name: "index_invoices_on_has_items"
+    t.index ["invoice_number"], name: "index_invoices_on_invoice_number"
+    t.index ["paid_at"], name: "index_invoices_on_paid_at"
+    t.index ["purchase_date"], name: "index_invoices_on_purchase_date"
+    t.index ["supplier_id"], name: "index_invoices_on_supplier_id"
   end
 
   create_table "order_items", force: :cascade do |t|
@@ -87,40 +152,6 @@ ActiveRecord::Schema[7.2].define(version: 2026_01_14_235113) do
     t.index ["sku"], name: "index_products_on_sku"
   end
 
-  create_table "purchase_items", force: :cascade do |t|
-    t.bigint "purchase_id", null: false
-    t.bigint "product_id", null: false
-    t.integer "quantity", null: false
-    t.decimal "unit_cost", precision: 10, scale: 2, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["product_id"], name: "index_purchase_items_on_product_id"
-    t.index ["purchase_id"], name: "index_purchase_items_on_purchase_id"
-  end
-
-  create_table "purchases", force: :cascade do |t|
-    t.bigint "supplier_id", null: false
-    t.string "currency", default: "USD", null: false
-    t.decimal "exchange_rate", precision: 10, scale: 4
-    t.date "purchase_date", null: false
-    t.string "status", default: "confirmed", null: false
-    t.decimal "total_cost", precision: 10, scale: 2
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "invoice_number"
-    t.date "due_date"
-    t.datetime "paid_at"
-    t.boolean "has_items", default: false, null: false
-    t.decimal "amount", precision: 10, scale: 2
-    t.index ["due_date"], name: "index_purchases_on_due_date"
-    t.index ["has_items"], name: "index_purchases_on_has_items"
-    t.index ["invoice_number"], name: "index_purchases_on_invoice_number"
-    t.index ["paid_at"], name: "index_purchases_on_paid_at"
-    t.index ["purchase_date"], name: "index_purchases_on_purchase_date"
-    t.index ["supplier_id"], name: "index_purchases_on_supplier_id"
-  end
-
   create_table "stock_locations", force: :cascade do |t|
     t.string "name", null: false
     t.string "code"
@@ -174,13 +205,17 @@ ActiveRecord::Schema[7.2].define(version: 2026_01_14_235113) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  add_foreign_key "credit_note_items", "credit_notes"
+  add_foreign_key "credit_note_items", "products"
+  add_foreign_key "credit_notes", "invoices"
+  add_foreign_key "credit_notes", "suppliers"
+  add_foreign_key "invoice_items", "invoices"
+  add_foreign_key "invoice_items", "products"
+  add_foreign_key "invoices", "suppliers"
   add_foreign_key "order_items", "orders"
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "customers"
   add_foreign_key "payments", "customers"
-  add_foreign_key "purchase_items", "products"
-  add_foreign_key "purchase_items", "purchases"
-  add_foreign_key "purchases", "suppliers"
   add_foreign_key "stock_movements", "products"
   add_foreign_key "stock_movements", "stock_locations"
 end

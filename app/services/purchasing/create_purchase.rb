@@ -26,12 +26,12 @@ module Purchasing
       validate_params
 
       ActiveRecord::Base.transaction do
-        create_purchase
-        create_purchase_items
+        create_invoice
+        create_invoice_items
         create_stock_movements
         recalculate_product_costs
 
-        Result.new(success?: true, record: @purchase, errors: [])
+        Result.new(success?: true, record: @invoice, errors: [])
       end
     rescue ValidationError => e
       Result.new(success?: false, record: nil, errors: [ e.message ])
@@ -53,7 +53,7 @@ module Purchasing
 
       # Si es USD, exchange_rate es obligatorio
       if @currency == "USD" && (@exchange_rate.nil? || @exchange_rate <= 0)
-        raise ValidationError, "Exchange rate required for USD purchases"
+        raise ValidationError, "Exchange rate required for USD invoices"
       end
 
       # Validar supplier
@@ -78,8 +78,8 @@ module Purchasing
       end
     end
 
-    def create_purchase
-      @purchase = Purchase.create!(
+    def create_invoice
+      @invoice = Invoice.create!(
         supplier: @supplier,
         currency: @currency,
         exchange_rate: @exchange_rate,
@@ -97,10 +97,10 @@ module Purchasing
       end
     end
 
-    def create_purchase_items
+    def create_invoice_items
       @items.each do |item|
         product = Product.find(item[:product_id])
-        @purchase.purchase_items.create!(
+        @invoice.invoice_items.create!(
           product: product,
           quantity: item[:quantity].to_i,
           unit_cost: item[:unit_cost].to_f
@@ -111,14 +111,14 @@ module Purchasing
     def create_stock_movements
       stock_location = StockLocation.first!
 
-      @purchase.purchase_items.each do |purchase_item|
+      @invoice.invoice_items.each do |invoice_item|
         result = Inventory::AdjustStock.call(
-          product: purchase_item.product,
+          product: invoice_item.product,
           stock_location: stock_location,
           movement_type: "purchase",
-          quantity: purchase_item.quantity, # POSITIVO (entrada)
-          reference: @purchase, # Polimórfico
-          note: "Purchase ##{@purchase.id}"
+          quantity: invoice_item.quantity, # POSITIVO (entrada)
+          reference: @invoice, # Polimórfico
+          note: "Invoice ##{@invoice.id}"
         )
 
         raise ValidationError, result.errors.join(", ") if result.failure?
@@ -126,7 +126,7 @@ module Purchasing
     end
 
     def recalculate_product_costs
-      @purchase.purchase_items.each do |item|
+      @invoice.invoice_items.each do |item|
         item.product.recalculate_average_cost!
       end
     end

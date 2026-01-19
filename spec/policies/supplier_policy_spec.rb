@@ -24,16 +24,16 @@ RSpec.describe SupplierPolicy do
       expect(subject.update?).to be true
     end
 
-    context "when supplier has no purchases" do
-      before { allow(supplier).to receive_message_chain(:purchases, :none?).and_return(true) }
+    context "when supplier has no invoices" do
+      before { allow(supplier).to receive_message_chain(:invoices, :none?).and_return(true) }
 
       it "permits destroy" do
         expect(subject.destroy?).to be true
       end
     end
 
-    context "when supplier has purchases" do
-      before { allow(supplier).to receive_message_chain(:purchases, :none?).and_return(false) }
+    context "when supplier has invoices" do
+      before { allow(supplier).to receive_message_chain(:invoices, :none?).and_return(false) }
 
       it "forbids destroy" do
         expect(subject.destroy?).to be false

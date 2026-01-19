@@ -109,27 +109,27 @@ class Product < ApplicationRecord
 
   # Recalcula el costo promedio ponderado basado en TODAS las compras confirmadas
   # Convierte todo a USD para uniformidad en el cálculo
-  # Se llama automáticamente desde Purchasing::CreatePurchase y Purchasing::CancelPurchase
+  # Se llama automáticamente desde Purchasing::CreateInvoice y Purchasing::CancelInvoice
   def recalculate_average_cost!
     # Obtener TODAS las compras confirmadas de este producto
-    purchase_items = PurchaseItem.joins(:purchase)
-                                  .where(product: self)
-                                  .where(purchases: { status: "confirmed" })
+    invoice_items = InvoiceItem.joins(:invoice)
+                                .where(product: self)
+                                .where(invoices: { status: "confirmed" })
 
-    return if purchase_items.empty?
+    return if invoice_items.empty?
 
     # Calcular costo promedio ponderado en USD
     # (convertir todo a USD para uniformidad)
     total_cost_usd = 0.0
     total_quantity = 0
 
-    purchase_items.find_each do |item|
-      if item.purchase.currency == "USD"
+    invoice_items.find_each do |item|
+      if item.invoice.currency == "USD"
         total_cost_usd += item.unit_cost * item.quantity
       else
         # Si es ARS, convertir a USD usando el exchange_rate inverso
         # (esto es aproximado, en producción se podría mejorar)
-        cost_in_usd = item.unit_cost / (item.purchase.exchange_rate || 1200)
+        cost_in_usd = item.unit_cost / (item.invoice.exchange_rate || 1200)
         total_cost_usd += cost_in_usd * item.quantity
       end
 

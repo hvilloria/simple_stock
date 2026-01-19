@@ -56,7 +56,7 @@ module Inventory
       note_value = @note
 
       if @reference.is_a?(String)
-        Rails.logger.warn("DEPRECATION WARNING: Passing string to Inventory::AdjustStock reference is deprecated. Pass Order/Purchase object or nil instead.")
+        Rails.logger.warn("DEPRECATION WARNING: Passing string to Inventory::AdjustStock reference is deprecated. Pass Order/Invoice object or nil instead.")
         # Move string reference to note
         note_value = note_value.present? ? "#{note_value} [Ref: #{@reference}]" : "[Ref: #{@reference}]"
         reference_value = nil

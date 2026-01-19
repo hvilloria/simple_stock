@@ -11,8 +11,8 @@ module Web
 
     def show
       authorize @supplier
-      @pending_purchases = @supplier.purchases.simple_mode.pending_payment.order(due_date: :asc)
-      @paid_purchases = @supplier.purchases.simple_mode.paid_purchases.order(paid_at: :desc).limit(10)
+      @pending_invoices = @supplier.invoices.simple_mode.pending_payment.order(due_date: :asc)
+      @paid_invoices = @supplier.invoices.simple_mode.paid_invoices.order(paid_at: :desc).limit(10)
     end
 
     def new

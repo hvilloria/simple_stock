@@ -7,7 +7,7 @@ RSpec.describe Purchasing::CancelPurchase do
   let(:product) { create(:product, current_stock: 0, cost_unit: 0, cost_currency: "USD") }
   let!(:stock_location) { create(:stock_location) }
 
-  let!(:purchase) do
+  let!(:invoice) do
     result = Purchasing::CreatePurchase.call(
       supplier: supplier,
       items: [ { product_id: product.id, quantity: 50, unit_cost: 30 } ],
@@ -18,8 +18,8 @@ RSpec.describe Purchasing::CancelPurchase do
   end
 
   describe ".call" do
-    it "cancels purchase successfully" do
-      result = described_class.call(purchase: purchase)
+    it "cancels invoice successfully" do
+      result = described_class.call(invoice: invoice)
 
       expect(result.success?).to be true
       expect(result.record.status).to eq("cancelled")
@@ -29,7 +29,7 @@ RSpec.describe Purchasing::CancelPurchase do
       # Purchase aumentó stock en 50
       expect(product.reload.current_stock).to eq(50)
 
-      described_class.call(purchase: purchase)
+      described_class.call(invoice: invoice)
 
       # Después de cancelar, vuelve a 0
       expect(product.reload.current_stock).to eq(0)
@@ -37,7 +37,7 @@ RSpec.describe Purchasing::CancelPurchase do
 
     it "creates reverse stock movements" do
       expect do
-        described_class.call(purchase: purchase)
+        described_class.call(invoice: invoice)
       end.to change(StockMovement, :count).by(1)
 
       reverse_movement = StockMovement.last
@@ -46,12 +46,12 @@ RSpec.describe Purchasing::CancelPurchase do
     end
 
     it "creates reverse stock movements with polymorphic reference" do
-      described_class.call(purchase: purchase)
+      described_class.call(invoice: invoice)
 
       reverse_movement = StockMovement.last
-      expect(reverse_movement.reference).to eq(purchase)
-      expect(reverse_movement.reference_type).to eq("Purchase")
-      expect(reverse_movement.reference_id).to eq(purchase.id)
+      expect(reverse_movement.reference).to eq(invoice)
+      expect(reverse_movement.reference_type).to eq("Invoice")
+      expect(reverse_movement.reference_id).to eq(invoice.id)
     end
 
     it "recalculates product costs" do
@@ -67,16 +67,16 @@ RSpec.describe Purchasing::CancelPurchase do
       expect(product.reload.cost_unit.to_f).to eq(35.0)
 
       # Cancelar la primera compra
-      described_class.call(purchase: purchase)
+      described_class.call(invoice: invoice)
 
       # Costo ahora solo refleja la segunda compra: 40
       expect(product.reload.cost_unit.to_f).to eq(40.0)
     end
 
     it "fails if already cancelled" do
-      described_class.call(purchase: purchase)
+      described_class.call(invoice: invoice)
 
-      result = described_class.call(purchase: purchase)
+      result = described_class.call(invoice: invoice)
 
       expect(result.success?).to be false
       expect(result.errors).to include(/already cancelled/)
@@ -85,7 +85,7 @@ RSpec.describe Purchasing::CancelPurchase do
     context "with multiple items" do
       let(:product_a) { create(:product, current_stock: 0, cost_unit: 0, cost_currency: "USD") }
       let(:product_b) { create(:product, current_stock: 0, cost_unit: 0, cost_currency: "USD") }
-      let!(:multi_purchase) do
+      let!(:multi_invoice) do
         result = Purchasing::CreatePurchase.call(
           supplier: supplier,
           items: [
@@ -102,7 +102,7 @@ RSpec.describe Purchasing::CancelPurchase do
         expect(product_a.reload.current_stock).to eq(50)
         expect(product_b.reload.current_stock).to eq(20)
 
-        described_class.call(purchase: multi_purchase)
+        described_class.call(invoice: multi_invoice)
 
         expect(product_a.reload.current_stock).to eq(0)
         expect(product_b.reload.current_stock).to eq(0)
@@ -110,7 +110,7 @@ RSpec.describe Purchasing::CancelPurchase do
 
       it "creates reverse movements for all items" do
         expect do
-          described_class.call(purchase: multi_purchase)
+          described_class.call(invoice: multi_invoice)
         end.to change(StockMovement, :count).by(2)
       end
 
@@ -119,11 +119,11 @@ RSpec.describe Purchasing::CancelPurchase do
         expect(product_a.reload.cost_unit.to_f).to eq(30.0)
         expect(product_b.reload.cost_unit.to_f).to eq(45.0)
 
-        described_class.call(purchase: multi_purchase)
+        described_class.call(invoice: multi_invoice)
 
         # Después de cancelar, recalculate_average_cost! se ejecuta
         # pero como no hay compras confirmadas, mantiene el costo anterior
-        # (el método hace return si purchase_items.empty?)
+        # (el método hace return si invoice_items.empty?)
         # En un escenario real, podríamos querer resetear a 0, pero por ahora
         # el comportamiento es mantener el costo
         expect(product_a.reload.cost_unit.to_f).to eq(30.0)
@@ -132,29 +132,29 @@ RSpec.describe Purchasing::CancelPurchase do
     end
 
     context "when transaction fails" do
-      it "does not cancel purchase" do
-        allow_any_instance_of(Purchase).to receive(:update!).and_raise(StandardError, "DB error")
+      it "does not cancel invoice" do
+        allow_any_instance_of(Invoice).to receive(:update!).and_raise(StandardError, "DB error")
 
-        result = described_class.call(purchase: purchase)
+        result = described_class.call(invoice: invoice)
 
         expect(result.success?).to be false
-        expect(purchase.reload.status).to eq("confirmed")
+        expect(invoice.reload.status).to eq("confirmed")
       end
 
       it "does not create reverse stock movements" do
-        allow_any_instance_of(Purchase).to receive(:update!).and_raise(StandardError, "DB error")
+        allow_any_instance_of(Invoice).to receive(:update!).and_raise(StandardError, "DB error")
 
         expect do
-          described_class.call(purchase: purchase)
+          described_class.call(invoice: invoice)
         end.not_to change(StockMovement, :count)
       end
 
       it "does not modify product stock" do
         initial_stock = product.reload.current_stock
 
-        allow_any_instance_of(Purchase).to receive(:update!).and_raise(StandardError, "DB error")
+        allow_any_instance_of(Invoice).to receive(:update!).and_raise(StandardError, "DB error")
 
-        described_class.call(purchase: purchase)
+        described_class.call(invoice: invoice)
 
         expect(product.reload.current_stock).to eq(initial_stock)
       end

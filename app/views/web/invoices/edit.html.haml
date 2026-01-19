@@ -1,0 +1,99 @@
+- content_for :page_title, "Editar Factura #{@invoice.invoice_number}"
+
+.container.mx-auto.px-6.py-6.max-w-2xl
+
+  -# Header
+  .flex.items-center.gap-4.mb-6
+    = link_to web_invoice_path(@invoice), class: "text-gray-600 hover:text-gray-900" do
+      %span.text-xl ←
+    %h1.text-3xl.font-bold.text-gray-900
+      Editar Factura
+      = @invoice.invoice_number
+
+  = form_with model: @invoice, url: web_invoice_path(@invoice), method: :patch, local: true, class: "space-y-6", data: { controller: "purchase-form", action: "turbo:submit-start->purchase-form#handleFormSubmit" } do |f|
+    
+    -# Errores
+    - if @invoice.errors.any?
+      .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6
+        %h4.font-semibold.text-red-800.mb-2 
+          = pluralize(@invoice.errors.count, "error") 
+          impidió actualizar la factura:
+        %ul.list-disc.list-inside.text-sm.text-red-700
+          - @invoice.errors.full_messages.each do |message|
+            %li= message
+
+    -# Card Información de la Factura
+    .bg-white.border.border-slate-200.rounded-lg.p-6
+      %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Factura
+
+      .space-y-4
+        -# Proveedor
+        %div
+          = f.label :supplier_id, "Proveedor", class: "block text-sm font-medium text-gray-700 mb-2"
+          = f.collection_select :supplier_id, 
+                                @suppliers, 
+                                :id, 
+                                :name,
+                                { prompt: "Seleccionar proveedor" },
+                                class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                                required: true
+
+        -# Número de Factura
+        %div
+          = f.label :invoice_number, "Número de Factura", class: "block text-sm font-medium text-gray-700 mb-2"
+          = f.text_field :invoice_number,
+                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                        required: true
+
+        -# Monto
+        %div
+          = f.label :amount, "Monto Total", class: "block text-sm font-medium text-gray-700 mb-2"
+          = f.text_field :amount,
+                        value: number_with_precision(@invoice.amount, precision: 2, delimiter: '.', separator: ','),
+                        placeholder: "0,00",
+                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold",
+                        required: true,
+                        data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
+
+        -# Moneda (readonly - no se puede cambiar)
+        %div
+          = f.label :currency, "Moneda", class: "block text-sm font-medium text-gray-700 mb-2"
+          .px-4.py-3.bg-gray-100.border.border-gray-300.rounded-xl.text-gray-700.font-medium
+            = @invoice.currency
+          %p.text-xs.text-gray-500.mt-1 La moneda no se puede cambiar
+
+        - if @invoice.currency == "USD"
+          %div
+            = f.label :exchange_rate, "Tipo de Cambio", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.text_field :exchange_rate,
+                          value: number_with_precision(@invoice.exchange_rate, precision: 2, delimiter: '.', separator: ','),
+                          placeholder: "0,00",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                          required: true,
+                          data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
+
+        -# Fecha de Factura
+        %div
+          = f.label :purchase_date, "Fecha de Factura", class: "block text-sm font-medium text-gray-700 mb-2"
+          = f.date_field :purchase_date,
+                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                        required: true
+
+        -# Fecha de Vencimiento
+        %div
+          = f.label :due_date, "Fecha de Vencimiento", class: "block text-sm font-medium text-gray-700 mb-2"
+          = f.date_field :due_date,
+                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                        required: true
+
+        -# Notas
+        %div
+          = f.label :notes, "Notas (Opcional)", class: "block text-sm font-medium text-gray-700 mb-2"
+          = f.text_area :notes,
+                       rows: 3,
+                       class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
+
+    -# Botones
+    .flex.items-center.gap-4
+      = f.submit "Actualizar Factura", class: "px-6 py-3 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg transition-colors"
+      = link_to "Cancelar", web_invoice_path(@invoice), class: "px-6 py-3 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"

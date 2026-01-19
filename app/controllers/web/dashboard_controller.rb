@@ -6,7 +6,7 @@ module Web
       @sales_today = calculate_sales_today
       @low_stock_count = Product.with_low_stock.count
       @total_receivable = calculate_total_receivable
-      @purchases_this_month = calculate_purchases_this_month
+      @invoices_this_month = calculate_invoices_this_month
 
       # Datos para secciones secundarias
       @recent_orders = Order.confirmed_status
@@ -31,10 +31,10 @@ module Web
       Customer.with_credit_account.sum(&:current_balance)
     end
 
-    def calculate_purchases_this_month
-      return 0 unless defined?(Purchase)
+    def calculate_invoices_this_month
+      return 0 unless defined?(Invoice)
 
-      Purchase.where(status: "confirmed")
+      Invoice.where(status: "confirmed")
               .where(purchase_date: Date.today.beginning_of_month..Date.today.end_of_month)
               .sum(:total_cost)
     end

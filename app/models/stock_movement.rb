@@ -15,7 +15,7 @@ class StockMovement < ApplicationRecord
   validates :quantity, presence: true
   validates :movement_type, presence: true
   validates :stock_location, presence: true
-  validates :reference_type, inclusion: { in: %w[Order Purchase] }, if: -> { reference_id.present? }
+  validates :reference_type, inclusion: { in: %w[Order Invoice] }, if: -> { reference_id.present? }
 
   def inbound?
     quantity.positive?

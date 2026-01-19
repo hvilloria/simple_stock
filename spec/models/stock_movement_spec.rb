@@ -17,13 +17,13 @@ RSpec.describe StockMovement, type: :model do
     it { is_expected.to validate_presence_of(:stock_location) }
 
     context "when reference_id is present" do
-      it "validates reference_type is Order or Purchase" do
+      it "validates reference_type is Order or Invoice" do
         order = create(:order)
         movement = build(:stock_movement, reference_id: order.id, reference_type: "Order")
         expect(movement).to be_valid
 
-        purchase = create(:purchase)
-        movement = build(:stock_movement, reference_id: purchase.id, reference_type: "Purchase")
+        purchase = create(:invoice)
+        movement = build(:stock_movement, reference_id: purchase.id, reference_type: "Invoice")
         expect(movement).to be_valid
 
         movement = build(:stock_movement, reference_id: 1, reference_type: "InvalidType")
@@ -50,12 +50,12 @@ RSpec.describe StockMovement, type: :model do
       expect(movement.reference_id).to eq(order.id)
     end
 
-    it "can associate with a Purchase" do
-      purchase = create(:purchase)
+    it "can associate with an Invoice" do
+      purchase = create(:invoice)
       movement = create(:stock_movement, reference: purchase)
 
       expect(movement.reference).to eq(purchase)
-      expect(movement.reference_type).to eq("Purchase")
+      expect(movement.reference_type).to eq("Invoice")
       expect(movement.reference_id).to eq(purchase.id)
     end
 

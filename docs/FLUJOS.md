@@ -222,8 +222,8 @@ Flujo cuando llega mercadería importada (por ejemplo desde USA, China, Taiwán,
 Flujo detallado de uso de la interfaz web para registrar una compra de mercadería.
 
 **Acceso:**
-* Navegación: `Compras → Nueva Compra`
-* URL: `/web/purchases/new`
+* Navegación: `Facturas → Nueva Factura`
+* URL: `/web/invoices/new`
 
 **Paso 1: Información de la compra**
 
@@ -308,9 +308,9 @@ El panel derecho (sticky) muestra:
      * Si moneda es USD, tenga tipo de cambio válido
      * Proveedor esté seleccionado
 
-4. **Al confirmar (click en "Registrar Compra"):**
+4. **Al confirmar (click en "Registrar Factura"):**
 
-   El sistema ejecuta (vía `Purchasing::CreatePurchase`):
+   El sistema ejecuta (vía `Purchasing::CreatePurchase` o `Invoices::CreateSimpleInvoice`):
 
    * **Validaciones:**
      * Proveedor existe
@@ -320,7 +320,7 @@ El panel derecho (sticky) muestra:
      * TC es > 0 si moneda es USD
 
    * **Si validaciones OK:**
-     * Crea registro `Purchase` con:
+     * Crea registro `Invoice` con:
        - Proveedor
        - Moneda (USD o ARS)
        - Tipo de cambio (si USD)
@@ -329,7 +329,7 @@ El panel derecho (sticky) muestra:
        - Notas
        - Status: 'confirmed'
      
-     * Crea `PurchaseItem` por cada producto con:
+     * Crea `InvoiceItem` por cada producto con:
        - Producto
        - Cantidad
        - Costo unitario (en la moneda de la compra)
@@ -1005,7 +1005,7 @@ Posibles mejoras para V2:
 
 ### Contexto
 
-El modelo Purchase soporta dos modos de operación según el flag `has_items`:
+El modelo Invoice soporta dos modos de operación según el flag `has_items`:
 
 ### Modo Simple (has_items: false)
 
@@ -1023,7 +1023,7 @@ El modelo Purchase soporta dos modos de operación según el flag `has_items`:
 - `paid_at`: Fecha de pago (cuando se marca como pagada)
 
 **Características:**
-- NO tiene `purchase_items` asociados
+- NO tiene `invoice_items` asociados
 - NO genera `stock_movements`
 - NO recalcula costos promedio de productos
 - Se usa para control de cuentas a pagar
@@ -1031,7 +1031,7 @@ El modelo Purchase soporta dos modos de operación según el flag `has_items`:
 
 **Uso:**
 ```ruby
-Purchases::CreateSimplePurchase.call(
+Invoices::CreateSimpleInvoice.call(
   supplier: supplier,
   invoice_number: 'FAC-001',
   amount: 5000,
@@ -1053,10 +1053,10 @@ Purchases::CreateSimplePurchase.call(
 - `exchange_rate`: Tipo de cambio
 - `purchase_date`: Fecha de compra
 - `status`: confirmed/cancelled
-- `purchase_items`: Detalle de productos comprados
+- `invoice_items`: Detalle de productos comprados
 
 **Características:**
-- SÍ tiene `purchase_items` asociados (obligatorio)
+- SÍ tiene `invoice_items` asociados (obligatorio)
 - SÍ genera `stock_movements` de entrada
 - SÍ recalcula costos promedio ponderado
 - Se usa para gestión de inventario
@@ -1093,11 +1093,11 @@ Purchasing::CreatePurchase.call(
 
 Cuando se tenga el inventario completo, se puede:
 
-1. Crear Purchase en modo completo (has_items: true)
+1. Crear Invoice en modo completo (has_items: true)
 2. Opcionalmente vincular con factura en modo simple existente
 3. El modo simple queda para facturas históricas o sin detalle
 
-### Estados de Purchase
+### Estados de Invoice
 
 **Para Modo Simple:**
 - `pending`: Factura pendiente de pago
@@ -1109,12 +1109,12 @@ Cuando se tenga el inventario completo, se puede:
 
 ### Marcar Factura como Pagada
 
-Solo aplica a purchases en modo simple:
+Solo aplica a invoices en modo simple:
 
 ```ruby
-purchase = Purchase.find(123)
-Purchases::MarkAsPaid.call(
-  purchase: purchase,
+invoice = Invoice.find(123)
+Invoices::MarkAsPaid.call(
+  invoice: invoice,
   payment_date: Date.today
 )
 ```
@@ -1128,19 +1128,19 @@ Esto:
 
 ```ruby
 # Facturas simples pendientes de pago
-Purchase.simple_mode.pending_payment
+Invoice.simple_mode.pending_payment
 
 # Facturas vencidas
-Purchase.overdue
+Invoice.overdue
 
 # Facturas con vencimiento próximo (7 días)
-Purchase.due_soon
+Invoice.due_soon
 
 # Facturas ya pagadas
-Purchase.paid_purchases
+Invoice.paid_invoices
 
 # Compras completas confirmadas
-Purchase.full_mode.confirmed_status
+Invoice.full_mode.confirmed_status
 ```
 
 ### Ejemplo de Uso Típico - Modo Simple
@@ -1153,7 +1153,7 @@ supplier = Supplier.find_by(name: 'IPC') ||
            Supplier.create!(name: 'IPC', contact_name: 'Juan Pérez')
 
 # 2. Registrar factura
-result = Purchases::CreateSimplePurchase.call(
+result = Invoices::CreateSimpleInvoice.call(
   supplier: supplier,
   invoice_number: 'IPC-2024-001',
   amount: 5000,
@@ -1173,15 +1173,15 @@ else
 end
 
 # 3. Consultar facturas pendientes
-pending = Purchase.simple_mode.pending_payment.order(:due_date)
-pending.each do |purchase|
-  puts "#{purchase.invoice_number} - $#{purchase.amount} - Vence: #{purchase.due_date}"
+pending = Invoice.simple_mode.pending_payment.order(:due_date)
+pending.each do |invoice|
+  puts "#{invoice.invoice_number} - $#{invoice.amount} - Vence: #{invoice.due_date}"
 end
 
 # 4. Al pagar la factura
-purchase = Purchase.find_by(invoice_number: 'IPC-2024-001')
-result = Purchases::MarkAsPaid.call(
-  purchase: purchase,
+invoice = Invoice.find_by(invoice_number: 'IPC-2024-001')
+result = Invoices::MarkAsPaid.call(
+  invoice: invoice,
   payment_date: Date.today
 )
 
@@ -1194,7 +1194,7 @@ end
 
 ### Migración de Datos Existentes
 
-Al ejecutar la migration, todas las compras existentes se marcan automáticamente como `has_items: true` (modo completo), preservando el comportamiento actual del sistema.
+Al ejecutar la migration que renombró `purchases` a `invoices`, todas las compras existentes se marcan automáticamente como `has_items: true` (modo completo), preservando el comportamiento actual del sistema.
 
 ---
 
@@ -1281,7 +1281,7 @@ Solo usuarios **admin** pueden:
 - Retorna el total adeudado en ARS de todas las facturas pendientes
 - Convierte USD a ARS automáticamente
 
-**`pending_purchases_count`**
+**`pending_invoices_count`**
 - Retorna cantidad de facturas pendientes de pago
 
 **`payment_term_display`**
@@ -1303,10 +1303,10 @@ supplier = Supplier.create!(
 # Consultar información
 supplier.payment_term_display  # => "30 días"
 supplier.total_pending_amount   # => 1500000 (ARS)
-supplier.pending_purchases_count # => 3
+supplier.pending_invoices_count # => 3
 
 # Crear factura para este proveedor
-purchase = Purchases::CreateSimplePurchase.call(
+invoice = Invoices::CreateSimpleInvoice.call(
   supplier: supplier,
   invoice_number: "FAC-001",
   amount: 5000,
@@ -1317,9 +1317,228 @@ purchase = Purchases::CreateSimplePurchase.call(
 )
 ```
 
-### Relación con Facturas (Purchases)
+### Relación con Facturas (Invoices)
 
-- Un proveedor puede tener muchas facturas (has_many :purchases)
+- Un proveedor puede tener muchas facturas (has_many :invoices)
 - No se puede eliminar un proveedor si tiene facturas asociadas
 - En la vista show se muestran facturas pendientes y pagadas
 - El total adeudado se calcula sumando facturas pendientes en ARS
+
+---
+
+## 14. Notas de Crédito
+
+### Contexto
+
+Las notas de crédito (CreditNote) son documentos que los proveedores emiten al negocio para acreditar montos por devoluciones, errores de facturación, descuentos retroactivos, o cualquier otro concepto que reduzca el balance adeudado.
+
+### Características Principales
+
+**Reglas de Negocio:**
+
+1. Una NC puede estar asociada a una factura específica (opcional)
+2. Si tiene factura asociada → hereda moneda y tipo de cambio de esa factura automáticamente
+3. Si NO tiene factura asociada → moneda por defecto ARS
+4. Las NC restan automáticamente del balance del proveedor
+5. Las NC se pueden editar después de creadas
+6. Las NC pueden tener productos asociados (opcional, para futuro manejo de inventario)
+7. Solo usuarios admin pueden eliminar notas de crédito
+
+### Modelo de Datos
+
+**Campos de CreditNote:**
+
+- `supplier_id` - Proveedor que emitió la NC (obligatorio)
+- `invoice_id` - Factura relacionada (opcional)
+- `credit_note_number` - Número de la NC (único, obligatorio)
+- `amount` - Monto de la NC (obligatorio, > 0)
+- `currency` - Moneda: USD o ARS (obligatorio, default: ARS)
+- `exchange_rate` - Tipo de cambio (obligatorio si USD)
+- `issue_date` - Fecha de emisión (obligatorio)
+- `notes` - Notas adicionales (opcional)
+
+**Relaciones:**
+
+- `belongs_to :supplier`
+- `belongs_to :invoice` (opcional)
+- `has_many :credit_note_items` (para futuro)
+- `has_many :products` (through credit_note_items)
+
+### Cálculo de Balance del Proveedor
+
+El balance neto de un proveedor se calcula como:
+
+```
+Balance Neto = Total Facturas Pendientes - Total Notas de Crédito
+```
+
+**Ejemplo:**
+
+```
+Facturas pendientes:
+- FAC-001: $1000 USD × 1200 = $1,200,000 ARS
+- FAC-002: $500,000 ARS
+Total facturas: $1,700,000 ARS
+
+Notas de crédito:
+- NC-001: $200 USD × 1200 = $240,000 ARS
+- NC-002: $100,000 ARS
+Total créditos: $340,000 ARS
+
+Balance neto: $1,700,000 - $340,000 = $1,360,000 ARS
+```
+
+### Métodos del Modelo Supplier
+
+**`total_credit_notes_amount`**
+- Retorna el total de créditos en ARS
+- Convierte USD a ARS automáticamente
+
+**`credit_notes_count`**
+- Retorna cantidad de notas de crédito
+
+**`current_balance`**
+- Retorna el balance neto (facturas - créditos) en ARS
+- Puede ser negativo si los créditos superan las facturas (a favor del negocio)
+
+### Flujo de Uso
+
+#### Crear Nota de Crédito Sin Factura Asociada
+
+**Escenario:** El proveedor IPC envía NC-2024-001 por $100,000 ARS por error de facturación.
+
+```ruby
+supplier = Supplier.find_by(name: "IPC")
+
+credit_note = CreditNote.create!(
+  supplier: supplier,
+  credit_note_number: "NC-2024-001",
+  amount: 100000,
+  currency: "ARS",
+  issue_date: Date.today,
+  notes: "Error de facturación en diciembre"
+)
+```
+
+#### Crear Nota de Crédito Asociada a Factura
+
+**Escenario:** Devolución de mercadería de la factura FAC-001 (USD).
+
+```ruby
+invoice = Invoice.find_by(invoice_number: "FAC-001")
+
+credit_note = CreditNote.new(
+  supplier: invoice.supplier,
+  invoice: invoice,  # Hereda currency y exchange_rate automáticamente
+  credit_note_number: "NC-2024-002",
+  amount: 500,       # $500 USD
+  issue_date: Date.today,
+  notes: "Devolución de 10 filtros defectuosos"
+)
+
+credit_note.save!
+
+# La NC hereda:
+# - currency: "USD"
+# - exchange_rate: (el de la factura)
+```
+
+### Consultas Útiles
+
+```ruby
+# Todas las NCs de un proveedor
+supplier.credit_notes
+
+# Total de créditos
+supplier.total_credit_notes_amount  # En ARS
+
+# Balance neto (facturas - créditos)
+supplier.current_balance  # En ARS
+
+# NCs recientes
+CreditNote.recent.limit(10)
+
+# NCs de un proveedor específico
+CreditNote.for_supplier(supplier)
+
+# Buscar por número
+CreditNote.search_number("NC-2024")
+```
+
+### Vistas del Sistema
+
+**Index (`/web/credit_notes`)**
+- Lista de todas las notas de crédito
+- Filtros: Proveedor, Búsqueda por número
+- Métrica: Crédito total en ARS
+- Tabla con: Fecha, Proveedor, N° NC, Factura ref, Monto
+- Acciones: Ver, Editar
+
+**Show (`/web/credit_notes/:id`)**
+- Detalle completo de la NC
+- Información del proveedor (con link)
+- Información de factura asociada (con link, si existe)
+- Conversión a ARS si es USD
+- Botones: Editar, Eliminar (solo admin), Volver
+
+**New (`/web/credit_notes/new`)**
+- Formulario de creación
+- Si viene con `?invoice_id=X`, pre-carga la factura y hereda sus datos
+- Moneda readonly si tiene factura asociada
+- Tipo de cambio se muestra/oculta según moneda
+
+**Edit (`/web/credit_notes/:id/edit`)**
+- Formulario de edición
+- Todos los campos editables
+
+### Permisos (Pundit)
+
+- **index/show/create/update**: Todos los usuarios autenticados
+- **destroy**: Solo usuarios admin
+
+### Casos de Uso Comunes
+
+#### 1. Devolución de Mercadería
+
+Proveedor acepta devolución de productos defectuosos y emite NC.
+
+1. Usuario accede a la factura original
+2. Click en "Crear Nota de Crédito" (futuro botón)
+3. Sistema pre-carga: proveedor, factura, moneda, TC
+4. Usuario ingresa: N° NC, monto, fecha, motivo
+5. Sistema registra NC y actualiza balance
+
+#### 2. Error de Facturación
+
+Proveedor emitió factura incorrecta y envía NC correctora.
+
+1. Usuario accede a Notas de Crédito → Nueva
+2. Selecciona proveedor
+3. Opcionalmente selecciona factura relacionada
+4. Ingresa datos de la NC
+5. Sistema registra y actualiza balance
+
+#### 3. Descuento Retroactivo
+
+Proveedor otorga descuento por volumen acumulado.
+
+1. Usuario crea NC sin factura asociada
+2. Moneda: ARS (por defecto)
+3. Ingresa monto del descuento
+4. Sistema registra y reduce balance adeudado
+
+### Evolución Futura
+
+**V2 - Gestión de Items:**
+- Permitir agregar productos específicos a las NC
+- Calcular monto automáticamente desde items
+- Trazabilidad: qué productos se devolvieron
+
+**V2 - Stock:**
+- NCs con productos podrían generar StockMovement negativos
+- Integración con inventario para devoluciones
+
+**V2 - Automatización:**
+- Crear NC directamente desde vista de factura
+- Sugerir monto basado en items de la factura
+- Validar que NC no supere monto de factura asociada

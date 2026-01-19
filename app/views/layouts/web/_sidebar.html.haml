@@ -28,9 +28,33 @@
       %span.text-base 👥
       %span Clientes
     
-    = link_to web_purchases_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'purchases' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
-      %span.text-base 📥
-      %span Compras
+    -# Facturación (con submenu desplegable)
+    .nav-group{ data: { controller: "dropdown" } }
+      %button.nav-item.nav-group-toggle{ 
+        type: "button",
+        data: { action: "click->dropdown#toggle" },
+        class: (['invoices', 'credit_notes'].include?(controller_name) ? 'bg-slate-100' : '')
+      }
+        .flex.items-center.justify-between.w-full
+          .flex.items-center.gap-3
+            .nav-icon
+              %span.text-base 📥
+            %span.font-medium.text-slate-900 Facturación
+          .nav-arrow{ data: { dropdown_target: "arrow" } }
+            ▼
+      
+      .nav-submenu.pl-8.border-l-2.border-slate-200.ml-4{ data: { dropdown_target: "menu" } }
+        = link_to web_invoices_path, class: "nav-subitem #{(controller_name == 'invoices' && action_name != 'pending') ? 'active' : ''}" do
+          %span.text-base 📄
+          %span Facturas
+        
+        = link_to web_credit_notes_path, class: "nav-subitem #{controller_name == 'credit_notes' ? 'active' : ''}" do
+          %span.text-base ✓
+          %span Notas de Crédito
+        
+        = link_to pending_web_invoices_path, class: "nav-subitem #{(controller_name == 'invoices' && action_name == 'pending') ? 'active' : ''}" do
+          %span.text-base 💸
+          %span Pagos Pendientes
     
     - if policy(Supplier).index?
       = link_to web_suppliers_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'suppliers' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do

@@ -9,7 +9,7 @@ RSpec.describe Purchasing::CreatePurchase do
   let!(:stock_location) { create(:stock_location) }
 
   describe ".call" do
-    context "with valid USD purchase" do
+    context "with valid USD invoice" do
       let(:items) do
         [
           { product_id: product1.id, quantity: 50, unit_cost: 30.0 },
@@ -17,7 +17,7 @@ RSpec.describe Purchasing::CreatePurchase do
         ]
       end
 
-      it "creates purchase successfully" do
+      it "creates invoice successfully" do
         result = described_class.call(
           supplier: supplier,
           items: items,
@@ -26,12 +26,12 @@ RSpec.describe Purchasing::CreatePurchase do
         )
 
         expect(result.success?).to be true
-        expect(result.record).to be_a(Purchase)
+        expect(result.record).to be_a(Invoice)
         expect(result.record.currency).to eq("USD")
         expect(result.record.exchange_rate).to eq(1200)
       end
 
-      it "creates purchase items" do
+      it "creates invoice items" do
         result = described_class.call(
           supplier: supplier,
           items: items,
@@ -39,7 +39,7 @@ RSpec.describe Purchasing::CreatePurchase do
           exchange_rate: 1200
         )
 
-        expect(result.record.purchase_items.count).to eq(2)
+        expect(result.record.invoice_items.count).to eq(2)
       end
 
       it "increases product stock" do
@@ -105,13 +105,13 @@ RSpec.describe Purchasing::CreatePurchase do
 
         movement = StockMovement.last
         expect(movement.reference).to eq(result.record)
-        expect(movement.reference_type).to eq("Purchase")
+        expect(movement.reference_type).to eq("Invoice")
         expect(movement.reference_id).to eq(result.record.id)
       end
     end
 
-    context "with ARS purchase" do
-      it "creates purchase without exchange_rate" do
+    context "with ARS invoice" do
+      it "creates invoice without exchange_rate" do
         result = described_class.call(
           supplier: supplier,
           items: [ { product_id: product1.id, quantity: 10, unit_cost: 60000 } ],
@@ -273,8 +273,8 @@ RSpec.describe Purchasing::CreatePurchase do
     end
 
     context "when transaction fails" do
-      it "does not create purchase" do
-        allow_any_instance_of(Purchase).to receive(:save!).and_raise(StandardError, "DB error")
+      it "does not create invoice" do
+        allow_any_instance_of(Invoice).to receive(:save!).and_raise(StandardError, "DB error")
 
         expect do
           described_class.call(
@@ -283,11 +283,11 @@ RSpec.describe Purchasing::CreatePurchase do
             currency: "USD",
             exchange_rate: 1200
           )
-        end.not_to change(Purchase, :count)
+        end.not_to change(Invoice, :count)
       end
 
       it "does not create stock movements" do
-        allow_any_instance_of(Purchase).to receive(:save!).and_raise(StandardError, "DB error")
+        allow_any_instance_of(Invoice).to receive(:save!).and_raise(StandardError, "DB error")
 
         expect do
           described_class.call(
@@ -302,7 +302,7 @@ RSpec.describe Purchasing::CreatePurchase do
       it "does not modify product stock" do
         initial_stock = product1.current_stock
 
-        allow_any_instance_of(Purchase).to receive(:save!).and_raise(StandardError, "DB error")
+        allow_any_instance_of(Invoice).to receive(:save!).and_raise(StandardError, "DB error")
 
         described_class.call(
           supplier: supplier,

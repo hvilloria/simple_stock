@@ -8,6 +8,19 @@ module ApplicationHelper
     end
   end
 
+  # Helper para verificar si el controlador actual coincide con alguno de los nombres dados
+  # Soporta múltiples controladores y acciones opcionales
+  def active_class(*controller_names)
+    controllers = controller_names.flatten.map(&:to_s)
+
+    # Verificar si alguno coincide
+    if controllers.any? { |name| controller_name == name }
+      "active"
+    else
+      ""
+    end
+  end
+
   # Helper para generar links de ordenamiento en tablas
   # Parámetros:
   #   column: nombre de la columna a ordenar
