@@ -177,7 +177,7 @@
     message.textContent = `¿Estás seguro de marcar ${invoicesCount} ${invoicesCount === 1 ? 'factura' : 'facturas'} de ${supplierName} como pagadas?`;
     
     // Actualizar action del form
-    const period = '#{@selected_period}';
+    const period = #{@selected_period.to_json};
     form.action = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
     
     // Mostrar modal con flex

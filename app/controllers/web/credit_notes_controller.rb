@@ -93,27 +93,27 @@ module Web
 
     def mark_as_applied
       authorize @credit_note, :update?
-      
+
       unless @credit_note.pending_status?
-        redirect_to web_credit_note_path(@credit_note), 
+        redirect_to web_credit_note_path(@credit_note),
                     alert: "Esta nota de crédito ya fue aplicada."
         return
       end
-      
+
       if @credit_note.update(status: "applied", applied_at: Date.current)
-        redirect_to web_credit_note_path(@credit_note), 
+        redirect_to web_credit_note_path(@credit_note),
                     notice: "Nota de crédito marcada como aplicada."
       else
-        redirect_to web_credit_note_path(@credit_note), 
+        redirect_to web_credit_note_path(@credit_note),
                     alert: "Error al marcar la nota de crédito."
       end
     end
 
     def supplier_invoices
       authorize CreditNote, :index?
-      
+
       supplier = Supplier.find_by(id: params[:supplier_id])
-      
+
       if supplier
         invoices = supplier.invoices.simple_mode.pending_payment.order(due_date: :asc)
         render json: invoices.map { |inv| { id: inv.id, number: inv.invoice_number, amount: inv.total_amount_ars } }
@@ -132,9 +132,9 @@ module Web
       @suppliers = Supplier.alphabetical
       @invoices = if @credit_note&.supplier
                     @credit_note.supplier.invoices.simple_mode.pending_payment.order(due_date: :asc)
-                  else
-                    []
-                  end
+      else
+        []
+      end
     end
 
     def credit_note_params
