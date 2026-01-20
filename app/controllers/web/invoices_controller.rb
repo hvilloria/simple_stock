@@ -47,27 +47,42 @@ module Web
     def pending
       authorize Invoice, :view_pending?
 
-      # Filtrar facturas según período seleccionado
+      # Período seleccionado (para facturas regulares)
       period = params[:period] || "this_week"
-      @invoices = filter_by_period(period)
+      @selected_period = period
 
-      # Agrupar por proveedor con cálculos
-      @suppliers_with_payments = calculate_payments_by_supplier(@invoices)
+      # 1. Cargar facturas con descuento que deben adelantarse
+      #    (independiente del período, siempre se muestran si el descuento expira antes del próximo jueves)
+      @early_payment_invoices = Invoice.with_discount_to_advance.includes(:supplier).to_a
 
-      # Métricas globales
-      @total_invoices_amount = @invoices.sum { |i| i.total_amount_ars }
-      @total_invoices_count = @invoices.count
+      # 2. Cargar facturas regulares del período seleccionado
+      #    (excluyendo las que ya están en early_payment para evitar duplicados)
+      regular_invoices_relation = filter_by_period(period)
+      if @early_payment_invoices.any?
+        regular_invoices_relation = regular_invoices_relation.where.not(id: @early_payment_invoices.map(&:id))
+      end
+      @regular_invoices = regular_invoices_relation.includes(:supplier).to_a
 
-      # Créditos disponibles (de proveedores que tienen facturas en este período)
-      supplier_ids = @invoices.pluck(:supplier_id).uniq
+      # Métricas de pagos anticipados
+      @early_payment_amount = @early_payment_invoices.sum { |i| i.total_amount_ars }
+      @early_payment_count = @early_payment_invoices.count
+      @early_payment_savings = @early_payment_invoices.sum { |i| i.potential_savings_ars }
+
+      # Agrupar regulares por proveedor
+      @suppliers_with_payments = calculate_payments_by_supplier_from_array(@regular_invoices)
+
+      # Métricas globales (ambas listas)
+      all_invoices = @early_payment_invoices + @regular_invoices
+      @total_invoices_amount = all_invoices.sum { |i| i.total_amount_ars }
+      @total_invoices_count = all_invoices.count
+
+      # Créditos disponibles (de proveedores que tienen facturas)
+      supplier_ids = all_invoices.map(&:supplier_id).uniq
       @total_credits_amount = CreditNote.where(supplier_id: supplier_ids).available.sum { |cn| cn.total_amount_ars }
       @total_credits_count = CreditNote.where(supplier_id: supplier_ids).available.count
 
       # Total a pagar (neto)
       @total_to_pay = @total_invoices_amount - @total_credits_amount
-
-      # Guardar período seleccionado para la vista
-      @selected_period = period
     end
 
     def show
@@ -94,7 +109,9 @@ module Web
         exchange_rate: parse_exchange_rate(params[:exchange_rate], params[:currency]),
         purchase_date: parse_date(params[:purchase_date]),
         due_date: parse_date(params[:due_date]),
-        notes: params[:notes]
+        notes: params[:notes],
+        early_payment_due_date: parse_optional_date(params[:early_payment_due_date]),
+        early_payment_discount_percentage: parse_optional_integer(params[:early_payment_discount_percentage])
       )
 
       if result.success?
@@ -141,10 +158,19 @@ module Web
       authorize @invoice
 
       payment_date = parse_date(params[:payment_date]) || Date.today
+      apply_discount = params[:apply_discount] == "true"
+
+      # Validar descuento
+      if apply_discount && !@invoice.eligible_for_discount?(payment_date)
+        redirect_to web_invoice_path(@invoice),
+                    alert: "El descuento ya expiró. No se puede aplicar."
+        return
+      end
 
       result = Invoices::MarkAsPaid.call(
         invoice: @invoice,
-        payment_date: payment_date
+        payment_date: payment_date,
+        apply_discount: apply_discount
       )
 
       if result.success?
@@ -188,13 +214,23 @@ module Web
       invoices_count = invoices.count
       payment_date = params[:payment_date] ? Date.parse(params[:payment_date]) : Date.current
 
-      # Marcar todas como pagadas
+      # Marcar todas las facturas como pagadas
       invoices.each do |invoice|
         invoice.mark_as_paid!(payment_date)
       end
 
-      redirect_to pending_web_invoices_path(period: period),
-                  notice: "#{invoices_count} factura(s) de #{supplier.name} marcada(s) como pagada(s)."
+      # Marcar NC huérfanas del proveedor como aplicadas
+      # (las NC asociadas a facturas ya se marcan en mark_as_paid!)
+      orphan_credit_notes_count = supplier.credit_notes.available.where(invoice_id: nil).count
+      supplier.credit_notes.available.where(invoice_id: nil).update_all(
+        status: "applied",
+        applied_at: payment_date
+      )
+
+      notice_message = "#{invoices_count} factura(s) de #{supplier.name} marcada(s) como pagada(s)."
+      notice_message += " #{orphan_credit_notes_count} nota(s) de crédito aplicada(s)." if orphan_credit_notes_count > 0
+
+      redirect_to pending_web_invoices_path(period: period), notice: notice_message
     end
 
     private
@@ -218,6 +254,18 @@ module Web
       Date.today
     end
 
+    def parse_optional_date(date_string)
+      return nil if date_string.blank?
+      Date.parse(date_string)
+    rescue ArgumentError
+      nil
+    end
+
+    def parse_optional_integer(value)
+      return nil if value.blank?
+      value.to_i
+    end
+
     def parse_exchange_rate(rate_string, currency)
       # Si la moneda es ARS, retornar nil (no se necesita tipo de cambio)
       return nil if currency == "ARS"
@@ -237,6 +285,8 @@ module Web
         :exchange_rate,
         :purchase_date,
         :due_date,
+        :early_payment_due_date,
+        :early_payment_discount_percentage,
         :notes
       )
     end
@@ -276,6 +326,25 @@ module Web
               end
               .sort_by { |data| data[:amount_to_pay] }
               .reverse
+    end
+
+    def calculate_payments_by_supplier_from_array(invoices_array)
+      invoices_array.group_by(&:supplier)
+                    .map do |supplier, supplier_invoices|
+                      credits_amount = supplier.credit_notes.available.sum { |cn| cn.total_amount_ars }
+                      invoices_amount = supplier_invoices.sum { |i| i.total_amount_ars }
+
+                      {
+                        supplier: supplier,
+                        invoices: supplier_invoices,
+                        invoices_count: supplier_invoices.count,
+                        invoices_amount: invoices_amount,
+                        credits_amount: credits_amount,
+                        amount_to_pay: invoices_amount - credits_amount
+                      }
+                    end
+                    .sort_by { |data| data[:amount_to_pay] }
+                    .reverse
     end
   end
 end

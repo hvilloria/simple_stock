@@ -72,7 +72,9 @@ module Web
         :cuit,
         :bank_alias,
         :bank_account,
-        :payment_term_days
+        :payment_term_days,
+        :early_payment_days,
+        :early_payment_discount_percentage
       )
     end
   end

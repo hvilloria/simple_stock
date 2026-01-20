@@ -32,6 +32,31 @@ RSpec.describe Supplier, type: :model do
       supplier = build(:supplier, payment_term_days: nil)
       expect(supplier).to be_valid
     end
+
+    it "validates early_payment_days is positive integer" do
+      supplier = build(:supplier, early_payment_days: -5)
+      expect(supplier).not_to be_valid
+    end
+
+    it "allows nil early_payment_days" do
+      supplier = build(:supplier, early_payment_days: nil)
+      expect(supplier).to be_valid
+    end
+
+    it "validates early_payment_discount_percentage is greater than 0" do
+      supplier = build(:supplier, early_payment_discount_percentage: 0)
+      expect(supplier).not_to be_valid
+    end
+
+    it "validates early_payment_discount_percentage is less than or equal to 100" do
+      supplier = build(:supplier, early_payment_discount_percentage: 101)
+      expect(supplier).not_to be_valid
+    end
+
+    it "allows nil early_payment_discount_percentage" do
+      supplier = build(:supplier, early_payment_discount_percentage: nil)
+      expect(supplier).to be_valid
+    end
   end
 
   describe "#bank_info_present?" do
@@ -124,6 +149,35 @@ RSpec.describe Supplier, type: :model do
       # Credit: 1000 * 1200 = 1,200,000
       # Balance: 600,000 - 1,200,000 = -600,000
       expect(supplier.current_balance).to eq(-600_000)
+    end
+  end
+
+  describe "#has_early_payment_discount?" do
+    it "returns true when both early_payment_days and discount_percentage are present" do
+      supplier = build(:supplier, early_payment_days: 15, early_payment_discount_percentage: 5)
+      expect(supplier.has_early_payment_discount?).to be true
+    end
+
+    it "returns false when early_payment_days is nil" do
+      supplier = build(:supplier, early_payment_days: nil, early_payment_discount_percentage: 5)
+      expect(supplier.has_early_payment_discount?).to be false
+    end
+
+    it "returns false when early_payment_discount_percentage is nil" do
+      supplier = build(:supplier, early_payment_days: 15, early_payment_discount_percentage: nil)
+      expect(supplier.has_early_payment_discount?).to be false
+    end
+  end
+
+  describe "#early_payment_display" do
+    it "returns formatted discount info when configured" do
+      supplier = build(:supplier, early_payment_days: 15, early_payment_discount_percentage: 5)
+      expect(supplier.early_payment_display).to eq("5% si paga en 15 días")
+    end
+
+    it "returns \"No configurado\" when not configured" do
+      supplier = build(:supplier, early_payment_days: nil, early_payment_discount_percentage: nil)
+      expect(supplier.early_payment_display).to eq("No configurado")
     end
   end
 end

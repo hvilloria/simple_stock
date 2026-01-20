@@ -63,11 +63,11 @@ RSpec.describe Invoices::MarkAsPaid do
       end
 
       it "fails if payment_date is before purchase_date" do
-        invoice = create(:invoice, :simple_mode, status: "pending", purchase_date: Date.today)
+        invoice = create(:invoice, :simple_mode, status: "pending", purchase_date: Date.current)
 
         result = described_class.call(
           invoice: invoice,
-          payment_date: 1.day.ago
+          payment_date: 1.day.ago.to_date
         )
 
         expect(result.success?).to be false
@@ -90,6 +90,125 @@ RSpec.describe Invoices::MarkAsPaid do
         expect {
           described_class.call(invoice: paid_invoice)
         }.not_to change { paid_invoice.reload.paid_at }
+      end
+    end
+
+    context "with early payment discount" do
+      let(:invoice) do
+        create(:invoice, :simple_mode,
+              status: "pending",
+              amount: 1000,
+              early_payment_due_date: 5.days.from_now.to_date,
+              early_payment_discount_percentage: 5)
+      end
+
+      it "marks invoice with discount applied when apply_discount is true" do
+        result = described_class.call(
+          invoice: invoice,
+          payment_date: Date.today,
+          apply_discount: true
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.paid_with_discount).to be true
+      end
+
+      it "marks invoice without discount when apply_discount is false" do
+        result = described_class.call(
+          invoice: invoice,
+          payment_date: Date.today,
+          apply_discount: false
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.paid_with_discount).to be false
+      end
+
+      it "defaults apply_discount to false" do
+        result = described_class.call(
+          invoice: invoice,
+          payment_date: Date.today
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.paid_with_discount).to be false
+      end
+
+      it "fails when applying expired discount" do
+        invoice_expired = create(:invoice, :simple_mode,
+                                status: "pending",
+                                early_payment_due_date: 2.days.ago.to_date,
+                                early_payment_discount_percentage: 5)
+
+        result = described_class.call(
+          invoice: invoice_expired,
+          payment_date: Date.current,
+          apply_discount: true
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include("Discount has expired or is not available for this invoice")
+      end
+
+      it "fails when payment date is after discount expiration" do
+        result = described_class.call(
+          invoice: invoice,
+          payment_date: invoice.early_payment_due_date + 1.day,
+          apply_discount: true
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include("Discount has expired or is not available for this invoice")
+      end
+
+      it "marks associated credit notes as applied" do
+        credit_note = create(:credit_note, invoice: invoice, status: "pending")
+
+        result = described_class.call(
+          invoice: invoice,
+          payment_date: Date.today,
+          apply_discount: true
+        )
+
+        expect(result.success?).to be true
+        expect(credit_note.reload.applied_status?).to be true
+        expect(credit_note.applied_at).to eq(Date.today)
+      end
+    end
+
+    context "with credit notes" do
+      let(:supplier) { create(:supplier) }
+      let(:invoice) { create(:invoice, :simple_mode, supplier: supplier, status: "pending") }
+
+      it "marks credit notes associated to the invoice as applied" do
+        associated_cn = create(:credit_note, supplier: supplier, invoice: invoice, status: "pending")
+
+        result = described_class.call(invoice: invoice, payment_date: Date.today)
+
+        expect(result.success?).to be true
+        expect(associated_cn.reload.applied_status?).to be true
+        expect(associated_cn.applied_at).to eq(Date.today)
+      end
+
+      it "does NOT mark orphan credit notes (without invoice_id) as applied" do
+        # Este test documenta el comportamiento ACTUAL (que es un bug)
+        orphan_cn = create(:credit_note, supplier: supplier, invoice: nil, status: "pending")
+
+        result = described_class.call(invoice: invoice, payment_date: Date.today)
+
+        expect(result.success?).to be true
+        # La NC huérfana NO se marca - esto es el comportamiento actual pero debería cambiar
+        expect(orphan_cn.reload.pending_status?).to be true
+      end
+
+      it "does not mark credit notes from other suppliers" do
+        other_supplier = create(:supplier)
+        other_cn = create(:credit_note, supplier: other_supplier, invoice: nil, status: "pending")
+
+        result = described_class.call(invoice: invoice, payment_date: Date.today)
+
+        expect(result.success?).to be true
+        expect(other_cn.reload.pending_status?).to be true
       end
     end
   end

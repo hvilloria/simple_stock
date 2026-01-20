@@ -1,18 +1,43 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["supplier", "purchaseDate", "dueDate", "exchangeRateField", "exchangeRateInput", "paymentTermInfo", "amount", "currencyInput"]
-  static values = { submitting: { type: Boolean, default: false } }
-
-  connect() {
-    // Calcular fecha inicial si ya hay valores
-    this.calculateDueDate()
-    // Configurar visibilidad inicial del tipo de cambio
-    this.toggleExchangeRate()
-    // Actualizar info de plazo
-    this.updatePaymentTermInfo()
+  static targets = [
+    "supplier", 
+    "purchaseDate", 
+    "dueDate", 
+    "exchangeRateField", 
+    "exchangeRateInput", 
+    "paymentTermInfo", 
+    "amount", 
+    "currencyInput", 
+    "earlyPaymentSection", 
+    "earlyPaymentInfo", 
+    "earlyPaymentDueDate", 
+    "earlyPaymentDiscount"
+  ]
+  
+  static values = { 
+    submitting: { type: Boolean, default: false } 
   }
 
+  connect() {
+    console.log("Invoice form controller connected")
+    
+    // Calcular fecha inicial si ya hay valores
+    this.calculateDueDate()
+    
+    // Configurar visibilidad inicial del tipo de cambio
+    this.toggleExchangeRate()
+    
+    // Actualizar info de plazo
+    this.updatePaymentTermInfo()
+    
+    // Actualizar info de early payment
+    this.updateEarlyPaymentInfo()
+  }
+
+  // ========== FORMATEO DE MONTOS ==========
+  
   // Formatear al perder foco (blur)
   formatAmount(event) {
     const input = event.target
@@ -60,6 +85,8 @@ export default class extends Controller {
     }
   }
 
+  // ========== CÁLCULO DE FECHAS ==========
+  
   calculateDueDate() {
     const supplierSelect = this.supplierTarget
     const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
@@ -68,7 +95,6 @@ export default class extends Controller {
     const purchaseDateValue = this.purchaseDateTarget.value
     
     if (!purchaseDateValue || paymentTermDays === 0) {
-      // Si no hay fecha de compra o no hay plazo, no calcular
       return
     }
 
@@ -85,6 +111,34 @@ export default class extends Controller {
     this.dueDateTarget.value = `${year}-${month}-${day}`
   }
 
+  calculateEarlyPaymentDueDate() {
+    if (!this.hasEarlyPaymentDueDateTarget) return
+
+    const supplierSelect = this.supplierTarget
+    const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
+    const earlyPaymentDays = parseInt(selectedOption.dataset.earlyPaymentDays || "0")
+    
+    const purchaseDateValue = this.purchaseDateTarget.value
+    
+    if (!purchaseDateValue || earlyPaymentDays === 0) {
+      return
+    }
+
+    // Calcular fecha de early payment
+    const purchaseDate = new Date(purchaseDateValue + "T00:00:00")
+    const earlyPaymentDate = new Date(purchaseDate)
+    earlyPaymentDate.setDate(earlyPaymentDate.getDate() + earlyPaymentDays)
+
+    // Formatear a YYYY-MM-DD para el input date
+    const year = earlyPaymentDate.getFullYear()
+    const month = String(earlyPaymentDate.getMonth() + 1).padStart(2, '0')
+    const day = String(earlyPaymentDate.getDate()).padStart(2, '0')
+    
+    this.earlyPaymentDueDateTarget.value = `${year}-${month}-${day}`
+  }
+
+  // ========== ACTUALIZACIÓN DE INFO ==========
+  
   updatePaymentTermInfo() {
     if (!this.hasPaymentTermInfoTarget) return
 
@@ -93,22 +147,67 @@ export default class extends Controller {
     const paymentTermDays = parseInt(selectedOption.dataset.paymentTermDays || "0")
 
     if (paymentTermDays > 0) {
-      this.paymentTermInfoTarget.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">📅 Plazo: ${paymentTermDays} días</span>`
+      this.paymentTermInfoTarget.innerHTML = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs rounded-lg font-medium">
+          📅 Plazo: ${paymentTermDays} días
+        </span>
+      `
       this.paymentTermInfoTarget.style.display = 'block'
     } else {
       this.paymentTermInfoTarget.style.display = 'none'
     }
   }
 
+  updateEarlyPaymentInfo() {
+    if (!this.hasEarlyPaymentSectionTarget) return
+
+    const supplierSelect = this.supplierTarget
+    const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
+    const earlyPaymentDays = parseInt(selectedOption.dataset.earlyPaymentDays || "0")
+    const discountPercentage = parseFloat(selectedOption.dataset.earlyPaymentDiscount || "0")
+
+    if (earlyPaymentDays > 0 && discountPercentage > 0) {
+      // Mostrar sección
+      this.earlyPaymentSectionTarget.style.display = 'block'
+      
+      // Actualizar info text
+      if (this.hasEarlyPaymentInfoTarget) {
+        this.earlyPaymentInfoTarget.innerHTML = `
+          <span class="inline-flex items-center gap-1 text-emerald-800">
+            ⚡ ${discountPercentage}% de descuento si paga en ${earlyPaymentDays} días
+          </span>
+        `
+      }
+
+      // Setear el porcentaje de descuento
+      if (this.hasEarlyPaymentDiscountTarget) {
+        this.earlyPaymentDiscountTarget.value = discountPercentage
+      }
+
+      // Calcular fecha de early payment
+      this.calculateEarlyPaymentDueDate()
+    } else {
+      // Ocultar sección
+      this.earlyPaymentSectionTarget.style.display = 'none'
+    }
+  }
+
+  // ========== EVENT HANDLERS ==========
+  
   // Se llama cuando cambia el proveedor
   onSupplierChange() {
+    console.log("Supplier changed")
     this.calculateDueDate()
     this.updatePaymentTermInfo()
+    this.updateEarlyPaymentInfo()
+    this.calculateEarlyPaymentDueDate()
   }
 
   // Se llama cuando cambia la fecha de compra
-  onInvoiceDateChange() {
+  onPurchaseDateChange() {
+    console.log("Purchase date changed")
     this.calculateDueDate()
+    this.calculateEarlyPaymentDueDate()
   }
 
   // Se llama cuando cambia la moneda

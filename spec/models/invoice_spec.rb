@@ -512,4 +512,334 @@ RSpec.describe Invoice, type: :model do
       expect(total).to eq(123_000) # No 123_999
     end
   end
+
+  # === EARLY PAYMENT TESTS ===
+
+  describe "callbacks" do
+    describe "#set_early_payment_terms" do
+      it "sets early payment terms from supplier on create" do
+        supplier = create(:supplier, early_payment_days: 15, early_payment_discount_percentage: 5)
+        invoice = create(:invoice, :simple_mode,
+                        supplier: supplier,
+                        purchase_date: Date.new(2026, 1, 10))
+
+        expect(invoice.early_payment_due_date).to eq(Date.new(2026, 1, 25)) # 10 + 15 days
+        expect(invoice.early_payment_discount_percentage).to eq(5)
+      end
+
+      it "does not set early payment terms if supplier has no discount configured" do
+        supplier = create(:supplier, early_payment_days: nil, early_payment_discount_percentage: nil)
+        invoice = create(:invoice, :simple_mode, supplier: supplier)
+
+        expect(invoice.early_payment_due_date).to be_nil
+        expect(invoice.early_payment_discount_percentage).to be_nil
+      end
+
+      it "does not override manually set early payment values" do
+        supplier = create(:supplier, early_payment_days: 15, early_payment_discount_percentage: 5)
+        invoice = Invoice.new(
+          supplier: supplier,
+          invoice_number: "TEST-001",
+          amount: 1000,
+          currency: "ARS",
+          purchase_date: Date.new(2026, 1, 10),
+          due_date: Date.new(2026, 2, 10),
+          has_items: false,
+          early_payment_due_date: Date.new(2026, 1, 20),
+          early_payment_discount_percentage: 3
+        )
+        invoice.save!
+
+        expect(invoice.early_payment_due_date).to eq(Date.new(2026, 1, 20))
+        expect(invoice.early_payment_discount_percentage).to eq(3)
+      end
+    end
+  end
+
+  describe "scopes" do
+    describe ".with_early_payment" do
+      it "returns invoices with early_payment_due_date set" do
+        invoice_with = create(:invoice, :simple_mode, early_payment_due_date: 15.days.from_now)
+        invoice_without = create(:invoice, :simple_mode, early_payment_due_date: nil)
+
+        expect(Invoice.with_early_payment).to include(invoice_with)
+        expect(Invoice.with_early_payment).not_to include(invoice_without)
+      end
+    end
+
+    describe ".discount_available" do
+      it "returns invoices with discount not yet expired" do
+        invoice_available = create(:invoice, :simple_mode, early_payment_due_date: 5.days.from_now)
+        invoice_expired = create(:invoice, :simple_mode, early_payment_due_date: 1.day.ago)
+
+        expect(Invoice.discount_available).to include(invoice_available)
+        expect(Invoice.discount_available).not_to include(invoice_expired)
+      end
+    end
+  end
+
+  describe "#amount_with_discount" do
+    it "returns discounted amount when discount percentage is set" do
+      invoice = build(:invoice, :simple_mode,
+                     amount: 1000,
+                     early_payment_discount_percentage: 5)
+
+      expect(invoice.amount_with_discount).to eq(950) # 1000 - 5% = 950
+    end
+
+    it "returns full amount when no discount percentage" do
+      invoice = build(:invoice, :simple_mode, amount: 1000, early_payment_discount_percentage: nil)
+
+      expect(invoice.amount_with_discount).to eq(1000)
+    end
+  end
+
+  describe "#amount_with_discount_ars" do
+    it "converts USD discounted amount to ARS" do
+      invoice = build(:invoice, :simple_mode,
+                     amount: 1000,
+                     currency: "USD",
+                     exchange_rate: 1200,
+                     early_payment_discount_percentage: 5)
+
+      # 1000 - 5% = 950
+      # 950 * 1200 = 1,140,000
+      expect(invoice.amount_with_discount_ars).to eq(1_140_000)
+    end
+
+    it "returns ARS amount directly" do
+      invoice = build(:invoice, :simple_mode,
+                     amount: 100_000,
+                     currency: "ARS",
+                     early_payment_discount_percentage: 10)
+
+      # 100,000 - 10% = 90,000
+      expect(invoice.amount_with_discount_ars).to eq(90_000)
+    end
+  end
+
+  describe "#eligible_for_discount?" do
+    it "returns true when payment date is before or equal to early_payment_due_date" do
+      invoice = build(:invoice, :simple_mode,
+                     early_payment_due_date: Date.new(2026, 1, 20))
+
+      expect(invoice.eligible_for_discount?(Date.new(2026, 1, 20))).to be true
+      expect(invoice.eligible_for_discount?(Date.new(2026, 1, 15))).to be true
+    end
+
+    it "returns false when payment date is after early_payment_due_date" do
+      invoice = build(:invoice, :simple_mode,
+                     early_payment_due_date: Date.new(2026, 1, 20))
+
+      expect(invoice.eligible_for_discount?(Date.new(2026, 1, 21))).to be false
+    end
+
+    it "returns false when no early_payment_due_date set" do
+      invoice = build(:invoice, :simple_mode, early_payment_due_date: nil)
+
+      expect(invoice.eligible_for_discount?).to be false
+    end
+  end
+
+  describe "#potential_savings" do
+    it "calculates savings when discount is available" do
+      invoice = build(:invoice, :simple_mode,
+                     amount: 1000,
+                     early_payment_due_date: 5.days.from_now,
+                     early_payment_discount_percentage: 5)
+
+      expect(invoice.potential_savings).to eq(50) # 1000 * 5% = 50
+    end
+
+    it "returns 0 when no discount configured" do
+      invoice = build(:invoice, :simple_mode,
+                     amount: 1000,
+                     early_payment_due_date: nil)
+
+      expect(invoice.potential_savings).to eq(0)
+    end
+  end
+
+  describe "#potential_savings_ars" do
+    it "converts USD savings to ARS" do
+      invoice = build(:invoice, :simple_mode,
+                     amount: 1000,
+                     currency: "USD",
+                     exchange_rate: 1200,
+                     early_payment_due_date: 5.days.from_now,
+                     early_payment_discount_percentage: 5)
+
+      # Savings: 1000 * 5% = 50
+      # In ARS: 50 * 1200 = 60,000
+      expect(invoice.potential_savings_ars).to eq(60_000)
+    end
+  end
+
+  describe "#should_advance_payment?" do
+    it "returns true when early_payment_due_date is before natural payment thursday" do
+      # Factura vence con descuento el viernes 24/01/2026
+      # Su jueves natural sería el 29/01/2026
+      # Como 24 < 29, debería adelantarse
+      invoice = build(:invoice, :simple_mode,
+                     due_date: Date.new(2026, 1, 31),
+                     early_payment_due_date: Date.new(2026, 1, 24))
+
+      expect(invoice.should_advance_payment?).to be true
+    end
+
+    it "returns false when early_payment_due_date is on or after next payment thursday" do
+      # Factura vence con descuento el jueves 29/01/2026
+      # Próximo jueves de pago: 29/01/2026
+      # Como 29 >= 29, NO debería adelantarse (se paga en su semana natural)
+      invoice = build(:invoice, :simple_mode,
+                     due_date: Date.new(2026, 2, 10),
+                     early_payment_due_date: Date.new(2026, 1, 29))
+
+      expect(invoice.should_advance_payment?).to be false
+    end
+
+    it "returns false when no early_payment_due_date" do
+      invoice = build(:invoice, :simple_mode, early_payment_due_date: nil)
+
+      expect(invoice.should_advance_payment?).to be false
+    end
+
+    it "returns false when early_payment_due_date already passed" do
+      invoice = build(:invoice, :simple_mode,
+                     early_payment_due_date: 1.day.ago)
+
+      expect(invoice.should_advance_payment?).to be false
+    end
+  end
+
+  describe "#days_until_discount_expires" do
+    it "returns positive days when discount is in the future" do
+      invoice = build(:invoice, :simple_mode,
+                     early_payment_due_date: 5.days.from_now.to_date)
+
+      expect(invoice.days_until_discount_expires).to eq(5)
+    end
+
+    it "returns negative days when discount expired" do
+      invoice = build(:invoice, :simple_mode,
+                     early_payment_due_date: 3.days.ago.to_date)
+
+      expect(invoice.days_until_discount_expires).to eq(-3)
+    end
+
+    it "returns nil when no early_payment_due_date" do
+      invoice = build(:invoice, :simple_mode, early_payment_due_date: nil)
+
+      expect(invoice.days_until_discount_expires).to be_nil
+    end
+  end
+
+  describe ".with_discount_to_advance" do
+    # Hoy es 20/01/2026 (martes)
+    # Jueves de esta semana: 22/01/2026
+    # Jueves de próxima semana: 29/01/2026
+    # El scope busca facturas con early_payment_due_date > hoy Y < 29/01
+
+    let(:supplier) { create(:supplier) }
+
+    it "includes invoices with early_payment_due_date before next week thursday" do
+      # early_payment_due_date: 27/01 (martes) - antes del 29/01
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 2, 10),
+                       early_payment_due_date: Date.new(2026, 1, 27),
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).to include(invoice)
+    end
+
+    it "includes invoices with early_payment_due_date tomorrow" do
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 2, 15),
+                       early_payment_due_date: Date.current + 1.day,
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).to include(invoice)
+    end
+
+    it "excludes invoices with early_payment_due_date on next week thursday" do
+      # early_payment_due_date: 29/01 (jueves) - NO antes del 29/01
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 2, 10),
+                       early_payment_due_date: Date.new(2026, 1, 29),
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+
+    it "excludes invoices with early_payment_due_date after next week thursday" do
+      # early_payment_due_date: 30/01 (viernes) - después del 29/01
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 2, 10),
+                       early_payment_due_date: Date.new(2026, 1, 30),
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+
+    it "excludes invoices with early_payment_due_date today (already expired for this week)" do
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 2, 10),
+                       early_payment_due_date: Date.current,
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+
+    it "excludes invoices with early_payment_due_date in the past" do
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 2, 10),
+                       early_payment_due_date: Date.current - 1.day,
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+
+    it "excludes invoices without early_payment_due_date" do
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       due_date: Date.new(2026, 1, 25),
+                       early_payment_due_date: nil)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+
+    it "excludes paid invoices" do
+      invoice = create(:invoice, :simple_mode,
+                       supplier: supplier,
+                       status: "paid",
+                       due_date: Date.new(2026, 2, 10),
+                       early_payment_due_date: Date.new(2026, 1, 27),
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+
+    it "excludes full_mode invoices" do
+      invoice = create(:invoice, :full_mode,
+                       supplier: supplier,
+                       status: "pending",
+                       early_payment_due_date: Date.new(2026, 1, 27),
+                       early_payment_discount_percentage: 5)
+
+      expect(Invoice.with_discount_to_advance).not_to include(invoice)
+    end
+  end
 end

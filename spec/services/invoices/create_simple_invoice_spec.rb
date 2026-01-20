@@ -200,8 +200,8 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
-          due_date: 1.day.ago
+          purchase_date: Date.current,
+          due_date: 1.day.ago.to_date
         )
 
         expect(result.success?).to be false
@@ -237,6 +237,85 @@ RSpec.describe Invoices::CreateSimpleInvoice do
 
         expect(result.success?).to be true
         expect(result.record.purchase_date).to eq(Date.today)
+      end
+    end
+
+    context "with early payment discount" do
+      it "creates invoice with early payment terms" do
+        result = described_class.call(
+          supplier: supplier,
+          invoice_number: "FAC-001",
+          amount: 5000,
+          currency: "USD",
+          exchange_rate: 1200,
+          purchase_date: Date.today,
+          due_date: 30.days.from_now,
+          early_payment_due_date: 15.days.from_now.to_date,
+          early_payment_discount_percentage: 5
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.early_payment_due_date).to eq(15.days.from_now.to_date)
+        expect(result.record.early_payment_discount_percentage).to eq(5)
+      end
+
+      it "creates invoice without early payment terms when not provided" do
+        result = described_class.call(
+          supplier: supplier,
+          invoice_number: "FAC-001",
+          amount: 5000,
+          currency: "USD",
+          exchange_rate: 1200,
+          purchase_date: Date.today,
+          due_date: 30.days.from_now
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.early_payment_due_date).to be_nil
+        expect(result.record.early_payment_discount_percentage).to be_nil
+      end
+
+      it "auto-sets early payment terms from supplier if supplier has discount configured" do
+        supplier_with_discount = create(:supplier,
+                                        early_payment_days: 15,
+                                        early_payment_discount_percentage: 5)
+
+        result = described_class.call(
+          supplier: supplier_with_discount,
+          invoice_number: "FAC-001",
+          amount: 5000,
+          currency: "USD",
+          exchange_rate: 1200,
+          purchase_date: Date.new(2026, 1, 10),
+          due_date: Date.new(2026, 2, 10)
+        )
+
+        expect(result.success?).to be true
+        # Auto-calculated: 2026-01-10 + 15 days = 2026-01-25
+        expect(result.record.early_payment_due_date).to eq(Date.new(2026, 1, 25))
+        expect(result.record.early_payment_discount_percentage).to eq(5)
+      end
+
+      it "allows manual override of supplier discount terms" do
+        supplier_with_discount = create(:supplier,
+                                        early_payment_days: 15,
+                                        early_payment_discount_percentage: 5)
+
+        result = described_class.call(
+          supplier: supplier_with_discount,
+          invoice_number: "FAC-001",
+          amount: 5000,
+          currency: "USD",
+          exchange_rate: 1200,
+          purchase_date: Date.new(2026, 1, 10),
+          due_date: Date.new(2026, 2, 10),
+          early_payment_due_date: Date.new(2026, 1, 20),
+          early_payment_discount_percentage: 3
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.early_payment_due_date).to eq(Date.new(2026, 1, 20))
+        expect(result.record.early_payment_discount_percentage).to eq(3)
       end
     end
   end

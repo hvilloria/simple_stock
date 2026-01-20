@@ -120,6 +120,8 @@
               %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
                 Monto
               %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+                Descuento
+              %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
                 Estado
               %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
                 Acciones
@@ -156,6 +158,18 @@
                     %p.text-xs.text-slate-500
                       ≈ ARS
                       = number_ar(invoice.total_amount_ars, precision: 0)
+                
+                %td.px-4.py-3.whitespace-nowrap.text-center
+                  - if invoice.eligible_for_discount?
+                    .inline-flex.flex-col.items-center.gap-1
+                      .inline-flex.items-center.gap-1.px-2.py-1.bg-emerald-100.text-emerald-800.rounded-md.text-xs.font-medium
+                        ⚡
+                        = "#{invoice.early_payment_discount_percentage}% OFF"
+                      %p.text-xs.text-emerald-700
+                        hasta
+                        = invoice.early_payment_due_date.strftime("%d/%m")
+                  - else
+                    %span.text-slate-400.text-xs —
                 
                 %td.px-4.py-3.whitespace-nowrap.text-center
                   - if invoice.pending_status?

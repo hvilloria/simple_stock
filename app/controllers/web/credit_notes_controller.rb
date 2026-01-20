@@ -20,8 +20,8 @@ module Web
                                 .recent
                                 .limit(50)
 
-      @total_credit_amount = @credit_notes.sum { |cn| cn.total_amount_ars }
-      @credit_notes_count = @credit_notes.count
+      @total_credit_amount = @credit_notes.where(status: "pending").sum { |cn| cn.total_amount_ars }
+      @credit_notes_count = @credit_notes.where(status: "pending").count
       @selected_status = params[:status]
     end
 

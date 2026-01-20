@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_01_19_134720) do
+ActiveRecord::Schema[7.2].define(version: 2026_01_20_011446) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -82,7 +82,11 @@ ActiveRecord::Schema[7.2].define(version: 2026_01_19_134720) do
     t.datetime "paid_at"
     t.boolean "has_items", default: false, null: false
     t.decimal "amount", precision: 10, scale: 2
+    t.date "early_payment_due_date"
+    t.decimal "early_payment_discount_percentage", precision: 5, scale: 2
+    t.boolean "paid_with_discount", default: false
     t.index ["due_date"], name: "index_invoices_on_due_date"
+    t.index ["early_payment_due_date"], name: "index_invoices_on_early_payment_due_date"
     t.index ["has_items"], name: "index_invoices_on_has_items"
     t.index ["invoice_number"], name: "index_invoices_on_invoice_number"
     t.index ["paid_at"], name: "index_invoices_on_paid_at"
@@ -186,6 +190,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_01_19_134720) do
     t.string "bank_alias"
     t.string "bank_account"
     t.integer "payment_term_days"
+    t.integer "early_payment_days"
+    t.decimal "early_payment_discount_percentage", precision: 5, scale: 2
     t.index ["name"], name: "index_suppliers_on_name", unique: true
   end
 

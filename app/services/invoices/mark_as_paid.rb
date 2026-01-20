@@ -2,19 +2,32 @@
 
 module Invoices
   class MarkAsPaid
-    def self.call(invoice:, payment_date: Date.today)
-      new(invoice: invoice, payment_date: payment_date).call
+    def self.call(invoice:, payment_date: Date.today, apply_discount: false)
+      new(invoice: invoice, payment_date: payment_date, apply_discount: apply_discount).call
     end
 
-    def initialize(invoice:, payment_date:)
+    def initialize(invoice:, payment_date:, apply_discount: false)
       @invoice = invoice
       @payment_date = payment_date
+      @apply_discount = apply_discount
     end
 
     def call
       validate_params
 
-      @invoice.mark_as_paid!(@payment_date)
+      ActiveRecord::Base.transaction do
+        @invoice.update!(
+          status: "paid",
+          paid_at: @payment_date,
+          paid_with_discount: @apply_discount
+        )
+
+        # Marcar notas de crédito asociadas como aplicadas
+        @invoice.credit_notes.pending_status.update_all(
+          status: "applied",
+          applied_at: @payment_date
+        )
+      end
 
       Result.new(success?: true, record: @invoice, errors: [])
     rescue ValidationError => e
@@ -39,6 +52,11 @@ module Invoices
 
       if @payment_date < @invoice.purchase_date
         raise ValidationError, "Payment date cannot be before invoice date"
+      end
+
+      # Validar descuento si se intenta aplicar
+      if @apply_discount && !@invoice.eligible_for_discount?(@payment_date)
+        raise ValidationError, "Discount has expired or is not available for this invoice"
       end
     end
   end

@@ -31,6 +31,9 @@ class Invoice < ApplicationRecord
   # Validar invoice_items solo después de crear el invoice (no durante create)
   validates :invoice_items, presence: true, if: -> { has_items? && !new_record? }, on: :update
 
+  # === CALLBACKS ===
+  before_validation :set_early_payment_terms, on: :create, if: -> { supplier.present? && purchase_date.present? }
+
   # === SCOPES ===
   scope :simple_mode, -> { where(has_items: false) }
   scope :full_mode, -> { where(has_items: true) }
@@ -58,6 +61,25 @@ class Invoice < ApplicationRecord
     simple_mode.where(status: "pending").where(
       due_date: Date.current.beginning_of_month..Date.current.end_of_month
     )
+  }
+
+  # Early payment scopes
+  scope :with_early_payment, -> { where.not(early_payment_due_date: nil) }
+  scope :discount_available, -> {
+    with_early_payment.where("early_payment_due_date >= ?", Date.current)
+  }
+
+  # Facturas con descuento que deben adelantarse a esta semana
+  # Busca facturas pendientes donde early_payment_due_date:
+  # - Es mayor a hoy (no expiró)
+  # - Es menor al jueves de la próxima semana (hay que pagarlas este jueves)
+  scope :with_discount_to_advance, -> {
+    next_week_thursday = (Date.current + 1.week).beginning_of_week(:monday) + 3.days
+    simple_mode
+      .pending_payment
+      .with_early_payment
+      .where("early_payment_due_date > ?", Date.current)
+      .where("early_payment_due_date < ?", next_week_thursday)
   }
 
   scope :due_next_month, -> {
@@ -148,6 +170,59 @@ class Invoice < ApplicationRecord
     end
   end
 
+  # === EARLY PAYMENT METHODS ===
+
+  # Monto con descuento aplicado
+  def amount_with_discount
+    return amount unless early_payment_discount_percentage.present?
+    amount * (1 - (early_payment_discount_percentage / 100.0))
+  end
+
+  # Monto en ARS con descuento
+  def amount_with_discount_ars
+    if currency == "USD"
+      amount_with_discount * (exchange_rate || 0)
+    else
+      amount_with_discount || 0
+    end
+  end
+
+  # ¿Es elegible para descuento en esta fecha?
+  def eligible_for_discount?(payment_date = Date.current)
+    return false unless early_payment_due_date.present?
+    payment_date <= early_payment_due_date
+  end
+
+  # Ahorro potencial si pago con descuento
+  def potential_savings
+    return 0 unless early_payment_due_date.present?
+    amount - amount_with_discount
+  end
+
+  def potential_savings_ars
+    if currency == "USD"
+      potential_savings * (exchange_rate || 0)
+    else
+      potential_savings || 0
+    end
+  end
+
+  # ¿Debería adelantarse al jueves de esta semana?
+  # True si el descuento expira antes del jueves de la próxima semana
+  def should_advance_payment?
+    return false unless early_payment_due_date.present?
+    return false if early_payment_due_date <= Date.current
+
+    next_week_thursday = (Date.current + 1.week).beginning_of_week(:monday) + 3.days
+    early_payment_due_date < next_week_thursday
+  end
+
+  # Días hasta que expira el descuento
+  def days_until_discount_expires
+    return nil unless early_payment_due_date.present?
+    (early_payment_due_date - Date.current).to_i
+  end
+
   # === MÉTODOS MODO COMPLETO (existentes) ===
 
   # Calculate total cost from invoice items
@@ -169,5 +244,13 @@ class Invoice < ApplicationRecord
 
   def usd_currency?
     currency == "USD"
+  end
+
+  def set_early_payment_terms
+    return unless supplier.has_early_payment_discount?
+    return if early_payment_due_date.present? || early_payment_discount_percentage.present?
+
+    self.early_payment_due_date = purchase_date + supplier.early_payment_days.days
+    self.early_payment_discount_percentage = supplier.early_payment_discount_percentage
   end
 end

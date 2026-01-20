@@ -17,6 +17,11 @@ FactoryBot.define do
       payment_term_days { 30 }
     end
 
+    trait :with_early_payment_discount do
+      early_payment_days { 15 }
+      early_payment_discount_percentage { 5 }
+    end
+
     trait :japan do
       name { "JDM Auto Parts Japan" }
       email { "orders@jdmautoparts.jp" }

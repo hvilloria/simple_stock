@@ -3,7 +3,8 @@
 module Invoices
   class CreateSimpleInvoice
     def self.call(supplier:, invoice_number:, amount:, currency:,
-                  exchange_rate: nil, purchase_date: nil, due_date:, notes: nil)
+                  exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
+                  early_payment_due_date: nil, early_payment_discount_percentage: nil)
       new(
         supplier: supplier,
         invoice_number: invoice_number,
@@ -12,12 +13,15 @@ module Invoices
         exchange_rate: exchange_rate,
         purchase_date: purchase_date,
         due_date: due_date,
-        notes: notes
+        notes: notes,
+        early_payment_due_date: early_payment_due_date,
+        early_payment_discount_percentage: early_payment_discount_percentage
       ).call
     end
 
     def initialize(supplier:, invoice_number:, amount:, currency:,
-                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil)
+                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
+                   early_payment_due_date: nil, early_payment_discount_percentage: nil)
       @supplier = supplier
       @invoice_number = invoice_number
       @amount = amount
@@ -26,6 +30,8 @@ module Invoices
       @purchase_date = purchase_date || Date.today
       @due_date = due_date
       @notes = notes
+      @early_payment_due_date = early_payment_due_date
+      @early_payment_discount_percentage = early_payment_discount_percentage
     end
 
     def call
@@ -41,7 +47,9 @@ module Invoices
         due_date: @due_date,
         status: "pending",
         has_items: false,
-        notes: @notes
+        notes: @notes,
+        early_payment_due_date: @early_payment_due_date,
+        early_payment_discount_percentage: @early_payment_discount_percentage
       )
 
       Result.new(success?: true, record: @invoice, errors: [])

@@ -6,7 +6,7 @@
   .flex.items-center.justify-between.mb-6
     = link_to web_invoices_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
       %span ←
-      %span Volver a Compras
+      %span Volver a Facturas
     
     %h1.text-3xl.font-bold.text-gray-900 Nueva Factura de Proveedor
 
@@ -33,15 +33,17 @@
           .space-y-4
             -# Proveedor
             %div
-              %label.block.text-sm.font-medium.text-gray-700.mb-2 Proveedor
+              .flex.items-center.justify-between.mb-2
+                %label.block.text-sm.font-medium.text-gray-700 Proveedor
+                %div{ data: { invoice_form_target: "paymentTermInfo" }, style: "display: none;" }
+              
               = select_tag :supplier_id, 
-                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0 }] }), 
+                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0", "data-early-payment-days": "0", "data-early-payment-discount": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0, "data-early-payment-days": s.early_payment_days || 0, "data-early-payment-discount": s.early_payment_discount_percentage || 0 }] }), 
                           class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                           required: true,
                           data: { invoice_form_target: "supplier", action: "change->invoice-form#onSupplierChange" }
-              .flex.items-center.justify-between.mt-1
-                %p.text-xs.text-gray-500 Selecciona el proveedor que emitió la factura
-                %div{ data: { invoice_form_target: "paymentTermInfo" }, style: "display: none;" }
+              
+              %p.text-xs.text-gray-500.mt-1 Selecciona el proveedor que emitió la factura
             
             -# Número de Factura
             %div
@@ -69,7 +71,7 @@
                     %p.text-xs.text-gray-500 Dólares estadounidenses
             
             -# Tipo de Cambio (solo si USD)
-            %div{ id: "exchange_rate_field", data: { invoice_form_target: "exchangeRateField" } }
+            %div{ id: "exchange_rate_field", data: { invoice_form_target: "exchangeRateField" }, style: "display: none;" }
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo de Cambio
               = text_field_tag :exchange_rate, nil,
                               placeholder: "Ej: 1.200,00",
@@ -80,7 +82,11 @@
             -# Monto de la Factura
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Monto Total
-              = text_field_tag :amount, nil, placeholder: "0,00", class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold", required: true, data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
+              = text_field_tag :amount, nil, 
+                              placeholder: "0,00", 
+                              class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold", 
+                              required: true, 
+                              data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
               %p.text-xs.text-gray-500.mt-1 Monto total de la factura (formato: 1.500.000,50)
             
             -# Fecha de Factura
@@ -89,24 +95,56 @@
               = date_field_tag :purchase_date, Date.today,
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true,
-                              data: { invoice_form_target: "purchaseDate", action: "change->invoice-form#onInvoiceDateChange" }
+                              data: { invoice_form_target: "purchaseDate", action: "change->invoice-form#onPurchaseDateChange" }
             
             -# Fecha de Vencimiento
             %div
-              %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Vencimiento
+              %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Vencimiento Normal
               = date_field_tag :due_date, 30.days.from_now.to_date,
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true,
                               data: { invoice_form_target: "dueDate" }
-              %p.text-xs.text-gray-500.mt-1 Fecha límite de pago (se calcula automáticamente)
-            
-            -# Notas
+              %p.text-xs.text-gray-500.mt-1 Fecha límite de pago sin descuento (se calcula automáticamente)
+
+        -# CARD 2 - Descuento por pronto pago (solo si el proveedor lo tiene configurado)
+        .bg-emerald-50.border.border-emerald-200.rounded-lg.p-6{ data: { invoice_form_target: "earlyPaymentSection" }, style: "display: none;" }
+          .flex.items-start.gap-3.mb-4
+            .text-2xl ⚡
+            .flex-1
+              %h3.text-sm.font-semibold.text-emerald-900.mb-1
+                Descuento por Pronto Pago Disponible
+              %p.text-xs.text-emerald-700{ data: { invoice_form_target: "earlyPaymentInfo" } }
+                Este proveedor ofrece descuento por pago anticipado
+
+          .grid.grid-cols-1.md:grid-cols-2.gap-4
             %div
-              %label.block.text-sm.font-medium.text-gray-700.mb-2 Notas (Opcional)
-              = text_area_tag :notes, nil,
-                            rows: 3,
-                            placeholder: "Información adicional sobre la factura...",
-                            class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
+              %label.block.text-sm.font-medium.text-slate-700.mb-2
+                Vencimiento con descuento
+              = date_field_tag :early_payment_due_date, nil,
+                              class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                              data: { invoice_form_target: "earlyPaymentDueDate" }
+              %p.text-xs.text-slate-500.mt-1
+                Fecha límite para pagar con descuento
+
+            %div
+              %label.block.text-sm.font-medium.text-slate-700.mb-2
+                Porcentaje de descuento
+              = text_field_tag :early_payment_discount_percentage, nil,
+                              placeholder: "5",
+                              class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                              data: { invoice_form_target: "earlyPaymentDiscount" }
+              %p.text-xs.text-slate-500.mt-1 Porcentaje de descuento (sin el símbolo %)
+
+        -# CARD 3 - Notas
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Notas Adicionales
+
+          %div
+            %label.block.text-sm.font-medium.text-gray-700.mb-2 Notas (Opcional)
+            = text_area_tag :notes, nil,
+                          rows: 3,
+                          placeholder: "Información adicional sobre la factura...",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
 
       -# ============ COLUMNA DERECHA (1/3) ============
       .lg:col-span-1
