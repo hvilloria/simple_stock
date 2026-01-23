@@ -42,7 +42,7 @@
           .flex-1
             %p.text-sm.font-medium.text-gray-600.mb-1 Deuda Total Pendiente
             %h3.text-3xl.font-bold.text-gray-900
-              = currency_ar_int(@total_pending_amount)
+              = currency_ar(@total_pending_amount)
           
           .w-12.h-12.bg-gray-100.rounded-xl.flex.items-center.justify-center.text-2xl
             💰
@@ -58,7 +58,7 @@
           .flex-1
             %p.text-sm.font-medium.text-gray-600.mb-1 Crédito a Favor
             %h3.text-3xl.font-bold{ class: @total_credit_amount > 0 ? "text-green-600" : "text-gray-900" }
-              = currency_ar_int(@total_credit_amount)
+              = currency_ar(@total_credit_amount)
           
           .w-12.h-12{ class: @total_credit_amount > 0 ? "bg-green-100" : "bg-gray-100" }
             .rounded-xl.flex.items-center.justify-center.text-2xl.w-full.h-full
@@ -75,7 +75,7 @@
           .flex-1
             %p.text-sm.font-medium.text-gray-600.mb-1 Balance Neto
             %h3.text-3xl.font-bold{ class: @net_balance > 0 ? "text-blue-600" : "text-gray-900" }
-              = currency_ar_int(@net_balance)
+              = currency_ar(@net_balance)
           
           .w-12.h-12.bg-blue-100.rounded-xl.flex.items-center.justify-center.text-2xl
             📊

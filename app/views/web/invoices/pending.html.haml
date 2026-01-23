@@ -30,7 +30,7 @@
             Pagos Anticipados
           %p.text-sm.text-emerald-700.mb-3
             Estas facturas vencen después de esta semana, pero el descuento expira ANTES del próximo jueves de pago. Si las pagás esta semana, ahorrás
-            = currency_ar_int(@early_payment_savings)
+            = currency_ar(@early_payment_savings)
           
           .flex.items-center.gap-4.text-sm
             .flex.items-center.gap-2
@@ -39,7 +39,7 @@
               %span.text-emerald-700= @early_payment_count == 1 ? 'factura' : 'facturas'
             .flex.items-center.gap-2
               .w-2.h-2.bg-emerald-500.rounded-full
-              %span.font-medium.text-emerald-900= currency_ar_int(@early_payment_amount)
+              %span.font-medium.text-emerald-900= currency_ar(@early_payment_amount)
               %span.text-emerald-700 monto total
       
       .bg-white.border.border-emerald-200.rounded-lg.overflow-hidden
@@ -73,13 +73,13 @@
                     ⚡
                     = "#{invoice.early_payment_discount_percentage}%"
                 %td.px-4.py-3.text-right
-                  %p.text-sm.text-slate-600.line-through= currency_ar_int(invoice.total_amount_ars)
+                  %p.text-sm.text-slate-600.line-through= currency_ar(invoice.total_amount_ars)
                 %td.px-4.py-3.text-right
-                  %p.text-lg.font-bold.text-emerald-700= currency_ar_int(invoice.amount_with_discount_ars)
+                  %p.text-lg.font-bold.text-emerald-700= currency_ar(invoice.amount_with_discount_ars)
                 %td.px-4.py-3.text-center
-                  %p.text-sm.font-semibold.text-emerald-600= "- #{currency_ar_int(invoice.potential_savings_ars)}"
+                  %p.text-sm.font-semibold.text-emerald-600= "- #{currency_ar(invoice.potential_savings_ars)}"
                 %td.px-4.py-3.text-center
-                  %button{ type: "button", class: "inline-flex items-center px-3 py-1.5 bg-emerald-100 hover:bg-emerald-700  text-xs font-medium rounded-lg transition-colors cursor-pointer", onclick: "openSingleInvoicePaymentModal(#{invoice.id}, '#{invoice.invoice_number}', '#{invoice.supplier.name}', #{invoice.total_amount_ars.to_i}, true, #{invoice.early_payment_discount_percentage}, '#{invoice.early_payment_due_date.strftime("%d/%m")}', #{invoice.amount_with_discount_ars.to_i})" }
+                  %button{ type: "button", class: "inline-flex items-center px-3 py-1.5 bg-emerald-100 hover:bg-emerald-700  text-xs font-medium rounded-lg transition-colors cursor-pointer", onclick: "openSingleInvoicePaymentModal(#{invoice.id}, '#{invoice.invoice_number}', '#{invoice.supplier.name}', #{invoice.total_amount_ars}, true, #{invoice.early_payment_discount_percentage}, '#{invoice.early_payment_due_date.strftime("%d/%m")}', #{invoice.amount_with_discount_ars})" }
                     Pagar
 
   -# Métricas globales
@@ -91,7 +91,7 @@
         .flex-1
           %p.text-sm.font-medium.text-gray-600.mb-1 Total a Transferir
           %h3.text-3xl.font-bold.text-blue-600
-            = currency_ar_int(@total_to_pay)
+            = currency_ar(@total_to_pay)
         
         .w-12.h-12.bg-blue-100.rounded-xl.flex.items-center.justify-center.text-2xl
           💸
@@ -107,7 +107,7 @@
         .flex-1
           %p.text-sm.font-medium.text-gray-600.mb-1 Facturas Pendientes
           %h3.text-3xl.font-bold.text-gray-900
-            = currency_ar_int(@total_invoices_amount)
+            = currency_ar(@total_invoices_amount)
         
         .w-12.h-12.bg-gray-100.rounded-xl.flex.items-center.justify-center.text-2xl
           📄
@@ -123,7 +123,7 @@
         .flex-1
           %p.text-sm.font-medium.text-gray-600.mb-1 Crédito Disponible
           %h3.text-3xl.font-bold.text-green-600
-            = "- #{currency_ar_int(@total_credits_amount)}"
+            = "- #{currency_ar(@total_credits_amount)}"
         
         .w-12.h-12.bg-green-100.rounded-xl.flex.items-center.justify-center.text-2xl
           ✅
@@ -164,7 +164,7 @@
               
               %td.px-4.py-4.text-right
                 %p.font-medium.text-gray-900
-                  = currency_ar_int(data[:invoices_amount])
+                  = currency_ar(data[:invoices_amount])
                 %p.text-xs.text-gray-500
                   = data[:invoices_count]
                   = data[:invoices_count] == 1 ? "factura" : "facturas"
@@ -172,13 +172,13 @@
               %td.px-4.py-4.text-right
                 - if data[:credits_amount] > 0
                   %p.font-medium.text-green-600
-                    = "- #{currency_ar_int(data[:credits_amount])}"
+                    = "- #{currency_ar(data[:credits_amount])}"
                 - else
                   %p.text-gray-400 —
               
               %td.px-4.py-4.text-right
                 %p.text-xl.font-bold.text-blue-600
-                  = currency_ar_int(data[:amount_to_pay])
+                  = currency_ar(data[:amount_to_pay])
               
               %td.px-4.py-4.text-center
                 %button{ type: "button", class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer", onclick: "openPaymentModal(#{data[:supplier].id}, '#{data[:supplier].name}', #{data[:invoices_count]})" }
@@ -190,7 +190,7 @@
                 %td.px-4.py-2.pl-12
                   %span.text-gray-600.font-mono.text-xs= invoice.invoice_number
                 %td.px-4.py-2.text-right.text-gray-600
-                  = currency_ar_int(invoice.total_amount_ars)
+                  = currency_ar(invoice.total_amount_ars)
                 %td.px-4.py-2.text-right.text-gray-500.text-xs
                   = invoice.due_date.strftime("%d/%m/%Y")
                 %td.px-4.py-2{colspan: 2}
