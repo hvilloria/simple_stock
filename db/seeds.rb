@@ -14,9 +14,9 @@ end
 puts "\n🔐 Creando usuarios iniciales..."
 if User.count.zero?
   admin = User.create!(
-    email: "admin@gentedelsol.com",
-    password: "password123",
-    password_confirmation: "password123",
+    email: "administracion@gentedelsol.com",
+    password: "admin",
+    password_confirmation: "admin",
     name: "Administrador",
     role: "admin"
   )

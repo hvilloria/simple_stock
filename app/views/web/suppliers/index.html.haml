@@ -93,7 +93,7 @@
               
               -# Deuda pendiente
               %td.px-4.py-3.whitespace-nowrap.text-right
-                - pending_amount = supplier.total_pending_amount
+                - pending_amount = supplier.current_balance
                 - if pending_amount > 0
                   %p.text-sm.font-bold.text-red-600
                     = currency_ar_int(pending_amount)

@@ -142,7 +142,7 @@ class Invoice < ApplicationRecord
     if currency == "USD"
       total_amount * (exchange_rate || 0)
     else
-      total_amount || 0
+      amount_with_discount_ars
     end
   end
 

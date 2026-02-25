@@ -497,7 +497,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
     let(:supplier) { create(:supplier) }
 
     context "with early payment invoices to advance" do
-      it "loads invoices with discount expiring before next thursday" do
+      it "loads invoices with discount expiring before next thursday in unified table" do
         # Factura que vence próxima semana pero descuento expira antes del jueves
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
@@ -512,10 +512,10 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
         expect(response).to have_http_status(:success)
         expect(response.body).to include(early_invoice.invoice_number)
-        expect(response.body).to include("Pagos Anticipados")
+        expect(response.body).to include(supplier.name)
       end
 
-      it "separates early payment invoices from regular invoices" do
+      it "shows both early payment and regular invoices in unified table" do
         # Factura con descuento a adelantar
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
@@ -537,12 +537,12 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
         get pending_web_invoices_path
 
         expect(response).to have_http_status(:success)
-        # Ambas deben mostrarse
+        # Ambas deben mostrarse en la tabla unificada
         expect(response.body).to include(early_invoice.invoice_number)
         expect(response.body).to include(regular_invoice.invoice_number)
       end
 
-      it "excludes early payment invoices from regular invoices section" do
+      it "includes invoice with discount in unified table grouped by supplier" do
         # Factura que vence esta semana Y tiene descuento a adelantar
         invoice = create(:invoice, :simple_mode,
                          supplier: supplier,
@@ -555,18 +555,14 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
         get pending_web_invoices_path
 
-        # La factura debe aparecer en Pagos Anticipados
-        expect(response.body).to include("Pagos Anticipados")
+        # La factura debe aparecer en la tabla unificada
         expect(response.body).to include(invoice.invoice_number)
-
-        # Pero NO debe aparecer en la sección de Pagos Regulares (suppliers_with_payments)
-        # Verificamos que el proveedor no aparece en la sección regular
-        expect(response.body).not_to include("Pagos Regulares")
+        expect(response.body).to include(supplier.name)
       end
     end
 
     context "without early payment invoices" do
-      it "shows only regular invoices" do
+      it "shows regular invoices in unified table" do
         regular_invoice = create(:invoice, :simple_mode,
                                  supplier: supplier,
                                  status: "pending",
@@ -578,20 +574,21 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
         expect(response).to have_http_status(:success)
         expect(response.body).to include(regular_invoice.invoice_number)
-        expect(response.body).not_to include("Pagos Anticipados")
+        expect(response.body).to include(supplier.name)
       end
     end
 
     context "with period filter" do
       it "filters regular invoices by period but always shows early payment invoices" do
-        # Factura con descuento (siempre se muestra)
+        # Factura con descuento que expira pronto (siempre se muestra)
+        # early_payment_due_date debe ser > Date.current y < next_week_thursday
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
                                status: "pending",
                                amount: 10000,
                                currency: "ARS",
-                               due_date: Date.new(2026, 2, 15),
-                               early_payment_due_date: Date.new(2026, 1, 27),
+                               due_date: Date.current + 2.weeks,
+                               early_payment_due_date: Date.current + 3.days,
                                early_payment_discount_percentage: 5)
 
         # Factura de próxima semana (no se muestra con period=this_week)
@@ -605,7 +602,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
         get pending_web_invoices_path, params: { period: "this_week" }
 
         expect(response).to have_http_status(:success)
-        # Early payment siempre se muestra
+        # Early payment siempre se muestra porque su descuento expira pronto
         expect(response.body).to include(early_invoice.invoice_number)
         # Next week no se muestra porque el filtro es this_week
         expect(response.body).not_to include(next_week_invoice.invoice_number)
@@ -623,7 +620,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
                status: "pending",
                amount: 10000,
                currency: "ARS",
-               due_date: Date.current)
+               due_date: Date.current.beginning_of_week(:monday))
       end
       let!(:invoice2) do
         create(:invoice, :simple_mode,
@@ -631,7 +628,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
                status: "pending",
                amount: 5000,
                currency: "ARS",
-               due_date: Date.current + 1.day)
+               due_date: Date.current.beginning_of_week(:monday) + 2.days)
       end
 
       it "marks all invoices of the supplier as paid" do

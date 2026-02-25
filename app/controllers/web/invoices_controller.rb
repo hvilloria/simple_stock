@@ -47,42 +47,43 @@ module Web
     def pending
       authorize Invoice, :view_pending?
 
-      # Período seleccionado (para facturas regulares)
+      # Período seleccionado
       period = params[:period] || "this_week"
       @selected_period = period
 
       # 1. Cargar facturas con descuento que deben adelantarse
-      #    (independiente del período, siempre se muestran si el descuento expira antes del próximo jueves)
-      @early_payment_invoices = Invoice.with_discount_to_advance.includes(:supplier).to_a
+      early_payment_invoices = Invoice.with_discount_to_advance.includes(:supplier).to_a
 
       # 2. Cargar facturas regulares del período seleccionado
       #    (excluyendo las que ya están en early_payment para evitar duplicados)
       regular_invoices_relation = filter_by_period(period)
-      if @early_payment_invoices.any?
-        regular_invoices_relation = regular_invoices_relation.where.not(id: @early_payment_invoices.map(&:id))
+      if early_payment_invoices.any?
+        regular_invoices_relation = regular_invoices_relation.where.not(id: early_payment_invoices.map(&:id))
       end
-      @regular_invoices = regular_invoices_relation.includes(:supplier).to_a
+      regular_invoices = regular_invoices_relation.includes(:supplier).to_a
 
-      # Métricas de pagos anticipados
-      @early_payment_amount = @early_payment_invoices.sum { |i| i.total_amount_ars }
-      @early_payment_count = @early_payment_invoices.count
-      @early_payment_savings = @early_payment_invoices.sum { |i| i.potential_savings_ars }
+      # 3. Combinar todas las facturas en una sola lista
+      all_invoices = early_payment_invoices + regular_invoices
 
-      # Agrupar regulares por proveedor
-      @suppliers_with_payments = calculate_payments_by_supplier_from_array(@regular_invoices)
+      # 4. Agrupar por proveedor (tabla unificada)
+      @suppliers_with_payments = calculate_payments_by_supplier_unified(all_invoices)
 
-      # Métricas globales (ambas listas)
-      all_invoices = @early_payment_invoices + @regular_invoices
-      @total_invoices_amount = all_invoices.sum { |i| i.total_amount_ars }
+      # Métricas globales
       @total_invoices_count = all_invoices.count
+      # Monto original (sin descuentos)
+      @total_invoices_amount = all_invoices.sum { |i| i.total_amount_ars }
+      # Monto con descuentos aplicados donde corresponda
+      @total_invoices_with_discount = all_invoices.sum { |i| i.amount_with_discount_ars }
+      # Ahorro total por descuentos
+      @total_savings = all_invoices.sum { |i| i.potential_savings_ars }
 
       # Créditos disponibles (de proveedores que tienen facturas)
       supplier_ids = all_invoices.map(&:supplier_id).uniq
       @total_credits_amount = CreditNote.where(supplier_id: supplier_ids).available.sum { |cn| cn.total_amount_ars }
       @total_credits_count = CreditNote.where(supplier_id: supplier_ids).available.count
 
-      # Total a pagar (neto)
-      @total_to_pay = @total_invoices_amount - @total_credits_amount
+      # Total a pagar (neto) - usa monto con descuento
+      @total_to_pay = @total_invoices_with_discount - @total_credits_amount
     end
 
     def show
@@ -201,8 +202,13 @@ module Web
       supplier = Supplier.find(params[:supplier_id])
       period = params[:period] || "this_week"
 
-      # Obtener facturas del período para este proveedor
-      invoices = filter_by_period(period).where(supplier: supplier)
+      # Obtener facturas del período + facturas con descuento anticipado para este proveedor
+      period_invoices = filter_by_period(period).where(supplier: supplier)
+      early_payment_invoices = Invoice.with_discount_to_advance.where(supplier: supplier)
+
+      # Combinar sin duplicados
+      invoice_ids = (period_invoices.pluck(:id) + early_payment_invoices.pluck(:id)).uniq
+      invoices = Invoice.where(id: invoice_ids)
 
       if invoices.empty?
         redirect_to pending_web_invoices_path(period: period),
@@ -341,6 +347,30 @@ module Web
                         invoices_amount: invoices_amount,
                         credits_amount: credits_amount,
                         amount_to_pay: invoices_amount - credits_amount
+                      }
+                    end
+                    .sort_by { |data| data[:amount_to_pay] }
+                    .reverse
+    end
+
+    # Agrupa facturas por proveedor calculando montos originales y con descuento
+    def calculate_payments_by_supplier_unified(invoices_array)
+      invoices_array.group_by(&:supplier)
+                    .map do |supplier, supplier_invoices|
+                      credits_amount = supplier.credit_notes.available.sum { |cn| cn.total_amount_ars }
+                      # Monto original (sin descuento)
+                      invoices_amount = supplier_invoices.sum { |i| i.total_amount }
+                      # Monto con descuento aplicado donde corresponda
+                      invoices_amount_with_discount = supplier_invoices.sum { |i| i.amount_with_discount_ars }
+
+                      {
+                        supplier: supplier,
+                        invoices: supplier_invoices,
+                        invoices_count: supplier_invoices.count,
+                        invoices_amount: invoices_amount,
+                        invoices_amount_with_discount: invoices_amount_with_discount,
+                        credits_amount: credits_amount,
+                        amount_to_pay: invoices_amount_with_discount - credits_amount
                       }
                     end
                     .sort_by { |data| data[:amount_to_pay] }
