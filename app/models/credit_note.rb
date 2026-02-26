@@ -3,15 +3,18 @@
 class CreditNote < ApplicationRecord
   # Associations
   belongs_to :supplier
-  belongs_to :invoice, optional: true
+  belongs_to :invoice, optional: true  # kept temporarily; column will be dropped after data migration
   has_many :credit_note_items, dependent: :destroy
   has_many :products, through: :credit_note_items
+  has_many :applied_credits, dependent: :destroy
 
   # Enums
+  # active:    available credit, may have been partially applied
+  # cancelled: voided, not available for use
+  # exhausted is derived: active_status? && remaining_balance == 0
   enum status: {
-    pending: "pending",      # Disponible para usar
-    applied: "applied",      # Ya consumida/aplicada
-    cancelled: "cancelled"   # Anulada
+    active: "active",
+    cancelled: "cancelled"
   }, _suffix: true
 
   # Validations
@@ -27,18 +30,44 @@ class CreditNote < ApplicationRecord
   scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
   scope :search_number, ->(query) { where("credit_note_number ILIKE ?", "%#{query}%") if query.present? }
   scope :recent, -> { order(issue_date: :desc, created_at: :desc) }
-  scope :available, -> { where(status: "pending") }
+  scope :available, -> { where(status: "active") }
   scope :by_status, ->(status) { where(status: status) if status.present? }
 
   # Callbacks
   before_validation :set_currency_from_invoice, if: -> { invoice_id.present? && invoice_id_changed? }
 
-  # Methods
+  # === BALANCE METHODS ===
+
+  # Amount remaining after all partial applications
+  def remaining_balance
+    amount - applied_credits.sum(:amount)
+  end
+
+  # True when all credit has been consumed
+  def exhausted?
+    remaining_balance <= 0
+  end
+
+  # True when credit is active and still has balance to apply
+  def available?
+    active_status? && !exhausted?
+  end
+
+  # === AMOUNT METHODS ===
+
   def total_amount_ars
     if currency == "USD"
       amount * (exchange_rate || 0)
     else
       amount || 0
+    end
+  end
+
+  def remaining_balance_ars
+    if currency == "USD"
+      remaining_balance * (exchange_rate || 0)
+    else
+      remaining_balance
     end
   end
 

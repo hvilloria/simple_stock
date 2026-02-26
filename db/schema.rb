@@ -10,9 +10,20 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_01_20_011446) do
+ActiveRecord::Schema[7.2].define(version: 2026_02_25_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "applied_credits", force: :cascade do |t|
+    t.bigint "credit_note_id", null: false
+    t.bigint "invoice_id", null: false
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.date "applied_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credit_note_id"], name: "index_applied_credits_on_credit_note_id"
+    t.index ["invoice_id"], name: "index_applied_credits_on_invoice_id"
+  end
 
   create_table "credit_note_items", force: :cascade do |t|
     t.bigint "credit_note_id", null: false
@@ -211,6 +222,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_01_20_011446) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  add_foreign_key "applied_credits", "credit_notes"
+  add_foreign_key "applied_credits", "invoices"
   add_foreign_key "credit_note_items", "credit_notes"
   add_foreign_key "credit_note_items", "products"
   add_foreign_key "credit_notes", "invoices"

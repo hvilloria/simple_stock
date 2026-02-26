@@ -128,6 +128,8 @@
 
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
+            - cn_json = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
+
             -# Fila principal del proveedor
             %tr.bg-slate-50.hover:bg-slate-100.transition-colors
               %td.px-4.py-4
@@ -161,8 +163,15 @@
                     = currency_ar(data[:invoices_amount_with_discount])
 
               %td.px-4.py-4.text-center
-                %button{ type: "button", class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer", onclick: "openPaymentModal(#{data[:supplier].id}, '#{data[:supplier].name}', #{data[:invoices_count]})" }
-                  Marcar como Pagado
+                %button{ type: "button",
+                         class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer",
+                         data: { supplier_id: data[:supplier].id,
+                                 supplier_name: data[:supplier].name,
+                                 invoices_count: data[:invoices_count],
+                                 invoices_total: data[:invoices_amount_with_discount].to_f,
+                                 credit_notes: cn_json },
+                         onclick: "openPaymentModal(this)" }
+                  Pagar
 
             -# Filas de detalle de facturas
             - data[:invoices].each do |invoice|
@@ -214,49 +223,41 @@
       %p.text-gray-600
         No tienes facturas que venzan en el período seleccionado
 
--# Modal de confirmación de pago
+-# Modal de pago
 #paymentModal{ style: "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center;", onclick: "if(event.target === this) closePaymentModal()" }
-  .bg-white.rounded-lg.p-6{ style: "max-width: 32rem; width: 100%; margin: 0 1rem;", onclick: "event.stopPropagation()" }
+  .bg-white.rounded-lg.p-6{ style: "max-width: 36rem; width: 100%; margin: 0 1rem; max-height: 90vh; overflow-y: auto;", onclick: "event.stopPropagation()" }
     .flex.items-center.justify-between.mb-4
-      %h3#modalTitle.text-lg.font-semibold.text-gray-900 Marcar como pagada
+      %h3#modalTitle.text-lg.font-semibold.text-gray-900 Pagar
       %button.text-gray-400.hover:text-gray-600.cursor-pointer{ type: "button", onclick: "closePaymentModal()" }
         %span.text-2xl ×
 
     %form#paymentForm{ method: "post", action: "#" }
-      -# Info del proveedor y monto (para caso de múltiples facturas)
+      = hidden_field_tag :authenticity_token, form_authenticity_token
+
+      -# Resumen del proveedor
       #supplierInfo.mb-4.p-3.bg-slate-50.rounded-lg
         %p#modalMessage.text-sm.text-slate-600
 
-      -# Opción de descuento (si aplica - solo para facturas individuales)
-      #discountSection{ style: "display: none;" }
-        .mb-4.p-4.bg-emerald-50.border.border-emerald-200.rounded-lg
-          .flex.items-start.gap-3.mb-3
-            .text-2xl ⚡
-            .flex-1
-              %h4.text-sm.font-semibold.text-emerald-900.mb-1
-                Descuento Disponible
-              %p#discountInfo.text-xs.text-emerald-700
-                Vence el XX/XX - X% de descuento
+      -# Notas de crédito disponibles (se muestra solo si existen NCs con saldo)
+      #creditNotesSection{ style: "display: none;" }
+        .mb-4
+          %h4.text-sm.font-semibold.text-gray-800.mb-3 Notas de Crédito Disponibles
+          #creditNotesList
+            -# Filled by JS
 
-          .space-y-2
-            %label.flex.items-center.gap-3.cursor-pointer.p-3.border-2.border-slate-200.rounded-lg.hover:bg-slate-50.transition-colors
-              = radio_button_tag "apply_discount", "false", true,
-                                 class: "w-4 h-4 text-slate-700"
-              .flex-1
-                %span.text-sm.font-medium.text-slate-900
-                  Pagar monto completo
-                %p#fullAmountText.text-xs.text-slate-600
-                  ARS XXX.XXX
+          -# Resumen de liquidación
+          .mt-3.pt-3.border-t.border-gray-200.space-y-1
+            .flex.justify-between.text-sm
+              %span.text-gray-500 Total facturas:
+              %span#modalInvoicesTotal.font-medium.text-gray-800
+            .flex.justify-between.text-sm
+              %span.text-gray-500 Créditos a aplicar:
+              %span#modalCreditsApplied.font-medium.text-green-600
+            .flex.justify-between.text-sm.font-semibold.pt-1.border-t.border-gray-100
+              %span.text-gray-900 Neto a transferir:
+              %span#modalNetTotal.text-blue-600
 
-            %label.flex.items-center.gap-3.cursor-pointer.p-3.border-2.border-emerald-500.bg-emerald-50.rounded-lg.hover:bg-emerald-100.transition-colors
-              = radio_button_tag "apply_discount", "true", false,
-                                 class: "w-4 h-4 text-emerald-600"
-              .flex-1
-                %span.text-sm.font-medium.text-emerald-900
-                  Pagar con descuento ⭐
-                %p#discountAmountText.text-xs.text-emerald-700
-                  ARS XXX.XXX (ahorrás ARS XXX)
-
+      -# Fecha de pago
       .mb-4
         %label.block.text-sm.font-medium.text-gray-700.mb-2
           Fecha de Pago
@@ -272,68 +273,116 @@
           Confirmar Pago
 
 :javascript
-  let currentInvoice = null;
+  let currentSupplierData = null;
 
-  // Para marcar proveedor completo
-  function openPaymentModal(supplierId, supplierName, invoicesCount) {
-    const modal = document.getElementById('paymentModal');
-    const form = document.getElementById('paymentForm');
-    const title = document.getElementById('modalTitle');
-    const message = document.getElementById('modalMessage');
-    const discountSection = document.getElementById('discountSection');
+  function openPaymentModal(btn) {
+    const modal     = document.getElementById('paymentModal');
+    const form      = document.getElementById('paymentForm');
+    const title     = document.getElementById('modalTitle');
+    const message   = document.getElementById('modalMessage');
+    const cnSection = document.getElementById('creditNotesSection');
+    const cnList    = document.getElementById('creditNotesList');
 
-    currentInvoice = null;
+    const supplierId    = btn.dataset.supplierId;
+    const supplierName  = btn.dataset.supplierName;
+    const invoicesCount = parseInt(btn.dataset.invoicesCount);
+    const invoicesTotal = parseFloat(btn.dataset.invoicesTotal);
+    const creditNotes   = JSON.parse(btn.dataset.creditNotes || '[]');
 
-    title.textContent = `Marcar facturas de ${supplierName} como Pagadas`;
-    message.textContent = `¿Estás seguro de marcar ${invoicesCount} ${invoicesCount === 1 ? 'factura' : 'facturas'} de ${supplierName} como pagadas?`;
+    currentSupplierData = { invoicesTotal };
 
-    discountSection.style.display = 'none';
+    title.textContent   = `Pagar a ${supplierName}`;
+    message.textContent = `${invoicesCount} ${invoicesCount === 1 ? 'factura' : 'facturas'} — Total: ${formatARS(invoicesTotal)}`;
 
     const period = #{@selected_period.to_json};
-    form.action = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
+    form.action  = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
+
+    if (creditNotes.length > 0) {
+      cnSection.style.display = 'block';
+      cnList.innerHTML = creditNotes.map(cn => `
+        <div class="mb-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-green-800">${cn.number}</span>
+            <span class="text-xs text-green-600">Saldo: ${formatARS(cn.remaining_balance_ars)}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500 whitespace-nowrap">Aplicar ARS</span>
+            <input
+              type="number"
+              class="flex-1 px-3 py-1.5 text-sm border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              placeholder="0"
+              min="0"
+              max="${cn.remaining_balance_ars}"
+              step="1"
+              data-cn-id="${cn.id}"
+              data-max="${cn.remaining_balance_ars}"
+              oninput="recalculateNet()"
+            />
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('modalInvoicesTotal').textContent  = formatARS(invoicesTotal);
+      document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(0);
+      document.getElementById('modalNetTotal').textContent       = formatARS(invoicesTotal);
+    } else {
+      cnSection.style.display = 'none';
+    }
 
     modal.style.display = 'flex';
   }
 
-  // Para marcar factura individual con opción de descuento
-  function openSingleInvoicePaymentModal(invoiceId, invoiceNumber, supplierName, amount, hasDiscount, discountPercentage, discountDueDate, amountWithDiscount) {
-    currentInvoice = {
-      id: invoiceId,
-      number: invoiceNumber,
-      supplier: supplierName,
-      amount: amount,
-      hasDiscount: hasDiscount,
-      discountPercentage: discountPercentage,
-      discountDueDate: discountDueDate,
-      amountWithDiscount: amountWithDiscount
-    };
+  function recalculateNet() {
+    if (!currentSupplierData) return;
 
-    const modal = document.getElementById('paymentModal');
-    const form = document.getElementById('paymentForm');
-    const title = document.getElementById('modalTitle');
-    const message = document.getElementById('modalMessage');
-    const discountSection = document.getElementById('discountSection');
+    const inputs = document.querySelectorAll('#creditNotesList input[data-cn-id]');
+    let totalApplied = 0;
 
-    title.textContent = `Marcar Factura ${invoiceNumber} como Pagada`;
-    message.textContent = `Proveedor: ${supplierName} | Monto: ARS ${amount.toLocaleString('es-AR')}`;
+    inputs.forEach(input => {
+      const max = parseFloat(input.dataset.max);
+      let val   = parseFloat(input.value) || 0;
+      if (val > max) { input.value = max; val = max; }
+      if (val < 0)   { input.value = 0;   val = 0; }
+      totalApplied += val;
+    });
 
-    if (hasDiscount) {
-      discountSection.style.display = 'block';
-      document.getElementById('discountInfo').textContent =
-        `Vence el ${discountDueDate} - ${discountPercentage}% de descuento`;
-      document.getElementById('fullAmountText').textContent =
-        `ARS ${amount.toLocaleString('es-AR')}`;
-      document.getElementById('discountAmountText').textContent =
-        `ARS ${amountWithDiscount.toLocaleString('es-AR')} (ahorrás ARS ${(amount - amountWithDiscount).toLocaleString('es-AR')})`;
-    } else {
-      discountSection.style.display = 'none';
-    }
-
-    form.action = `/web/invoices/${invoiceId}/mark_as_paid`;
-    modal.style.display = 'flex';
+    const net = Math.max(0, currentSupplierData.invoicesTotal - totalApplied);
+    document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(totalApplied);
+    document.getElementById('modalNetTotal').textContent       = formatARS(net);
   }
 
   function closePaymentModal() {
     document.getElementById('paymentModal').style.display = 'none';
-    currentInvoice = null;
+    currentSupplierData = null;
   }
+
+  function formatARS(amount) {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(amount);
+  }
+
+  // Before submit: inject credit_applications hidden inputs
+  document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('paymentForm').addEventListener('submit', function () {
+      this.querySelectorAll('input[name^="credit_applications"]').forEach(el => el.remove());
+
+      let idx = 0;
+      document.querySelectorAll('#creditNotesList input[data-cn-id]').forEach(input => {
+        const val = parseFloat(input.value) || 0;
+        if (val <= 0) return;
+
+        const addHidden = (name, value) => {
+          const el = document.createElement('input');
+          el.type  = 'hidden';
+          el.name  = name;
+          el.value = value;
+          this.appendChild(el);
+        };
+
+        addHidden(`credit_applications[${idx}][credit_note_id]`, input.dataset.cnId);
+        addHidden(`credit_applications[${idx}][amount_ars]`, val);
+        idx++;
+      });
+    });
+  });

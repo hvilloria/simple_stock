@@ -642,58 +642,6 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
         expect(invoice1.reload.paid_status?).to be true
         expect(invoice2.reload.paid_status?).to be true
       end
-
-      it "marks credit notes associated to invoices as applied" do
-        cn_associated = create(:credit_note, supplier: supplier, invoice: invoice1, status: "pending")
-
-        post mark_supplier_paid_web_invoices_path, params: {
-          supplier_id: supplier.id,
-          period: "this_week",
-          payment_date: Date.current.to_s
-        }
-
-        expect(cn_associated.reload.applied_status?).to be true
-      end
-
-      it "marks orphan credit notes (without invoice_id) as applied" do
-        orphan_cn = create(:credit_note, supplier: supplier, invoice: nil, status: "pending")
-
-        post mark_supplier_paid_web_invoices_path, params: {
-          supplier_id: supplier.id,
-          period: "this_week",
-          payment_date: Date.current.to_s
-        }
-
-        expect(orphan_cn.reload.applied_status?).to be true
-        expect(orphan_cn.applied_at).to eq(Date.current)
-      end
-
-      it "does not mark orphan credit notes from other suppliers" do
-        other_supplier = create(:supplier)
-        other_cn = create(:credit_note, supplier: other_supplier, invoice: nil, status: "pending")
-
-        post mark_supplier_paid_web_invoices_path, params: {
-          supplier_id: supplier.id,
-          period: "this_week",
-          payment_date: Date.current.to_s
-        }
-
-        expect(other_cn.reload.pending_status?).to be true
-      end
-
-      it "includes credit notes count in success message" do
-        create(:credit_note, supplier: supplier, invoice: nil, status: "pending")
-        create(:credit_note, supplier: supplier, invoice: nil, status: "pending")
-
-        post mark_supplier_paid_web_invoices_path, params: {
-          supplier_id: supplier.id,
-          period: "this_week",
-          payment_date: Date.current.to_s
-        }
-
-        follow_redirect!
-        expect(response.body).to include("2 nota(s) de crédito aplicada(s)")
-      end
     end
 
     context "with no invoices for supplier" do

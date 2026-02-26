@@ -41,6 +41,14 @@ RSpec.describe Invoices::MarkAsPaid do
         expect(result.record).to eq(invoice)
         expect(result.record).to be_persisted
       end
+
+      it "does not automatically apply associated credit notes" do
+        credit_note = create(:credit_note, supplier: invoice.supplier, invoice: invoice, status: "active")
+
+        described_class.call(invoice: invoice, payment_date: Date.today)
+
+        expect(credit_note.reload.active_status?).to be true
+      end
     end
 
     context "with invalid parameters" do
@@ -159,56 +167,6 @@ RSpec.describe Invoices::MarkAsPaid do
 
         expect(result.success?).to be false
         expect(result.errors).to include("Discount has expired or is not available for this invoice")
-      end
-
-      it "marks associated credit notes as applied" do
-        credit_note = create(:credit_note, invoice: invoice, status: "pending")
-
-        result = described_class.call(
-          invoice: invoice,
-          payment_date: Date.today,
-          apply_discount: true
-        )
-
-        expect(result.success?).to be true
-        expect(credit_note.reload.applied_status?).to be true
-        expect(credit_note.applied_at).to eq(Date.today)
-      end
-    end
-
-    context "with credit notes" do
-      let(:supplier) { create(:supplier) }
-      let(:invoice) { create(:invoice, :simple_mode, supplier: supplier, status: "pending") }
-
-      it "marks credit notes associated to the invoice as applied" do
-        associated_cn = create(:credit_note, supplier: supplier, invoice: invoice, status: "pending")
-
-        result = described_class.call(invoice: invoice, payment_date: Date.today)
-
-        expect(result.success?).to be true
-        expect(associated_cn.reload.applied_status?).to be true
-        expect(associated_cn.applied_at).to eq(Date.today)
-      end
-
-      it "does NOT mark orphan credit notes (without invoice_id) as applied" do
-        # Este test documenta el comportamiento ACTUAL (que es un bug)
-        orphan_cn = create(:credit_note, supplier: supplier, invoice: nil, status: "pending")
-
-        result = described_class.call(invoice: invoice, payment_date: Date.today)
-
-        expect(result.success?).to be true
-        # La NC huérfana NO se marca - esto es el comportamiento actual pero debería cambiar
-        expect(orphan_cn.reload.pending_status?).to be true
-      end
-
-      it "does not mark credit notes from other suppliers" do
-        other_supplier = create(:supplier)
-        other_cn = create(:credit_note, supplier: other_supplier, invoice: nil, status: "pending")
-
-        result = described_class.call(invoice: invoice, payment_date: Date.today)
-
-        expect(result.success?).to be true
-        expect(other_cn.reload.pending_status?).to be true
       end
     end
   end

@@ -5,6 +5,7 @@ class Invoice < ApplicationRecord
   has_many :products, through: :invoice_items
   has_many :stock_movements, as: :reference, dependent: :nullify
   has_many :credit_notes, dependent: :restrict_with_error
+  has_many :applied_credits, dependent: :destroy
 
   # Enums - Expandir estados
   enum :status, {
@@ -155,19 +156,23 @@ class Invoice < ApplicationRecord
     (due_date - Date.today).to_i
   end
 
-  def mark_as_paid!(payment_date = Date.today)
+  def mark_as_paid!(payment_date = Date.today, paid_with_discount: false)
     raise "Cannot mark as paid: not in simple mode" unless simple_mode?
     raise "Cannot mark as paid: already paid" if paid_status?
 
-    transaction do
-      update!(status: "paid", paid_at: payment_date)
+    update!(status: "paid", paid_at: payment_date, paid_with_discount: paid_with_discount)
+  end
 
-      # Marcar notas de crédito asociadas como aplicadas
-      credit_notes.pending_status.update_all(
-        status: "applied",
-        applied_at: payment_date
-      )
-    end
+  # === APPLIED CREDITS METHODS ===
+
+  # Total credits already applied to this invoice (ARS)
+  def applied_credits_amount
+    applied_credits.sum(:amount)
+  end
+
+  # Net amount still owed after credits (ARS)
+  def net_amount
+    total_amount_ars - applied_credits_amount
   end
 
   # === EARLY PAYMENT METHODS ===

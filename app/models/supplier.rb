@@ -41,12 +41,14 @@ class Supplier < ApplicationRecord
     payment_term_days ? "#{payment_term_days} días" : "No definido"
   end
 
+  # Total credit available from active notes, accounting for partial applications.
+  # Uses remaining_balance_ars to normalize USD notes to ARS equivalent.
   def total_credit_notes_amount
-    credit_notes.available.sum { |cn| cn.total_amount_ars }
+    credit_notes.where(status: "active").sum { |cn| cn.remaining_balance_ars }
   end
 
   def credit_notes_count
-    credit_notes.available.count
+    credit_notes.where(status: "active").count
   end
 
   def current_balance
