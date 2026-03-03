@@ -128,7 +128,8 @@
 
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
-            - cn_json = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
+            - cn_json           = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
+            - invoices_list_json = data[:invoices].map { |i| { number: i.invoice_number, amount: i.amount_with_discount_ars.to_f } }.to_json
 
             -# Fila principal del proveedor
             %tr.bg-slate-50.hover:bg-slate-100.transition-colors
@@ -167,8 +168,8 @@
                          class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer",
                          data: { supplier_id: data[:supplier].id,
                                  supplier_name: data[:supplier].name,
-                                 invoices_count: data[:invoices_count],
                                  invoices_total: data[:invoices_amount_with_discount].to_f,
+                                 invoices_list: invoices_list_json,
                                  credit_notes: cn_json },
                          onclick: "openPaymentModal(this)" }
                   Pagar
@@ -234,15 +235,17 @@
     %form#paymentForm{ method: "post", action: "#" }
       = hidden_field_tag :authenticity_token, form_authenticity_token
 
-      -# Resumen del proveedor
+      -# Lista de facturas a pagar
       #supplierInfo.mb-4.p-3.bg-slate-50.rounded-lg
-        %p#modalMessage.text-sm.text-slate-600
+        %p.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide.mb-2 Facturas a pagar
+        #modalInvoicesList.space-y-1
+          -# Filled by JS
 
       -# Notas de crédito disponibles (se muestra solo si existen NCs con saldo)
       #creditNotesSection{ style: "display: none;" }
         .mb-4
           %h4.text-sm.font-semibold.text-gray-800.mb-3 Notas de Crédito Disponibles
-          #creditNotesList
+          #creditNotesList.space-y-2
             -# Filled by JS
 
           -# Resumen de liquidación
@@ -273,53 +276,58 @@
           Confirmar Pago
 
 :javascript
-  let currentSupplierData = null;
+  window.currentSupplierData = null;
 
-  function openPaymentModal(btn) {
+  window.openPaymentModal = function openPaymentModal(btn) {
     const modal     = document.getElementById('paymentModal');
     const form      = document.getElementById('paymentForm');
     const title     = document.getElementById('modalTitle');
-    const message   = document.getElementById('modalMessage');
     const cnSection = document.getElementById('creditNotesSection');
     const cnList    = document.getElementById('creditNotesList');
+    const invList   = document.getElementById('modalInvoicesList');
 
     const supplierId    = btn.dataset.supplierId;
     const supplierName  = btn.dataset.supplierName;
-    const invoicesCount = parseInt(btn.dataset.invoicesCount);
     const invoicesTotal = parseFloat(btn.dataset.invoicesTotal);
-    const creditNotes   = JSON.parse(btn.dataset.creditNotes || '[]');
+    const invoicesList  = JSON.parse(btn.dataset.invoicesList || '[]');
+    const creditNotes   = JSON.parse(btn.dataset.creditNotes  || '[]');
 
-    currentSupplierData = { invoicesTotal };
+    window.currentSupplierData = { invoicesTotal };
 
-    title.textContent   = `Pagar a ${supplierName}`;
-    message.textContent = `${invoicesCount} ${invoicesCount === 1 ? 'factura' : 'facturas'} — Total: ${formatARS(invoicesTotal)}`;
+    title.textContent = `Pagar a ${supplierName}`;
+
+    // Render invoice list with number + amount per row
+    invList.innerHTML = invoicesList.map(inv => `
+      <div class="flex justify-between items-center">
+        <span class="text-sm font-mono text-slate-700">${inv.number}</span>
+        <span class="text-sm text-slate-600">${formatARS(inv.amount)}</span>
+      </div>
+    `).join('');
 
     const period = #{@selected_period.to_json};
     form.action  = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
 
     if (creditNotes.length > 0) {
       cnSection.style.display = 'block';
+
       cnList.innerHTML = creditNotes.map(cn => `
-        <div class="mb-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div class="flex items-center justify-between mb-2">
+        <label class="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg cursor-pointer hover:bg-green-100 transition-colors">
+          <input
+            type="checkbox"
+            class="w-4 h-4 rounded border-green-400 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
+            data-cn-id="${cn.id}"
+            data-cn-balance="${cn.remaining_balance_ars}"
+            data-effective="0"
+            onchange="recalculateNet()"
+          />
+          <div class="flex-1 flex items-center justify-between min-w-0">
             <span class="text-sm font-medium text-green-800">${cn.number}</span>
-            <span class="text-xs text-green-600">Saldo: ${formatARS(cn.remaining_balance_ars)}</span>
+            <div class="text-right flex-shrink-0 ml-2">
+              <span class="text-xs text-green-600">Saldo: ${formatARS(cn.remaining_balance_ars)}</span>
+              <span class="cn-effective-label block text-xs font-semibold text-emerald-700 hidden"></span>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-500 whitespace-nowrap">Aplicar ARS</span>
-            <input
-              type="number"
-              class="flex-1 px-3 py-1.5 text-sm border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="0"
-              min="0"
-              max="${cn.remaining_balance_ars}"
-              step="1"
-              data-cn-id="${cn.id}"
-              data-max="${cn.remaining_balance_ars}"
-              oninput="recalculateNet()"
-            />
-          </div>
-        </div>
+        </label>
       `).join('');
 
       document.getElementById('modalInvoicesTotal').textContent  = formatARS(invoicesTotal);
@@ -332,45 +340,80 @@
     modal.style.display = 'flex';
   }
 
-  function recalculateNet() {
-    if (!currentSupplierData) return;
+  window.recalculateNet = function recalculateNet() {
+    if (!window.currentSupplierData) return;
 
-    const inputs = document.querySelectorAll('#creditNotesList input[data-cn-id]');
-    let totalApplied = 0;
+    const invoicesTotal = window.currentSupplierData.invoicesTotal;
+    const checkboxes    = document.querySelectorAll('#creditNotesList input[type="checkbox"]');
+    let remaining       = invoicesTotal;
+    let totalApplied    = 0;
 
-    inputs.forEach(input => {
-      const max = parseFloat(input.dataset.max);
-      let val   = parseFloat(input.value) || 0;
-      if (val > max) { input.value = max; val = max; }
-      if (val < 0)   { input.value = 0;   val = 0; }
-      totalApplied += val;
+    // First pass: compute effective amount per checked checkbox in DOM order
+    checkboxes.forEach(cb => {
+      const label       = cb.closest('label');
+      const effectiveEl = label.querySelector('.cn-effective-label');
+      const balance     = parseFloat(cb.dataset.cnBalance);
+
+      if (cb.checked) {
+        const effective      = Math.min(balance, Math.max(0, remaining));
+        cb.dataset.effective = effective;
+        remaining            -= effective;
+        totalApplied         += effective;
+
+        if (effective < balance) {
+          effectiveEl.textContent = `Se aplicarán ${formatARS(effective)}`;
+          effectiveEl.classList.remove('hidden');
+        } else {
+          effectiveEl.classList.add('hidden');
+        }
+      } else {
+        cb.dataset.effective = 0;
+        effectiveEl.classList.add('hidden');
+      }
     });
 
-    const net = Math.max(0, currentSupplierData.invoicesTotal - totalApplied);
+    // Second pass: disable unchecked checkboxes if invoice is fully covered
+    const fullyCovered = totalApplied >= invoicesTotal;
+    checkboxes.forEach(cb => {
+      if (!cb.checked) {
+        cb.disabled = fullyCovered;
+        const label = cb.closest('label');
+        label.style.opacity = fullyCovered ? '0.45' : '1';
+        label.style.cursor  = fullyCovered ? 'not-allowed' : 'pointer';
+      } else {
+        cb.disabled = false;
+        const label = cb.closest('label');
+        label.style.opacity = '1';
+        label.style.cursor  = 'pointer';
+      }
+    });
+
     document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(totalApplied);
-    document.getElementById('modalNetTotal').textContent       = formatARS(net);
+    document.getElementById('modalNetTotal').textContent       = formatARS(Math.max(0, invoicesTotal - totalApplied));
   }
 
-  function closePaymentModal() {
+  window.closePaymentModal = function closePaymentModal() {
     document.getElementById('paymentModal').style.display = 'none';
-    currentSupplierData = null;
+    window.currentSupplierData = null;
   }
 
-  function formatARS(amount) {
+  window.formatARS = function formatARS(amount) {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0
     }).format(amount);
   }
 
-  // Before submit: inject credit_applications hidden inputs
+  // Before submit: inject credit_applications hidden inputs from checked checkboxes
   document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('paymentForm').addEventListener('submit', function () {
       this.querySelectorAll('input[name^="credit_applications"]').forEach(el => el.remove());
 
       let idx = 0;
-      document.querySelectorAll('#creditNotesList input[data-cn-id]').forEach(input => {
-        const val = parseFloat(input.value) || 0;
-        if (val <= 0) return;
+      document.querySelectorAll('#creditNotesList input[type="checkbox"]').forEach(cb => {
+        if (!cb.checked) return;
+
+        const effective = parseFloat(cb.dataset.effective) || 0;
+        if (effective <= 0) return;
 
         const addHidden = (name, value) => {
           const el = document.createElement('input');
@@ -380,8 +423,8 @@
           this.appendChild(el);
         };
 
-        addHidden(`credit_applications[${idx}][credit_note_id]`, input.dataset.cnId);
-        addHidden(`credit_applications[${idx}][amount_ars]`, val);
+        addHidden(`credit_applications[${idx}][credit_note_id]`, cb.dataset.cnId);
+        addHidden(`credit_applications[${idx}][amount_ars]`, effective);
         idx++;
       });
     });
