@@ -9,7 +9,7 @@ RSpec.describe Product, type: :model do
     subject { build(:product) }
 
     it { is_expected.to validate_presence_of(:sku) }
-    it { is_expected.to validate_uniqueness_of(:sku) }
+    it { is_expected.to validate_uniqueness_of(:sku).scoped_to(:product_type, :brand, :origin) }
     it { is_expected.to validate_presence_of(:name) }
 
     describe 'numericality validations' do
@@ -97,7 +97,7 @@ RSpec.describe Product, type: :model do
       end
 
       it 'allows aftermarket' do
-        product = build(:product, product_type: 'aftermarket')
+        product = build(:product, product_type: 'aftermarket', origin: 'china')
         expect(product).to be_valid
       end
 

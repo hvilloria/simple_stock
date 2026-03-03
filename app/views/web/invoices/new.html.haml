@@ -86,7 +86,7 @@
                               placeholder: "0,00", 
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold", 
                               required: true, 
-                              data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
+                              data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount input->invoice-form#updateSummary" }
               %p.text-xs.text-gray-500.mt-1 Monto total de la factura (formato: 1.500.000,50)
             
             -# Fecha de Factura
@@ -103,7 +103,7 @@
               = date_field_tag :due_date, 30.days.from_now.to_date,
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true,
-                              data: { invoice_form_target: "dueDate" }
+                              data: { invoice_form_target: "dueDate", action: "change->invoice-form#updateSummaryDates" }
               %p.text-xs.text-gray-500.mt-1 Fecha límite de pago sin descuento (se calcula automáticamente)
 
         -# CARD 2 - Descuento por pronto pago (solo si el proveedor lo tiene configurado)
@@ -122,7 +122,7 @@
                 Vencimiento con descuento
               = date_field_tag :early_payment_due_date, nil,
                               class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
-                              data: { invoice_form_target: "earlyPaymentDueDate" }
+                              data: { invoice_form_target: "earlyPaymentDueDate", action: "change->invoice-form#updateSummaryDates" }
               %p.text-xs.text-slate-500.mt-1
                 Fecha límite para pagar con descuento
 
@@ -132,7 +132,7 @@
               = text_field_tag :early_payment_discount_percentage, nil,
                               placeholder: "5",
                               class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
-                              data: { invoice_form_target: "earlyPaymentDiscount" }
+                              data: { invoice_form_target: "earlyPaymentDiscount", action: "input->invoice-form#updateSummary" }
               %p.text-xs.text-slate-500.mt-1 Porcentaje de descuento (sin el símbolo %)
 
         -# CARD 3 - Notas
@@ -170,6 +170,31 @@
               %span.text-gray-600 Estado inicial
               %span
                 %span.px-2.py-1.bg-yellow-100.text-yellow-700.text-xs.rounded-full.font-medium Pendiente de pago
+
+          -# Dynamic summary: amount, dates, discount
+          .border-t.border-gray-200.pt-4.pb-2.space-y-2
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Monto
+              %span.font-semibold.text-gray-900{ data: { invoice_form_target: "summaryAmount" } } —
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Vencimiento
+              %span.font-medium.text-gray-900{ data: { invoice_form_target: "summaryDueDate" } } —
+
+          .mb-2.rounded-lg.border.border-emerald-200.bg-emerald-50.p-3{ data: { invoice_form_target: "summaryDiscountSection" }, style: "display: none;" }
+            .flex.items-center.gap-1.mb-2
+              %span ⚡
+              %span.text-xs.font-semibold.text-emerald-800 Con descuento anticipado
+            .space-y-1
+              .flex.justify-between.text-xs
+                %span.text-emerald-700 Descuento
+                %span.font-medium.text-emerald-800{ data: { invoice_form_target: "summaryDiscountPct" } } —
+              .flex.justify-between.text-xs
+                %span.text-emerald-700 Vence con desc.
+                %span.font-medium.text-emerald-800{ data: { invoice_form_target: "summaryEarlyDueDate" } } —
+              .border-t.border-emerald-200.mt-2.pt-2
+                .flex.justify-between.text-sm
+                  %span.font-medium.text-emerald-700 Monto final
+                  %span.font-bold.text-emerald-800{ data: { invoice_form_target: "summaryDiscountedAmount" } } —
 
           .border-t.border-gray-200.py-4
             %h4.text-sm.font-semibold.text-gray-900.mb-3 Qué NO hace este registro:
