@@ -1,90 +1,29 @@
 - content_for :page_title, "Pagos Pendientes"
 
 .container.mx-auto.px-6.py-6
-  
+
   -# Header
   .flex.items-center.justify-between.mb-6
     .flex-1
       %h1.text-3xl.font-bold.text-gray-900 💸 Pagos Pendientes
       %p.text-sm.text-gray-600.mt-1
         Facturas pendientes de pago agrupadas por proveedor
-    
+
     .text-right
       %p.text-xs.text-gray-500 Última actualización
       %p.text-sm.font-medium.text-gray-700= Time.current.strftime("%d/%m/%Y %H:%M")
-  
+
   -# Filtro de período
   .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
     = form_with url: pending_web_invoices_path, method: :get, class: "flex items-center gap-4" do |f|
-      
+
       %label.text-sm.font-medium.text-gray-700 Mostrar:
-      
+
       = select_tag :period, options_for_select([["Esta Semana (#{Date.current.beginning_of_week.strftime('%d/%m')} - #{Date.current.end_of_week.strftime('%d/%m')})", "this_week"], ["Próxima Semana", "next_week"], ["Este Mes (#{Date.current.strftime('%B')})", "this_month"], ["Próximo Mes", "next_month"], ["⚠️ Vencidas (atrasadas)", "overdue"]], @selected_period), class: "flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 transition-all", onchange: "this.form.requestSubmit()"
-  
-  -# Pagos Anticipados con Descuento
-  - if @early_payment_invoices.any?
-    .bg-gradient-to-r.from-emerald-50.to-green-50.border.border-emerald-200.rounded-lg.p-6.mb-6
-      .flex.items-start.gap-4.mb-4
-        .flex-1
-          %h2.text-xl.font-bold.text-emerald-900.mb-2
-            Pagos Anticipados
-          %p.text-sm.text-emerald-700.mb-3
-            Estas facturas vencen después de esta semana, pero el descuento expira ANTES del próximo jueves de pago. Si las pagás esta semana, ahorrás
-            = currency_ar(@early_payment_savings)
-          
-          .flex.items-center.gap-4.text-sm
-            .flex.items-center.gap-2
-              .w-2.h-2.bg-emerald-500.rounded-full
-              %span.font-medium.text-emerald-900= @early_payment_count
-              %span.text-emerald-700= @early_payment_count == 1 ? 'factura' : 'facturas'
-            .flex.items-center.gap-2
-              .w-2.h-2.bg-emerald-500.rounded-full
-              %span.font-medium.text-emerald-900= currency_ar(@early_payment_amount)
-              %span.text-emerald-700 monto total
-      
-      .bg-white.border.border-emerald-200.rounded-lg.overflow-hidden
-        %table.min-w-full
-          %thead.bg-emerald-50
-            %tr
-              %th.px-4.py-3.text-left.text-xs.font-medium.text-emerald-900.uppercase Proveedor
-              %th.px-4.py-3.text-left.text-xs.font-medium.text-emerald-900.uppercase N° Factura
-              %th.px-4.py-3.text-center.text-xs.font-medium.text-emerald-900.uppercase Vence Normal
-              %th.px-4.py-3.text-center.text-xs.font-medium.text-emerald-900.uppercase Vence Desc.
-              %th.px-4.py-3.text-center.text-xs.font-medium.text-emerald-900.uppercase Descuento
-              %th.px-4.py-3.text-right.text-xs.font-medium.text-emerald-900.uppercase Monto
-              %th.px-4.py-3.text-right.text-xs.font-medium.text-emerald-900.uppercase Con Desc.
-              %th.px-4.py-3.text-center.text-xs.font-medium.text-emerald-900.uppercase Ahorro
-              %th.px-4.py-3.text-center.text-xs.font-medium.text-emerald-900.uppercase Acción
-          
-          %tbody.divide-y.divide-emerald-100
-            - @early_payment_invoices.each do |invoice|
-              %tr.hover:bg-emerald-50.transition-colors
-                %td.px-4.py-3
-                  %p.font-medium.text-slate-900= invoice.supplier.name
-                %td.px-4.py-3
-                  %p.font-mono.text-sm.text-slate-700= invoice.invoice_number
-                %td.px-4.py-3.text-center
-                  %p.text-sm.text-slate-600= invoice.due_date.strftime("%d/%m/%Y")
-                %td.px-4.py-3.text-center
-                  %p.text-sm.font-medium.text-emerald-700= invoice.early_payment_due_date.strftime("%d/%m/%Y")
-                  %p.text-xs.text-emerald-600= "Expira en #{invoice.days_until_discount_expires} días"
-                %td.px-4.py-3.text-center
-                  .inline-flex.items-center.gap-1.px-2.py-1.bg-emerald-100.text-emerald-800.rounded-md.text-xs.font-semibold
-                    ⚡
-                    = "#{invoice.early_payment_discount_percentage}%"
-                %td.px-4.py-3.text-right
-                  %p.text-sm.text-slate-600.line-through= currency_ar(invoice.total_amount_ars)
-                %td.px-4.py-3.text-right
-                  %p.text-lg.font-bold.text-emerald-700= currency_ar(invoice.amount_with_discount_ars)
-                %td.px-4.py-3.text-center
-                  %p.text-sm.font-semibold.text-emerald-600= "- #{currency_ar(invoice.potential_savings_ars)}"
-                %td.px-4.py-3.text-center
-                  %button{ type: "button", class: "inline-flex items-center px-3 py-1.5 bg-emerald-100 hover:bg-emerald-700  text-xs font-medium rounded-lg transition-colors cursor-pointer", onclick: "openSingleInvoicePaymentModal(#{invoice.id}, '#{invoice.invoice_number}', '#{invoice.supplier.name}', #{invoice.total_amount_ars}, true, #{invoice.early_payment_discount_percentage}, '#{invoice.early_payment_due_date.strftime("%d/%m")}', #{invoice.amount_with_discount_ars})" }
-                    Pagar
 
   -# Métricas globales
-  .grid.grid-cols-1.md:grid-cols-2.lg:grid-cols-3.gap-6.mb-6
-    
+  .grid.grid-cols-1.md:grid-cols-2.lg:grid-cols-4.gap-6.mb-6
+
     -# Total a pagar (neto)
     .bg-white.border.border-slate-200.rounded-lg.shadow-sm.hover:shadow-md.transition-all.p-6
       .flex.items-start.justify-between.mb-4
@@ -92,111 +31,192 @@
           %p.text-sm.font-medium.text-gray-600.mb-1 Total a Transferir
           %h3.text-3xl.font-bold.text-blue-600
             = currency_ar(@total_to_pay)
-        
+
         .w-12.h-12.bg-blue-100.rounded-xl.flex.items-center.justify-center.text-2xl
           💸
-      
+
       .text-sm.text-gray-500
         %span.font-medium.text-gray-700
           = @suppliers_with_payments.count
         %span= @suppliers_with_payments.count == 1 ? "proveedor" : "proveedores"
-    
-    -# Facturas
+
+    -# Facturas (monto original)
     .bg-white.border.border-slate-200.rounded-lg.shadow-sm.hover:shadow-md.transition-all.p-6
       .flex.items-start.justify-between.mb-4
         .flex-1
           %p.text-sm.font-medium.text-gray-600.mb-1 Facturas Pendientes
           %h3.text-3xl.font-bold.text-gray-900
             = currency_ar(@total_invoices_amount)
-        
+
         .w-12.h-12.bg-gray-100.rounded-xl.flex.items-center.justify-center.text-2xl
           📄
-      
+
       .text-sm.text-gray-500
         %span.font-medium.text-gray-700
           = @total_invoices_count
         %span= @total_invoices_count == 1 ? "factura" : "facturas"
-    
+
+    -# Con Descuento
+    - if @total_savings > 0
+      .bg-white.border.border-emerald-200.rounded-lg.shadow-sm.hover:shadow-md.transition-all.p-6
+        .flex.items-start.justify-between.mb-4
+          .flex-1
+            %p.text-sm.font-medium.text-gray-600.mb-1 Con Descuento
+            %h3.text-3xl.font-bold.text-emerald-600
+              = currency_ar(@total_invoices_with_discount)
+
+          .w-12.h-12.bg-emerald-100.rounded-xl.flex.items-center.justify-center.text-2xl
+            ⚡
+
+        .text-sm.text-emerald-600
+          %span.font-medium Ahorrás
+          %span= currency_ar(@total_savings)
+    - else
+      .bg-white.border.border-slate-200.rounded-lg.shadow-sm.hover:shadow-md.transition-all.p-6
+        .flex.items-start.justify-between.mb-4
+          .flex-1
+            %p.text-sm.font-medium.text-gray-600.mb-1 Con Descuento
+            %h3.text-3xl.font-bold.text-gray-900
+              = currency_ar(@total_invoices_with_discount)
+
+          .w-12.h-12.bg-gray-100.rounded-xl.flex.items-center.justify-center.text-2xl
+            ⚡
+
+        .text-sm.text-gray-500
+          %span Sin descuentos disponibles
+
     -# Créditos
     .bg-white.border.border-slate-200.rounded-lg.shadow-sm.hover:shadow-md.transition-all.p-6
       .flex.items-start.justify-between.mb-4
         .flex-1
           %p.text-sm.font-medium.text-gray-600.mb-1 Crédito Disponible
-          %h3.text-3xl.font-bold.text-green-600
+          %h3.text-3xl.font-bold{ class: @total_credits_amount > 0 ? "text-green-600" : "text-gray-900" }
             = "- #{currency_ar(@total_credits_amount)}"
-        
-        .w-12.h-12.bg-green-100.rounded-xl.flex.items-center.justify-center.text-2xl
+
+        .w-12.h-12.rounded-xl.flex.items-center.justify-center.text-2xl{ class: @total_credits_amount > 0 ? "bg-green-100" : "bg-gray-100" }
           ✅
-      
-      .text-sm.text-green-600
+
+      .text-sm{ class: @total_credits_amount > 0 ? "text-green-600" : "text-gray-500" }
         %span.font-medium
           = @total_credits_count
         %span= @total_credits_count == 1 ? "nota de crédito" : "notas de crédito"
-  
-  -# Pagos Regulares
+
+  -# Tabla unificada de pagos
   - if @suppliers_with_payments.any?
-    %h2.text-xl.font-bold.text-slate-900.mb-4
-      📋 Pagos Regulares (vencen esta semana)
     .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
       %table.min-w-full
         %thead.bg-slate-50
           %tr
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
               Proveedor
-            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
-              Facturas
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
+              N° Factura
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
+              Vence Normal
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
+              Vence Desc.
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
+              Descuento
             %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
               Créditos
             %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
-              A Transferir
+              Monto
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
+              Con Desc.
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
-              Acciones
-        
+              Acción
+
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
+            - cn_json           = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
+            - invoices_list_json = data[:invoices].map { |i| { number: i.invoice_number, amount: i.amount_with_discount_ars.to_f } }.to_json
+
             -# Fila principal del proveedor
-            %tr.hover:bg-slate-50.transition-colors
+            %tr.bg-slate-50.hover:bg-slate-100.transition-colors
               %td.px-4.py-4
                 %p.font-semibold.text-slate-900= data[:supplier].name
                 %p.text-xs.text-gray-500
                   = data[:invoices_count]
-                  = data[:invoices_count] == 1 ? "factura vence" : "facturas vencen"
-              
-              %td.px-4.py-4.text-right
-                %p.font-medium.text-gray-900
-                  = currency_ar(data[:invoices_amount])
-                %p.text-xs.text-gray-500
-                  = data[:invoices_count]
                   = data[:invoices_count] == 1 ? "factura" : "facturas"
-              
+
+              %td.px-4.py-4.text-gray-400 —
+              %td.px-4.py-4.text-gray-400.text-center —
+              %td.px-4.py-4.text-gray-400.text-center —
+              %td.px-4.py-4.text-gray-400.text-center —
+
               %td.px-4.py-4.text-right
                 - if data[:credits_amount] > 0
                   %p.font-medium.text-green-600
                     = "- #{currency_ar(data[:credits_amount])}"
                 - else
                   %p.text-gray-400 —
-              
+
               %td.px-4.py-4.text-right
-                %p.text-xl.font-bold.text-blue-600
-                  = currency_ar(data[:amount_to_pay])
-              
+                %p.font-medium.text-gray-900
+                  = currency_ar(data[:invoices_amount])
+
+              %td.px-4.py-4.text-right
+                - if data[:invoices_amount] != data[:invoices_amount_with_discount]
+                  %p.font-bold.text-emerald-600
+                    = currency_ar(data[:invoices_amount_with_discount])
+                - else
+                  %p.font-medium.text-gray-900
+                    = currency_ar(data[:invoices_amount_with_discount])
+
               %td.px-4.py-4.text-center
-                %button{ type: "button", class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer", onclick: "openPaymentModal(#{data[:supplier].id}, '#{data[:supplier].name}', #{data[:invoices_count]})" }
-                  Marcar como Pagado
-            
-            -# Filas de detalle de facturas (opcional, expandible)
+                %button{ type: "button",
+                         class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer",
+                         data: { supplier_id: data[:supplier].id,
+                                 supplier_name: data[:supplier].name,
+                                 invoices_total: data[:invoices_amount_with_discount].to_f,
+                                 invoices_list: invoices_list_json,
+                                 credit_notes: cn_json },
+                         onclick: "openPaymentModal(this)" }
+                  Pagar
+
+            -# Filas de detalle de facturas
             - data[:invoices].each do |invoice|
-              %tr.bg-slate-25.text-sm
-                %td.px-4.py-2.pl-12
-                  %span.text-gray-600.font-mono.text-xs= invoice.invoice_number
-                %td.px-4.py-2.text-right.text-gray-600
-                  = currency_ar(invoice.total_amount_ars)
-                %td.px-4.py-2.text-right.text-gray-500.text-xs
-                  = invoice.due_date.strftime("%d/%m/%Y")
-                %td.px-4.py-2{colspan: 2}
-  
-  -# Mensaje cuando no hay pagos (ni anticipados ni regulares)
-  - if @suppliers_with_payments.empty? && @early_payment_invoices.empty?
+              - has_discount = invoice.eligible_for_discount?
+              %tr.hover:bg-slate-50.transition-colors
+                %td.px-4.py-2.pl-8
+                  %span.text-gray-400 └
+
+                %td.px-4.py-2
+                  %span.font-mono.text-sm{ class: has_discount ? "text-emerald-600 font-semibold" : "text-gray-700" }
+                    = invoice.invoice_number
+
+                %td.px-4.py-2.text-center
+                  %span.text-sm.text-gray-600= invoice.due_date.strftime("%d/%m/%Y")
+
+                %td.px-4.py-2.text-center
+                  - if has_discount
+                    %span.text-sm.text-emerald-600.font-medium= invoice.early_payment_due_date.strftime("%d/%m/%Y")
+                  - else
+                    %span.text-gray-400 —
+
+                %td.px-4.py-2.text-center
+                  - if has_discount
+                    .inline-flex.items-center.gap-1.px-2.py-1.bg-emerald-100.text-emerald-700.rounded-md.text-xs.font-semibold
+                      ⚡
+                      = "#{invoice.early_payment_discount_percentage}%"
+                  - else
+                    %span.text-gray-400 —
+
+                %td.px-4.py-2.text-right.text-gray-400 —
+
+                %td.px-4.py-2.text-right
+                  %span.text-sm.text-gray-600= currency_ar(invoice.total_amount)
+
+                %td.px-4.py-2.text-right
+                  - if has_discount
+                    %span.text-sm.font-semibold.text-emerald-600= currency_ar(invoice.amount_with_discount_ars)
+                  - else
+                    %span.text-sm.text-gray-600= currency_ar(invoice.amount_with_discount_ars)
+
+                %td.px-4.py-2
+
+  -# Mensaje cuando no hay pagos
+  - if @suppliers_with_payments.empty?
     .bg-white.border.border-slate-200.rounded-lg.p-16.text-center
       .inline-flex.w-20.h-20.rounded-full.bg-green-100.items-center.justify-center.text-4xl.mb-4
         ✓
@@ -204,126 +224,208 @@
       %p.text-gray-600
         No tienes facturas que venzan en el período seleccionado
 
--# Modal de confirmación de pago
+-# Modal de pago
 #paymentModal{ style: "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center;", onclick: "if(event.target === this) closePaymentModal()" }
-  .bg-white.rounded-lg.p-6{ style: "max-width: 32rem; width: 100%; margin: 0 1rem;", onclick: "event.stopPropagation()" }
+  .bg-white.rounded-lg.p-6{ style: "max-width: 36rem; width: 100%; margin: 0 1rem; max-height: 90vh; overflow-y: auto;", onclick: "event.stopPropagation()" }
     .flex.items-center.justify-between.mb-4
-      %h3#modalTitle.text-lg.font-semibold.text-gray-900 Marcar como pagada
+      %h3#modalTitle.text-lg.font-semibold.text-gray-900 Pagar
       %button.text-gray-400.hover:text-gray-600.cursor-pointer{ type: "button", onclick: "closePaymentModal()" }
         %span.text-2xl ×
-    
-    %form#paymentForm{ method: "post", action: "#" }
-      -# Info del proveedor y monto (para caso de múltiples facturas)
-      #supplierInfo.mb-4.p-3.bg-slate-50.rounded-lg
-        %p#modalMessage.text-sm.text-slate-600
 
-      -# Opción de descuento (si aplica - solo para facturas individuales)
-      #discountSection{ style: "display: none;" }
-        .mb-4.p-4.bg-emerald-50.border.border-emerald-200.rounded-lg
-          .flex.items-start.gap-3.mb-3
-            .text-2xl ⚡
-            .flex-1
-              %h4.text-sm.font-semibold.text-emerald-900.mb-1
-                Descuento Disponible
-              %p#discountInfo.text-xs.text-emerald-700
-                Vence el XX/XX - X% de descuento
-          
-          .space-y-2
-            %label.flex.items-center.gap-3.cursor-pointer.p-3.border-2.border-slate-200.rounded-lg.hover:bg-slate-50.transition-colors
-              = radio_button_tag "apply_discount", "false", true, 
-                                 class: "w-4 h-4 text-slate-700"
-              .flex-1
-                %span.text-sm.font-medium.text-slate-900
-                  Pagar monto completo
-                %p#fullAmountText.text-xs.text-slate-600
-                  ARS XXX.XXX
-            
-            %label.flex.items-center.gap-3.cursor-pointer.p-3.border-2.border-emerald-500.bg-emerald-50.rounded-lg.hover:bg-emerald-100.transition-colors
-              = radio_button_tag "apply_discount", "true", false,
-                                 class: "w-4 h-4 text-emerald-600"
-              .flex-1
-                %span.text-sm.font-medium.text-emerald-900
-                  Pagar con descuento ⭐
-                %p#discountAmountText.text-xs.text-emerald-700
-                  ARS XXX.XXX (ahorrás ARS XXX)
-      
+    %form#paymentForm{ method: "post", action: "#" }
+      = hidden_field_tag :authenticity_token, form_authenticity_token
+
+      -# Lista de facturas a pagar
+      #supplierInfo.mb-4.p-3.bg-slate-50.rounded-lg
+        %p.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide.mb-2 Facturas a pagar
+        #modalInvoicesList.space-y-1
+          -# Filled by JS
+
+      -# Notas de crédito disponibles (se muestra solo si existen NCs con saldo)
+      #creditNotesSection{ style: "display: none;" }
+        .mb-4
+          %h4.text-sm.font-semibold.text-gray-800.mb-3 Notas de Crédito Disponibles
+          #creditNotesList.space-y-2
+            -# Filled by JS
+
+          -# Resumen de liquidación
+          .mt-3.pt-3.border-t.border-gray-200.space-y-1
+            .flex.justify-between.text-sm
+              %span.text-gray-500 Total facturas:
+              %span#modalInvoicesTotal.font-medium.text-gray-800
+            .flex.justify-between.text-sm
+              %span.text-gray-500 Créditos a aplicar:
+              %span#modalCreditsApplied.font-medium.text-green-600
+            .flex.justify-between.text-sm.font-semibold.pt-1.border-t.border-gray-100
+              %span.text-gray-900 Neto a transferir:
+              %span#modalNetTotal.text-blue-600
+
+      -# Fecha de pago
       .mb-4
         %label.block.text-sm.font-medium.text-gray-700.mb-2
           Fecha de Pago
         = date_field_tag :payment_date, Date.current,
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                         required: true
-      
+
       .flex.items-center.gap-3
         %button.cursor-pointer.flex-1.px-4.py-2.border.border-slate-300.text-slate-700.font-semibold.rounded-lg.hover:bg-slate-50.transition-colors{ type: "button", onclick: "closePaymentModal()" }
           Cancelar
-        
+
         %button.cursor-pointer.flex-1.px-4.py-2.bg-slate-700.hover:bg-slate-800.text-white.font-semibold.rounded-lg.transition-colors{ type: "submit" }
           Confirmar Pago
 
 :javascript
-  let currentInvoice = null;
-  
-  // Para marcar proveedor completo
-  function openPaymentModal(supplierId, supplierName, invoicesCount) {
-    const modal = document.getElementById('paymentModal');
-    const form = document.getElementById('paymentForm');
-    const title = document.getElementById('modalTitle');
-    const message = document.getElementById('modalMessage');
-    const discountSection = document.getElementById('discountSection');
-    
-    currentInvoice = null;
-    
-    title.textContent = `Marcar facturas de ${supplierName} como Pagadas`;
-    message.textContent = `¿Estás seguro de marcar ${invoicesCount} ${invoicesCount === 1 ? 'factura' : 'facturas'} de ${supplierName} como pagadas?`;
-    
-    discountSection.style.display = 'none';
-    
+  window.currentSupplierData = null;
+
+  window.openPaymentModal = function openPaymentModal(btn) {
+    const modal     = document.getElementById('paymentModal');
+    const form      = document.getElementById('paymentForm');
+    const title     = document.getElementById('modalTitle');
+    const cnSection = document.getElementById('creditNotesSection');
+    const cnList    = document.getElementById('creditNotesList');
+    const invList   = document.getElementById('modalInvoicesList');
+
+    const supplierId    = btn.dataset.supplierId;
+    const supplierName  = btn.dataset.supplierName;
+    const invoicesTotal = parseFloat(btn.dataset.invoicesTotal);
+    const invoicesList  = JSON.parse(btn.dataset.invoicesList || '[]');
+    const creditNotes   = JSON.parse(btn.dataset.creditNotes  || '[]');
+
+    window.currentSupplierData = { invoicesTotal };
+
+    title.textContent = `Pagar a ${supplierName}`;
+
+    // Render invoice list with number + amount per row
+    invList.innerHTML = invoicesList.map(inv => `
+      <div class="flex justify-between items-center">
+        <span class="text-sm font-mono text-slate-700">${inv.number}</span>
+        <span class="text-sm text-slate-600">${formatARS(inv.amount)}</span>
+      </div>
+    `).join('');
+
     const period = #{@selected_period.to_json};
-    form.action = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
-    
-    modal.style.display = 'flex';
-  }
-  
-  // Para marcar factura individual con opción de descuento
-  function openSingleInvoicePaymentModal(invoiceId, invoiceNumber, supplierName, amount, hasDiscount, discountPercentage, discountDueDate, amountWithDiscount) {
-    currentInvoice = {
-      id: invoiceId,
-      number: invoiceNumber,
-      supplier: supplierName,
-      amount: amount,
-      hasDiscount: hasDiscount,
-      discountPercentage: discountPercentage,
-      discountDueDate: discountDueDate,
-      amountWithDiscount: amountWithDiscount
-    };
-    
-    const modal = document.getElementById('paymentModal');
-    const form = document.getElementById('paymentForm');
-    const title = document.getElementById('modalTitle');
-    const message = document.getElementById('modalMessage');
-    const discountSection = document.getElementById('discountSection');
-    
-    title.textContent = `Marcar Factura ${invoiceNumber} como Pagada`;
-    message.textContent = `Proveedor: ${supplierName} | Monto: ARS ${amount.toLocaleString('es-AR')}`;
-    
-    if (hasDiscount) {
-      discountSection.style.display = 'block';
-      document.getElementById('discountInfo').textContent = 
-        `Vence el ${discountDueDate} - ${discountPercentage}% de descuento`;
-      document.getElementById('fullAmountText').textContent = 
-        `ARS ${amount.toLocaleString('es-AR')}`;
-      document.getElementById('discountAmountText').textContent = 
-        `ARS ${amountWithDiscount.toLocaleString('es-AR')} (ahorrás ARS ${(amount - amountWithDiscount).toLocaleString('es-AR')})`;
+    form.action  = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
+
+    if (creditNotes.length > 0) {
+      cnSection.style.display = 'block';
+
+      cnList.innerHTML = creditNotes.map(cn => `
+        <label class="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg cursor-pointer hover:bg-green-100 transition-colors">
+          <input
+            type="checkbox"
+            class="w-4 h-4 rounded border-green-400 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
+            data-cn-id="${cn.id}"
+            data-cn-balance="${cn.remaining_balance_ars}"
+            data-effective="0"
+            onchange="recalculateNet()"
+          />
+          <div class="flex-1 flex items-center justify-between min-w-0">
+            <span class="text-sm font-medium text-green-800">${cn.number}</span>
+            <div class="text-right flex-shrink-0 ml-2">
+              <span class="text-xs text-green-600">Saldo: ${formatARS(cn.remaining_balance_ars)}</span>
+              <span class="cn-effective-label block text-xs font-semibold text-emerald-700 hidden"></span>
+            </div>
+          </div>
+        </label>
+      `).join('');
+
+      document.getElementById('modalInvoicesTotal').textContent  = formatARS(invoicesTotal);
+      document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(0);
+      document.getElementById('modalNetTotal').textContent       = formatARS(invoicesTotal);
     } else {
-      discountSection.style.display = 'none';
+      cnSection.style.display = 'none';
     }
-    
-    form.action = `/web/invoices/${invoiceId}/mark_as_paid`;
+
     modal.style.display = 'flex';
   }
-  
-  function closePaymentModal() {
-    document.getElementById('paymentModal').style.display = 'none';
-    currentInvoice = null;
+
+  window.recalculateNet = function recalculateNet() {
+    if (!window.currentSupplierData) return;
+
+    const invoicesTotal = window.currentSupplierData.invoicesTotal;
+    const checkboxes    = document.querySelectorAll('#creditNotesList input[type="checkbox"]');
+    let remaining       = invoicesTotal;
+    let totalApplied    = 0;
+
+    // First pass: compute effective amount per checked checkbox in DOM order
+    checkboxes.forEach(cb => {
+      const label       = cb.closest('label');
+      const effectiveEl = label.querySelector('.cn-effective-label');
+      const balance     = parseFloat(cb.dataset.cnBalance);
+
+      if (cb.checked) {
+        const effective      = Math.min(balance, Math.max(0, remaining));
+        cb.dataset.effective = effective;
+        remaining            -= effective;
+        totalApplied         += effective;
+
+        if (effective < balance) {
+          effectiveEl.textContent = `Se aplicarán ${formatARS(effective)}`;
+          effectiveEl.classList.remove('hidden');
+        } else {
+          effectiveEl.classList.add('hidden');
+        }
+      } else {
+        cb.dataset.effective = 0;
+        effectiveEl.classList.add('hidden');
+      }
+    });
+
+    // Second pass: disable unchecked checkboxes if invoice is fully covered
+    const fullyCovered = totalApplied >= invoicesTotal;
+    checkboxes.forEach(cb => {
+      if (!cb.checked) {
+        cb.disabled = fullyCovered;
+        const label = cb.closest('label');
+        label.style.opacity = fullyCovered ? '0.45' : '1';
+        label.style.cursor  = fullyCovered ? 'not-allowed' : 'pointer';
+      } else {
+        cb.disabled = false;
+        const label = cb.closest('label');
+        label.style.opacity = '1';
+        label.style.cursor  = 'pointer';
+      }
+    });
+
+    document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(totalApplied);
+    document.getElementById('modalNetTotal').textContent       = formatARS(Math.max(0, invoicesTotal - totalApplied));
   }
+
+  window.closePaymentModal = function closePaymentModal() {
+    document.getElementById('paymentModal').style.display = 'none';
+    window.currentSupplierData = null;
+  }
+
+  window.formatARS = function formatARS(amount) {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(amount);
+  }
+
+  // Before submit: inject credit_applications hidden inputs from checked checkboxes
+  document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('paymentForm').addEventListener('submit', function () {
+      this.querySelectorAll('input[name^="credit_applications"]').forEach(el => el.remove());
+
+      let idx = 0;
+      document.querySelectorAll('#creditNotesList input[type="checkbox"]').forEach(cb => {
+        if (!cb.checked) return;
+
+        const effective = parseFloat(cb.dataset.effective) || 0;
+        if (effective <= 0) return;
+
+        const addHidden = (name, value) => {
+          const el = document.createElement('input');
+          el.type  = 'hidden';
+          el.name  = name;
+          el.value = value;
+          this.appendChild(el);
+        };
+
+        addHidden(`credit_applications[${idx}][credit_note_id]`, cb.dataset.cnId);
+        addHidden(`credit_applications[${idx}][amount_ars]`, effective);
+        idx++;
+      });
+    });
+  });

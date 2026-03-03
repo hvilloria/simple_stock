@@ -50,9 +50,6 @@ Rails.application.routes.draw do
       collection do
         get :supplier_invoices
       end
-      member do
-        post :mark_as_applied
-      end
     end
   end
 end

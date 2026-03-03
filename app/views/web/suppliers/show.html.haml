@@ -62,6 +62,16 @@
               %span.text-gray-500.w-32.flex-shrink-0 Plazo de pago:
               %span.text-gray-900
                 %strong= @supplier.payment_term_display
+          - if @supplier.has_early_payment_discount?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Descuento:
+              %span.text-gray-900
+                %strong= @supplier.early_payment_discount_percentage.to_i.to_s + "%"
+          - if @supplier.early_payment_days.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Dias de descuento:
+              %span.text-gray-900
+                %strong= "#{@supplier.early_payment_days} días"
 
       -# Card Facturas Pendientes
       - if @pending_invoices.any?

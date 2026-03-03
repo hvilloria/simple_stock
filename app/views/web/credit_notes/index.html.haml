@@ -100,10 +100,10 @@
                         = number_with_precision(credit_note.total_amount_ars, precision: 2, delimiter: ".", separator: ",")
                   
                   %td.px-6.py-4.whitespace-nowrap.text-center
-                    - if credit_note.pending_status?
+                    - if credit_note.available?
                       %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
                         Disponible
-                    - elsif credit_note.applied_status?
+                    - elsif credit_note.active_status? && credit_note.exhausted?
                       %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
                         Aplicada
                     - elsif credit_note.cancelled_status?

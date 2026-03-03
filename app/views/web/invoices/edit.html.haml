@@ -10,7 +10,7 @@
       Editar Factura
       = @invoice.invoice_number
 
-  = form_with model: @invoice, url: web_invoice_path(@invoice), method: :patch, local: true, class: "space-y-6", data: { controller: "purchase-form", action: "turbo:submit-start->purchase-form#handleFormSubmit" } do |f|
+  = form_with model: @invoice, url: web_invoice_path(@invoice), method: :patch, local: true, class: "space-y-6", data: { controller: "invoice-form", action: "turbo:submit-start->invoice-form#handleFormSubmit" } do |f|
     
     -# Errores
     - if @invoice.errors.any?
@@ -53,7 +53,7 @@
                         placeholder: "0,00",
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold",
                         required: true,
-                        data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
+                        data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
 
         -# Moneda (readonly - no se puede cambiar)
         %div
@@ -70,7 +70,7 @@
                           placeholder: "0,00",
                           class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                           required: true,
-                          data: { purchase_form_target: "amount", action: "blur->purchase-form#formatAmount focus->purchase-form#unformatAmount" }
+                          data: { invoice_form_target: "exchangeRateInput", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
 
         -# Fecha de Factura
         %div

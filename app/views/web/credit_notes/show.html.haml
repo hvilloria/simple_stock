@@ -80,32 +80,18 @@
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Estado
         
         .flex.items-center.gap-3.mb-4
-          - if @credit_note.pending_status?
+          - if @credit_note.available?
             %span.inline-flex.items-center.px-3.py-1.rounded-md.text-sm.font-medium.bg-emerald-100.text-emerald-800
               ✓ Disponible
             %p.text-sm.text-gray-600 Esta nota de crédito está disponible para usar
-          - elsif @credit_note.applied_status?
+          - elsif @credit_note.active_status? && @credit_note.exhausted?
             %span.inline-flex.items-center.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
               ✓ Aplicada
-            %p.text-sm.text-gray-600
-              Aplicada el
-              = @credit_note.applied_at&.strftime("%d/%m/%Y")
+            %p.text-sm.text-gray-600 Saldo agotado — crédito completamente utilizado
           - elsif @credit_note.cancelled_status?
             %span.inline-flex.items-center.px-3.py-1.rounded-md.text-sm.font-medium.bg-red-100.text-red-800
               ✕ Cancelada
         
-        -# Botón para marcar como aplicada (solo si pending Y sin factura asociada)
-        - if @credit_note.pending_status? && @credit_note.invoice_id.blank?
-          .mt-4.pt-4.border-t.border-slate-200
-            %p.text-sm.text-gray-600.mb-3
-              Esta nota de crédito no está asociada a una factura específica.
-              Cuando la uses como crédito a favor, márcala como aplicada.
-            
-            %button.inline-flex.items-center.justify-center.gap-2.px-4.py-2.5.bg-slate-700.hover:bg-slate-800.text-white.text-sm.font-medium.rounded-lg.shadow-sm.transition-colors{
-              type: "button",
-              onclick: "document.getElementById('applyModal').style.display = 'flex'"
-            }
-              Marcar como Aplicada
 
       -# Card Notas (si existen)
       - if @credit_note.notes.present?
@@ -157,29 +143,3 @@
 
           = link_to "Volver al Listado", web_credit_notes_path, class: "block w-full px-4 py-3 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors text-center"
 
--# Modal de confirmación
-#applyModal{ style: "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center;", onclick: "if(event.target === this) this.style.display = 'none'" }
-  .bg-white.rounded-lg.p-6.max-w-md.w-full.mx-4{onclick: "event.stopPropagation()"}
-    .flex.items-center.justify-between.mb-4
-      %h3.text-lg.font-semibold.text-gray-900 Confirmar Aplicación
-      %button.text-gray-400.hover:text-gray-600{
-        type: "button",
-        onclick: "document.getElementById('applyModal').style.display = 'none'"
-      }
-        %span.text-2xl ×
-    
-    %p.text-sm.text-gray-600.mb-6
-      ¿Estás seguro que querés marcar esta nota de crédito como aplicada?
-      Esta acción no se puede deshacer.
-    
-    .flex.items-center.gap-3
-      %button.flex-1.px-4.py-2.5.border.border-slate-300.text-slate-700.text-sm.font-medium.rounded-lg.hover:bg-slate-50.transition-colors{
-        type: "button",
-        onclick: "document.getElementById('applyModal').style.display = 'none'"
-      }
-        Cancelar
-      
-      = button_to mark_as_applied_web_credit_note_path(@credit_note),
-                  method: :post,
-                  class: "flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors" do
-        Confirmar

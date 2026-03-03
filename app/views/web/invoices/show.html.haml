@@ -67,6 +67,22 @@
                     (en #{@invoice.days_until_due} días)
 
           .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Monto:
+            %span.text-2xl.font-bold.text-gray-900
+              = @invoice.currency
+              = number_ar(@invoice.total_amount)
+            -
+
+          - if @invoice.eligible_for_discount?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-40.flex-shrink-0 Monto con descuento:
+              %span.text-2xl.font-bold.text-emerald-700 
+                = @invoice.currency
+                = number_ar(@invoice.amount_with_discount)
+                %span.ml-2.text-sm.text-gray-500
+                  (Vence el #{@invoice.early_payment_due_date.strftime("%d/%m/%Y")}) 
+
+          .flex.items-start.gap-3
             %span.text-gray-500.w-40.flex-shrink-0 Moneda:
             %span.text-gray-900= @invoice.currency
 
@@ -74,12 +90,6 @@
             .flex.items-start.gap-3
               %span.text-gray-500.w-40.flex-shrink-0 Tipo de Cambio:
               %span.text-gray-900= number_with_precision(@invoice.exchange_rate, precision: 2, delimiter: ".", separator: ",")
-
-          .flex.items-start.gap-3
-            %span.text-gray-500.w-40.flex-shrink-0 Monto:
-            %span.text-2xl.font-bold.text-gray-900
-              = @invoice.currency
-              = number_with_precision(@invoice.amount, precision: 2, delimiter: ".", separator: ",")
 
           - if @invoice.currency == "USD" && @invoice.exchange_rate
             .flex.items-start.gap-3

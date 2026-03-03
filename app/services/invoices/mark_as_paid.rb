@@ -15,19 +15,7 @@ module Invoices
     def call
       validate_params
 
-      ActiveRecord::Base.transaction do
-        @invoice.update!(
-          status: "paid",
-          paid_at: @payment_date,
-          paid_with_discount: @apply_discount
-        )
-
-        # Marcar notas de crédito asociadas como aplicadas
-        @invoice.credit_notes.pending_status.update_all(
-          status: "applied",
-          applied_at: @payment_date
-        )
-      end
+      @invoice.mark_as_paid!(@payment_date, paid_with_discount: @apply_discount)
 
       Result.new(success?: true, record: @invoice, errors: [])
     rescue ValidationError => e

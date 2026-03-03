@@ -6,6 +6,7 @@ RSpec.describe CreditNote, type: :model do
     it { is_expected.to belong_to(:invoice).optional }
     it { is_expected.to have_many(:credit_note_items) }
     it { is_expected.to have_many(:products) }
+    it { is_expected.to have_many(:applied_credits) }
   end
 
   describe "validations" do
@@ -31,6 +32,31 @@ RSpec.describe CreditNote, type: :model do
     end
   end
 
+  describe "enum status" do
+    it "has active and cancelled statuses" do
+      expect(CreditNote.statuses).to eq("active" => "active", "cancelled" => "cancelled")
+    end
+
+    it "defaults to active" do
+      credit_note = create(:credit_note)
+      expect(credit_note.active_status?).to be true
+    end
+
+    it "defaults status to active when not explicitly set" do
+      supplier = create(:supplier)
+      credit_note = CreditNote.new(
+        credit_note_number: "NCC-REG-001",
+        amount: 500,
+        currency: "ARS",
+        issue_date: Date.current,
+        supplier: supplier
+      )
+
+      expect(credit_note.status).to eq("active")
+      expect { credit_note.save! }.not_to raise_error
+    end
+  end
+
   describe "#total_amount_ars" do
     context "when currency is USD" do
       it "converts amount to ARS using exchange rate" do
@@ -49,6 +75,76 @@ RSpec.describe CreditNote, type: :model do
         credit_note = build(:credit_note, amount: 5000, currency: "ARS")
         expect(credit_note.total_amount_ars).to eq(5000)
       end
+    end
+  end
+
+  describe "#remaining_balance" do
+    it "returns full amount when no credits have been applied" do
+      credit_note = create(:credit_note, amount: 50_000)
+      expect(credit_note.remaining_balance).to eq(50_000)
+    end
+
+    it "subtracts applied amounts from the total" do
+      credit_note = create(:credit_note, amount: 50_000)
+      invoice = create(:invoice, :simple_mode, supplier: credit_note.supplier)
+      create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 10_000, applied_at: Date.today)
+
+      expect(credit_note.remaining_balance).to eq(40_000)
+    end
+
+    it "returns 0 when fully applied across multiple invoices" do
+      credit_note = create(:credit_note, amount: 50_000)
+      invoice1 = create(:invoice, :simple_mode, supplier: credit_note.supplier)
+      invoice2 = create(:invoice, :simple_mode, supplier: credit_note.supplier)
+      create(:applied_credit, credit_note: credit_note, invoice: invoice1, amount: 30_000, applied_at: Date.today)
+      create(:applied_credit, credit_note: credit_note, invoice: invoice2, amount: 20_000, applied_at: Date.today)
+
+      expect(credit_note.remaining_balance).to eq(0)
+    end
+  end
+
+  describe "#exhausted?" do
+    it "returns false when balance is available" do
+      credit_note = create(:credit_note, amount: 50_000)
+      expect(credit_note.exhausted?).to be false
+    end
+
+    it "returns true when fully applied" do
+      credit_note = create(:credit_note, amount: 50_000)
+      invoice = create(:invoice, :simple_mode, supplier: credit_note.supplier)
+      create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 50_000, applied_at: Date.today)
+
+      expect(credit_note.exhausted?).to be true
+    end
+  end
+
+  describe "#available?" do
+    it "returns true when active and has remaining balance" do
+      credit_note = create(:credit_note, amount: 50_000)
+      expect(credit_note.available?).to be true
+    end
+
+    it "returns false when cancelled" do
+      credit_note = create(:credit_note, status: "cancelled")
+      expect(credit_note.available?).to be false
+    end
+
+    it "returns false when active but exhausted" do
+      credit_note = create(:credit_note, amount: 50_000)
+      invoice = create(:invoice, :simple_mode, supplier: credit_note.supplier)
+      create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 50_000, applied_at: Date.today)
+
+      expect(credit_note.available?).to be false
+    end
+  end
+
+  describe "#remaining_balance_ars" do
+    it "returns remaining balance for ARS credit notes" do
+      credit_note = create(:credit_note, amount: 50_000, currency: "ARS")
+      invoice = create(:invoice, :simple_mode, supplier: credit_note.supplier)
+      create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 10_000, applied_at: Date.today)
+
+      expect(credit_note.remaining_balance_ars).to eq(40_000)
     end
   end
 
@@ -96,6 +192,15 @@ RSpec.describe CreditNote, type: :model do
   end
 
   describe "scopes" do
+    describe ".available" do
+      it "returns active credit notes" do
+        active = create(:credit_note, status: "active")
+        create(:credit_note, status: "cancelled")
+
+        expect(CreditNote.available).to contain_exactly(active)
+      end
+    end
+
     describe ".for_supplier" do
       let(:supplier1) { create(:supplier) }
       let(:supplier2) { create(:supplier) }

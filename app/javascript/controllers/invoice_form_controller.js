@@ -2,18 +2,24 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = [
-    "supplier", 
-    "purchaseDate", 
-    "dueDate", 
-    "exchangeRateField", 
-    "exchangeRateInput", 
-    "paymentTermInfo", 
-    "amount", 
-    "currencyInput", 
-    "earlyPaymentSection", 
-    "earlyPaymentInfo", 
-    "earlyPaymentDueDate", 
-    "earlyPaymentDiscount"
+    "supplier",
+    "purchaseDate",
+    "dueDate",
+    "exchangeRateField",
+    "exchangeRateInput",
+    "paymentTermInfo",
+    "amount",
+    "currencyInput",
+    "earlyPaymentSection",
+    "earlyPaymentInfo",
+    "earlyPaymentDueDate",
+    "earlyPaymentDiscount",
+    "summaryAmount",
+    "summaryDueDate",
+    "summaryDiscountSection",
+    "summaryEarlyDueDate",
+    "summaryDiscountPct",
+    "summaryDiscountedAmount"
   ]
   
   static values = { 
@@ -34,6 +40,10 @@ export default class extends Controller {
     
     // Actualizar info de early payment
     this.updateEarlyPaymentInfo()
+
+    // Inicializar panel de resumen
+    this.updateSummaryDates()
+    this.updateSummary()
   }
 
   // ========== FORMATEO DE MONTOS ==========
@@ -51,6 +61,7 @@ export default class extends Controller {
         maximumFractionDigits: 2
       }).format(numValue)
     }
+    this.updateSummary()
   }
 
   // Limpiar formato al hacer focus
@@ -88,6 +99,7 @@ export default class extends Controller {
   // ========== CÁLCULO DE FECHAS ==========
   
   calculateDueDate() {
+    if (!this.hasSupplierTarget) return
     const supplierSelect = this.supplierTarget
     const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
     const paymentTermDays = parseInt(selectedOption.dataset.paymentTermDays || "0")
@@ -109,6 +121,7 @@ export default class extends Controller {
     const day = String(dueDate.getDate()).padStart(2, '0')
     
     this.dueDateTarget.value = `${year}-${month}-${day}`
+    this.updateSummaryDates()
   }
 
   calculateEarlyPaymentDueDate() {
@@ -135,6 +148,7 @@ export default class extends Controller {
     const day = String(earlyPaymentDate.getDate()).padStart(2, '0')
     
     this.earlyPaymentDueDateTarget.value = `${year}-${month}-${day}`
+    this.updateSummaryDates()
   }
 
   // ========== ACTUALIZACIÓN DE INFO ==========
@@ -184,12 +198,27 @@ export default class extends Controller {
         this.earlyPaymentDiscountTarget.value = discountPercentage
       }
 
+      // Mostrar panel de descuento en resumen
+      if (this.hasSummaryDiscountSectionTarget) {
+        this.summaryDiscountSectionTarget.style.display = 'block'
+      }
+      if (this.hasSummaryDiscountPctTarget) {
+        this.summaryDiscountPctTarget.textContent = discountPercentage + '%'
+      }
+
       // Calcular fecha de early payment
       this.calculateEarlyPaymentDueDate()
     } else {
       // Ocultar sección
       this.earlyPaymentSectionTarget.style.display = 'none'
+
+      // Ocultar panel de descuento en resumen
+      if (this.hasSummaryDiscountSectionTarget) {
+        this.summaryDiscountSectionTarget.style.display = 'none'
+      }
     }
+
+    this.updateSummary()
   }
 
   // ========== EVENT HANDLERS ==========
@@ -232,5 +261,58 @@ export default class extends Controller {
         this.exchangeRateInputTarget.removeAttribute('required')
       }
     }
+  }
+
+  // ========== PANEL DE RESUMEN ==========
+
+  // Actualiza monto y monto con descuento en el panel derecho.
+  // Se llama en cada input del campo monto y en blur (después de formatear).
+  updateSummary() {
+    if (!this.hasSummaryAmountTarget) return
+
+    const raw = this.hasAmountTarget ? this.cleanAmountValue(this.amountTarget.value) : ''
+    const amount = parseFloat(raw)
+    const valid = !isNaN(amount) && amount > 0
+
+    this.summaryAmountTarget.textContent = valid ? this.formatARS(amount) : '—'
+
+    if (this.hasSummaryDiscountedAmountTarget) {
+      if (valid) {
+        const pct = this.hasEarlyPaymentDiscountTarget
+          ? parseFloat(this.earlyPaymentDiscountTarget.value || '0')
+          : 0
+        const final = pct > 0 ? amount * (1 - pct / 100) : amount
+        this.summaryDiscountedAmountTarget.textContent = this.formatARS(final)
+      } else {
+        this.summaryDiscountedAmountTarget.textContent = '—'
+      }
+    }
+  }
+
+  // Actualiza las fechas de vencimiento en el panel derecho.
+  updateSummaryDates() {
+    if (this.hasSummaryDueDateTarget && this.hasDueDateTarget) {
+      this.summaryDueDateTarget.textContent = this.formatDateForDisplay(this.dueDateTarget.value)
+    }
+    if (this.hasSummaryEarlyDueDateTarget && this.hasEarlyPaymentDueDateTarget) {
+      this.summaryEarlyDueDateTarget.textContent = this.formatDateForDisplay(this.earlyPaymentDueDateTarget.value)
+    }
+  }
+
+  // "2026-04-15" → "15/04/2026"
+  formatDateForDisplay(dateStr) {
+    if (!dateStr) return '—'
+    const [year, month, day] = dateStr.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  // Formato moneda es-AR: 95000.50 → "$ 95.000,50"
+  formatARS(num) {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(num)
   }
 }

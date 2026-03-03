@@ -6,6 +6,7 @@ FactoryBot.define do
     currency { "ARS" }
     exchange_rate { nil }
     issue_date { Date.today }
+    status { "active" }
     notes { nil }
 
     trait :with_invoice do
@@ -24,6 +25,10 @@ FactoryBot.define do
     trait :ars do
       currency { "ARS" }
       exchange_rate { nil }
+    end
+
+    trait :cancelled do
+      status { "cancelled" }
     end
   end
 end

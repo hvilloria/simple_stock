@@ -4,7 +4,7 @@ module Web
   class CreditNotesController < ApplicationController
     include CurrencyParser
 
-    before_action :load_credit_note, only: [ :show, :edit, :update, :destroy, :mark_as_applied ]
+    before_action :load_credit_note, only: [ :show, :edit, :update, :destroy ]
     before_action :load_suppliers, only: [ :new, :create, :edit, :update ]
 
     def index
@@ -20,8 +20,8 @@ module Web
                                 .recent
                                 .limit(50)
 
-      @total_credit_amount = @credit_notes.where(status: "pending").sum { |cn| cn.total_amount_ars }
-      @credit_notes_count = @credit_notes.where(status: "pending").count
+      @total_credit_amount = @credit_notes.where(status: "active").sum { |cn| cn.remaining_balance }
+      @credit_notes_count = @credit_notes.where(status: "active").count
       @selected_status = params[:status]
     end
 
@@ -88,24 +88,6 @@ module Web
         redirect_to web_credit_notes_path, notice: "Nota de crédito eliminada exitosamente."
       else
         redirect_to web_credit_note_path(@credit_note), alert: "No se pudo eliminar la nota de crédito."
-      end
-    end
-
-    def mark_as_applied
-      authorize @credit_note, :update?
-
-      unless @credit_note.pending_status?
-        redirect_to web_credit_note_path(@credit_note),
-                    alert: "Esta nota de crédito ya fue aplicada."
-        return
-      end
-
-      if @credit_note.update(status: "applied", applied_at: Date.current)
-        redirect_to web_credit_note_path(@credit_note),
-                    notice: "Nota de crédito marcada como aplicada."
-      else
-        redirect_to web_credit_note_path(@credit_note),
-                    alert: "Error al marcar la nota de crédito."
       end
     end
 

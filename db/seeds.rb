@@ -3,8 +3,8 @@
 # Limpiar solo en development
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
-  [ Payment, OrderItem, Order, PurchaseItem, Purchase,
-   StockMovement, Product, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
+  [ Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
+    Invoice, StockMovement, Product, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
   puts "✅ Base de datos limpiada"
 end
 
@@ -14,9 +14,9 @@ end
 puts "\n🔐 Creando usuarios iniciales..."
 if User.count.zero?
   admin = User.create!(
-    email: "admin@gentedelsol.com",
-    password: "password123",
-    password_confirmation: "password123",
+    email: "administracion@gentedelsol.com",
+    password: "admin",
+    password_confirmation: "admin",
     name: "Administrador",
     role: "admin"
   )
@@ -416,11 +416,184 @@ end
 puts "✅ #{pagos_creados} pagos registrados"
 
 # ============================================
-# 8. ESTADÍSTICAS FINALES
+# 8. FACTURAS SIMPLES PENDIENTES
+# ============================================
+puts "\n📄 Creando facturas simples pendientes (ARS)..."
+
+inv_seq = 1
+inv_ok  = 0
+
+create_inv = ->(supplier, amount, purchase_date, due_date, opts = {}) do
+  num = "SF-#{format('%04d', inv_seq)}"
+  inv_seq += 1
+
+  result = Invoices::CreateSimpleInvoice.call(
+    supplier:                          supplier,
+    invoice_number:                    num,
+    amount:                            amount,
+    currency:                          "ARS",
+    exchange_rate:                     nil,
+    purchase_date:                     purchase_date,
+    due_date:                          due_date,
+    early_payment_due_date:            opts[:ep_date],
+    early_payment_discount_percentage: opts[:ep_pct]
+  )
+
+  if result.success?
+    inv_ok += 1
+  else
+    puts "  ✗ #{num}: #{result.errors.join(', ')}"
+  end
+  result
+end
+
+today      = Date.current
+monday     = today.beginning_of_week(:monday)
+nxt_monday = monday + 7
+
+# ── Caso 1: Vencen esta semana ──────────────────────────────────────
+puts "  → Esta semana (#{monday.strftime('%d/%m')} - #{(monday + 6).strftime('%d/%m')})..."
+
+create_inv.(supplier_japan,    340_000, today - 30, monday + 1)
+create_inv.(supplier_japan,    490_000, today - 25, monday + 3)
+create_inv.(supplier_usa,      250_000, today - 20, monday + 2)
+create_inv.(supplier_usa,      390_000, today - 28, monday + 4)
+create_inv.(supplier_germany,  620_000, today - 22, monday + 1)
+create_inv.(supplier_taiwan,   190_000, today - 18, monday + 3)
+create_inv.(supplier_taiwan,   230_000, today - 15, monday + 5)
+create_inv.(supplier_brazil,   200_000, today - 30, monday + 2)
+
+# ── Caso 2: Vencen la semana próxima ────────────────────────────────
+puts "  → Semana próxima (#{nxt_monday.strftime('%d/%m')} - #{(nxt_monday + 6).strftime('%d/%m')})..."
+
+create_inv.(supplier_japan,    450_000, today - 10, nxt_monday + 1)
+create_inv.(supplier_usa,      300_000, today - 8,  nxt_monday + 2)
+create_inv.(supplier_usa,      720_000, today - 12, nxt_monday + 4)
+create_inv.(supplier_germany,  370_000, today - 5,  nxt_monday + 1)
+create_inv.(supplier_germany,  550_000, today - 15, nxt_monday + 3)
+create_inv.(supplier_taiwan,   275_000, today - 7,  nxt_monday + 2)
+create_inv.(supplier_brazil,   170_000, today - 9,  nxt_monday + 1)
+create_inv.(supplier_brazil,   280_000, today - 11, nxt_monday + 4)
+
+# ── Caso 3: Descuento anticipado vence esta semana (with_discount_to_advance) ──
+puts "  → Con descuento anticipado (expira en #{today + 1}..#{today + 3})..."
+
+create_inv.(supplier_japan,    880_000, today - 45, today + 30, ep_date: today + 2, ep_pct: 5)
+create_inv.(supplier_usa,      580_000, today - 40, today + 25, ep_date: today + 1, ep_pct: 7)
+create_inv.(supplier_germany, 1_240_000, today - 50, today + 35, ep_date: today + 2, ep_pct: 10)
+create_inv.(supplier_taiwan,   390_000, today - 38, today + 28, ep_date: today + 1, ep_pct: 8)
+create_inv.(supplier_brazil,   370_000, today - 42, today + 32, ep_date: today + 3, ep_pct: 6)
+
+# ── Caso 4: Variedad adicional para la vista de índice ──────────────
+puts "  → Variedad para el índice (vencidas, este mes, próximo mes)..."
+
+# Vencidas
+create_inv.(supplier_japan,   240_000, today - 60, today - 15)
+create_inv.(supplier_usa,     190_000, today - 45, today - 7)
+create_inv.(supplier_germany, 650_000, today - 30, today - 3)
+
+# Este mes (fuera de esta semana y la próxima)
+create_inv.(supplier_taiwan,  330_000, today - 5,  today + 14)
+create_inv.(supplier_brazil,  225_000, today - 3,  today + 18)
+create_inv.(supplier_japan,   290_000, today - 7,  today + 21)
+
+# Próximo mes
+create_inv.(supplier_usa,     440_000, today - 2,  today + 35)
+create_inv.(supplier_germany, 670_000, today - 8,  today + 42)
+
+# ── Pagadas (creadas y luego marcadas como paid) ─────────────────────
+[
+  [ supplier_japan,   740_000, today - 35 ],
+  [ supplier_usa,     370_000, today - 28 ],
+  [ supplier_germany, 960_000, today - 20 ],
+  [ supplier_taiwan,  310_000, today - 42 ],
+  [ supplier_brazil,  410_000, today - 15 ]
+].each do |sup, amount, paid_date|
+  num = "SF-#{format('%04d', inv_seq)}"
+  inv_seq += 1
+
+  result = Invoices::CreateSimpleInvoice.call(
+    supplier:      sup,
+    invoice_number: num,
+    amount:        amount,
+    currency:      "ARS",
+    exchange_rate: nil,
+    purchase_date: paid_date - 30,
+    due_date:      paid_date - 5
+  )
+
+  if result.success?
+    result.record.update_columns(status: "paid", paid_at: paid_date)
+    inv_ok += 1
+  end
+end
+
+puts "✅ #{inv_ok} facturas simples creadas"
+puts "   - Esta semana:               8"
+puts "   - Semana próxima:            8"
+puts "   - Descuento anticipado:      5"
+puts "   - Vencidas/este mes/futuras: 8"
+puts "   - Pagadas:                   5"
+
+# ============================================
+# 9. NOTAS DE CRÉDITO
+# ============================================
+puts "\n📝 Creando notas de crédito..."
+
+cn_seq = 1
+cn_ok  = 0
+
+create_cn = ->(supplier, amount, issue_date, opts = {}) do
+  num = "NC-#{format('%04d', cn_seq)}"
+  cn_seq += 1
+
+  CreditNote.create!(
+    supplier:           supplier,
+    credit_note_number: num,
+    amount:             amount,
+    currency:           opts.fetch(:currency, "ARS"),
+    exchange_rate:      opts[:exchange_rate],
+    issue_date:         issue_date,
+    status:             "active",
+    notes:              opts[:notes]
+  )
+  cn_ok += 1
+end
+
+# Japan: 2 notas en ARS
+create_cn.(supplier_japan,  85_000, today - 20, notes: "Devolución mercadería defectuosa - Lote J201")
+create_cn.(supplier_japan, 130_000, today - 10, notes: "Ajuste de precio sobre factura anterior")
+
+# USA: 1 nota en ARS
+create_cn.(supplier_usa, 210_000, today - 15, notes: "NC por error de facturación en pedido #US-88")
+
+# Germany: 2 notas (1 ARS, 1 USD)
+create_cn.(supplier_germany, 175_000, today - 8, notes: "Descuento por volumen retroactivo Q4")
+create_cn.(supplier_germany,     200, today - 5,
+  currency: "USD", exchange_rate: 1200.0,
+  notes: "Devolución por piezas incorrectas - Ref DEU-44"
+)
+
+# Taiwan: 1 nota pequeña en ARS
+create_cn.(supplier_taiwan, 55_000, today - 12, notes: "Faltante en pedido anterior - ajuste")
+
+# Brazil: 1 nota en ARS
+create_cn.(supplier_brazil, 90_000, today - 18, notes: "Mercadería dañada en tránsito - reembolso parcial")
+
+puts "✅ #{cn_ok} notas de crédito creadas"
+puts "   - Japan:   2 notas ARS ($85.000 + $130.000)"
+puts "   - USA:     1 nota  ARS ($210.000)"
+puts "   - Germany: 2 notas (ARS $175.000 + USD $200)"
+puts "   - Taiwan:  1 nota  ARS ($55.000)"
+puts "   - Brazil:  1 nota  ARS ($90.000)"
+
+# ============================================
+# 10. ESTADÍSTICAS FINALES
 # ============================================
 puts "\n" + "="*60
 puts "📊 ESTADÍSTICAS FINALES"
 puts "="*60
+
 
 puts "\n📦 Productos:"
 puts "  Total: #{Product.count}"
@@ -445,10 +618,24 @@ if clientes_con_saldo.any?
   puts "  Saldo total a cobrar: $#{clientes_con_saldo.sum(&:current_balance).to_i}"
 end
 
-puts "\n📦 Compras:"
-puts "  Total: #{Purchase.count}"
-puts "  Items: #{PurchaseItem.count}"
-puts "  Unidades compradas: #{PurchaseItem.sum(:quantity)}"
+puts "\n📦 Compras (full mode):"
+puts "  Total: #{Invoice.full_mode.count}"
+puts "  Items: #{InvoiceItem.count}"
+puts "  Unidades compradas: #{InvoiceItem.sum(:quantity)}"
+
+puts "\n📄 Facturas simples (pending view):"
+puts "  Total: #{Invoice.simple_mode.count}"
+puts "  Pendientes: #{Invoice.simple_mode.pending_payment.count}"
+puts "  Vencen esta semana: #{Invoice.due_this_week.count}"
+puts "  Vencen semana próxima: #{Invoice.due_next_week.count}"
+puts "  Con descuento anticipado: #{Invoice.with_discount_to_advance.count}"
+puts "  Vencidas: #{Invoice.overdue.count}"
+puts "  Pagadas: #{Invoice.simple_mode.paid_invoices.count}"
+
+puts "\n📝 Notas de Crédito:"
+puts "  Total: #{CreditNote.count}"
+puts "  Activas: #{CreditNote.available.count}"
+puts "  Saldo total disponible: $#{CreditNote.available.sum { |cn| cn.remaining_balance_ars }.to_i}"
 
 puts "\n💰 Ventas:"
 puts "  Total: #{Order.where.not(status: 'cancelled').count}"
