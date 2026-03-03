@@ -24,7 +24,7 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
   let(:supplier) { create(:supplier, name: "Proveedor Modal Test") }
 
   before do
-    driven_by :selenium_chrome_headless
+    driven_by :selenium_chrome_headless, screen_size: [1400, 900]
     login_as(admin, scope: :user)
   end
 
@@ -57,6 +57,7 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
   # issue is diagnosed here rather than with a cryptic "button not found" message.
   def open_payment_modal
     visit pending_web_invoices_path
+    page.driver.browser.manage.window.resize_to(1400, 900)
     expect(page).to have_text(supplier.name)
     find("tr.bg-slate-50", text: supplier.name).find("button").click
     expect(page).to have_css("#paymentModal", visible: true)
