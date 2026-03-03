@@ -41,6 +41,20 @@ RSpec.describe CreditNote, type: :model do
       credit_note = create(:credit_note)
       expect(credit_note.active_status?).to be true
     end
+
+    it "defaults status to active when not explicitly set" do
+      supplier = create(:supplier)
+      credit_note = CreditNote.new(
+        credit_note_number: "NCC-REG-001",
+        amount: 500,
+        currency: "ARS",
+        issue_date: Date.current,
+        supplier: supplier
+      )
+
+      expect(credit_note.status).to eq("active")
+      expect { credit_note.save! }.not_to raise_error
+    end
   end
 
   describe "#total_amount_ars" do

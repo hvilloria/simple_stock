@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_02_25_190000) do
+ActiveRecord::Schema[7.2].define(version: 2026_03_03_162155) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -47,7 +47,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_25_190000) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "status", default: "pending", null: false
+    t.string "status", default: "active", null: false
     t.date "applied_at"
     t.index ["credit_note_number"], name: "index_credit_notes_on_credit_note_number", unique: true
     t.index ["invoice_id"], name: "index_credit_notes_on_invoice_id"

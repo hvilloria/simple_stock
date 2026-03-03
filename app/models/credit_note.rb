@@ -17,6 +17,9 @@ class CreditNote < ApplicationRecord
     cancelled: "cancelled"
   }, _suffix: true
 
+  # Ensure new records always have a valid status (DB default was stale "pending" from old schema)
+  after_initialize { self.status ||= :active }
+
   # Validations
   validates :credit_note_number, presence: true, uniqueness: true
   validates :amount, presence: true, numericality: { greater_than: 0 }
