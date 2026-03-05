@@ -2,13 +2,9 @@
 
 require "rails_helper"
 
-# Tests for POST /web/invoices/mark_supplier_paid with credit_applications.
-# Each scenario maps to a case described in the pending view modal:
-#   - NC fully covers invoice
-#   - NC partially covers invoice (leaves balance in NC)
-#   - Two NCs, only first needed (second stays untouched)
-#   - NC distributed across multiple invoices
-#   - NC from a different supplier (rejected)
+# Tests for POST /web/invoices/mark_supplier_paid.
+# The controller receives explicit invoice_ids and credit_note_ids — no amounts.
+# ProcessPayment distributes NC balances across invoices internally.
 
 RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type: :request do
   include Devise::Test::IntegrationHelpers
@@ -18,7 +14,6 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
   before { sign_in admin }
 
-  # Creates a simple invoice due this week so it appears in the default period view.
   def invoice_this_week(amount:, number: "FAC-#{SecureRandom.hex(3).upcase}")
     create(:invoice, :simple_mode,
            supplier: supplier,
@@ -29,17 +24,13 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
            purchase_date: 30.days.ago.to_date)
   end
 
-  def post_payment(credit_applications: [], payment_date: Date.current)
-    # Do not include credit_applications when empty — Rails serializes [] as
-    # credit_applications[]= (a blank element) which the controller parser chokes on.
-    params = {
-      supplier_id:  supplier.id,
-      period:       "this_week",
-      payment_date: payment_date.to_s
+  def post_payment(invoice_ids:, credit_note_ids: [], payment_date: Date.current)
+    post mark_supplier_paid_web_invoices_path, params: {
+      invoice_ids:     Array(invoice_ids),
+      credit_note_ids: credit_note_ids,
+      period:          "this_week",
+      payment_date:    payment_date.to_s
     }
-    params[:credit_applications] = credit_applications if credit_applications.any?
-
-    post mark_supplier_paid_web_invoices_path, params: params
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -50,23 +41,28 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:cn)      { create(:credit_note, supplier: supplier, amount: 50_000) }
 
     it "marks the invoice as paid" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "50000" } ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(invoice.reload.paid_status?).to be true
     end
 
     it "exhausts the credit note balance" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "50000" } ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(cn.reload.remaining_balance).to eq(0)
     end
 
-    it "creates one AppliedCredit record" do
+    it "creates one AppliedCredit linked to the correct invoice and CN" do
       expect {
-        post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "50000" } ])
+        post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       }.to change(AppliedCredit, :count).by(1)
+
+      ac = AppliedCredit.last
+      expect(ac.invoice).to eq(invoice)
+      expect(ac.credit_note).to eq(cn)
+      expect(ac.amount).to eq(50_000)
     end
 
     it "redirects to the pending page" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "50000" } ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(response).to redirect_to(pending_web_invoices_path(period: "this_week"))
     end
   end
@@ -80,68 +76,57 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:cn2)     { create(:credit_note, supplier: supplier, amount: 50_000) }
 
     it "marks the invoice as paid" do
-      post_payment(credit_applications: [
-        { credit_note_id: cn1.id, amount_ars: "50000" },
-        { credit_note_id: cn2.id, amount_ars: "50000" }
-      ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id, cn2.id ])
       expect(invoice.reload.paid_status?).to be true
     end
 
     it "exhausts both credit notes" do
-      post_payment(credit_applications: [
-        { credit_note_id: cn1.id, amount_ars: "50000" },
-        { credit_note_id: cn2.id, amount_ars: "50000" }
-      ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id, cn2.id ])
       expect(cn1.reload.remaining_balance).to eq(0)
       expect(cn2.reload.remaining_balance).to eq(0)
     end
 
     it "creates two AppliedCredit records" do
       expect {
-        post_payment(credit_applications: [
-          { credit_note_id: cn1.id, amount_ars: "50000" },
-          { credit_note_id: cn2.id, amount_ars: "50000" }
-        ])
+        post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id, cn2.id ])
       }.to change(AppliedCredit, :count).by(2)
     end
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Scenario 3: factura $100k, NC $150k — frontend envía monto capeado ($100k)
+  # Scenario 3: factura $100k, NC $150k — NC capea al monto de la factura
   # La NC queda con $50k de saldo disponible
   # ─────────────────────────────────────────────────────────────────
-  describe "Scenario 3: invoice $100k, NC $150k (frontend caps effective to $100k)" do
+  describe "Scenario 3: invoice $100k, NC $150k (service caps to invoice amount)" do
     let!(:invoice) { invoice_this_week(amount: 100_000, number: "FAC-SC3") }
     let!(:cn)      { create(:credit_note, supplier: supplier, amount: 150_000) }
 
     it "marks the invoice as paid" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "100000" } ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(invoice.reload.paid_status?).to be true
     end
 
     it "leaves $50k remaining in the credit note" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "100000" } ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(cn.reload.remaining_balance).to eq(50_000)
     end
 
     it "credit note stays available for future use" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "100000" } ])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(cn.reload.available?).to be true
     end
   end
 
   # ─────────────────────────────────────────────────────────────────
   # Scenario 4: factura $100k, 2 NCs de $100k — solo se selecciona la primera
-  # La segunda NC debe quedar intacta (el frontend la deshabilita)
+  # La segunda NC debe quedar intacta
   # ─────────────────────────────────────────────────────────────────
   describe "Scenario 4: invoice $100k, two NCs of $100k (only first selected)" do
     let!(:invoice) { invoice_this_week(amount: 100_000, number: "FAC-SC4") }
     let!(:cn1)     { create(:credit_note, supplier: supplier, amount: 100_000) }
     let!(:cn2)     { create(:credit_note, supplier: supplier, amount: 100_000) }
 
-    before do
-      post_payment(credit_applications: [ { credit_note_id: cn1.id, amount_ars: "100000" } ])
-    end
+    before { post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id ]) }
 
     it "marks the invoice as paid" do
       expect(invoice.reload.paid_status?).to be true
@@ -160,7 +145,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
   # ─────────────────────────────────────────────────────────────────
   # Scenario 5: 2 facturas ($60k + $40k), NC $80k — distribución automática
-  # controller distribuye via distribute_credit_applications:
+  # ProcessPayment distribuye internamente:
   #   FAC-A: aplica min(80k, 60k) = 60k → NC restante = 20k
   #   FAC-B: aplica min(20k, 40k) = 20k → NC restante = 0
   # ─────────────────────────────────────────────────────────────────
@@ -169,9 +154,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:invoice2) { invoice_this_week(amount: 40_000, number: "FAC-B") }
     let!(:cn)       { create(:credit_note, supplier: supplier, amount: 80_000) }
 
-    before do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "80000" } ])
-    end
+    before { post_payment(invoice_ids: [ invoice1.id, invoice2.id ], credit_note_ids: [ cn.id ]) }
 
     it "marks both invoices as paid" do
       expect(invoice1.reload.paid_status?).to be true
@@ -203,9 +186,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:invoice)       { invoice_this_week(amount: 100_000, number: "FAC-REJ") }
     let!(:foreign_cn)    { create(:credit_note, supplier: other_supplier, amount: 50_000) }
 
-    before do
-      post_payment(credit_applications: [ { credit_note_id: foreign_cn.id, amount_ars: "50000" } ])
-    end
+    before { post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ foreign_cn.id ]) }
 
     it "does not mark the invoice as paid" do
       expect(invoice.reload.pending_status?).to be true
@@ -226,27 +207,14 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Escenario de rechazo: monto mayor al saldo disponible de la NC
+  # Sin credit_note_ids — pago directo sin créditos
   # ─────────────────────────────────────────────────────────────────
-  describe "Rejection: NC amount exceeds available balance" do
-    let!(:invoice) { invoice_this_week(amount: 200_000, number: "FAC-OVR") }
-    let!(:cn)      { create(:credit_note, supplier: supplier, amount: 50_000) }
-
-    it "does not mark the invoice as paid" do
-      post_payment(credit_applications: [ { credit_note_id: cn.id, amount_ars: "80000" } ])
-      expect(invoice.reload.pending_status?).to be true
-    end
-  end
-
-  # ─────────────────────────────────────────────────────────────────
-  # Sin credit_applications — pago directo sin créditos
-  # ─────────────────────────────────────────────────────────────────
-  describe "No credit_applications param (direct payment)" do
+  describe "No credit_note_ids param (direct payment)" do
     let!(:invoice) { invoice_this_week(amount: 50_000, number: "FAC-DIR") }
 
     it "marks the invoice as paid without creating any AppliedCredit" do
       expect {
-        post_payment
+        post_payment(invoice_ids: [ invoice.id ])
       }.not_to change(AppliedCredit, :count)
 
       expect(invoice.reload.paid_status?).to be true

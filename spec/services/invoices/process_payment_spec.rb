@@ -108,17 +108,16 @@ RSpec.describe Invoices::ProcessPayment do
                early_payment_discount_percentage: 5)
       end
 
-      it "marks paid_with_discount when apply_discount is true" do
+      it "marks paid_with_discount automatically when discount is still valid" do
         described_class.call(
           invoices: [ invoice_with_discount ],
-          payment_date: Date.today,
-          apply_discount: true
+          payment_date: Date.today
         )
 
         expect(invoice_with_discount.reload.paid_with_discount).to be true
       end
 
-      it "fails if discount has expired" do
+      it "does not mark paid_with_discount when discount has expired" do
         expired_invoice = create(:invoice, :simple_mode,
                                  supplier: supplier,
                                  early_payment_due_date: 2.days.ago.to_date,
@@ -126,12 +125,11 @@ RSpec.describe Invoices::ProcessPayment do
 
         result = described_class.call(
           invoices: [ expired_invoice ],
-          payment_date: Date.today,
-          apply_discount: true
+          payment_date: Date.today
         )
 
-        expect(result.success?).to be false
-        expect(result.errors.first).to match(/descuento/i)
+        expect(result.success?).to be true
+        expect(expired_invoice.reload.paid_with_discount).to be false
       end
     end
 

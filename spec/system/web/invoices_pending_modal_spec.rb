@@ -24,7 +24,7 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
   let(:supplier) { create(:supplier, name: "Proveedor Modal Test") }
 
   before do
-    driven_by :selenium_chrome_headless, screen_size: [1400, 900]
+    driven_by :selenium_chrome_headless, screen_size: [ 1400, 900 ]
     login_as(admin, scope: :user)
   end
 

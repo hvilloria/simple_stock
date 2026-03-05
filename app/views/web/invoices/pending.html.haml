@@ -129,7 +129,7 @@
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
             - cn_json           = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
-            - invoices_list_json = data[:invoices].map { |i| { number: i.invoice_number, amount: i.amount_with_discount_ars.to_f } }.to_json
+            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.invoice_number, amount: i.amount_with_discount_ars.to_f } }.to_json
 
             -# Fila principal del proveedor
             %tr.bg-slate-50.hover:bg-slate-100.transition-colors
@@ -183,7 +183,7 @@
 
                 %td.px-4.py-2
                   %span.font-mono.text-sm{ class: has_discount ? "text-emerald-600 font-semibold" : "text-gray-700" }
-                    = invoice.invoice_number
+                    = link_to invoice.invoice_number, web_invoice_path(invoice)
 
                 %td.px-4.py-2.text-center
                   %span.text-sm.text-gray-600= invoice.due_date.strftime("%d/%m/%Y")
@@ -292,7 +292,7 @@
     const invoicesList  = JSON.parse(btn.dataset.invoicesList || '[]');
     const creditNotes   = JSON.parse(btn.dataset.creditNotes  || '[]');
 
-    window.currentSupplierData = { invoicesTotal };
+    window.currentSupplierData = { invoicesTotal, invoiceIds: invoicesList.map(inv => inv.id) };
 
     title.textContent = `Pagar a ${supplierName}`;
 
@@ -305,7 +305,7 @@
     `).join('');
 
     const period = #{@selected_period.to_json};
-    form.action  = `/web/invoices/mark_supplier_paid?supplier_id=${supplierId}&period=${period}`;
+    form.action  = `/web/invoices/mark_supplier_paid?period=${period}`;
 
     if (creditNotes.length > 0) {
       cnSection.style.display = 'block';
@@ -403,29 +403,27 @@
     }).format(amount);
   }
 
-  // Before submit: inject credit_applications hidden inputs from checked checkboxes
+  // Before submit: inject invoice_ids[] and credit_applications[] hidden inputs
   document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('paymentForm').addEventListener('submit', function () {
-      this.querySelectorAll('input[name^="credit_applications"]').forEach(el => el.remove());
+      // Remove previously injected inputs (for re-submits)
+      this.querySelectorAll('input[name^="credit_applications"], input[name="invoice_ids[]"]').forEach(el => el.remove());
 
-      let idx = 0;
+      const addHidden = (name, value) => {
+        const el = document.createElement('input');
+        el.type  = 'hidden';
+        el.name  = name;
+        el.value = value;
+        this.appendChild(el);
+      };
+
+      // Inject explicit invoice IDs so the backend doesn't re-derive them from period+supplier
+      (window.currentSupplierData?.invoiceIds || []).forEach(id => addHidden('invoice_ids[]', id));
+
+      // Inject selected credit note IDs — the backend reads their balance directly
       document.querySelectorAll('#creditNotesList input[type="checkbox"]').forEach(cb => {
         if (!cb.checked) return;
-
-        const effective = parseFloat(cb.dataset.effective) || 0;
-        if (effective <= 0) return;
-
-        const addHidden = (name, value) => {
-          const el = document.createElement('input');
-          el.type  = 'hidden';
-          el.name  = name;
-          el.value = value;
-          this.appendChild(el);
-        };
-
-        addHidden(`credit_applications[${idx}][credit_note_id]`, cb.dataset.cnId);
-        addHidden(`credit_applications[${idx}][amount_ars]`, effective);
-        idx++;
+        addHidden('credit_note_ids[]', cb.dataset.cnId);
       });
     });
   });

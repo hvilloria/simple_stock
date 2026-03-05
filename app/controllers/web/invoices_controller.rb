@@ -199,44 +199,30 @@ module Web
     def mark_supplier_paid
       authorize Invoice, :mark_supplier_paid?
 
-      supplier = Supplier.find(params[:supplier_id])
-      period = params[:period] || "this_week"
-
-      # Obtener facturas del período + facturas con descuento anticipado para este proveedor
-      period_invoices = filter_by_period(period).where(supplier: supplier)
-      early_payment_invoices = Invoice.with_discount_to_advance.where(supplier: supplier)
-
-      # Combinar sin duplicados
-      invoice_ids = (period_invoices.pluck(:id) + early_payment_invoices.pluck(:id)).uniq
-      invoices = Invoice.where(id: invoice_ids).to_a
+      period       = params[:period] || "this_week"
+      invoice_ids  = Array(params[:invoice_ids]).map(&:to_i).reject(&:zero?)
+      invoices     = Invoice.where(id: invoice_ids).to_a
 
       if invoices.empty?
-        redirect_to pending_web_invoices_path(period: period),
-                    alert: "No hay facturas pendientes para #{supplier.name} en este período."
+        redirect_to pending_web_invoices_path(period: period), alert: "No se recibieron facturas para pagar."
         return
       end
 
-      payment_date = params[:payment_date] ? Date.parse(params[:payment_date]) : Date.current
+      payment_date = params[:payment_date].present? ? Date.parse(params[:payment_date]) : Date.current
 
-      # Parse credit applications sent from the modal form
-      raw_apps = (params[:credit_applications] || []).filter_map do |app|
-        amount_ars = app[:amount_ars].to_d
-        next if amount_ars <= 0
-
-        { credit_note_id: app[:credit_note_id].to_i, amount_ars: amount_ars }
-      end
-
-      credit_applications = distribute_credit_applications(invoices, raw_apps)
+      credit_note_ids = Array(params[:credit_note_ids]).map(&:to_i).reject(&:zero?)
 
       result = Invoices::ProcessPayment.call(
-        invoices: invoices,
-        credit_applications: credit_applications,
-        payment_date: payment_date
+        invoices:        invoices,
+        credit_note_ids: credit_note_ids,
+        payment_date:    payment_date
       )
+
+      supplier_name = invoices.first&.supplier&.name
 
       if result.success?
         redirect_to pending_web_invoices_path(period: period),
-                    notice: "#{invoices.count} factura(s) de #{supplier.name} marcada(s) como pagada(s)."
+                    notice: "#{invoices.count} factura(s) de #{supplier_name} marcada(s) como pagada(s)."
       else
         redirect_to pending_web_invoices_path(period: period), alert: result.errors.join(", ")
       end
@@ -380,47 +366,6 @@ module Web
                     end
                     .sort_by { |data| data[:amount_to_pay] }
                     .reverse
-    end
-
-    # Distributes credit applications (given as ARS amounts) across invoices in order.
-    # Returns [{credit_note_id:, invoice_id:, amount:}] where amount is in NC's native currency.
-    def distribute_credit_applications(invoices, raw_apps)
-      return [] if raw_apps.empty?
-
-      distributed = []
-
-      nc_data = raw_apps.filter_map do |app|
-        cn = CreditNote.find_by(id: app[:credit_note_id])
-        next unless cn
-
-        { cn: cn, remaining_ars: app[:amount_ars].to_d }
-      end
-
-      invoices.each do |invoice|
-        invoice_remaining_ars = invoice.total_amount_ars.to_d
-
-        nc_data.each do |data|
-          break if invoice_remaining_ars <= 0
-          next if data[:remaining_ars] <= 0
-
-          apply_ars = [ data[:remaining_ars], invoice_remaining_ars ].min
-          cn = data[:cn]
-
-          amount_native = if cn.currency == "USD" && cn.exchange_rate.to_d > 0
-                            (apply_ars / cn.exchange_rate.to_d).round(2)
-                          else
-                            apply_ars.round(2)
-                          end
-
-          next if amount_native <= 0
-
-          distributed << { credit_note_id: cn.id, invoice_id: invoice.id, amount: amount_native }
-          data[:remaining_ars] -= apply_ars
-          invoice_remaining_ars -= apply_ars
-        end
-      end
-
-      distributed
     end
   end
 end
