@@ -367,6 +367,5 @@ module Web
                     .sort_by { |data| data[:amount_to_pay] }
                     .reverse
     end
-
   end
 end

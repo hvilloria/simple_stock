@@ -41,18 +41,18 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:cn)      { create(:credit_note, supplier: supplier, amount: 50_000) }
 
     it "marks the invoice as paid" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(invoice.reload.paid_status?).to be true
     end
 
     it "exhausts the credit note balance" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(cn.reload.remaining_balance).to eq(0)
     end
 
     it "creates one AppliedCredit linked to the correct invoice and CN" do
       expect {
-        post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+        post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       }.to change(AppliedCredit, :count).by(1)
 
       ac = AppliedCredit.last
@@ -62,7 +62,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     end
 
     it "redirects to the pending page" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(response).to redirect_to(pending_web_invoices_path(period: "this_week"))
     end
   end
@@ -76,19 +76,19 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:cn2)     { create(:credit_note, supplier: supplier, amount: 50_000) }
 
     it "marks the invoice as paid" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn1.id, cn2.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id, cn2.id ])
       expect(invoice.reload.paid_status?).to be true
     end
 
     it "exhausts both credit notes" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn1.id, cn2.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id, cn2.id ])
       expect(cn1.reload.remaining_balance).to eq(0)
       expect(cn2.reload.remaining_balance).to eq(0)
     end
 
     it "creates two AppliedCredit records" do
       expect {
-        post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn1.id, cn2.id])
+        post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id, cn2.id ])
       }.to change(AppliedCredit, :count).by(2)
     end
   end
@@ -102,17 +102,17 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:cn)      { create(:credit_note, supplier: supplier, amount: 150_000) }
 
     it "marks the invoice as paid" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(invoice.reload.paid_status?).to be true
     end
 
     it "leaves $50k remaining in the credit note" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(cn.reload.remaining_balance).to eq(50_000)
     end
 
     it "credit note stays available for future use" do
-      post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn.id])
+      post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(cn.reload.available?).to be true
     end
   end
@@ -126,7 +126,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:cn1)     { create(:credit_note, supplier: supplier, amount: 100_000) }
     let!(:cn2)     { create(:credit_note, supplier: supplier, amount: 100_000) }
 
-    before { post_payment(invoice_ids: [invoice.id], credit_note_ids: [cn1.id]) }
+    before { post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn1.id ]) }
 
     it "marks the invoice as paid" do
       expect(invoice.reload.paid_status?).to be true
@@ -154,7 +154,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:invoice2) { invoice_this_week(amount: 40_000, number: "FAC-B") }
     let!(:cn)       { create(:credit_note, supplier: supplier, amount: 80_000) }
 
-    before { post_payment(invoice_ids: [invoice1.id, invoice2.id], credit_note_ids: [cn.id]) }
+    before { post_payment(invoice_ids: [ invoice1.id, invoice2.id ], credit_note_ids: [ cn.id ]) }
 
     it "marks both invoices as paid" do
       expect(invoice1.reload.paid_status?).to be true
@@ -186,7 +186,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     let!(:invoice)       { invoice_this_week(amount: 100_000, number: "FAC-REJ") }
     let!(:foreign_cn)    { create(:credit_note, supplier: other_supplier, amount: 50_000) }
 
-    before { post_payment(invoice_ids: [invoice.id], credit_note_ids: [foreign_cn.id]) }
+    before { post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ foreign_cn.id ]) }
 
     it "does not mark the invoice as paid" do
       expect(invoice.reload.pending_status?).to be true
@@ -214,7 +214,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
     it "marks the invoice as paid without creating any AppliedCredit" do
       expect {
-        post_payment(invoice_ids: [invoice.id])
+        post_payment(invoice_ids: [ invoice.id ])
       }.not_to change(AppliedCredit, :count)
 
       expect(invoice.reload.paid_status?).to be true

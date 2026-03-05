@@ -25,9 +25,9 @@ module Invoices
       @payment_date   = payment_date
       @credit_applications = if credit_note_ids.any?
                                distribute_credits(credit_note_ids)
-                             else
+      else
                                credit_applications
-                             end
+      end
     end
 
     def call
