@@ -635,7 +635,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
       it "marks all invoices of the supplier as paid" do
         post mark_supplier_paid_web_invoices_path, params: {
-          supplier_id: supplier.id,
+          invoice_ids: [ invoice1.id, invoice2.id ],
           period: "this_week",
           payment_date: Date.current.to_s
         }
@@ -646,16 +646,15 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
       end
     end
 
-    context "with no invoices for supplier" do
+    context "with no invoice_ids sent" do
       it "redirects with alert" do
         post mark_supplier_paid_web_invoices_path, params: {
-          supplier_id: supplier.id,
           period: "this_week"
         }
 
         expect(response).to redirect_to(pending_web_invoices_path(period: "this_week"))
         follow_redirect!
-        expect(response.body).to include("No hay facturas pendientes")
+        expect(response.body).to include("No se recibieron facturas")
       end
     end
   end

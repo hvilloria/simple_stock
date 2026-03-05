@@ -69,6 +69,7 @@
                 %th.px-6.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider N° Nota
                 %th.px-6.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Factura Ref
                 %th.px-6.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Monto
+                %th.px-6.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Saldo disponible
                 %th.px-6.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Estado
                 %th.px-6.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Acciones
             
@@ -91,13 +92,18 @@
                       %span.text-gray-400 Sin factura
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
-                    %span.text-sm.font-semibold.text-green-600
+                    %span.text-sm.font-semibold.text-gray-600
                       = credit_note.currency
                       = number_with_precision(credit_note.amount, precision: 2, delimiter: ".", separator: ",")
                     - if credit_note.currency == "USD"
                       .text-xs.text-gray-500.mt-1
                         ARS
                         = number_with_precision(credit_note.total_amount_ars, precision: 2, delimiter: ".", separator: ",")
+                  
+                  %td.px-6.py-4.whitespace-nowrap.text-right
+                    %span.text-sm.font-semibold.text-green-600
+                      = credit_note.currency
+                      = number_with_precision(credit_note.remaining_balance, precision: 2, delimiter: ".", separator: ",")
                   
                   %td.px-6.py-4.whitespace-nowrap.text-center
                     - if credit_note.available?

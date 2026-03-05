@@ -11,19 +11,23 @@ module Invoices
   #       { credit_note_id: 1, invoice_id: 5, amount: 10_000 },
   #       { credit_note_id: 1, invoice_id: 6, amount: 20_000 },
   #     ],
-  #     payment_date:        Date.today,
-  #     apply_discount:      false
+  #     payment_date:        Date.today
   #   )
   class ProcessPayment
     def self.call(**params)
       new(**params).call
     end
 
-    def initialize(invoices:, credit_applications: [], payment_date: Date.today, apply_discount: false)
-      @invoices            = Array(invoices)
-      @credit_applications = credit_applications
-      @payment_date        = payment_date
-      @apply_discount      = apply_discount
+    # credit_applications: [{credit_note_id:, invoice_id:, amount:}] — pre-distributed (used by specs)
+    # credit_note_ids:     [Integer]                                  — CN ids only (used by controller)
+    def initialize(invoices:, credit_applications: [], credit_note_ids: [], payment_date: Date.today)
+      @invoices       = Array(invoices)
+      @payment_date   = payment_date
+      @credit_applications = if credit_note_ids.any?
+                               distribute_credits(credit_note_ids)
+                             else
+                               credit_applications
+                             end
     end
 
     def call
@@ -66,10 +70,6 @@ module Invoices
 
       if @payment_date < invoice.purchase_date
         raise ValidationError, "La fecha de pago no puede ser anterior a la fecha de la factura #{invoice.invoice_number}"
-      end
-
-      if @apply_discount && !invoice.eligible_for_discount?(@payment_date)
-        raise ValidationError, "El descuento expiró o no está disponible para la factura #{invoice.invoice_number}"
       end
     end
 
@@ -128,8 +128,38 @@ module Invoices
 
     def mark_invoices_as_paid
       @invoices.each do |invoice|
-        invoice.mark_as_paid!(@payment_date, paid_with_discount: @apply_discount)
+        invoice.mark_as_paid!(@payment_date, paid_with_discount: invoice.eligible_for_discount?(@payment_date))
       end
+    end
+
+    # Distributes selected credit notes across invoices in order using their full remaining balance.
+    # Returns [{credit_note_id:, invoice_id:, amount:}].
+    def distribute_credits(credit_note_ids)
+      return [] if credit_note_ids.empty?
+
+      distributed = []
+
+      nc_data = CreditNote.where(id: credit_note_ids).map do |cn|
+        { cn: cn, remaining: cn.remaining_balance.to_d }
+      end
+
+      @invoices.each do |invoice|
+        invoice_ceiling   = invoice.eligible_for_discount?(@payment_date) ? invoice.amount_with_discount : invoice.amount
+        invoice_remaining = invoice_ceiling.to_d
+
+        nc_data.each do |data|
+          break if invoice_remaining <= 0
+          next if data[:remaining] <= 0
+
+          amount = [ data[:remaining], invoice_remaining ].min.round(2)
+
+          distributed << { credit_note_id: data[:cn].id, invoice_id: invoice.id, amount: amount }
+          data[:remaining]  -= amount
+          invoice_remaining -= amount
+        end
+      end
+
+      distributed
     end
   end
 end

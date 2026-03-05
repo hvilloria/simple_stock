@@ -68,6 +68,12 @@
               = @credit_note.currency
               = number_with_precision(@credit_note.amount, precision: 2, delimiter: ".", separator: ",")
 
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Saldo disponible:
+            %span.text-2xl.font-bold.text-green-600
+              = @credit_note.currency
+              = number_with_precision(@credit_note.remaining_balance, precision: 2, delimiter: ".", separator: ",")
+
           - if @credit_note.currency == "USD" && @credit_note.exchange_rate
             .flex.items-start.gap-3
               %span.text-gray-500.w-40.flex-shrink-0 Equivalente ARS:
