@@ -399,7 +399,7 @@
 
   window.formatARS = function formatARS(amount) {
     return new Intl.NumberFormat('es-AR', {
-      style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0
+      style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2
     }).format(amount);
   }
 
