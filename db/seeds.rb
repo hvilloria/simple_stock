@@ -454,60 +454,60 @@ nxt_monday = monday + 7
 # ── Caso 1: Vencen esta semana ──────────────────────────────────────
 puts "  → Esta semana (#{monday.strftime('%d/%m')} - #{(monday + 6).strftime('%d/%m')})..."
 
-create_inv.(supplier_japan,    340_000, today - 30, monday + 1)
-create_inv.(supplier_japan,    490_000, today - 25, monday + 3)
-create_inv.(supplier_usa,      250_000, today - 20, monday + 2)
-create_inv.(supplier_usa,      390_000, today - 28, monday + 4)
-create_inv.(supplier_germany,  620_000, today - 22, monday + 1)
-create_inv.(supplier_taiwan,   190_000, today - 18, monday + 3)
-create_inv.(supplier_taiwan,   230_000, today - 15, monday + 5)
-create_inv.(supplier_brazil,   200_000, today - 30, monday + 2)
+create_inv.(supplier_japan,    134_862.37, today - 30, monday + 1)
+create_inv.(supplier_japan,    195_041.83, today - 25, monday + 3)
+create_inv.(supplier_usa,      108_773.14, today - 20, monday + 2)
+create_inv.(supplier_usa,      156_308.62, today - 28, monday + 4)
+create_inv.(supplier_germany,  247_456.91, today - 22, monday + 1)
+create_inv.(supplier_taiwan,    83_219.48, today - 18, monday + 3)
+create_inv.(supplier_taiwan,    96_587.06, today - 15, monday + 5)
+create_inv.(supplier_brazil,    81_934.72, today - 30, monday + 2)
 
 # ── Caso 2: Vencen la semana próxima ────────────────────────────────
 puts "  → Semana próxima (#{nxt_monday.strftime('%d/%m')} - #{(nxt_monday + 6).strftime('%d/%m')})..."
 
-create_inv.(supplier_japan,    450_000, today - 10, nxt_monday + 1)
-create_inv.(supplier_usa,      300_000, today - 8,  nxt_monday + 2)
-create_inv.(supplier_usa,      720_000, today - 12, nxt_monday + 4)
-create_inv.(supplier_germany,  370_000, today - 5,  nxt_monday + 1)
-create_inv.(supplier_germany,  550_000, today - 15, nxt_monday + 3)
-create_inv.(supplier_taiwan,   275_000, today - 7,  nxt_monday + 2)
-create_inv.(supplier_brazil,   170_000, today - 9,  nxt_monday + 1)
-create_inv.(supplier_brazil,   280_000, today - 11, nxt_monday + 4)
+create_inv.(supplier_japan,    178_304.56, today - 10, nxt_monday + 1)
+create_inv.(supplier_usa,      121_089.23, today - 8,  nxt_monday + 2)
+create_inv.(supplier_usa,      287_614.79, today - 12, nxt_monday + 4)
+create_inv.(supplier_germany,  147_523.38, today - 5,  nxt_monday + 1)
+create_inv.(supplier_germany,  216_047.61, today - 15, nxt_monday + 3)
+create_inv.(supplier_taiwan,   110_782.94, today - 7,  nxt_monday + 2)
+create_inv.(supplier_brazil,    68_491.17, today - 9,  nxt_monday + 1)
+create_inv.(supplier_brazil,   114_236.85, today - 11, nxt_monday + 4)
 
 # ── Caso 3: Descuento anticipado vence esta semana (with_discount_to_advance) ──
 puts "  → Con descuento anticipado (expira en #{today + 1}..#{today + 3})..."
 
-create_inv.(supplier_japan,    880_000, today - 45, today + 30, ep_date: today + 2, ep_pct: 5)
-create_inv.(supplier_usa,      580_000, today - 40, today + 25, ep_date: today + 1, ep_pct: 7)
-create_inv.(supplier_germany, 1_240_000, today - 50, today + 35, ep_date: today + 2, ep_pct: 10)
-create_inv.(supplier_taiwan,   390_000, today - 38, today + 28, ep_date: today + 1, ep_pct: 8)
-create_inv.(supplier_brazil,   370_000, today - 42, today + 32, ep_date: today + 3, ep_pct: 6)
+create_inv.(supplier_japan,    356_128.43, today - 45, today + 30, ep_date: today + 2, ep_pct: 5)
+create_inv.(supplier_usa,      237_865.09, today - 40, today + 25, ep_date: today + 1, ep_pct: 7)
+create_inv.(supplier_germany,  495_702.36, today - 50, today + 35, ep_date: today + 2, ep_pct: 10)
+create_inv.(supplier_taiwan,   158_047.82, today - 38, today + 28, ep_date: today + 1, ep_pct: 8)
+create_inv.(supplier_brazil,   149_583.67, today - 42, today + 32, ep_date: today + 3, ep_pct: 6)
 
 # ── Caso 4: Variedad adicional para la vista de índice ──────────────
 puts "  → Variedad para el índice (vencidas, este mes, próximo mes)..."
 
 # Vencidas
-create_inv.(supplier_japan,   240_000, today - 60, today - 15)
-create_inv.(supplier_usa,     190_000, today - 45, today - 7)
-create_inv.(supplier_germany, 650_000, today - 30, today - 3)
+create_inv.(supplier_japan,    95_318.54, today - 60, today - 15)
+create_inv.(supplier_usa,      77_642.31, today - 45, today - 7)
+create_inv.(supplier_germany,  261_409.78, today - 30, today - 3)
 
 # Este mes (fuera de esta semana y la próxima)
-create_inv.(supplier_taiwan,  330_000, today - 5,  today + 14)
-create_inv.(supplier_brazil,  225_000, today - 3,  today + 18)
-create_inv.(supplier_japan,   290_000, today - 7,  today + 21)
+create_inv.(supplier_taiwan,   133_856.29, today - 5,  today + 14)
+create_inv.(supplier_brazil,    91_074.53, today - 3,  today + 18)
+create_inv.(supplier_japan,    116_493.87, today - 7,  today + 21)
 
 # Próximo mes
-create_inv.(supplier_usa,     440_000, today - 2,  today + 35)
-create_inv.(supplier_germany, 670_000, today - 8,  today + 42)
+create_inv.(supplier_usa,      175_237.46, today - 2,  today + 35)
+create_inv.(supplier_germany,  269_815.92, today - 8,  today + 42)
 
 # ── Pagadas (creadas y luego marcadas como paid) ─────────────────────
 [
-  [ supplier_japan,   740_000, today - 35 ],
-  [ supplier_usa,     370_000, today - 28 ],
-  [ supplier_germany, 960_000, today - 20 ],
-  [ supplier_taiwan,  310_000, today - 42 ],
-  [ supplier_brazil,  410_000, today - 15 ]
+  [ supplier_japan,   297_183.64, today - 35 ],
+  [ supplier_usa,     148_726.41, today - 28 ],
+  [ supplier_germany, 384_059.17, today - 20 ],
+  [ supplier_taiwan,  123_892.35, today - 42 ],
+  [ supplier_brazil,  163_447.28, today - 15 ]
 ].each do |sup, amount, paid_date|
   num = "SF-#{format('%04d', inv_seq)}"
   inv_seq += 1
@@ -561,31 +561,31 @@ create_cn = ->(supplier, amount, issue_date, opts = {}) do
 end
 
 # Japan: 2 notas en ARS
-create_cn.(supplier_japan,  85_000, today - 20, notes: "Devolución mercadería defectuosa - Lote J201")
-create_cn.(supplier_japan, 130_000, today - 10, notes: "Ajuste de precio sobre factura anterior")
+create_cn.(supplier_japan,  84_763.29, today - 20, notes: "Devolución mercadería defectuosa - Lote J201")
+create_cn.(supplier_japan, 129_408.54, today - 10, notes: "Ajuste de precio sobre factura anterior")
 
 # USA: 1 nota en ARS
-create_cn.(supplier_usa, 210_000, today - 15, notes: "NC por error de facturación en pedido #US-88")
+create_cn.(supplier_usa, 209_317.83, today - 15, notes: "NC por error de facturación en pedido #US-88")
 
 # Germany: 2 notas (1 ARS, 1 USD)
-create_cn.(supplier_germany, 175_000, today - 8, notes: "Descuento por volumen retroactivo Q4")
-create_cn.(supplier_germany,     200, today - 5,
+create_cn.(supplier_germany, 174_652.47, today - 8, notes: "Descuento por volumen retroactivo Q4")
+create_cn.(supplier_germany,     198.36, today - 5,
   currency: "USD", exchange_rate: 1200.0,
   notes: "Devolución por piezas incorrectas - Ref DEU-44"
 )
 
 # Taiwan: 1 nota pequeña en ARS
-create_cn.(supplier_taiwan, 55_000, today - 12, notes: "Faltante en pedido anterior - ajuste")
+create_cn.(supplier_taiwan, 54_891.62, today - 12, notes: "Faltante en pedido anterior - ajuste")
 
 # Brazil: 1 nota en ARS
-create_cn.(supplier_brazil, 90_000, today - 18, notes: "Mercadería dañada en tránsito - reembolso parcial")
+create_cn.(supplier_brazil, 89_534.18, today - 18, notes: "Mercadería dañada en tránsito - reembolso parcial")
 
 puts "✅ #{cn_ok} notas de crédito creadas"
-puts "   - Japan:   2 notas ARS ($85.000 + $130.000)"
-puts "   - USA:     1 nota  ARS ($210.000)"
-puts "   - Germany: 2 notas (ARS $175.000 + USD $200)"
-puts "   - Taiwan:  1 nota  ARS ($55.000)"
-puts "   - Brazil:  1 nota  ARS ($90.000)"
+puts "   - Japan:   2 notas ARS ($84.763,29 + $129.408,54)"
+puts "   - USA:     1 nota  ARS ($209.317,83)"
+puts "   - Germany: 2 notas (ARS $174.652,47 + USD $198,36)"
+puts "   - Taiwan:  1 nota  ARS ($54.891,62)"
+puts "   - Brazil:  1 nota  ARS ($89.534,18)"
 
 # ============================================
 # 10. ESTADÍSTICAS FINALES

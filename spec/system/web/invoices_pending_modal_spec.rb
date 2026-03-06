@@ -155,7 +155,7 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
       cn_checkboxes.first.click   # NC1: $50k applied
       cn_checkboxes.last.click    # NC2: effective = min($60k, $50k remaining) = $50k
 
-      expect(page).to have_css("#modalNetTotal", text: /\A\s*\$\s*0\s*\z/)
+      expect(page).to have_css("#modalNetTotal", text: /\$\s*0[,.]00/)
     end
   end
 
