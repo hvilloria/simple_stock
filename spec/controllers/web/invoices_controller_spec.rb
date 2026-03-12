@@ -497,16 +497,15 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
     let(:supplier) { create(:supplier) }
 
     context "with early payment invoices to advance" do
-      it "loads invoices with discount expiring before next thursday in unified table" do
-        # Factura que vence próxima semana pero descuento expira antes del jueves
-        next_week_thursday = (Date.current + 1.week).beginning_of_week(:monday) + 3.days
+      it "loads invoices with discount expiring this week in unified table" do
+        # Factura que vence más adelante pero cuyo descuento expira esta semana
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
                                status: "pending",
                                amount: 10000,
                                currency: "ARS",
                                due_date: Date.current + 2.weeks,
-                               early_payment_due_date: next_week_thursday - 2.days,
+                               early_payment_due_date: Date.current + 1.day,
                                early_payment_discount_percentage: 5)
 
         get pending_web_invoices_path
@@ -517,15 +516,14 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
       end
 
       it "shows both early payment and regular invoices in unified table" do
-        # Factura con descuento a adelantar
-        next_week_thursday = (Date.current + 1.week).beginning_of_week(:monday) + 3.days
+        # Factura con descuento que expira esta semana
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
                                status: "pending",
                                amount: 10000,
                                currency: "ARS",
                                due_date: Date.current + 2.weeks,
-                               early_payment_due_date: next_week_thursday - 2.days,
+                               early_payment_due_date: Date.current + 1.day,
                                early_payment_discount_percentage: 5)
 
         # Factura regular que vence esta semana

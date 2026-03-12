@@ -51,21 +51,8 @@ module Web
       period = params[:period] || "this_week"
       @selected_period = period
 
-      # 1. Cargar facturas con descuento que deben adelantarse
-      early_payment_invoices = Invoice.with_discount_to_advance.includes(:supplier).to_a
+      all_invoices = filter_by_period(period).includes(:supplier).to_a
 
-      # 2. Cargar facturas regulares del período seleccionado
-      #    (excluyendo las que ya están en early_payment para evitar duplicados)
-      regular_invoices_relation = filter_by_period(period)
-      if early_payment_invoices.any?
-        regular_invoices_relation = regular_invoices_relation.where.not(id: early_payment_invoices.map(&:id))
-      end
-      regular_invoices = regular_invoices_relation.includes(:supplier).to_a
-
-      # 3. Combinar todas las facturas en una sola lista
-      all_invoices = early_payment_invoices + regular_invoices
-
-      # 4. Agrupar por proveedor (tabla unificada)
       @suppliers_with_payments = calculate_payments_by_supplier_unified(all_invoices)
 
       # Métricas globales
@@ -289,18 +276,24 @@ module Web
     def filter_by_period(period)
       case period
       when "this_week"
-        Invoice.due_this_week
+        start_date = Date.current.beginning_of_week(:monday)
+        end_date   = Date.current.end_of_week(:monday)
       when "next_week"
-        Invoice.due_next_week
+        start_date = (Date.current + 1.week).beginning_of_week(:monday)
+        end_date   = (Date.current + 1.week).end_of_week(:monday)
       when "this_month"
-        Invoice.due_this_month
+        start_date = Date.current.beginning_of_month
+        end_date   = Date.current.end_of_month
       when "next_month"
-        Invoice.due_next_month
+        start_date = (Date.current + 1.month).beginning_of_month
+        end_date   = (Date.current + 1.month).end_of_month
       when "overdue"
-        Invoice.overdue
+        return Invoice.overdue
       else
-        Invoice.due_this_week
+        start_date = Date.current.beginning_of_week(:monday)
+        end_date   = Date.current.end_of_week(:monday)
       end
+      Invoice.due_or_discount_in_period(start_date, end_date)
     end
 
     def calculate_payments_by_supplier(invoices)

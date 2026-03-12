@@ -70,27 +70,12 @@ class Invoice < ApplicationRecord
     with_early_payment.where("early_payment_due_date >= ?", Date.current)
   }
 
-  # Facturas con descuento que deben adelantarse a esta semana
-  # Busca facturas pendientes donde early_payment_due_date:
-  # - Es mayor a hoy (no expiró)
-  # - Es menor al jueves de la próxima semana (hay que pagarlas este jueves)
-  scope :with_discount_to_advance, -> {
-    next_week_thursday = (Date.current + 1.week).beginning_of_week(:monday) + 3.days
-    simple_mode
-      .pending_payment
-      .with_early_payment
-      .where("early_payment_due_date > ?", Date.current)
-      .where("early_payment_due_date < ?", next_week_thursday)
-  }
-
-  scope :due_next_month, -> {
-    start_of_month = (Date.current + 1.month).beginning_of_month
-    end_of_month = (Date.current + 1.month).end_of_month
-    simple_mode.where(status: "pending").where(due_date: start_of_month..end_of_month)
-  }
-
-  scope :overdue, -> {
-    simple_mode.where(status: "pending").where("due_date < ?", Date.current)
+  # Facturas pendientes cuyo due_date O early_payment_due_date cae dentro del período
+  scope :due_or_discount_in_period, ->(start_date, end_date) {
+    base = simple_mode.where(status: "pending")
+    base.where(due_date: start_date..end_date)
+        .or(base.where(early_payment_due_date: start_date..end_date)
+                .where("early_payment_due_date >= ?", Date.current))
   }
 
   # Filtro por proveedor (acepta nil para "todos")
@@ -210,16 +195,6 @@ class Invoice < ApplicationRecord
     else
       potential_savings || 0
     end
-  end
-
-  # ¿Debería adelantarse al jueves de esta semana?
-  # True si el descuento expira antes del jueves de la próxima semana
-  def should_advance_payment?
-    return false unless early_payment_due_date.present?
-    return false if early_payment_due_date <= Date.current
-
-    next_week_thursday = (Date.current + 1.week).beginning_of_week(:monday) + 3.days
-    early_payment_due_date < next_week_thursday
   end
 
   # Días hasta que expira el descuento
