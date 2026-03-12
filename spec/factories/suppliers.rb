@@ -27,6 +27,8 @@ FactoryBot.define do
       email { "orders@jdmautoparts.jp" }
       phone { "+81-3-1234-5678" }
       payment_term_days { 30 }
+      early_payment_days { 10 }
+      early_payment_discount_percentage { 5 }
     end
 
     trait :usa do
@@ -34,6 +36,8 @@ FactoryBot.define do
       email { "sales@usahondaparts.com" }
       phone { "+1-305-555-0199" }
       payment_term_days { 45 }
+      early_payment_days { 15 }
+      early_payment_discount_percentage { 7 }
     end
 
     trait :germany do
@@ -41,6 +45,8 @@ FactoryBot.define do
       email { "info@euroautoparts.de" }
       phone { "+49-89-1234567" }
       payment_term_days { 15 }
+      early_payment_days { 5 }
+      early_payment_discount_percentage { 10 }
     end
 
     trait :taiwan do
@@ -48,6 +54,8 @@ FactoryBot.define do
       email { "export@twautosupply.tw" }
       phone { "+886-2-2345-6789" }
       payment_term_days { 30 }
+      early_payment_days { 10 }
+      early_payment_discount_percentage { 8 }
     end
 
     trait :brazil do
@@ -55,6 +63,8 @@ FactoryBot.define do
       email { "vendas@brasilmotorparts.com.br" }
       phone { "+55-11-3456-7890" }
       payment_term_days { 20 }
+      early_payment_days { 7 }
+      early_payment_discount_percentage { 6 }
     end
   end
 end
