@@ -232,7 +232,7 @@
       %button.text-gray-400.hover:text-gray-600.cursor-pointer{ type: "button", onclick: "closePaymentModal()" }
         %span.text-2xl ×
 
-    %form#paymentForm{ method: "post", action: "#" }
+    %form#paymentForm{ method: "post", action: "#", onsubmit: "injectPaymentParams(this)" }
       = hidden_field_tag :authenticity_token, form_authenticity_token
 
       -# Lista de facturas a pagar
@@ -403,27 +403,25 @@
     }).format(amount);
   }
 
-  // Before submit: inject invoice_ids[] and credit_applications[] hidden inputs
-  document.addEventListener('DOMContentLoaded', function () {
-    document.getElementById('paymentForm').addEventListener('submit', function () {
-      // Remove previously injected inputs (for re-submits)
-      this.querySelectorAll('input[name^="credit_applications"], input[name="invoice_ids[]"]').forEach(el => el.remove());
+  // Before submit: inject invoice_ids[] and credit_note_ids[] hidden inputs
+  window.injectPaymentParams = function injectPaymentParams(form) {
+    // Remove previously injected inputs (for re-submits)
+    form.querySelectorAll('input[name^="credit_applications"], input[name="invoice_ids[]"], input[name="credit_note_ids[]"]').forEach(el => el.remove());
 
-      const addHidden = (name, value) => {
-        const el = document.createElement('input');
-        el.type  = 'hidden';
-        el.name  = name;
-        el.value = value;
-        this.appendChild(el);
-      };
+    const addHidden = (name, value) => {
+      const el = document.createElement('input');
+      el.type  = 'hidden';
+      el.name  = name;
+      el.value = value;
+      form.appendChild(el);
+    };
 
-      // Inject explicit invoice IDs so the backend doesn't re-derive them from period+supplier
-      (window.currentSupplierData?.invoiceIds || []).forEach(id => addHidden('invoice_ids[]', id));
+    // Inject explicit invoice IDs so the backend doesn't re-derive them from period+supplier
+    (window.currentSupplierData?.invoiceIds || []).forEach(id => addHidden('invoice_ids[]', id));
 
-      // Inject selected credit note IDs — the backend reads their balance directly
-      document.querySelectorAll('#creditNotesList input[type="checkbox"]').forEach(cb => {
-        if (!cb.checked) return;
-        addHidden('credit_note_ids[]', cb.dataset.cnId);
-      });
+    // Inject selected credit note IDs — the backend reads their balance directly
+    document.querySelectorAll('#creditNotesList input[type="checkbox"]').forEach(cb => {
+      if (!cb.checked) return;
+      addHidden('credit_note_ids[]', cb.dataset.cnId);
     });
-  });
+  };

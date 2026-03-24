@@ -628,7 +628,7 @@ puts "  Total: #{Invoice.simple_mode.count}"
 puts "  Pendientes: #{Invoice.simple_mode.pending_payment.count}"
 puts "  Vencen esta semana: #{Invoice.due_this_week.count}"
 puts "  Vencen semana próxima: #{Invoice.due_next_week.count}"
-puts "  Con descuento anticipado: #{Invoice.with_discount_to_advance.count}"
+puts "  Con descuento anticipado: #{Invoice.discount_available.count}"
 puts "  Vencidas: #{Invoice.overdue.count}"
 puts "  Pagadas: #{Invoice.simple_mode.paid_invoices.count}"
 
