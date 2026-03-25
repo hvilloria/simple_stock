@@ -51,5 +51,10 @@ Rails.application.routes.draw do
         get :supplier_invoices
       end
     end
+
+    namespace :sales_ledger do
+      resources :imports, only: [:index, :create, :show]
+      get :reports, to: "reports#index"
+    end
   end
 end

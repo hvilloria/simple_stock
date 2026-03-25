@@ -1,0 +1,63 @@
+-# app/views/web/sales_ledger/imports/index.html.haml
+
+.container.mx-auto.px-6.py-8
+  -# Breadcrumb
+  .text-sm.text-slate-500.mb-4
+    %span Ventas
+    %span.mx-1 ›
+    %span.text-slate-900.font-medium Ventas Importadas
+
+  .flex.justify-between.items-center.mb-6
+    %h1.text-2xl.font-bold.text-slate-900 Ventas Importadas
+
+  -# Flash messages
+  - if notice
+    .bg-green-50.border.border-green-200.rounded-lg.px-4.py-3.mb-6.text-sm.text-green-800
+      = notice
+  - if alert
+    .bg-red-50.border.border-red-200.rounded-lg.px-4.py-3.mb-6.text-sm.text-red-800
+      = alert
+
+  -# Formulario de importación
+  .card.p-6.mb-6
+    %h2.text-sm.font-semibold.text-slate-700.mb-1 Importar nuevo CSV
+    %p.text-xs.text-slate-500.mb-4
+      Columnas requeridas:
+      %code.bg-slate-100.px-1.rounded sale_date, ticket_number, oem_code, product_name, quantity, unit_price
+
+    = form_with url: web_sales_ledger_imports_path, method: :post, multipart: true,
+                class: "flex items-center gap-3" do |f|
+      = f.file_field :file, accept: ".csv", class: "input-modern w-auto"
+      = f.submit "Importar CSV", class: "btn-primary"
+
+  -# Historial de importaciones
+  .card.overflow-hidden
+    %table.w-full.text-sm
+      %thead.bg-slate-50
+        %tr
+          %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Archivo
+          %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Fecha
+          %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Filas importadas
+          %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Productos creados
+          %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Filas con error
+          %th
+      %tbody.divide-y.divide-slate-100
+        - if @imports.any?
+          - @imports.each do |import|
+            %tr.hover:bg-slate-50
+              %td.px-4.py-3.text-slate-800= import.source_filename
+              %td.px-4.py-3.text-slate-500= import.imported_at&.strftime("%d/%m/%Y %H:%M")
+              %td.px-4.py-3.text-right= import.created_entries_count
+              %td.px-4.py-3.text-right= import.created_products_count
+              %td.px-4.py-3.text-right
+                - if import.failed_rows_count > 0
+                  %span.text-red-600.font-medium= import.failed_rows_count
+                - else
+                  %span.text-slate-400 —
+              %td.px-4.py-3.text-right
+                = link_to "Ver detalle", web_sales_ledger_import_path(import),
+                          class: "text-teal-600 hover:underline text-sm"
+        - else
+          %tr
+            %td.px-6.py-12.text-center.text-slate-400{ colspan: 6 }
+              Todavía no hay importaciones. Cargá el primer CSV arriba.
