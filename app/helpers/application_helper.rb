@@ -12,7 +12,7 @@ module ApplicationHelper
   }.freeze
 
   def payment_method_badge_class(method)
-    PAYMENT_METHOD_BADGE_CLASSES.fetch(method.to_s, "bg-slate-100 text-slate-700")
+    PAYMENT_METHOD_BADGE_CLASSES.fetch(method.to_s, "bg-slate-100 text-slate-700").html_safe
   end
 
   def payment_method_label(method)

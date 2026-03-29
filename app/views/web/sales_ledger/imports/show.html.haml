@@ -81,8 +81,8 @@
             %td.px-4.py-3.text-slate-700= entry.seller_name.presence || "—"
             %td.px-4.py-3
               - if entry.payment_method.present?
-                %span.inline-block.text-xs.font-medium.px-2.py-0.5.rounded-full{ class: payment_method_badge_class(entry.payment_method) }
-                  = entry.payment_method
+                %span.inline-block.text-xs.font-medium.px-2.py-0.5.rounded-full{ class: payment_method_badge_class(h(entry.payment_method)) }
+                  = payment_method_label(entry.payment_method)
               - else
                 %span.text-slate-300 —
 
