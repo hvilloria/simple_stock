@@ -72,10 +72,12 @@ RSpec.describe Product, type: :model do
         expect(product).to be_valid
       end
 
-      it 'requires origin for aftermarket products' do
+      it 'allows blank origin for aftermarket products (relaxed for CSV import)' do
+        # La validación de origin para aftermarket está deshabilitada intencionalmente
+        # para permitir que el importador de ventas cree productos sin origin conocido.
+        # Ver: app/models/product.rb — validación comentada con nota explicativa.
         product = build(:product, product_type: 'aftermarket', origin: nil)
-        expect(product).not_to be_valid
-        expect(product.errors[:origin]).to include("can't be blank")
+        expect(product).to be_valid
       end
 
       it 'allows origin for aftermarket products' do
