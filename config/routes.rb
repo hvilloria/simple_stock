@@ -53,7 +53,7 @@ Rails.application.routes.draw do
     end
 
     namespace :sales_ledger do
-      resources :imports, only: [:index, :create, :show]
+      resources :imports, only: [ :index, :create, :show ]
       get :reports, to: "reports#index"
     end
   end

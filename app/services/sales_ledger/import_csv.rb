@@ -73,7 +73,7 @@ module SalesLedger
     rescue StandardError => e
       @import&.update!(status: "failed", notes: e.message)
       Rails.logger.error("SalesLedger::ImportCsv failed: #{e.message}\n#{e.backtrace&.first(5)&.join("\n")}")
-      Result.new(success?: false, record: @import, errors: [e.message])
+      Result.new(success?: false, record: @import, errors: [ e.message ])
     end
 
     private
@@ -91,7 +91,7 @@ module SalesLedger
       csv.each_with_index do |row, index|
         @rows_count += 1
         data = parse_and_normalize_row(row)
-        parsed_pairs << [data, row]
+        parsed_pairs << [ data, row ]
       rescue StandardError => e
         @failed_rows << "Fila #{index + 2}: #{e.message}"
       end
@@ -222,7 +222,7 @@ module SalesLedger
         mismatch   = (declared - calculated).abs > BigDecimal("0.01")
 
         ticket_pairs.each do |data, raw_row|
-          valid_pairs << [data.merge(ticket_amount_mismatch: mismatch), raw_row]
+          valid_pairs << [ data.merge(ticket_amount_mismatch: mismatch), raw_row ]
         end
       end
 
@@ -251,8 +251,8 @@ module SalesLedger
     # Ruby's strptime ignora caracteres sobrantes al final del string.
     # M/D/YY se maneja manualmente porque %y en strptime no aplica el offset de siglo.
     STRICT_DATE_FORMATS = [
-      [/\A\d{4}-\d{1,2}-\d{1,2}\z/,  "%Y-%m-%d"],
-      [/\A\d{1,2}\/\d{1,2}\/\d{4}\z/, "%m/%d/%Y"]
+      [ /\A\d{4}-\d{1,2}-\d{1,2}\z/,  "%Y-%m-%d" ],
+      [ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/, "%m/%d/%Y" ]
     ].freeze
 
     def parse_sale_date(raw)
@@ -283,7 +283,7 @@ module SalesLedger
     # Si no existe ninguna, crea un producto mínimo sin brand/origin/category.
     def find_or_create_product(data)
       product = Product.find_by(sku: data[:normalized_sku], product_type: data[:product_type])
-      return [product, false] if product
+      return [ product, false ] if product
 
       product = Product.create!(
         sku:          data[:normalized_sku],
@@ -294,7 +294,7 @@ module SalesLedger
         # brand, origin, category quedan nil intencionalmente
       )
 
-      [product, true]
+      [ product, true ]
     end
 
     # Verifica el fingerprint de idempotencia y persiste la entrada.

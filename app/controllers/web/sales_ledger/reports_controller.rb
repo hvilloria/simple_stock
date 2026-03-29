@@ -7,7 +7,7 @@ module Web
         from_raw = parse_date(params[:from]) || Date.current.beginning_of_month
         to_raw   = parse_date(params[:to])   || Date.current
         # Si from > to, intercambiar para evitar rango vacío silencioso
-        @from, @to = [from_raw, to_raw].minmax
+        @from, @to = [ from_raw, to_raw ].minmax
 
         @summary        = ::SalesLedger::Reports::SummaryQuery.call(from: @from, to: @to)
         @sales_by_date  = ::SalesLedger::Reports::SalesByDateQuery.call(from: @from, to: @to)
