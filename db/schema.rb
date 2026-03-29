@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_03_25_100001) do
+ActiveRecord::Schema[7.2].define(version: 2026_03_28_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -196,11 +196,19 @@ ActiveRecord::Schema[7.2].define(version: 2026_03_25_100001) do
     t.jsonb "raw_row_data"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "ticket_total_amount", precision: 10, scale: 2
+    t.string "payment_method"
+    t.string "seller_name"
+    t.bigint "seller_user_id"
+    t.boolean "ticket_amount_mismatch", default: false, null: false
     t.index ["entry_fingerprint"], name: "index_sales_ledger_entries_on_entry_fingerprint", unique: true
     t.index ["oem_code"], name: "index_sales_ledger_entries_on_oem_code"
+    t.index ["payment_method"], name: "index_sales_ledger_entries_on_payment_method"
     t.index ["product_id"], name: "index_sales_ledger_entries_on_product_id"
     t.index ["sale_date"], name: "index_sales_ledger_entries_on_sale_date"
     t.index ["sales_import_id"], name: "index_sales_ledger_entries_on_sales_import_id"
+    t.index ["seller_name"], name: "index_sales_ledger_entries_on_seller_name"
+    t.index ["seller_user_id"], name: "index_sales_ledger_entries_on_seller_user_id"
     t.index ["ticket_number"], name: "index_sales_ledger_entries_on_ticket_number"
   end
 
@@ -274,6 +282,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_03_25_100001) do
   add_foreign_key "payments", "customers"
   add_foreign_key "sales_ledger_entries", "products"
   add_foreign_key "sales_ledger_entries", "sales_imports"
+  add_foreign_key "sales_ledger_entries", "users", column: "seller_user_id", on_delete: :nullify
   add_foreign_key "stock_movements", "products"
   add_foreign_key "stock_movements", "stock_locations"
 end

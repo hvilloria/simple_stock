@@ -26,6 +26,15 @@
         = @import.failed_rows_count
       %p.text-xs.text-slate-500.mt-1 Filas con error
 
+  -# Alerta de tickets con diferencia de totales
+  - mismatch_count = @entries.count(&:ticket_amount_mismatch)
+  - if mismatch_count > 0
+    .bg-yellow-50.border.border-yellow-200.rounded-lg.px-4.py-3.mb-6.text-sm.text-yellow-800
+      %strong #{mismatch_count} ticket(s) con diferencia entre total declarado y total calculado.
+      Ver filas marcadas con
+      %span.bg-yellow-200.text-yellow-800.text-xs.font-medium.px-2.py-0.5.rounded ∆ dif.
+      en la tabla.
+
   -# Notas / errores del proceso
   - if @import.notes.present?
     .bg-yellow-50.border.border-yellow-200.rounded-lg.p-4.mb-6
@@ -43,7 +52,10 @@
           %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Producto
           %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Cant.
           %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Precio
-          %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Total
+          %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Total línea
+          %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Total ticket
+          %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Vendedor
+          %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Pago
       %tbody.divide-y.divide-slate-100
         - @entries.each do |entry|
           %tr.hover:bg-slate-50
@@ -56,6 +68,22 @@
               = number_to_currency(entry.unit_price, unit: "$", separator: ",", delimiter: ".")
             %td.px-4.py-3.text-right.font-medium.text-slate-900
               = number_to_currency(entry.total_amount, unit: "$", separator: ",", delimiter: ".")
+            %td.px-4.py-3.text-right
+              - if entry.ticket_total_amount.present?
+                - if entry.ticket_amount_mismatch?
+                  %span.inline-flex.items-center.gap-1
+                    = number_to_currency(entry.ticket_total_amount, unit: "$", separator: ",", delimiter: ".")
+                    %span.bg-yellow-200.text-yellow-800.text-xs.font-medium.px-1.5.py-0.5.rounded ∆ dif.
+                - else
+                  = number_to_currency(entry.ticket_total_amount, unit: "$", separator: ",", delimiter: ".")
+              - else
+                %span.text-slate-300 —
+            %td.px-4.py-3.text-slate-700= entry.seller_name.presence || "—"
+            %td.px-4.py-3
+              - if entry.payment_method.present?
+                %span.inline-block.text-xs.font-medium.px-2.py-0.5.rounded-full{ class: payment_method_badge_class(entry.payment_method) }
+                  = entry.payment_method
+              - else
+                %span.text-slate-300 —
 
   .mt-4
-    = paginate @entries

@@ -34,7 +34,6 @@ module Web
         @import  = ::SalesLedger::SalesImport.find(params[:id])
         @entries = @import.entries
                           .order(:sale_date, :ticket_number)
-                          .page(params[:page]).per(50)
       end
     end
   end

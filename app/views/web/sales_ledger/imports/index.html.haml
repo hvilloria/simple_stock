@@ -21,9 +21,14 @@
   -# Formulario de importación
   .card.p-6.mb-6
     %h2.text-sm.font-semibold.text-slate-700.mb-1 Importar nuevo CSV
-    %p.text-xs.text-slate-500.mb-4
-      Columnas requeridas:
-      %code.bg-slate-100.px-1.rounded sale_date, ticket_number, oem_code, product_name, quantity, unit_price
+    %p.text-xs.text-slate-500.mb-3
+      Columnas requeridas (en cualquier orden):
+    %p.text-xs.font-mono.bg-slate-100.rounded.px-2.py-1.mb-1.text-slate-700.inline-block
+      ticket_number, oem_code, product_name, quantity, unit_price, ticket_total_amount, payment_method, seller_name, sale_date
+    %p.text-xs.text-slate-400.mb-4
+      Valores válidos para
+      %code payment_method
+      \: cash | bank | mercado_pago &nbsp;·&nbsp; Separador decimal en precios: punto (.)
 
     = form_with url: web_sales_ledger_imports_path, method: :post, multipart: true,
                 class: "flex items-center gap-3" do |f|

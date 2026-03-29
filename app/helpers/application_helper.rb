@@ -1,4 +1,24 @@
 module ApplicationHelper
+  PAYMENT_METHOD_BADGE_CLASSES = {
+    "cash"         => "bg-green-100 text-green-800",
+    "bank"         => "bg-blue-800 text-white",
+    "mercado_pago" => "bg-cyan-100 text-cyan-800"
+  }.freeze
+
+  PAYMENT_METHOD_LABELS = {
+    "cash"         => "Efectivo",
+    "bank"         => "Banco",
+    "mercado_pago" => "Mercado Pago"
+  }.freeze
+
+  def payment_method_badge_class(method)
+    PAYMENT_METHOD_BADGE_CLASSES.fetch(method.to_s, "bg-slate-100 text-slate-700")
+  end
+
+  def payment_method_label(method)
+    PAYMENT_METHOD_LABELS.fetch(method.to_s, method.to_s.humanize)
+  end
+
   def nav_link_classes(active = false)
     base_classes = "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all"
     if active

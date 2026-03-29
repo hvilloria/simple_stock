@@ -4,7 +4,10 @@ require "rails_helper"
 require "csv"
 
 RSpec.describe SalesLedger::ImportCsv do
-  IMPORT_CSV_SPEC_HEADERS = %w[sale_date ticket_number oem_code product_name quantity unit_price].freeze
+  IMPORT_CSV_SPEC_HEADERS = %w[
+    sale_date ticket_number oem_code product_name quantity unit_price
+    ticket_total_amount payment_method seller_name
+  ].freeze
 
   # Builds a Tempfile with real CSV content using the stdlib CSV library.
   # The caller is responsible for closing and unlinking the file.
@@ -32,11 +35,14 @@ RSpec.describe SalesLedger::ImportCsv do
   describe ".call" do
 
     # ── CASE 1: Successful import ────────────────────────────────────────────
+    # Row format: [sale_date, ticket_number, oem_code, product_name, quantity,
+    #              unit_price, ticket_total_amount, payment_method, seller_name]
     context "with a valid two-row CSV" do
       let(:csv) do
         build_csv_tracked([
-          ["2024-01-15", "T-001", "12345", "Oil Filter", "2", "1500.00"],
-          ["2024-01-15", "T-001", "67890", "NGK Spark",  "4",  "800.00"]
+          # T-001: two items, total 3000 + 3200 = 6200
+          ["2024-01-15", "T-001", "12345", "Oil Filter", "2", "1500.00", "6200.00", "cash", "Juan"],
+          ["2024-01-15", "T-001", "67890", "NGK Spark",  "4",  "800.00", "6200.00", "cash", "Juan"]
         ])
       end
 
@@ -68,6 +74,14 @@ RSpec.describe SalesLedger::ImportCsv do
         expect(entry.total_amount).to eq(BigDecimal("3000.00"))
       end
 
+      it "stores payment_method, seller_name, and ticket_total_amount on the entry" do
+        result
+        entry = SalesLedger::Entry.find_by(oem_code: "12345")
+        expect(entry.payment_method).to eq("cash")
+        expect(entry.seller_name).to eq("Juan")
+        expect(entry.ticket_total_amount).to eq(BigDecimal("6200.00"))
+      end
+
       it "associates each entry with the created SalesImport" do
         import = result.record
         import.entries.each do |entry|
@@ -86,7 +100,7 @@ RSpec.describe SalesLedger::ImportCsv do
     # ── CASE 2: Auto-creation of products ────────────────────────────────────
     context "when the product does not exist in the database" do
       let(:csv) do
-        build_csv_tracked([["2024-01-15", "T-001", "NEW-SKU", "Brand New Part", "1", "500.00"]])
+        build_csv_tracked([["2024-01-15", "T-001", "NEW-SKU", "Brand New Part", "1", "500.00", "500.00", "cash", "Juan"]])
       end
 
       it "creates a new Product" do
@@ -117,13 +131,13 @@ RSpec.describe SalesLedger::ImportCsv do
     # ── CASE 3: product_type inference from oem_code ──────────────────────────
     context "product_type inference from oem_code" do
       it "assigns 'oem' when the code does not end in -IM or -IMP" do
-        csv = build_csv_tracked([["2024-01-15", "T-001", "12345", "OEM Part", "1", "100"]])
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345", "OEM Part", "1", "100", "100.00", "cash", "Juan"]])
         described_class.call(file: csv, filename: "sales.csv")
         expect(Product.find_by(sku: "12345").product_type).to eq("oem")
       end
 
       it "assigns 'aftermarket' when the code ends in -IM, storing normalized sku without suffix" do
-        csv = build_csv_tracked([["2024-01-15", "T-001", "12345-IM", "After Part", "1", "100"]])
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345-IM", "After Part", "1", "100", "100.00", "cash", "Juan"]])
         described_class.call(file: csv, filename: "sales.csv")
         product = Product.find_by(sku: "12345", product_type: "aftermarket")
         expect(product).to be_present
@@ -131,7 +145,7 @@ RSpec.describe SalesLedger::ImportCsv do
       end
 
       it "assigns 'aftermarket' when the code ends in -IMP, storing normalized sku without suffix" do
-        csv = build_csv_tracked([["2024-01-15", "T-001", "12345-IMP", "After Part", "1", "100"]])
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345-IMP", "After Part", "1", "100", "100.00", "cash", "Juan"]])
         described_class.call(file: csv, filename: "sales.csv")
         product = Product.find_by(sku: "12345", product_type: "aftermarket")
         expect(product).to be_present
@@ -139,7 +153,7 @@ RSpec.describe SalesLedger::ImportCsv do
       end
 
       it "normalizes oem_code to upcase and strips suffix for product sku; entry keeps original" do
-        csv = build_csv_tracked([["2024-01-15", "T-001", "abc-im", "Part", "1", "100"]])
+        csv = build_csv_tracked([["2024-01-15", "T-001", "abc-im", "Part", "1", "100", "100.00", "cash", "Juan"]])
         described_class.call(file: csv, filename: "sales.csv")
         entry = SalesLedger::Entry.last
         expect(entry.oem_code).to eq("ABC-IM")           # original preserved in entry
@@ -148,7 +162,7 @@ RSpec.describe SalesLedger::ImportCsv do
       end
 
       it "strips leading/trailing spaces and upcases oem_code, then strips suffix for product sku" do
-        csv = build_csv_tracked([["2024-01-15", "T-001", "  abc-im  ", "Part", "1", "100"]])
+        csv = build_csv_tracked([["2024-01-15", "T-001", "  abc-im  ", "Part", "1", "100", "100.00", "cash", "Juan"]])
         described_class.call(file: csv, filename: "sales.csv")
         entry = SalesLedger::Entry.last
         expect(entry.oem_code).to eq("ABC-IM")           # stripped+upcased original
@@ -160,9 +174,9 @@ RSpec.describe SalesLedger::ImportCsv do
       context "with OEM, -IM, and -IMP codes in the same batch" do
         let(:csv) do
           build_csv_tracked([
-            ["2024-01-15", "T-001", "NORMAL",     "OEM Part",        "1", "100"],
-            ["2024-01-15", "T-002", "NORMAL-IM",  "Aftermarket IM",  "1", "100"],
-            ["2024-01-15", "T-003", "NORMAL-IMP", "Aftermarket IMP", "1", "100"]
+            ["2024-01-15", "T-001", "NORMAL",     "OEM Part",        "1", "100", "100.00", "cash", "Juan"],
+            ["2024-01-15", "T-002", "NORMAL-IM",  "Aftermarket IM",  "1", "100", "100.00", "cash", "Juan"],
+            ["2024-01-15", "T-003", "NORMAL-IMP", "Aftermarket IMP", "1", "100", "100.00", "cash", "Juan"]
           ])
         end
 
@@ -194,7 +208,7 @@ RSpec.describe SalesLedger::ImportCsv do
       end
 
       let(:csv) do
-        build_csv_tracked([["2024-01-15", "T-001", "EXIST-001", "Name from CSV", "3", "1200.00"]])
+        build_csv_tracked([["2024-01-15", "T-001", "EXIST-001", "Name from CSV", "3", "1200.00", "3600.00", "cash", "Juan"]])
       end
 
       it "does not create a new product" do
@@ -226,7 +240,7 @@ RSpec.describe SalesLedger::ImportCsv do
     # Duplicates increment @skipped_count, which does NOT count toward failed_rows_count
     context "when the same CSV is imported again" do
       let(:rows) do
-        [["2024-01-15", "T-001", "12345", "Oil Filter", "2", "1500.00"]]
+        [["2024-01-15", "T-001", "12345", "Oil Filter", "2", "1500.00", "3000.00", "cash", "Juan"]]
       end
 
       it "does not create duplicate entries on the second import" do
@@ -269,8 +283,8 @@ RSpec.describe SalesLedger::ImportCsv do
     context "when required columns are missing from the CSV" do
       let(:csv_missing_product_name) do
         build_csv_tracked(
-          [["2024-01-15", "T-001", "12345", "2", "1500.00"]],
-          headers: %w[sale_date ticket_number oem_code quantity unit_price]
+          [["2024-01-15", "T-001", "12345", "2", "1500.00", "3000.00", "cash", "Juan"]],
+          headers: %w[sale_date ticket_number oem_code quantity unit_price ticket_total_amount payment_method seller_name]
         )
       end
 
@@ -301,6 +315,26 @@ RSpec.describe SalesLedger::ImportCsv do
         expect(result.errors).not_to be_empty
         expect(result.errors.first).to include("product_name")
       end
+
+      it "returns failure when ticket_total_amount column is missing" do
+        csv = build_csv_tracked(
+          [["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "cash", "Juan"]],
+          headers: %w[sale_date ticket_number oem_code product_name quantity unit_price payment_method seller_name]
+        )
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.success?).to be false
+        expect(result.errors.first).to include("ticket_total_amount")
+      end
+
+      it "returns failure when seller_name column is missing" do
+        csv = build_csv_tracked(
+          [["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash"]],
+          headers: %w[sale_date ticket_number oem_code product_name quantity unit_price ticket_total_amount payment_method]
+        )
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.success?).to be false
+        expect(result.errors.first).to include("seller_name")
+      end
     end
 
     # ── CASE 7: Invalid rows (row-level errors) ───────────────────────────────
@@ -310,8 +344,8 @@ RSpec.describe SalesLedger::ImportCsv do
       context "when quantity is 0" do
         let(:csv) do
           build_csv_tracked([
-            ["2024-01-15", "T-001", "12345", "Filter", "0",  "1500.00"],  # invalid
-            ["2024-01-15", "T-002", "67890", "Spark",  "2",   "800.00"]   # valid
+            ["2024-01-15", "T-001", "12345", "Filter", "0",  "1500.00", "3000.00", "cash", "Juan"],  # invalid
+            ["2024-01-15", "T-002", "67890", "Spark",  "2",   "800.00", "1600.00", "cash", "Juan"]   # valid
           ])
         end
 
@@ -335,8 +369,8 @@ RSpec.describe SalesLedger::ImportCsv do
       context "when unit_price is blank" do
         let(:csv) do
           build_csv_tracked([
-            ["2024-01-15", "T-001", "12345", "Filter", "2", ""],       # invalid
-            ["2024-01-15", "T-002", "67890", "Spark",  "3", "800.00"]  # valid
+            ["2024-01-15", "T-001", "12345", "Filter", "2", "",        "3000.00", "cash", "Juan"],  # invalid
+            ["2024-01-15", "T-002", "67890", "Spark",  "3", "800.00",  "2400.00", "cash", "Juan"]   # valid
           ])
         end
 
@@ -349,7 +383,7 @@ RSpec.describe SalesLedger::ImportCsv do
 
       context "when ticket_number is blank" do
         let(:csv) do
-          build_csv_tracked([["2024-01-15", "", "12345", "Filter", "2", "1500.00"]])
+          build_csv_tracked([["2024-01-15", "", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
         end
 
         it "discards the row and completes the import with 0 entries and 1 failed row" do
@@ -362,7 +396,106 @@ RSpec.describe SalesLedger::ImportCsv do
 
       context "when sale_date has an invalid format (e.g. 'bad-date')" do
         let(:csv) do
-          build_csv_tracked([["bad-date", "T-001", "12345", "Filter", "2", "1500.00"]])
+          build_csv_tracked([["bad-date", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
+        end
+
+        it "discards the row and records failed_rows_count = 1" do
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.failed_rows_count).to eq(1)
+          expect(result.record.created_entries_count).to eq(0)
+        end
+
+        it "mentions accepted formats in the error (visible in import notes)" do
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.notes).to include("YYYY-MM-DD")
+          expect(result.record.notes).to include("M/D/YYYY")
+        end
+      end
+
+      context "when sale_date comes from Google Sheets (M/D/YYYY or M/D/YY)" do
+        it "accepts M/D/YYYY format and parses it correctly" do
+          csv = build_csv_tracked([["3/28/2026", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.created_entries_count).to eq(1)
+          expect(SalesLedger::Entry.last.sale_date).to eq(Date.new(2026, 3, 28))
+        end
+
+        it "accepts M/D/YY format and parses it correctly" do
+          csv = build_csv_tracked([["3/28/26", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.created_entries_count).to eq(1)
+          expect(SalesLedger::Entry.last.sale_date).to eq(Date.new(2026, 3, 28))
+        end
+
+        it "still accepts the canonical YYYY-MM-DD format" do
+          csv = build_csv_tracked([["2026-03-28", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.created_entries_count).to eq(1)
+          expect(SalesLedger::Entry.last.sale_date).to eq(Date.new(2026, 3, 28))
+        end
+
+        it "rejects an ambiguous or unknown format (e.g. 28-03-2026)" do
+          csv = build_csv_tracked([["28-03-2026", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.failed_rows_count).to eq(1)
+          expect(result.record.created_entries_count).to eq(0)
+        end
+      end
+
+      context "when payment_method is not a valid value" do
+        let(:csv) do
+          build_csv_tracked([
+            ["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "efectivo", "Juan"],  # invalid
+            ["2024-01-15", "T-002", "67890", "Spark",  "2",  "800.00", "1600.00", "cash",     "Juan"]   # valid
+          ])
+        end
+
+        it "skips the row with invalid payment_method and processes the valid one" do
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.created_entries_count).to eq(1)
+          expect(result.record.failed_rows_count).to eq(1)
+        end
+      end
+
+      context "when payment_method is blank" do
+        let(:csv) do
+          build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "", "Juan"]])
+        end
+
+        it "discards the row and records failed_rows_count = 1" do
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.failed_rows_count).to eq(1)
+          expect(result.record.created_entries_count).to eq(0)
+        end
+      end
+
+      context "when payment_method is provided in mixed case" do
+        let(:csv) do
+          build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "Cash", "Juan"]])
+        end
+
+        it "normalizes payment_method to downcase and imports the row successfully" do
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.success?).to be true
+          expect(SalesLedger::Entry.find_by(ticket_number: "T-001").payment_method).to eq("cash")
+        end
+      end
+
+      context "when seller_name is blank" do
+        let(:csv) do
+          build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", ""]])
+        end
+
+        it "discards the row and records failed_rows_count = 1" do
+          result = described_class.call(file: csv, filename: "sales.csv")
+          expect(result.record.failed_rows_count).to eq(1)
+          expect(result.record.created_entries_count).to eq(0)
+        end
+      end
+
+      context "when ticket_total_amount is not numeric" do
+        let(:csv) do
+          build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "abc", "cash", "Juan"]])
         end
 
         it "discards the row and records failed_rows_count = 1" do
@@ -377,7 +510,7 @@ RSpec.describe SalesLedger::ImportCsv do
     context "Result structure" do
       context "on success" do
         let(:csv) do
-          build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00"]])
+          build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
         end
 
         subject(:result) { described_class.call(file: csv, filename: "sales.csv") }
@@ -396,8 +529,8 @@ RSpec.describe SalesLedger::ImportCsv do
       context "on a fatal error (missing header)" do
         let(:csv) do
           build_csv_tracked(
-            [["2024-01-15", "T-001", "12345", "2", "1500.00"]],
-            headers: %w[sale_date ticket_number oem_code quantity unit_price]
+            [["2024-01-15", "T-001", "12345", "2", "1500.00", "3000.00", "cash", "Juan"]],
+            headers: %w[sale_date ticket_number oem_code quantity unit_price ticket_total_amount payment_method seller_name]
           )
         end
 
@@ -417,6 +550,116 @@ RSpec.describe SalesLedger::ImportCsv do
           expect(result.errors).to be_an(Array)
           expect(result.errors).not_to be_empty
         end
+      end
+    end
+
+    # ── CASE 9: Ticket field consistency validation ───────────────────────────
+    # When rows of the same ticket have inconsistent values for payment_method,
+    # seller_name, sale_date, or ticket_total_amount, the entire ticket is rejected.
+    # Other tickets in the same import are not affected.
+    context "ticket field consistency validation" do
+      it "rejects all rows of a ticket when payment_method differs between rows" do
+        csv = build_csv_tracked([
+          ["2024-01-15", "T-001", "AAA", "Part A", "1", "100.00", "200.00", "cash", "Juan"],
+          ["2024-01-15", "T-001", "BBB", "Part B", "1", "100.00", "200.00", "bank", "Juan"],  # different payment_method
+          ["2024-01-15", "T-002", "CCC", "Part C", "1", "500.00", "500.00", "cash", "Juan"]   # valid separate ticket
+        ])
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.success?).to be true
+        expect(SalesLedger::Entry.where(ticket_number: "T-001").count).to eq(0)
+        expect(SalesLedger::Entry.where(ticket_number: "T-002").count).to eq(1)
+        expect(result.record.failed_rows_count).to eq(2)
+      end
+
+      it "rejects all rows of a ticket when seller_name differs between rows" do
+        csv = build_csv_tracked([
+          ["2024-01-15", "T-001", "AAA", "Part A", "1", "100.00", "100.00", "cash", "Juan"],
+          ["2024-01-15", "T-001", "BBB", "Part B", "1", "100.00", "100.00", "cash", "Pedro"]  # different seller
+        ])
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.where(ticket_number: "T-001").count).to eq(0)
+        expect(result.record.failed_rows_count).to eq(2)
+      end
+
+      it "rejects all rows of a ticket when sale_date differs between rows" do
+        csv = build_csv_tracked([
+          ["2024-01-15", "T-001", "AAA", "Part A", "1", "100.00", "100.00", "cash", "Juan"],
+          ["2024-01-16", "T-001", "BBB", "Part B", "1", "100.00", "100.00", "cash", "Juan"]  # different date
+        ])
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.where(ticket_number: "T-001").count).to eq(0)
+        expect(result.record.failed_rows_count).to eq(2)
+      end
+
+      it "rejects all rows of a ticket when ticket_total_amount differs between rows" do
+        csv = build_csv_tracked([
+          ["2024-01-15", "T-001", "AAA", "Part A", "1", "100.00", "200.00", "cash", "Juan"],
+          ["2024-01-15", "T-001", "BBB", "Part B", "1", "100.00", "300.00", "cash", "Juan"]  # different total
+        ])
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.where(ticket_number: "T-001").count).to eq(0)
+        expect(result.record.failed_rows_count).to eq(2)
+      end
+
+      it "imports other tickets normally when one ticket is rejected for inconsistency" do
+        csv = build_csv_tracked([
+          ["2024-01-15", "T-BAD", "AAA", "Part", "1", "100.00", "100.00", "cash", "Juan"],
+          ["2024-01-15", "T-BAD", "BBB", "Part", "1", "100.00", "100.00", "bank", "Juan"],  # inconsistent payment_method
+          ["2024-01-15", "T-OK",  "CCC", "Part", "2", "300.00", "600.00", "cash", "Juan"]   # valid separate ticket
+        ])
+        described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.where(ticket_number: "T-OK").count).to eq(1)
+        expect(SalesLedger::Entry.where(ticket_number: "T-BAD").count).to eq(0)
+      end
+    end
+
+    # ── CASE 10: ticket_amount_mismatch flag ──────────────────────────────────
+    # mismatch = true when |declared_total - sum(qty * price)| > 0.01
+    # mismatch = false otherwise (including within tolerance)
+    # The flag is set on ALL rows of the ticket consistently.
+    context "ticket_amount_mismatch flag" do
+      it "sets ticket_amount_mismatch = false when declared total matches calculated sum" do
+        # 2 * 1500.00 = 3000.00
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3000.00", "cash", "Juan"]])
+        described_class.call(file: csv, filename: "sales.csv")
+        entry = SalesLedger::Entry.find_by(ticket_number: "T-001")
+        expect(entry.ticket_amount_mismatch).to be false
+      end
+
+      it "sets ticket_amount_mismatch = true when declared total differs from calculated sum" do
+        # 2 * 1500.00 = 3000.00, but declared = 3500.00
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "2", "1500.00", "3500.00", "cash", "Juan"]])
+        described_class.call(file: csv, filename: "sales.csv")
+        entry = SalesLedger::Entry.find_by(ticket_number: "T-001")
+        expect(entry.ticket_amount_mismatch).to be true
+      end
+
+      it "marks ALL rows of the ticket with ticket_amount_mismatch when the ticket total is off" do
+        # declared 999.00, calculated 1*100 + 2*100 = 300.00
+        csv = build_csv_tracked([
+          ["2024-01-15", "T-001", "AAA", "Part A", "1", "100.00", "999.00", "cash", "Juan"],
+          ["2024-01-15", "T-001", "BBB", "Part B", "2", "100.00", "999.00", "cash", "Juan"]
+        ])
+        described_class.call(file: csv, filename: "sales.csv")
+        entries = SalesLedger::Entry.where(ticket_number: "T-001")
+        expect(entries.count).to eq(2)
+        expect(entries.all?(&:ticket_amount_mismatch)).to be true
+      end
+
+      it "does not flag as mismatch when difference is exactly 0.01 (boundary of tolerance)" do
+        # 1 * 100.00 = 100.00, declared = 100.01 → diff = 0.01 → NOT mismatch (boundary)
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.01", "cash", "Juan"]])
+        described_class.call(file: csv, filename: "sales.csv")
+        entry = SalesLedger::Entry.find_by(ticket_number: "T-001")
+        expect(entry.ticket_amount_mismatch).to be false
+      end
+
+      it "flags as mismatch when difference exceeds 0.01" do
+        # 1 * 100.00 = 100.00, declared = 100.02 → diff = 0.02 → IS mismatch
+        csv = build_csv_tracked([["2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.02", "cash", "Juan"]])
+        described_class.call(file: csv, filename: "sales.csv")
+        entry = SalesLedger::Entry.find_by(ticket_number: "T-001")
+        expect(entry.ticket_amount_mismatch).to be true
       end
     end
 
