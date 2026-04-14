@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_03_03_162155) do
+ActiveRecord::Schema[7.2].define(version: 2026_04_08_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -167,6 +167,53 @@ ActiveRecord::Schema[7.2].define(version: 2026_03_03_162155) do
     t.index ["sku"], name: "index_products_on_sku"
   end
 
+  create_table "sales_imports", force: :cascade do |t|
+    t.string "source_filename", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "imported_at"
+    t.integer "rows_count", default: 0, null: false
+    t.integer "created_products_count", default: 0, null: false
+    t.integer "created_entries_count", default: 0, null: false
+    t.integer "failed_rows_count", default: 0, null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["imported_at"], name: "index_sales_imports_on_imported_at"
+    t.index ["status"], name: "index_sales_imports_on_status"
+  end
+
+  create_table "sales_ledger_entries", force: :cascade do |t|
+    t.bigint "sales_import_id", null: false
+    t.date "sale_date", null: false
+    t.string "ticket_number", null: false
+    t.string "oem_code", null: false
+    t.string "product_name_snapshot", null: false
+    t.integer "quantity", null: false
+    t.decimal "unit_price", precision: 10, scale: 2, null: false
+    t.decimal "total_amount", precision: 10, scale: 2, null: false
+    t.bigint "product_id", null: false
+    t.string "entry_fingerprint", null: false
+    t.jsonb "raw_row_data"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "ticket_total_amount", precision: 10, scale: 2
+    t.string "payment_method"
+    t.string "seller_name"
+    t.bigint "seller_user_id"
+    t.boolean "ticket_amount_mismatch", default: false, null: false
+    t.string "product_source"
+    t.index ["entry_fingerprint"], name: "index_sales_ledger_entries_on_entry_fingerprint", unique: true
+    t.index ["oem_code"], name: "index_sales_ledger_entries_on_oem_code"
+    t.index ["payment_method"], name: "index_sales_ledger_entries_on_payment_method"
+    t.index ["product_id"], name: "index_sales_ledger_entries_on_product_id"
+    t.index ["product_source"], name: "index_sales_ledger_entries_on_product_source"
+    t.index ["sale_date"], name: "index_sales_ledger_entries_on_sale_date"
+    t.index ["sales_import_id"], name: "index_sales_ledger_entries_on_sales_import_id"
+    t.index ["seller_name"], name: "index_sales_ledger_entries_on_seller_name"
+    t.index ["seller_user_id"], name: "index_sales_ledger_entries_on_seller_user_id"
+    t.index ["ticket_number"], name: "index_sales_ledger_entries_on_ticket_number"
+  end
+
   create_table "stock_locations", force: :cascade do |t|
     t.string "name", null: false
     t.string "code"
@@ -235,6 +282,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_03_03_162155) do
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "customers"
   add_foreign_key "payments", "customers"
+  add_foreign_key "sales_ledger_entries", "products"
+  add_foreign_key "sales_ledger_entries", "sales_imports"
+  add_foreign_key "sales_ledger_entries", "users", column: "seller_user_id", on_delete: :nullify
   add_foreign_key "stock_movements", "products"
   add_foreign_key "stock_movements", "stock_locations"
 end

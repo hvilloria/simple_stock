@@ -54,7 +54,7 @@ class Product < ApplicationRecord
   validates :cost_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_currency, inclusion: { in: %w[USD ARS] }
   validates :origin, inclusion: { in: ORIGINS, allow_blank: true }
-  validates :origin, presence: true, if: :aftermarket?
+  # validates :origin, presence: true, if: :aftermarket? - Relajado para permitir imports de excel con tickets
   validates :product_type, inclusion: { in: PRODUCT_TYPES, allow_blank: true }
   validates :category, inclusion: { in: CATEGORIES, allow_blank: true }
   validates :location_code, format: {

@@ -98,7 +98,7 @@ module Web
 
       if supplier
         invoices = supplier.invoices.simple_mode.pending_payment.order(due_date: :asc)
-        render json: invoices.map { |inv| { id: inv.id, number: inv.invoice_number, amount: inv.total_amount_ars } }
+        render json: invoices.map { |inv| { id: inv.id, number: inv.invoice_number, amount: inv.total_amount_ars(include_discount: true) } }
       else
         render json: []
       end

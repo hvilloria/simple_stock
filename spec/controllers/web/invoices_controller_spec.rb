@@ -498,14 +498,15 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
     context "with early payment invoices to advance" do
       it "loads invoices with discount expiring this week in unified table" do
-        # Factura que vence más adelante pero cuyo descuento expira esta semana
+        # Usamos Date.current para garantizar que cae dentro de la semana actual
+        # independientemente del día en que corra el test (evita fallos en domingo).
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
                                status: "pending",
                                amount: 10000,
                                currency: "ARS",
                                due_date: Date.current + 2.weeks,
-                               early_payment_due_date: Date.current + 1.day,
+                               early_payment_due_date: Date.current,
                                early_payment_discount_percentage: 5)
 
         get pending_web_invoices_path
@@ -516,14 +517,15 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
       end
 
       it "shows both early payment and regular invoices in unified table" do
-        # Factura con descuento que expira esta semana
+        # Usamos Date.current para garantizar que cae dentro de la semana actual
+        # independientemente del día en que corra el test (evita fallos en domingo).
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
                                status: "pending",
                                amount: 10000,
                                currency: "ARS",
                                due_date: Date.current + 2.weeks,
-                               early_payment_due_date: Date.current + 1.day,
+                               early_payment_due_date: Date.current,
                                early_payment_discount_percentage: 5)
 
         # Factura regular que vence esta semana
@@ -580,15 +582,15 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
     context "with period filter" do
       it "filters regular invoices by period but always shows early payment invoices" do
-        # Factura con descuento que expira pronto (siempre se muestra)
-        # early_payment_due_date debe ser > Date.current y < next_week_thursday
+        # Usamos Date.current para garantizar que cae dentro de la semana actual
+        # independientemente del día en que corra el test (evita fallos en domingo/jueves/viernes).
         early_invoice = create(:invoice, :simple_mode,
                                supplier: supplier,
                                status: "pending",
                                amount: 10000,
                                currency: "ARS",
                                due_date: Date.current + 2.weeks,
-                               early_payment_due_date: Date.current + 3.days,
+                               early_payment_due_date: Date.current,
                                early_payment_discount_percentage: 5)
 
         # Factura de próxima semana (no se muestra con period=this_week)

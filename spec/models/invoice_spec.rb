@@ -721,11 +721,13 @@ RSpec.describe Invoice, type: :model do
     end
 
     it "includes invoices with early_payment_due_date in the period and still valid" do
+      # Usamos Date.current para garantizar que cae dentro de start_date..end_date
+      # independientemente del día en que corra el test (evita fallos en domingo).
       invoice = create(:invoice, :simple_mode,
                        supplier: supplier,
                        status: "pending",
                        due_date: end_date + 30.days,
-                       early_payment_due_date: Date.current + 1.day,
+                       early_payment_due_date: Date.current,
                        early_payment_discount_percentage: 5)
 
       expect(Invoice.due_or_discount_in_period(start_date, end_date)).to include(invoice)
