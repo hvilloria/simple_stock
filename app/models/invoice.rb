@@ -124,11 +124,11 @@ class Invoice < ApplicationRecord
   end
 
   # Total en ARS (funciona para ambos modos)
-  def total_amount_ars
+  def total_amount_ars(include_discount: false)
     if currency == "USD"
       total_amount * (exchange_rate || 0)
     else
-      amount_with_discount_ars
+      include_discount ? amount_with_discount_ars : amount
     end
   end
 

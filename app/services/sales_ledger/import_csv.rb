@@ -89,6 +89,8 @@ module SalesLedger
       # Pasada 1: parsear todas las filas (acumular errores por fila inválida)
       parsed_pairs = []   # array de [data_hash, raw_csv_row]
       csv.each_with_index do |row, index|
+        next if (REQUIRED_COLUMNS - %w[sale_date]).all? { |col| row[col].blank? }
+
         @rows_count += 1
         data = parse_and_normalize_row(row)
         parsed_pairs << [ data, row ]
@@ -125,6 +127,7 @@ module SalesLedger
       raw_ticket_total    = row["ticket_total_amount"].strip.gsub(/[$,]/, "")
       raw_payment_method  = row["payment_method"].strip.downcase
       raw_seller_name     = row["seller_name"].strip
+      raw_product_source  = row["product_source"]&.strip&.downcase
 
       # Conversiones y validaciones
       sale_date = parse_sale_date(raw_sale_date)
@@ -154,6 +157,10 @@ module SalesLedger
         raise "payment_method inválido '#{raw_payment_method}' (válidos: #{VALID_PAYMENT_METHODS.join(', ')})"
       end
 
+      if raw_product_source.present? && !SalesLedger::Entry::PRODUCT_SOURCES.include?(raw_product_source)
+        raise "product_source inválido '#{raw_product_source}' (válidos: #{SalesLedger::Entry::PRODUCT_SOURCES.join(', ')})"
+      end
+
       raise "seller_name no puede estar vacío" if raw_seller_name.blank?
 
       {
@@ -167,7 +174,8 @@ module SalesLedger
         unit_price:          unit_price,
         ticket_total_amount: ticket_total_amount,
         payment_method:      raw_payment_method,
-        seller_name:         raw_seller_name
+        seller_name:         raw_seller_name,
+        product_source:      raw_product_source.presence
       }
     end
 
@@ -326,6 +334,7 @@ module SalesLedger
           payment_method:         data[:payment_method],
           seller_name:            data[:seller_name],
           ticket_amount_mismatch: data[:ticket_amount_mismatch],
+          product_source:         data[:product_source],
           product:                product,
           entry_fingerprint:      fingerprint,
           raw_row_data:           raw_row.to_h   # strings puras del CSV — jsonb-safe

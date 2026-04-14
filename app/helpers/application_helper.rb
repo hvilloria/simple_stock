@@ -1,7 +1,17 @@
 module ApplicationHelper
+  PRODUCT_SOURCE_BADGE_CLASSES = {
+    "local"     => "bg-emerald-100 text-emerald-800",
+    "importado" => "bg-blue-100 text-blue-800"
+  }.freeze
+
+  PRODUCT_SOURCE_LABELS = {
+    "local"     => "Local",
+    "importado" => "Importado"
+  }.freeze
+
   PAYMENT_METHOD_BADGE_CLASSES = {
     "cash"         => "bg-green-100 text-green-800",
-    "bank"         => "bg-blue-800 text-white",
+    "bank"         => "bg-blue-100 text-blue-800",
     "mercado_pago" => "bg-cyan-100 text-cyan-800"
   }.freeze
 
@@ -10,6 +20,14 @@ module ApplicationHelper
     "bank"         => "Banco",
     "mercado_pago" => "Mercado Pago"
   }.freeze
+
+  def product_source_badge_class(source)
+    PRODUCT_SOURCE_BADGE_CLASSES.fetch(source.to_s, "bg-slate-100 text-slate-700").html_safe
+  end
+
+  def product_source_label(source)
+    PRODUCT_SOURCE_LABELS.fetch(source.to_s, source.to_s.humanize)
+  end
 
   def payment_method_badge_class(method)
     PAYMENT_METHOD_BADGE_CLASSES.fetch(method.to_s, "bg-slate-100 text-slate-700").html_safe

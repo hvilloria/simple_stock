@@ -30,7 +30,7 @@ module Web
                               .for_supplier(@selected_supplier)
                               .search_invoice(params[:invoice_search])
 
-      @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars }
+      @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars(include_discount: true) }
 
       # Créditos disponibles (filtrados solo por proveedor, no por búsqueda de invoice)
       credit_notes_scope = CreditNote.includes(:supplier)

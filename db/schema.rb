@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_03_28_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_04_08_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -201,10 +201,12 @@ ActiveRecord::Schema[7.2].define(version: 2026_03_28_120000) do
     t.string "seller_name"
     t.bigint "seller_user_id"
     t.boolean "ticket_amount_mismatch", default: false, null: false
+    t.string "product_source"
     t.index ["entry_fingerprint"], name: "index_sales_ledger_entries_on_entry_fingerprint", unique: true
     t.index ["oem_code"], name: "index_sales_ledger_entries_on_oem_code"
     t.index ["payment_method"], name: "index_sales_ledger_entries_on_payment_method"
     t.index ["product_id"], name: "index_sales_ledger_entries_on_product_id"
+    t.index ["product_source"], name: "index_sales_ledger_entries_on_product_source"
     t.index ["sale_date"], name: "index_sales_ledger_entries_on_sale_date"
     t.index ["sales_import_id"], name: "index_sales_ledger_entries_on_sales_import_id"
     t.index ["seller_name"], name: "index_sales_ledger_entries_on_seller_name"

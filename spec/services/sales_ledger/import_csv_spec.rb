@@ -661,5 +661,103 @@ RSpec.describe SalesLedger::ImportCsv do
         expect(entry.ticket_amount_mismatch).to be true
       end
     end
+
+    # ── CASE 11: blank trailing rows (Google Sheets export pattern) ───────────
+    # Google Sheets exports the full sheet range as CSV, filling sale_date even
+    # on empty rows. These rows must be silently skipped — not counted as failures.
+    context "with blank trailing rows that only have sale_date filled (Google Sheets export)" do
+      let(:csv) do
+        # Replicates: 2 real data rows + 5 blank rows with only sale_date present
+        # (mirrors the ,,,,,,,,,4/8/2026 pattern seen in real exports)
+        blank_row = [ "4/8/2026", nil, nil, nil, nil, nil, nil, nil, nil ]
+        build_csv_tracked([
+          [ "2024-01-15", "T-001", "12345", "Oil Filter", "1", "100.00", "100.00", "cash", "Juan" ],
+          [ "2024-01-15", "T-002", "67890", "NGK Spark",  "2", "200.00", "400.00", "bank", "Pedro" ],
+          blank_row,
+          blank_row,
+          blank_row,
+          blank_row,
+          blank_row
+        ])
+      end
+
+      it "does not count blank trailing rows as failures" do
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.record.failed_rows_count).to eq(0)
+      end
+
+      it "imports only the real data rows" do
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.record.rows_count).to eq(2)
+        expect(result.record.created_entries_count).to eq(2)
+      end
+
+      it "does not add blank rows to notes" do
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.record.notes).to be_nil
+      end
+    end
+
+    # ── CASE 12: product_source ───────────────────────────────────────────────
+    # product_source is an optional column. Valid values: "local", "importado".
+    # When absent or blank, entry is saved with product_source: nil.
+    # When present with an invalid value, the row is rejected.
+    context "product_source handling" do
+      HEADERS_WITH_SOURCE = (IMPORT_CSV_SPEC_HEADERS + [ "product_source" ]).freeze
+
+      it "stores product_source 'local' when the CSV column contains 'local'" do
+        csv = build_csv_tracked(
+          [ [ "2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.00", "cash", "Juan", "local" ] ],
+          headers: HEADERS_WITH_SOURCE
+        )
+        described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.find_by(ticket_number: "T-001").product_source).to eq("local")
+      end
+
+      it "stores product_source 'importado' when the CSV column contains 'importado'" do
+        csv = build_csv_tracked(
+          [ [ "2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.00", "cash", "Juan", "importado" ] ],
+          headers: HEADERS_WITH_SOURCE
+        )
+        described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.find_by(ticket_number: "T-001").product_source).to eq("importado")
+      end
+
+      it "stores nil when the CSV has no product_source column" do
+        csv = build_csv_tracked(
+          [ [ "2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.00", "cash", "Juan" ] ]
+        )
+        described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.find_by(ticket_number: "T-001").product_source).to be_nil
+      end
+
+      it "stores nil when the product_source column is blank" do
+        csv = build_csv_tracked(
+          [ [ "2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.00", "cash", "Juan", "" ] ],
+          headers: HEADERS_WITH_SOURCE
+        )
+        described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.find_by(ticket_number: "T-001").product_source).to be_nil
+      end
+
+      it "rejects the row and records a failure when product_source has an invalid value" do
+        csv = build_csv_tracked(
+          [ [ "2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.00", "cash", "Juan", "extranjero" ] ],
+          headers: HEADERS_WITH_SOURCE
+        )
+        result = described_class.call(file: csv, filename: "sales.csv")
+        expect(result.record.failed_rows_count).to eq(1)
+        expect(SalesLedger::Entry.where(ticket_number: "T-001")).to be_empty
+      end
+
+      it "is case-insensitive — accepts 'LOCAL' and normalizes to 'local'" do
+        csv = build_csv_tracked(
+          [ [ "2024-01-15", "T-001", "12345", "Filter", "1", "100.00", "100.00", "cash", "Juan", "LOCAL" ] ],
+          headers: HEADERS_WITH_SOURCE
+        )
+        described_class.call(file: csv, filename: "sales.csv")
+        expect(SalesLedger::Entry.find_by(ticket_number: "T-001").product_source).to eq("local")
+      end
+    end
   end
 end
