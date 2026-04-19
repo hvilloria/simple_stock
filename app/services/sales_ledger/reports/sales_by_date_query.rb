@@ -3,9 +3,11 @@
 module SalesLedger
   module Reports
     class SalesByDateQuery
-      def self.call(from:, to:)
-        subquery = SalesLedger::Entry
-          .where(sale_date: from..to)
+      def self.call(from:, to:, product_source: nil)
+        base_scope = SalesLedger::Entry.where(sale_date: from..to)
+        base_scope = base_scope.where(product_source: product_source) if product_source.present?
+
+        subquery = base_scope
           .select(
             "sale_date",
             "ticket_number",
@@ -19,7 +21,7 @@ module SalesLedger
         SalesLedger::Entry
           .from("(#{subquery.to_sql}) AS entries")
           .group("sale_date", "payment_method")
-          .order("sale_date DESC", "payment_method")
+          .order(Arel.sql("sale_date DESC"), Arel.sql("payment_method"))
           .select(
             "sale_date",
             "payment_method",
