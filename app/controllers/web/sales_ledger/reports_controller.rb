@@ -9,10 +9,14 @@ module Web
         # Si from > to, intercambiar para evitar rango vacío silencioso
         @from, @to = [ from_raw, to_raw ].minmax
 
-        @summary        = ::SalesLedger::Reports::SummaryQuery.call(from: @from, to: @to)
-        @sales_by_date  = ::SalesLedger::Reports::SalesByDateQuery.call(from: @from, to: @to)
-        @top_products   = ::SalesLedger::Reports::TopProductsQuery.call(from: @from, to: @to)
-        @recent_entries = ::SalesLedger::Reports::RecentEntriesQuery.call(from: @from, to: @to)
+        @product_source = params[:product_source].presence
+        @product_source = nil unless ::SalesLedger::Entry::PRODUCT_SOURCES.include?(@product_source)
+
+        query_opts = { from: @from, to: @to, product_source: @product_source }
+
+        @summary       = ::SalesLedger::Reports::SummaryQuery.call(**query_opts)
+        @sales_by_date = ::SalesLedger::Reports::SalesByDateQuery.call(**query_opts)
+        @top_products  = ::SalesLedger::Reports::TopProductsQuery.call(**query_opts)
       end
 
       private

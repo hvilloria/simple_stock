@@ -12,7 +12,7 @@
   .flex.items-center.justify-between.mb-6
     %h1.text-2xl.font-bold.text-slate-900 Reportes de Ventas
 
-  -# Filtro de período
+  -# Filtro de período + origen
   .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
     = form_with url: web_sales_ledger_reports_path, method: :get,
                 class: "flex items-center gap-4 flex-wrap" do |f|
@@ -22,9 +22,15 @@
       %label.text-sm.font-medium.text-slate-700 Hasta
       = f.date_field :to, value: @to, class: "input-modern w-auto"
 
+      %label.text-sm.font-medium.text-slate-700 Origen
+      = f.select :product_source,
+                 [["Todos", ""], ["Local", "local"], ["Importado", "importado"]],
+                 { selected: @product_source.to_s },
+                 class: "input-modern w-auto"
+
       = f.submit "Filtrar", class: "btn-primary"
 
-      - if params[:from].present? || params[:to].present?
+      - if params[:from].present? || params[:to].present? || params[:product_source].present?
         = link_to "Limpiar", web_sales_ledger_reports_path,
                   class: "text-sm text-slate-500 hover:text-slate-700"
 
@@ -89,77 +95,60 @@
 
   - else
 
-    -# Tabla: Ventas por Día
+    -# Tabla: Ventas por Día (scrolleable)
     .mb-8
       .flex.items-center.justify-between.mb-3
         %h2.text-base.font-semibold.text-slate-900 Ventas por Día
-      .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
-        %table.min-w-full.divide-y.divide-slate-200
-          %thead.bg-slate-50
-            %tr
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Fecha
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Revenue
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Reportado
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Medio de pago
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Unidades
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Tickets
-          %tbody.divide-y.divide-slate-100
-            - @sales_by_date.each do |row|
-              %tr.hover:bg-slate-50.transition-colors
-                %td.px-4.py-3.text-slate-700= row.sale_date.strftime("%d/%m/%Y")
-                %td.px-4.py-3.text-right.font-medium.text-slate-900
-                  = number_to_currency(row.revenue, unit: "$", separator: ",", delimiter: ".", precision: 0)
-                %td.px-4.py-3.text-right.font-medium.text-slate-900
-                  = number_to_currency(row.ticket_total_amount, unit: "$", separator: ",", delimiter: ".", precision: 0)
-                %td.px-4.py-3.text-right
-                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium{class: payment_method_badge_class(row.payment_method)}
-                    = payment_method_label(row.payment_method)
-                %td.px-4.py-3.text-right.text-slate-700= number_with_delimiter(row.units)
-                %td.px-4.py-3.text-right.text-slate-500= row.tickets
+      .bg-white.border.border-slate-200.rounded-lg{"style" => "overflow: auto;"}
+        .overflow-y-auto{"style" => "max-height: 400px;"}
+          %table.min-w-full.divide-y.divide-slate-200
+            %thead.bg-slate-50
+              %tr
+                %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Fecha
+                %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Revenue
+                %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Reportado
+                %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Medio de pago
+                %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Unidades
+                %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Tickets
+            %tbody.divide-y.divide-slate-100
+              - @sales_by_date.each do |row|
+                %tr.hover:bg-slate-50.transition-colors
+                  %td.px-4.py-3.text-slate-700= row.sale_date.strftime("%d/%m/%Y")
+                  %td.px-4.py-3.text-right.font-medium.text-slate-900
+                    = number_to_currency(row.revenue, unit: "$", separator: ",", delimiter: ".", precision: 0)
+                  %td.px-4.py-3.text-right.font-medium.text-slate-900
+                    = number_to_currency(row.ticket_total_amount, unit: "$", separator: ",", delimiter: ".", precision: 0)
+                  %td.px-4.py-3.text-right
+                    %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium{class: payment_method_badge_class(row.payment_method)}
+                      = payment_method_label(row.payment_method)
+                  %td.px-4.py-3.text-right.text-slate-700= number_with_delimiter(row.units)
+                  %td.px-4.py-3.text-right.text-slate-500= row.tickets
 
-    -# Dos columnas: Top Productos + Últimas Ventas
-    .grid.grid-cols-1.lg:grid-cols-2.gap-6
-
-      -# Tabla: Top Productos
-      .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
-        .px-4.py-3.border-b.border-slate-200
-          %h2.text-base.font-semibold.text-slate-900 Top Productos
-        %table.min-w-full.divide-y.divide-slate-200
-          %thead.bg-slate-50
-            %tr
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide OEM
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Nombre
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Unidades
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Revenue
-          %tbody.divide-y.divide-slate-100
-            - @top_products.each do |row|
-              %tr.hover:bg-slate-50.transition-colors
-                %td.px-4.py-3.font-mono.text-xs.text-slate-500= row.oem_code
-                %td.px-4.py-3.text-slate-800.text-sm= row.product_name
-                %td.px-4.py-3.text-right.font-medium.text-slate-900= number_with_delimiter(row.total_quantity)
-                %td.px-4.py-3.text-right.text-slate-700
-                  = number_to_currency(row.total_revenue, unit: "$", separator: ",", delimiter: ".", precision: 0)
-
-      -# Tabla: Últimas Ventas
-      .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
-        .px-4.py-3.border-b.border-slate-200
-          %h2.text-base.font-semibold.text-slate-900 Últimas Ventas Importadas
-        %table.min-w-full.divide-y.divide-slate-200
-          %thead.bg-slate-50
-            %tr
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Fecha
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Ticket
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide OEM
-              %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Producto
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Cant.
-              %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Total
-          %tbody.divide-y.divide-slate-100
-            - @recent_entries.each do |entry|
-              %tr.hover:bg-slate-50.transition-colors
-                %td.px-4.py-3.text-slate-600= entry.sale_date.strftime("%d/%m/%Y")
-                %td.px-4.py-3.font-mono.text-slate-700= entry.ticket_number
-                %td.px-4.py-3.font-mono.text-xs.text-slate-500= entry.oem_code
-                %td.px-4.py-3.text-slate-800.text-sm= entry.product_name_snapshot
-                %td.px-4.py-3.text-right.text-slate-700= entry.quantity
-                %td.px-4.py-3.text-right.font-medium.text-slate-900
-                  = number_to_currency(entry.total_amount, unit: "$", separator: ",", delimiter: ".", precision: 0)
+    -# Tabla: Top 15 Productos por Frecuencia (ancho completo)
+    .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+      .px-4.py-3.border-b.border-slate-200.flex.items-center.justify-between
+        %h2.text-base.font-semibold.text-slate-900 Top 15 Productos por Frecuencia
+        %span.text-xs.text-slate-400 Tickets distintos en que apareció el OEM
+      %table.min-w-full.divide-y.divide-slate-200
+        %thead.bg-slate-50
+          %tr
+            %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide.w-8 #
+            %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide OEM
+            %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Nombre
+            %th.px-4.py-3.text-left.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Origen
+            %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Tickets
+            %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Unidades
+            %th.px-4.py-3.text-right.text-xs.font-semibold.text-slate-500.uppercase.tracking-wide Revenue
+        %tbody.divide-y.divide-slate-100
+          - @top_products.each_with_index do |row, i|
+            %tr.hover:bg-slate-50.transition-colors
+              %td.px-4.py-3.text-xs.text-slate-400.font-medium= i + 1
+              %td.px-4.py-3.font-mono.text-xs.text-slate-500= row.oem_code
+              %td.px-4.py-3.text-slate-800.text-sm= row.product_name
+              %td.px-4.py-3
+                %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium{class: product_source_badge_class(row.product_source)}
+                  = product_source_label(row.product_source)
+              %td.px-4.py-3.text-right.font-semibold.text-slate-900= row.frequency
+              %td.px-4.py-3.text-right.text-slate-700= number_with_delimiter(row.total_quantity)
+              %td.px-4.py-3.text-right.text-slate-700
+                = number_to_currency(row.total_revenue, unit: "$", separator: ",", delimiter: ".", precision: 0)

@@ -3,8 +3,9 @@
 module SalesLedger
   module Reports
     class SummaryQuery
-      def self.call(from:, to:)
+      def self.call(from:, to:, product_source: nil)
         scope = SalesLedger::Entry.where(sale_date: from..to)
+        scope = scope.where(product_source: product_source) if product_source.present?
 
         reported_subquery = scope
           .select("DISTINCT ON (ticket_number) ticket_number, ticket_total_amount")
