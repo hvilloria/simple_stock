@@ -1,120 +1,155 @@
 - content_for :page_title, "Productos"
 
--# Header con botón de acción principal
-.flex.items-center.justify-between.mb-6
-  %div
-    %h2.text-2xl.font-bold.text-slate-900 Productos
-    %p.text-sm.text-slate-600.mt-1 Gestiona tu inventario de repuestos
-  
-  = link_to new_web_product_path, class: "btn-primary" do
-    %span +
-    %span Nuevo Producto
+%div{ data: { controller: "cart" } }
 
--# Filtros
-= form_with url: web_products_path,
-  method: :get,
-  data: { controller: "products-search", action: "input->products-search#submitWithDebounce change->products-search#submitWithDebounce", turbo_frame: "products_list" },
-  class: "bg-white border border-slate-200 rounded-lg p-4 mb-6" do |f|
+  -# Header con botón de acción principal
+  .flex.items-center.justify-between.mb-6
+    %div
+      %h2.text-2xl.font-bold.text-slate-900 Productos
+      %p.text-sm.text-slate-600.mt-1 Gestiona tu inventario de repuestos
 
-  .flex.flex-col.md:flex-row.gap-3
-    -# Búsqueda
-    .flex-1
-      = f.text_field :q, value: params[:q], name: "q", placeholder: "Buscar por código OEM, nombre o marca...", class: "w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-    
-    -# Filtro categoría
-    = f.select :category, options_for_select([["Todas las categorías", ""]] + Product::CATEGORIES.map { |c| [c.titleize, c] }, params[:category]), {}, class: "px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
-    
-    -# Filtro estado
-    = f.select :status, options_for_select([["Todos los estados", ""], ["Activo", "active"], ["Inactivo", "inactive"]], params[:status]), {}, class: "px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
+    .flex.items-center.gap-2
+      %button{ type: "button",
+               data: { action: "click->cart#togglePanel" },
+               class: "relative inline-flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors" }
+        %span Carrito
+        %span{ data: { cart_target: "count" },
+               class: "hidden inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 bg-slate-700 text-white text-sm font-bold rounded-full" } 0
+
+      = link_to new_web_product_path, class: "btn-primary" do
+        %span +
+        %span Nuevo Producto
+
+  -# Backdrop del carrito
+  %div{ data: { cart_target: "backdrop", action: "click->cart#hidePanel" },
+        class: "hidden fixed inset-0 bg-black/40 z-40" }
+
+  -# Modal del carrito
+  %div{ data: { cart_target: "panel" },
+        class: "hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-white rounded-xl shadow-2xl flex flex-col max-h-[80vh]" }
+    .flex.items-center.justify-between.px-5.py-4.border-b.border-slate-100
+      %h3.text-sm.font-semibold.text-slate-900 Productos en el carrito
+      %button{ type: "button",
+               data: { action: "click->cart#hidePanel" },
+               class: "text-slate-400 hover:text-slate-600 text-sm" } ✕
+
+    %div{ data: { cart_target: "items" },
+          class: "flex-1 overflow-y-auto px-5 py-3" }
+
+    .px-5.py-4.border-t.border-slate-100.flex.justify-end
+      = link_to "Crear venta", "#",
+        data: { cart_target: "createButton" },
+        class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors opacity-50 pointer-events-none"
+
+  -# Filtros
+  = form_with url: web_products_path,
+    method: :get,
+    data: { controller: "products-search", action: "input->products-search#submitWithDebounce change->products-search#submitWithDebounce", turbo_frame: "products_list" },
+    class: "bg-white border border-slate-200 rounded-lg p-4 mb-6" do |f|
+
+    .flex.flex-col.md:flex-row.gap-3
+      -# Búsqueda
+      .flex-1
+        = f.text_field :q, value: params[:q], name: "q", placeholder: "Buscar por código OEM, nombre o marca...", class: "w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+
+      -# Filtro categoría
+      = f.select :category, options_for_select([["Todas las categorías", ""]] + Product::CATEGORIES.map { |c| [c.titleize, c] }, params[:category]), {}, class: "px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
+
+      -# Filtro estado
+      = f.select :status, options_for_select([["Todos los estados", ""], ["Activo", "active"], ["Inactivo", "inactive"]], params[:status]), {}, class: "px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
 
 
--# Tabla
-.bg-white.border.border-slate-200.rounded-lg.overflow-hidden
-  = turbo_frame_tag "products_list" do
-    %table.min-w-full.divide-y.divide-slate-200
-      %thead.bg-slate-50
-        %tr
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            = sortable_column(:sku, "CÓDIGO", params)
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            = sortable_column(:name, "NOMBRE", params)
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            MARCA
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            TIPO
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            ORIGEN
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            CATEGORÍA
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            = sortable_column(:current_stock, "STOCK", params)
-          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-            ESTADO
-          %th.w-20.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
-            ACCIONES
-      
-      %tbody.divide-y.divide-slate-100.bg-white
-        - if @products.any?
-          - @products.each do |product|
-            %tr.hover:bg-slate-50.transition-colors
-              -# Código
-              %td.px-4.py-3.whitespace-nowrap
-                = link_to product.sku, web_product_path(product), data: { turbo_frame: "_top" }, class: "font-mono text-sm font-semibold text-slate-900 hover:text-slate-700 hover:underline"
-              
-              -# Nombre
-              %td.px-4.py-3
-                = link_to product.name, web_product_path(product), data: { turbo_frame: "_top" }, class: "text-sm text-slate-900 hover:text-slate-700 font-medium hover:underline"
-              
-              -# Marca
-              %td.px-4.py-3.whitespace-nowrap
-                %span.text-sm.text-slate-600= product.brand || "-"
-              
-              -# Tipo
-              %td.px-4.py-3.whitespace-nowrap
-                - if product.oem?
-                  %span.inline-flex.px-2.py-1.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
-                    OEM
-                - elsif product.aftermarket?
-                  %span.inline-flex.px-2.py-1.rounded-md.text-xs.font-medium.bg-purple-100.text-purple-800
-                    Aftermarket
-                - else
-                  %span.text-sm.text-slate-400 -
-              
-              -# Origin
-              %td.px-4.py-3.whitespace-nowrap
-                %span.text-sm.text-slate-600= product.origin&.capitalize || "-"
-
-              -# Categoría
-              %td.px-4.py-3.whitespace-nowrap
-                %span.text-sm.text-slate-600= product.category&.titleize || "-"
-              
-              -# Stock
-              %td.px-4.py-3.whitespace-nowrap
-                - if product.current_stock > 10
-                  %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
-                    %span.w-1.5.h-1.5.rounded-full.bg-emerald-500
-                    = product.current_stock
-                - elsif product.current_stock > 0
-                  %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-800
-                    %span.w-1.5.h-1.5.rounded-full.bg-amber-500
-                    = product.current_stock
-                - else
-                  %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-red-100.text-red-800
-                    %span.w-1.5.h-1.5.rounded-full.bg-red-500
-                    = "0"
-              
-              -# Estado
-              %td.px-4.py-3.whitespace-nowrap
-                - if product.active?
-                  %span.badge-success Activo
-                - else
-                  %span.badge-neutral Inactivo
-              
-              -# Acciones
-              %td.px-4.py-3.text-right
-                .flex.items-center.justify-end.gap-1
-                  = link_to new_web_product_stock_movement_path(product), class: "text-sm text-slate-600 hover:text-slate-900 px-2 py-1 hover:bg-slate-100 rounded transition-colors" do
-                    Ajustar stock
-        - else
+  -# Tabla
+  .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+    = turbo_frame_tag "products_list" do
+      %table.min-w-full.divide-y.divide-slate-200
+        %thead.bg-slate-50
           %tr
-            %td.px-6.py-8.text-center.text-slate-500{colspan: 9} No hay productos cargados todavía.
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              = sortable_column(:sku, "CÓDIGO", params)
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              = sortable_column(:name, "NOMBRE", params)
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              MARCA
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              TIPO
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              ORIGEN
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              CATEGORÍA
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              = sortable_column(:current_stock, "STOCK", params)
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              ESTADO
+            %th.w-20.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
+              ACCIONES
+
+        %tbody.divide-y.divide-slate-100.bg-white
+          - if @products.any?
+            - @products.each do |product|
+              %tr.hover:bg-slate-50.transition-colors
+                -# Código
+                %td.px-4.py-3.whitespace-nowrap
+                  = link_to product.sku, web_product_path(product), data: { turbo_frame: "_top" }, class: "font-mono text-sm font-semibold text-slate-900 hover:text-slate-700 hover:underline"
+
+                -# Nombre
+                %td.px-4.py-3
+                  = link_to product.name, web_product_path(product), data: { turbo_frame: "_top" }, class: "text-sm text-slate-900 hover:text-slate-700 font-medium hover:underline"
+
+                -# Marca
+                %td.px-4.py-3.whitespace-nowrap
+                  %span.text-sm.text-slate-600= product.brand || "-"
+
+                -# Tipo
+                %td.px-4.py-3.whitespace-nowrap
+                  - if product.oem?
+                    %span.inline-flex.px-2.py-1.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
+                      OEM
+                  - elsif product.aftermarket?
+                    %span.inline-flex.px-2.py-1.rounded-md.text-xs.font-medium.bg-purple-100.text-purple-800
+                      Aftermarket
+                  - else
+                    %span.text-sm.text-slate-400 -
+
+                -# Origin
+                %td.px-4.py-3.whitespace-nowrap
+                  %span.text-sm.text-slate-600= product.origin&.capitalize || "-"
+
+                -# Categoría
+                %td.px-4.py-3.whitespace-nowrap
+                  %span.text-sm.text-slate-600= product.category&.titleize || "-"
+
+                -# Stock
+                %td.px-4.py-3.whitespace-nowrap
+                  - if product.current_stock > 10
+                    %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
+                      %span.w-1.5.h-1.5.rounded-full.bg-emerald-500
+                      = product.current_stock
+                  - elsif product.current_stock > 0
+                    %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-800
+                      %span.w-1.5.h-1.5.rounded-full.bg-amber-500
+                      = product.current_stock
+                  - else
+                    %span.inline-flex.items-center.gap-1.5.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-red-100.text-red-800
+                      %span.w-1.5.h-1.5.rounded-full.bg-red-500
+                      = "0"
+
+                -# Estado
+                %td.px-4.py-3.whitespace-nowrap
+                  - if product.active?
+                    %span.badge-success Activo
+                  - else
+                    %span.badge-neutral Inactivo
+
+                -# Acciones
+                %td.px-4.py-3.text-right
+                  .flex.items-center.justify-end.gap-1
+                    %button{ type: "button",
+                             title: "Agregar al carrito",
+                             data: { action: "click->cart#addItem",
+                                     cart_product: product.to_json(only: [:id, :sku, :name, :brand, :current_stock, :price_unit]) },
+                             class: "text-sm text-emerald-700 hover:text-emerald-900 px-2 py-1 hover:bg-emerald-50 rounded transition-colors font-semibold" }
+                      +
+          - else
+            %tr
+              %td.px-6.py-8.text-center.text-slate-500{colspan: 9} No hay productos cargados todavía.

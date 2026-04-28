@@ -79,7 +79,7 @@
               .flex-1
                 .flex.items-center.gap-3.mb-1
                   %span.text-xs.font-mono.text-slate-500= "##{order.id}"
-                  - if order.cash_order_type?
+                  - if order.immediate_order_type?
                     %span.inline-flex.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700 Contado
                   - else
                     %span.inline-flex.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-700 Crédito

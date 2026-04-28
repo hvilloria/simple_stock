@@ -3,7 +3,7 @@
 require "rails_helper"
 
 RSpec.describe Payments::RegisterPayment do
-  let(:customer_with_credit) { create(:customer, has_credit_account: true) }
+  let(:customer_with_credit) { create(:customer, customer_type: "workshop", has_credit_account: true) }
   let(:customer_without_credit) { create(:customer, has_credit_account: false) }
 
   describe ".call" do

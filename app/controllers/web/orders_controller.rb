@@ -35,6 +35,17 @@ module Web
           flash.now[:alert] = "Producto no encontrado o inactivo"
           @order.order_items.build
         end
+      elsif params[:purchase_items].present?
+        # Contexto: viene desde el carrito del listado de productos
+        params[:purchase_items].each do |item|
+          product = Product.active.find_by(id: item[:product_id])
+          next unless product
+          @order.order_items.build(
+            product: product,
+            quantity: item[:quantity].to_i,
+            unit_price: product.price_unit
+          )
+        end
       else
         # Contexto: venta desde cero (búsqueda manual por ahora)
         @order.order_items.build
@@ -46,8 +57,8 @@ module Web
       result = Sales::CreateOrder.call(
         customer: find_or_create_customer,
         items: parse_items,
-        order_type: params[:order_type] || "cash",
-        channel: params[:channel],
+        order_type: params.dig(:order, :order_type) || "immediate",
+        channel: params.dig(:order, :channel),
         source: params[:source] || "live",
         sale_date: params[:sale_date],
         paper_number: params[:paper_number]
@@ -79,9 +90,11 @@ module Web
     private
 
     def load_products
-      # Solo cargar productos si NO viene product_id (para evitar cargar miles de productos innecesariamente)
+      # Solo cargar productos si NO viene product_id ni purchase_items (para evitar
+      # cargar miles de productos innecesariamente cuando el formulario se pre-llena).
       # En Fase 2, esto se reemplazará por búsqueda AJAX
-      @products = params[:product_id].present? ? [] : Product.active.order(:name).limit(50)
+      skip_load = params[:product_id].present? || params[:purchase_items].present?
+      @products = skip_load ? [] : Product.active.order(:name).limit(50)
     end
 
     def load_customers
@@ -106,10 +119,9 @@ module Web
     end
 
     def find_or_create_customer
-      # Si params[:customer_id] existe y no es 'mostrador', buscar customer
-      # Si no existe o es 'mostrador', usar Customer.mostrador
-      if params[:customer_id].present? && params[:customer_id] != "mostrador"
-        Customer.find(params[:customer_id])
+      customer_id = params.dig(:order, :customer_id)
+      if customer_id.present? && customer_id != "mostrador"
+        Customer.find(customer_id)
       else
         Customer.mostrador
       end

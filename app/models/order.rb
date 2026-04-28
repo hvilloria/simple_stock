@@ -15,7 +15,7 @@ class Order < ApplicationRecord
   }, suffix: true
 
   enum :order_type, {
-    cash: "cash",
+    immediate: "immediate",
     credit: "credit"
   }, suffix: true
 
@@ -33,10 +33,11 @@ class Order < ApplicationRecord
   validates :sale_date, presence: true
   validates :source, inclusion: { in: %w[live from_paper] }
   validates :channel, inclusion: { in: ALLOWED_CHANNELS, allow_nil: true }
+  validates :paper_number, presence: true, if: :from_paper?
   validate :credit_order_requires_credit_account
 
   # Scopes
-  scope :cash, -> { where(order_type: "cash") }
+  scope :immediate, -> { where(order_type: "immediate") }
   scope :credit, -> { where(order_type: "credit") }
   scope :active, -> { where.not(status: "cancelled") }
   scope :from_paper, -> { where(source: "from_paper") }

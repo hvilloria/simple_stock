@@ -14,6 +14,7 @@ class Customer < ApplicationRecord
   # Validations
   validates :name, presence: true
   validates :customer_type, presence: true
+  validate :retail_cannot_have_credit_account
 
   # Scopes
   scope :with_credit_account, -> { where(has_credit_account: true) }
@@ -43,5 +44,15 @@ class Customer < ApplicationRecord
     total_payments = payments.sum(:amount) rescue 0  # rescue because Payment might not exist yet
 
     total_credit_sales - total_payments
+  end
+
+  private
+
+  def retail_cannot_have_credit_account
+    return unless retail_customer_type?
+
+    if has_credit_account?
+      errors.add(:has_credit_account, "no puede estar habilitada para clientes minoristas")
+    end
   end
 end

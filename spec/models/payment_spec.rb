@@ -15,7 +15,7 @@ RSpec.describe Payment, type: :model do
     it { should validate_presence_of(:payment_date) }
 
     describe "customer_must_have_credit_account" do
-      let(:customer_with_credit) { create(:customer, has_credit_account: true) }
+      let(:customer_with_credit) { create(:customer, customer_type: "workshop", has_credit_account: true) }
       let(:customer_without_credit) { create(:customer, has_credit_account: false) }
 
       it "is valid when customer has credit account" do
@@ -32,8 +32,8 @@ RSpec.describe Payment, type: :model do
   end
 
   describe "scopes" do
-    let(:customer1) { create(:customer, has_credit_account: true) }
-    let(:customer2) { create(:customer, has_credit_account: true) }
+    let(:customer1) { create(:customer, customer_type: "workshop", has_credit_account: true) }
+    let(:customer2) { create(:customer, customer_type: "workshop", has_credit_account: true) }
     let!(:payment1) { create(:payment, customer: customer1, payment_date: 3.days.ago) }
     let!(:payment2) { create(:payment, customer: customer2, payment_date: 1.day.ago) }
     let!(:payment3) { create(:payment, customer: customer1, payment_date: Date.today) }

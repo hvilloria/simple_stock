@@ -7,6 +7,7 @@ FactoryBot.define do
     customer_type { "retail" }
 
     trait :with_credit do
+      customer_type { "workshop" }
       has_credit_account { true }
     end
 

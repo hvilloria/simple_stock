@@ -21,7 +21,7 @@ Only includes behavior that is important for implementing features safely.
 * **Dashboard** (`web/dashboard#index`): metrics include “sales today” = sum of **confirmed** orders where **`created_at`** is today (not `sale_date`); receivables = sum of `Customer#current_balance` for customers with credit; low-stock lists; recent orders ordered by `created_at`.
 * **Products**: CRUD without destroy; collection **`search`**; nested **`stock_movements`** new/create → `Inventory::AdjustStock` (stock location = **`StockLocation.first!`**).
 * **Orders**: index/show/new/create; member **POST `cancel`** → `Sales::CancelOrder`. Create builds items from **`purchase_items`** params and resolves customer via **`Customer.mostrador`** when `customer_id` is blank or `"mostrador"`.
-* **Customers**: **index only**.
+* **Customers**: index/show/new/create/edit/update; nested **`payments`** new/create → `Payments::RegisterPayment` (module `Web::Customers`).
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
 * **Credit notes**: full CRUD + **`supplier_invoices`** JSON for pending simple invoices by supplier — **direct ActiveRecord** in the controller (no dedicated service class).
@@ -33,6 +33,7 @@ Only includes behavior that is important for implementing features safely.
 
 ### Orders
 
+* `order_type` enum values: **`immediate`** (was `cash`) and **`credit`**. `cash` is reserved for payment methods.
 * Created via **`Sales::CreateOrder`** (from `Web::OrdersController#create`).
 * Cancelled via **`Sales::CancelOrder`** (member cancel).
 * Confirmed sales create **`StockMovement`** rows with **`movement_type: sale`** via **`Inventory::AdjustStock`** (signed quantity: **outbound is negative** in the implemented paths).
@@ -68,6 +69,8 @@ Only includes behavior that is important for implementing features safely.
 * Do **not** bump **`products.current_stock`** ad hoc in controllers/views — keep stock changes through **`StockMovement`** + **`#recalculate_current_stock!`** as the code already does in services.
 * **Validate stock before selling** — enforced in **`Sales::CreateOrder`** against **`current_stock`**.
 * **Customer `Payment` records are not allocated to specific orders** in the schema; **`Customer#current_balance`** is derived from credit **`Order`** totals minus **`payments`**.
+* **`Customer` validation:** `retail` customers cannot have `has_credit_account: true` (`retail_cannot_have_credit_account`).
+* **`Order` validation:** `paper_number` is required when `source: 'from_paper'`; stock validation is skipped for `from_paper` orders.
 * Not every HTTP action uses a service: e.g. **pending invoice cancel** and **credit note** CRUD use **`update` / `save` / `destroy`** on models directly.
 
 ---
@@ -77,7 +80,7 @@ Only includes behavior that is important for implementing features safely.
 * **Sales:** `Sales::CreateOrder`, `Sales::CancelOrder`
 * **Inventory:** `Inventory::AdjustStock`
 * **Invoices:** `Invoices::CreateSimpleInvoice`, `Invoices::MarkAsPaid`, `Invoices::ProcessPayment`
-* **Payments (no web UI):** `Payments::RegisterPayment`
+* **Payments:** `Payments::RegisterPayment`
 * **Sales ledger:** `SalesLedger::ImportCsv`; report query objects under **`SalesLedger::Reports::`** (from `Web::SalesLedger::ReportsController`)
 
 **Present in codebase but not wired to `Web::` controllers:** `Purchasing::CreatePurchase`, `Purchasing::CancelPurchase`, **`Inventory::SyncFromCsv`** (invoked from **`lib/tasks/inventory.rake`**, not from HTTP).
@@ -86,7 +89,7 @@ Only includes behavior that is important for implementing features safely.
 
 ## Important gaps
 
-* **No web UI** for **`Payment`** / `Payments::RegisterPayment`.
+* **`Payment`** / `Payments::RegisterPayment` now has web UI under `web/customers/:customer_id/payments` (new/create only).
 * **No web UI** for itemized purchasing: **`Purchasing::CreatePurchase`** is used in **seeds/specs**, not `Web::InvoicesController`.
 * **`Inventory::SyncFromCsv`** is **rake-only**, not exposed in routes.
 

@@ -2,23 +2,23 @@ require 'rails_helper'
 
 RSpec.describe Sales::CreateOrder do
   let!(:stock_location) { create(:stock_location) }
-  let(:customer_with_credit) { create(:customer, has_credit_account: true) }
+  let(:customer_with_credit) { create(:customer, customer_type: "workshop", has_credit_account: true) }
   let(:customer_without_credit) { create(:customer, has_credit_account: false) }
 
   describe '.call' do
-    context 'with valid cash order' do
+    context 'with valid immediate order' do
       let(:product) { create(:product, current_stock: 50, price_unit: 100) }
 
       it 'creates order successfully' do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be true
         expect(result.record).to be_a(Order)
-        expect(result.record.order_type).to eq('cash')
+        expect(result.record.order_type).to eq('immediate')
         expect(result.record.status).to eq('confirmed')
         expect(result.errors).to be_empty
       end
@@ -27,7 +27,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.record.total_amount).to eq(200)
@@ -37,7 +37,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.record.order_items.count).to eq(1)
@@ -55,7 +55,7 @@ RSpec.describe Sales::CreateOrder do
         described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: test_product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(test_product.reload.current_stock).to eq(48)
@@ -65,7 +65,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         movement = StockMovement.last
@@ -78,7 +78,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash',
+          order_type: 'immediate',
           channel: 'whatsapp'
         )
 
@@ -90,7 +90,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         order = result.record
@@ -104,7 +104,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be true
@@ -161,7 +161,7 @@ RSpec.describe Sales::CreateOrder do
             { product_id: product.id, quantity: 2, unit_price: 100 },
             { product_id: product2.id, quantity: 3, unit_price: 50 }
           ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be true
@@ -184,7 +184,7 @@ RSpec.describe Sales::CreateOrder do
             { product_id: test_product1.id, quantity: 2, unit_price: 100 },
             { product_id: test_product2.id, quantity: 3, unit_price: 50 }
           ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(test_product1.reload.current_stock).to eq(48)
@@ -199,7 +199,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be false
@@ -212,7 +212,7 @@ RSpec.describe Sales::CreateOrder do
           described_class.call(
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'cash'
+            order_type: 'immediate'
           )
         }.not_to change(Order, :count)
       end
@@ -222,7 +222,7 @@ RSpec.describe Sales::CreateOrder do
           described_class.call(
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'cash'
+            order_type: 'immediate'
           )
         }.not_to change(OrderItem, :count)
       end
@@ -232,7 +232,7 @@ RSpec.describe Sales::CreateOrder do
           described_class.call(
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'cash'
+            order_type: 'immediate'
           )
         }.not_to change(StockMovement, :count)
       end
@@ -242,7 +242,7 @@ RSpec.describe Sales::CreateOrder do
           described_class.call(
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'cash'
+            order_type: 'immediate'
           )
         }.not_to change { product.reload.current_stock }
       end
@@ -266,7 +266,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: nil,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be false
@@ -277,7 +277,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_with_credit,
           items: [],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be false
@@ -288,7 +288,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 0, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be false
@@ -299,7 +299,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: -5, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(result.success?).to be false
@@ -314,7 +314,7 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
-          order_type: 'cash',
+          order_type: 'immediate',
           source: 'from_paper',
           paper_number: '0045'
         )
@@ -328,8 +328,9 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
-          order_type: 'cash',
-          source: 'from_paper'
+          order_type: 'immediate',
+          source: 'from_paper',
+          paper_number: '0001'
         )
 
         expect(result.success?).to be true
@@ -340,8 +341,9 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: nil } ],
-          order_type: 'cash',
-          source: 'from_paper'
+          order_type: 'immediate',
+          source: 'from_paper',
+          paper_number: '0001'
         )
 
         expect(result.success?).to be true
@@ -353,8 +355,9 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'cash',
+          order_type: 'immediate',
           source: 'from_paper',
+          paper_number: '0001',
           sale_date: sale_date
         )
 
@@ -362,18 +365,18 @@ RSpec.describe Sales::CreateOrder do
         expect(result.record.sale_date).to eq(sale_date)
       end
 
-      it 'still validates stock' do
-        low_stock_product = create(:product, current_stock: 1, price_unit: 100)
+      it 'skips stock validation (allows selling with zero stock)' do
+        zero_stock_product = create(:product, current_stock: 0, price_unit: 100)
 
         result = described_class.call(
           customer: customer_without_credit,
-          items: [ { product_id: low_stock_product.id, quantity: 10, unit_price: 0 } ],
-          order_type: 'cash',
-          source: 'from_paper'
+          items: [ { product_id: zero_stock_product.id, quantity: 10, unit_price: 0 } ],
+          order_type: 'immediate',
+          source: 'from_paper',
+          paper_number: '0001'
         )
 
-        expect(result.success?).to be false
-        expect(result.errors).to include(/Insufficient stock/)
+        expect(result.success?).to be true
       end
 
       it 'still creates stock movements' do
@@ -384,8 +387,9 @@ RSpec.describe Sales::CreateOrder do
         described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: test_product.id, quantity: 2, unit_price: 0 } ],
-          order_type: 'cash',
-          source: 'from_paper'
+          order_type: 'immediate',
+          source: 'from_paper',
+          paper_number: '0001'
         )
 
         expect(test_product.reload.current_stock).to eq(48)
@@ -403,7 +407,7 @@ RSpec.describe Sales::CreateOrder do
         described_class.call(
           customer: customer_with_credit,
           items: [ { product_id: product_with_low_stock.id, quantity: 10, unit_price: 100 } ],
-          order_type: 'cash'
+          order_type: 'immediate'
         )
 
         expect(Order.count).to eq(initial_order_count)

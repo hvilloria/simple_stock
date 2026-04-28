@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_04_08_100000) do
+ActiveRecord::Schema[7.2].define(version: 2026_04_28_215527) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -122,7 +122,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_04_08_100000) do
     t.bigint "customer_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "order_type", default: "cash", null: false
+    t.string "order_type", default: "immediate", null: false
     t.string "channel"
     t.string "source", default: "live", null: false
     t.date "sale_date", default: -> { "CURRENT_DATE" }, null: false

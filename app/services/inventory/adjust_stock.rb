@@ -1,23 +1,25 @@
 module Inventory
   class AdjustStock
-    def self.call(product:, stock_location:, movement_type:, quantity:, reference: nil, note: nil)
+    def self.call(product:, stock_location:, movement_type:, quantity:, reference: nil, note: nil, allow_negative: false)
       new(
         product:        product,
         stock_location: stock_location,
         movement_type:  movement_type,
         quantity:       quantity,
         reference:      reference,
-        note:           note
+        note:           note,
+        allow_negative: allow_negative
       ).call
     end
 
-    def initialize(product:, stock_location:, movement_type:, quantity:, reference:, note:)
+    def initialize(product:, stock_location:, movement_type:, quantity:, reference:, note:, allow_negative: false)
       @product        = product
       @stock_location = stock_location
       @movement_type  = movement_type.to_sym
       @quantity       = quantity.to_i
       @reference      = reference
       @note           = note
+      @allow_negative = allow_negative
     end
 
     def call
@@ -43,7 +45,8 @@ module Inventory
     def validate_params
       raise ValidationError, "Quantity cannot be zero" if @quantity.zero?
 
-      # Validate that resulting stock won't be negative
+      return if @allow_negative
+
       projected_stock = @product.current_stock + @quantity
       if projected_stock.negative?
         raise ValidationError, "Insufficient stock to perform this operation"
