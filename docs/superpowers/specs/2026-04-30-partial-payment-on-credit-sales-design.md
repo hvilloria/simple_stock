@@ -30,11 +30,12 @@ Permitir que en la creación de una venta a cuenta corriente, el operador regist
 - Servicio: `Sales::CreateOrder` acepta un parámetro opcional `initial_payment: { amount:, payment_method: }`.
 - Servicio: `Sales::CancelOrder` destruye los payments atados a la orden al cancelar.
 - UI: Vista de creación de venta muestra dos campos extra ("Monto que paga ahora" + selector de método) cuando el toggle está en Cuenta Corriente.
-- UI: Vista de detalle de orden lista los payments asociados (read-only) y muestra el saldo pendiente de la venta.
 
 **Excluido (explícitamente fuera de alcance):**
 
+- **Vista de detalle de orden con bloque "Pagos asociados"** — read-only que muestre los `Payment` con `order_id` apuntando a la orden y el saldo pendiente. Recortado a un MVP más chico; se diseña y ejecuta como feature siguiente.
 - Las ventas Contado (`order_type: "immediate"`) **siguen sin generar `Payment`**. El discriminador entre contado y crédito es `order_type`, no la presencia de payments. Si en el futuro se quiere un libro de cobros completo (alcance B descartado en brainstorming), sería un cambio aparte.
+- Trazabilidad granular del medio de pago (banco vs Mercado Pago, etc.) — se aborda en feature aparte; el `payment_method` actual (`cash`/`transfer`/`check`/`card`) se mantiene sin cambios.
 - Pagos mixtos (parte efectivo + parte transferencia en una misma venta).
 - Sobrepago como saldo a favor del cliente.
 - Edición de la venta una vez creada (no se permite hoy y este feature no lo cambia).
@@ -253,16 +254,6 @@ Comportamiento:
 - En el card *Resumen de Venta*, agregar dos líneas calculadas dinámicamente cuando `credit && monto > 0`:
   - "Paga ahora: $X"
   - "Queda debiendo: $(total − monto)" en `text-amber-600`
-
-### Vista `app/views/web/orders/show.html.haml`
-
-Cuando `@order.credit_order_type?`, agregar bloque "Pagos asociados":
-
-- Lista `@order.payments` (cargada en el controller con `includes(:payments)`).
-- Por cada payment: monto, método (label en español), fecha, notas si las hay.
-- Si no hay payments → mensaje "Sin pagos registrados aún".
-- Línea de saldo: "Saldo pendiente de esta venta: $(total − Σ payments)".
-- Read-only en este feature; los pagos extra siguen registrándose desde la vista del cliente.
 
 ### Tests
 
