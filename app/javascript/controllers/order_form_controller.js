@@ -310,6 +310,15 @@ export default class extends Controller {
     if (this.hasSubmitButtonTarget) {
       const initialPayment = this.hasInitialPaymentInputTarget ? (parseFloat(this.initialPaymentInputTarget.value) || 0) : 0
       const overTotal = initialPayment > total
+
+      if (this.hasInitialPaymentWarningTarget) {
+        if (overTotal) {
+          this.initialPaymentWarningTarget.classList.remove('hidden')
+        } else {
+          this.initialPaymentWarningTarget.classList.add('hidden')
+        }
+      }
+
       this.submitButtonTarget.disabled = this.items.length === 0 || overTotal
       if (this.items.length === 0 || overTotal) {
         this.submitButtonTarget.classList.add('opacity-50', 'cursor-not-allowed')
