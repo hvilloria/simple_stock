@@ -14,15 +14,30 @@ module Sales
   # - Valida stock disponible
   # - Crea stock_movements de salida
   # - Actualiza current_stock de productos
+  #
+  # Para órdenes a crédito acepta opcionalmente initial_payment:
+  #   { amount: <decimal>, payment_method: <string> }
+  # cuando viene, se crea un Payment atado a la Order dentro de la
+  # misma transacción.
   class CreateOrder
-    # Estructura para representar un item de la venta
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
-    def self.call(customer:, items:, order_type:, channel: nil, source: "live", sale_date: nil, paper_number: nil)
-      new(customer: customer, items: items, order_type: order_type, channel: channel, source: source, sale_date: sale_date, paper_number: paper_number).call
+    def self.call(customer:, items:, order_type:, channel: nil, source: "live",
+                  sale_date: nil, paper_number: nil, initial_payment: nil)
+      new(
+        customer: customer,
+        items: items,
+        order_type: order_type,
+        channel: channel,
+        source: source,
+        sale_date: sale_date,
+        paper_number: paper_number,
+        initial_payment: initial_payment
+      ).call
     end
 
-    def initialize(customer:, items:, order_type:, channel: nil, source: "live", sale_date: nil, paper_number: nil)
+    def initialize(customer:, items:, order_type:, channel: nil, source: "live",
+                   sale_date: nil, paper_number: nil, initial_payment: nil)
       @customer = customer
       @items = items.map { |item| item.is_a?(Item) ? item : Item.new(item) }
       @order_type = order_type
@@ -30,6 +45,7 @@ module Sales
       @source = source
       @sale_date = sale_date || Date.today
       @paper_number = paper_number
+      @initial_payment = normalize_initial_payment(initial_payment)
     end
 
     def call
@@ -39,6 +55,7 @@ module Sales
         create_order
         create_order_items
         create_stock_movements
+        create_initial_payment if @initial_payment
 
         Result.new(success?: true, record: @order, errors: [])
       end
@@ -54,21 +71,29 @@ module Sales
 
     class ValidationError < StandardError; end
 
+    # Si amount viene 0 o nil, anula initial_payment para no crear Payment.
+    def normalize_initial_payment(initial_payment)
+      return nil if initial_payment.nil?
+      amount = initial_payment[:amount].to_f
+      return nil if amount <= 0
+
+      {
+        amount: amount,
+        payment_method: initial_payment[:payment_method]
+      }
+    end
+
     def validate_params
-      # Validar order_type
       unless %w[immediate credit].include?(@order_type)
         raise ValidationError, "Invalid order type"
       end
 
-      # Validar customer
       raise ValidationError, "Customer is required" if @customer.nil?
 
-      # Si es credit, validar has_credit_account
       if @order_type == "credit" && !@customer.has_credit_account?
         raise ValidationError, "Customer does not have credit account enabled"
       end
 
-      # Validar items
       raise ValidationError, "At least one product is required" if @items.blank?
 
       @items.each do |item|
@@ -76,9 +101,6 @@ module Sales
         raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
       end
 
-      # Validar stock ANTES de crear nada.
-      # Se omite para ventas from_paper: el inventario puede estar en 0 mientras
-      # no se haya cargado el conteo físico. Revertir cuando el inventario esté listo.
       unless @source == "from_paper"
         @items.each do |item|
           product = Product.find(item.product_id)
@@ -86,6 +108,23 @@ module Sales
             raise ValidationError, "Insufficient stock for #{product.name}. Available: #{product.current_stock}"
           end
         end
+      end
+
+      validate_initial_payment if @initial_payment
+    end
+
+    def validate_initial_payment
+      if @order_type != "credit"
+        raise ValidationError, "El cobro al momento solo aplica a ventas a cuenta corriente"
+      end
+
+      total = calculate_total
+      if @initial_payment[:amount] > total
+        raise ValidationError, "El monto cobrado no puede exceder el total de la venta ($#{total})"
+      end
+
+      unless Payment::PAYMENT_METHODS.include?(@initial_payment[:payment_method])
+        raise ValidationError, "Método de pago inválido"
       end
     end
 
@@ -105,7 +144,6 @@ module Sales
     def calculate_total
       @items.sum do |item|
         product = Product.find(item.product_id)
-        # Si unit_price es nil, intentar usar el del producto, si no 0
         unit_price = item.unit_price || product.price_unit || 0
         item.quantity * unit_price
       end
@@ -114,7 +152,6 @@ module Sales
     def create_order_items
       @items.each do |item|
         product = Product.find(item.product_id)
-        # Si unit_price es nil, usar el del producto o 0
         final_price = item.unit_price || product.price_unit || 0
 
         OrderItem.create!(
@@ -142,6 +179,16 @@ module Sales
 
         raise ValidationError, result.errors.join(", ") if result.failure?
       end
+    end
+
+    def create_initial_payment
+      Payment.create!(
+        customer: @customer,
+        order: @order,
+        amount: @initial_payment[:amount],
+        payment_method: @initial_payment[:payment_method],
+        payment_date: @sale_date
+      )
     end
   end
 end

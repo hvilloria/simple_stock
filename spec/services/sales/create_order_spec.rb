@@ -415,5 +415,96 @@ RSpec.describe Sales::CreateOrder do
         expect(StockMovement.count).to eq(initial_movement_count)
       end
     end
+
+    context 'with initial_payment' do
+      let(:product) { create(:product, current_stock: 50, price_unit: 100) }
+      let(:base_args) do
+        {
+          customer: customer_with_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          order_type: 'credit'
+        }
+      end
+
+      it 'creates Order and Payment atomically when amount is partial' do
+        result = described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'cash' })
+
+        expect(result.success?).to be true
+        order = result.record
+        expect(order.payments.count).to eq(1)
+        payment = order.payments.first
+        expect(payment.amount).to eq(50)
+        expect(payment.payment_method).to eq('cash')
+        expect(payment.customer).to eq(customer_with_credit)
+        expect(payment.payment_date).to eq(order.sale_date)
+      end
+
+      it 'creates Payment when amount equals order total' do
+        result = described_class.call(**base_args, initial_payment: { amount: 200, payment_method: 'transfer' })
+
+        expect(result.success?).to be true
+        expect(result.record.payments.count).to eq(1)
+        expect(result.record.payments.first.amount).to eq(200)
+      end
+
+      it 'reduces customer balance by the paid amount' do
+        described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'cash' })
+        expect(customer_with_credit.current_balance).to eq(150) # 200 total - 50 pagado
+      end
+
+      it 'does not create Payment when amount is zero' do
+        result = described_class.call(**base_args, initial_payment: { amount: 0, payment_method: 'cash' })
+
+        expect(result.success?).to be true
+        expect(result.record.payments.count).to eq(0)
+      end
+
+      it 'does not create Payment when initial_payment is nil' do
+        result = described_class.call(**base_args, initial_payment: nil)
+
+        expect(result.success?).to be true
+        expect(result.record.payments.count).to eq(0)
+      end
+
+      it 'rejects initial_payment when order_type is immediate' do
+        result = described_class.call(
+          **base_args.merge(order_type: 'immediate', customer: customer_without_credit),
+          initial_payment: { amount: 50, payment_method: 'cash' }
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include('El cobro al momento solo aplica a ventas a cuenta corriente')
+      end
+
+      it 'rejects amount greater than total' do
+        result = described_class.call(**base_args, initial_payment: { amount: 500, payment_method: 'cash' })
+
+        expect(result.success?).to be false
+        expect(result.errors).to include(/El monto cobrado no puede exceder el total de la venta/)
+      end
+
+      it 'rejects invalid payment_method' do
+        result = described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'crypto' })
+
+        expect(result.success?).to be false
+        expect(result.errors).to include('Método de pago inválido')
+      end
+
+      it 'rolls back the order when Payment.create! raises' do
+        allow(Payment).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(Payment.new))
+
+        initial_orders   = Order.count
+        initial_items    = OrderItem.count
+        initial_payments = Payment.count
+        initial_movements = StockMovement.count
+
+        described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'cash' })
+
+        expect(Order.count).to eq(initial_orders)
+        expect(OrderItem.count).to eq(initial_items)
+        expect(Payment.count).to eq(initial_payments)
+        expect(StockMovement.count).to eq(initial_movements)
+      end
+    end
   end
 end
