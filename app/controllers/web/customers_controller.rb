@@ -9,11 +9,17 @@ module Web
       @customers = Customer.where.not(name: "Cliente Mostrador").order(name: :asc)
     end
 
+    def debtors
+      authorize Customer, :debtors?
+      @debtors = Customer.with_outstanding_balance.to_a.sort_by { |c| -c.current_balance }
+    end
+
     def show
       authorize @customer
       @credit_orders = @customer.orders
                                 .where(order_type: "credit")
                                 .where.not(status: "cancelled")
+                                .includes(:payments)
                                 .order(created_at: :desc)
       @payments = @customer.payments.order(payment_date: :desc)
       @current_balance = @customer.current_balance

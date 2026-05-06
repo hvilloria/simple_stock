@@ -30,9 +30,13 @@ class Payment < ApplicationRecord
   end
 
   def amount_within_order_total
-    return if amount.nil? || order.total_amount.nil?
-    if amount > order.total_amount
-      errors.add(:amount, "no puede exceder el total de la orden ($#{order.total_amount})")
+    return if amount.nil? || order.nil? || order.total_amount.nil?
+
+    existing_paid = order.payments.where.not(id: id).sum(:amount)
+    remaining = [ order.total_amount - existing_paid, 0 ].max
+
+    if amount > remaining
+      errors.add(:amount, "no puede exceder el saldo pendiente de la orden ($#{remaining})")
     end
   end
 end

@@ -46,7 +46,7 @@
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Cliente
               - if @order.customer && @order.customer.has_credit_account?
-                = link_to @order.customer.name, "#", class: "text-base font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                = link_to @order.customer.name, web_customer_path(@order.customer), class: "text-base font-medium text-blue-600 hover:text-blue-800 hover:underline"
               - elsif @order.customer
                 %span.text-base.font-medium.text-gray-900= @order.customer.name
               - else
@@ -264,7 +264,7 @@
           .border-t.border-gray-200.py-4
             %h4.text-sm.font-semibold.text-gray-900.mb-3 Info del Cliente
             
-            = link_to @order.customer.name, "#", class: "text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline block mb-2"
+            = link_to @order.customer.name, web_customer_path(@order.customer), class: "text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline block mb-2"
             
             - saldo = @order.customer.current_balance
             .flex.justify-between.items-center
@@ -277,6 +277,32 @@
             - else
               %span.inline-flex.items-center.gap-1.px-2.py-1.rounded.text-xs.font-medium.bg-yellow-100.text-yellow-800.mt-2
                 ⚠ Revisar saldo
+
+        -# Pagos de esta venta (solo crédito)
+        - if @order.credit_order_type?
+          .border-t.border-gray-200.py-4
+            %h4.text-sm.font-semibold.text-gray-900.mb-3 Pagos de esta Venta
+
+            - order_payments = @order.payments.order(payment_date: :asc)
+            - if order_payments.any?
+              .space-y-2.mb-3
+                - order_payments.each do |p|
+                  .flex.justify-between.items-center.text-sm
+                    %span.text-gray-500= l(p.payment_date, format: :default)
+                    %span.font-medium.text-emerald-700= currency_ar(p.amount)
+
+              .border-t.border-gray-100.pt-2.space-y-1
+                .flex.justify-between.text-sm
+                  %span.text-gray-600 Total cobrado
+                  %span.font-medium.text-gray-900= currency_ar(order_payments.sum(:amount))
+                .flex.justify-between.text-sm
+                  %span.text-gray-600 Pendiente
+                  - pending = @order.outstanding_balance
+                  %span.font-bold{ class: pending > 0 ? 'text-amber-600' : 'text-emerald-600' }
+                    = currency_ar(pending)
+            - else
+              %p.text-xs.text-gray-400.italic Sin cobros registrados para esta venta
+              %p.text-xs.text-gray-400.mt-1.italic Los abonos sueltos del cliente se reflejan en el saldo total.
 
         -# Botón de acción
         .border-t.border-gray-200.py-4

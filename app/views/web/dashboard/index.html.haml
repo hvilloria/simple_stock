@@ -41,7 +41,7 @@
         %span.text-emerald-600.font-medium Todo bien
   
   -# Cuentas por Cobrar
-  .bg-white.border.border-slate-200.rounded-lg.p-6
+  = link_to debtors_web_customers_path, class: "block bg-white border border-slate-200 rounded-lg p-6 hover:border-slate-300 hover:shadow-sm transition-all" do
     .flex.items-start.justify-between.mb-4
       .flex-1
         %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Por Cobrar
@@ -49,8 +49,11 @@
       .w-10.h-10.bg-blue-100.rounded-lg.flex.items-center.justify-center.text-xl
         📋
     .flex.items-center.gap-2.text-sm
-      - customers_count = Customer.with_credit_account.count
-      %span.text-slate-500= "#{customers_count} #{'cliente'.pluralize(customers_count)}"
+      - debtors_count = Customer.with_outstanding_balance.count
+      - if debtors_count > 0
+        %span.text-amber-600.font-medium= "#{debtors_count} #{'cliente'.pluralize(debtors_count)} con deuda"
+      - else
+        %span.text-emerald-600.font-medium Todos al día
   
   -# Compras del Mes
   .bg-white.border.border-slate-200.rounded-lg.p-6

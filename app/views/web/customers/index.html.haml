@@ -46,6 +46,8 @@
               Documento
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               Cuenta Corriente
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Saldo
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               Acciones
 
@@ -87,6 +89,19 @@
                 - else
                   %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
                     No
+
+              -# Saldo
+              %td.px-4.py-3.whitespace-nowrap.text-right
+                - if customer.has_credit_account?
+                  - balance = customer.current_balance
+                  - if balance == 0
+                    %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
+                      Al día
+                  - else
+                    %span.text-sm.font-semibold.text-amber-600
+                      = currency_ar_int(balance)
+                - else
+                  %span.text-xs.text-slate-400 —
 
               -# Acciones
               %td.px-4.py-3.whitespace-nowrap.text-center

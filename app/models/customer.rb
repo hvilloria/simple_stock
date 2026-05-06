@@ -22,6 +22,20 @@ class Customer < ApplicationRecord
   scope :workshops, -> { where(customer_type: "workshop") }
   scope :mechanics, -> { where(customer_type: "mechanic") }
   scope :stores, -> { where(customer_type: "store") }
+  scope :with_outstanding_balance, -> {
+    with_credit_account
+      .where(
+        "( SELECT COALESCE(SUM(o.total_amount), 0)
+           FROM orders o
+           WHERE o.customer_id = customers.id
+             AND o.order_type = 'credit'
+             AND o.status = 'confirmed' )
+         >
+         ( SELECT COALESCE(SUM(p.amount), 0)
+           FROM payments p
+           WHERE p.customer_id = customers.id )"
+      )
+  }
 
   # Retorna el cliente genérico para ventas de mostrador (contado)
   # Según FLUJOS.md sección 1: cliente genérico para consumidores finales
@@ -44,6 +58,16 @@ class Customer < ApplicationRecord
     total_payments = payments.sum(:amount) rescue 0  # rescue because Payment might not exist yet
 
     total_credit_sales - total_payments
+  end
+
+  def last_payment_date
+    payments.maximum(:payment_date)
+  end
+
+  def days_without_paying
+    return nil if last_payment_date.nil?
+
+    (Date.today - last_payment_date).to_i
   end
 
   private

@@ -56,12 +56,34 @@ RSpec.describe Payment, type: :model do
       it "is invalid when amount exceeds order total" do
         payment = build(:payment, customer: customer, order: credit_order, amount: credit_order.total_amount + 1)
         expect(payment).not_to be_valid
-        expect(payment.errors[:amount].first).to match(/no puede exceder el total de la orden/)
+        expect(payment.errors[:amount].first).to match(/no puede exceder el saldo pendiente de la orden/)
       end
 
       it "is valid when order is nil (standalone payment)" do
         payment = build(:payment, customer: customer, order: nil, amount: 999_999)
         expect(payment).to be_valid
+      end
+
+      context 'when order already has a partial payment' do
+        let(:partial_order) do
+          Sales::CreateOrder.call(
+            customer: customer,
+            items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+            order_type: 'credit',
+            initial_payment: { amount: 50, payment_method: 'cash' }
+          ).record
+        end
+
+        it 'is valid when amount covers remaining balance exactly' do
+          payment = build(:payment, customer: customer, order: partial_order, amount: 150)
+          expect(payment).to be_valid
+        end
+
+        it 'is invalid when amount exceeds remaining balance' do
+          payment = build(:payment, customer: customer, order: partial_order, amount: 151)
+          expect(payment).not_to be_valid
+          expect(payment.errors[:amount].first).to match(/no puede exceder el saldo pendiente de la orden/)
+        end
       end
     end
   end

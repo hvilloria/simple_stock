@@ -35,6 +35,9 @@ Rails.application.routes.draw do
     end
 
     resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do
+      collection do
+        get :debtors
+      end
       resources :payments, only: [ :new, :create ], module: :customers
     end
     resources :suppliers
