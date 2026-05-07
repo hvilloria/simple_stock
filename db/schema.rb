@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_04_28_215527) do
+ActiveRecord::Schema[7.2].define(version: 2026_05_03_211319) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -143,7 +143,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_04_28_215527) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "order_id"
     t.index ["customer_id"], name: "index_payments_on_customer_id"
+    t.index ["order_id"], name: "index_payments_on_order_id"
     t.index ["payment_date"], name: "index_payments_on_payment_date"
   end
 
@@ -282,6 +284,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_04_28_215527) do
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "customers"
   add_foreign_key "payments", "customers"
+  add_foreign_key "payments", "orders"
   add_foreign_key "sales_ledger_entries", "products"
   add_foreign_key "sales_ledger_entries", "sales_imports"
   add_foreign_key "sales_ledger_entries", "users", column: "seller_user_id", on_delete: :nullify

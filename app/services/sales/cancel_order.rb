@@ -15,6 +15,7 @@ module Sales
       ActiveRecord::Base.transaction do
         cancel_order
         reverse_stock_movements
+        destroy_associated_payments
 
         Result.new(success?: true, record: @order, errors: [])
       end
@@ -46,13 +47,17 @@ module Sales
           product: item.product,
           stock_location: stock_location,
           movement_type: "adjustment",
-          quantity: item.quantity,  # POSITIVO (reversa)
+          quantity: item.quantity,
           reference: @order,
           note: @reason || "Order ##{@order.id} cancellation"
         )
 
         raise ValidationError, result.errors.join(", ") if result.failure?
       end
+    end
+
+    def destroy_associated_payments
+      @order.payments.destroy_all
     end
   end
 end

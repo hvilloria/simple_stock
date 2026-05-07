@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "creditPaymentSection", "initialPaymentInput", "initialPaymentWarning"]
   static values = { initialItems: Array }
 
   connect() {
@@ -145,7 +145,7 @@ export default class extends Controller {
 
   updateOrderType(event) {
     const orderType = event.target.value
-    
+
     if (this.hasOrderTypeInfoTarget) {
       const infoTarget = this.orderTypeInfoTarget
 
@@ -161,6 +161,54 @@ export default class extends Controller {
         `
       }
     }
+
+    this.toggleCreditPaymentSection(orderType)
+  }
+
+  toggleCreditPaymentSection(orderType) {
+    if (!this.hasCreditPaymentSectionTarget) return
+
+    if (orderType === "credit") {
+      this.creditPaymentSectionTarget.classList.remove("hidden")
+    } else {
+      this.creditPaymentSectionTarget.classList.add("hidden")
+      if (this.hasInitialPaymentInputTarget) {
+        this.initialPaymentInputTarget.value = 0
+      }
+      if (this.hasInitialPaymentWarningTarget) {
+        this.initialPaymentWarningTarget.classList.add("hidden")
+      }
+    }
+    this.updateSummary()
+  }
+
+  updateInitialPayment(event) {
+    const value = parseFloat(event.currentTarget.value) || 0
+    const total = this.calculateTotal()
+
+    if (this.hasInitialPaymentWarningTarget) {
+      if (value > total) {
+        this.initialPaymentWarningTarget.classList.remove("hidden")
+      } else {
+        this.initialPaymentWarningTarget.classList.add("hidden")
+      }
+    }
+
+    if (this.hasSubmitButtonTarget) {
+      const overTotal = value > total
+      this.submitButtonTarget.disabled = overTotal || this.items.length === 0
+      if (overTotal || this.items.length === 0) {
+        this.submitButtonTarget.classList.add("opacity-50", "cursor-not-allowed")
+      } else {
+        this.submitButtonTarget.classList.remove("opacity-50", "cursor-not-allowed")
+      }
+    }
+
+    this.updateSummary()
+  }
+
+  calculateTotal() {
+    return this.items.reduce((sum, item) => sum + (item.price_unit * item.quantity), 0)
   }
 
   renderItems() {
@@ -243,14 +291,14 @@ export default class extends Controller {
   }
 
   updateSummary() {
-    const total = this.items.reduce((sum, item) => sum + (item.price_unit * item.quantity), 0)
+    const total = this.calculateTotal()
     const itemCount = this.items.length
     const totalQuantity = this.items.reduce((sum, item) => sum + item.quantity, 0)
 
     if (this.hasTotalTarget) {
       this.totalTarget.textContent = `$${this.formatCurrency(total)}`
     }
-    
+
     if (this.hasItemCountTarget) {
       this.itemCountTarget.textContent = `${itemCount} producto${itemCount !== 1 ? 's' : ''}`
     }
@@ -260,8 +308,19 @@ export default class extends Controller {
     }
 
     if (this.hasSubmitButtonTarget) {
-      this.submitButtonTarget.disabled = this.items.length === 0
-      if (this.items.length === 0) {
+      const initialPayment = this.hasInitialPaymentInputTarget ? (parseFloat(this.initialPaymentInputTarget.value) || 0) : 0
+      const overTotal = initialPayment > total
+
+      if (this.hasInitialPaymentWarningTarget) {
+        if (overTotal) {
+          this.initialPaymentWarningTarget.classList.remove('hidden')
+        } else {
+          this.initialPaymentWarningTarget.classList.add('hidden')
+        }
+      }
+
+      this.submitButtonTarget.disabled = this.items.length === 0 || overTotal
+      if (this.items.length === 0 || overTotal) {
         this.submitButtonTarget.classList.add('opacity-50', 'cursor-not-allowed')
       } else {
         this.submitButtonTarget.classList.remove('opacity-50', 'cursor-not-allowed')

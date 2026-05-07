@@ -61,7 +61,8 @@ module Web
         channel: params.dig(:order, :channel),
         source: params[:source] || "live",
         sale_date: params[:sale_date],
-        paper_number: params[:paper_number]
+        paper_number: params[:paper_number],
+        initial_payment: parse_initial_payment
       )
 
       if result.success?
@@ -116,6 +117,19 @@ module Web
           unit_price: item[:unit_price].present? ? item[:unit_price].to_f : nil # Permitir nil
         }
       end.reject { |item| item[:quantity] <= 0 }
+    end
+
+    def parse_initial_payment
+      return nil unless params.dig(:order, :order_type) == "credit"
+      return nil if params[:initial_payment_amount].blank?
+
+      amount = params[:initial_payment_amount].to_f
+      return nil if amount <= 0
+
+      {
+        amount: amount,
+        payment_method: params[:initial_payment_method].presence || "cash"
+      }
     end
 
     def find_or_create_customer

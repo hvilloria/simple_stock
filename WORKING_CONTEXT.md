@@ -56,7 +56,9 @@ Only includes behavior that is important for implementing features safely.
 ### Customer account payments (`Payment` model)
 
 * **`Payments::RegisterPayment`** creates a **`Payment`** tied only to **`customer`** (no `order_id`); **`Payment`** validates **`has_credit_account`** on the customer.
-* **No `web` routes** expose registering these payments (seeds/specs can call the service).
+* **`Sales::CreateOrder`** acepta `initial_payment: { amount:, payment_method: }` opcional para órdenes `credit`. Cuando viene, crea un **`Payment`** con `order_id` apuntando a la orden, dentro de la misma transacción.
+* **`Sales::CancelOrder`** destruye los **`Payment`** asociados a la orden (`@order.payments.destroy_all`) dentro de su transacción.
+* **`Web::Customers::PaymentsController`** registra pagos sueltos al cliente (`order_id: nil`).
 
 ### Sales ledger
 
@@ -68,7 +70,7 @@ Only includes behavior that is important for implementing features safely.
 
 * Do **not** bump **`products.current_stock`** ad hoc in controllers/views — keep stock changes through **`StockMovement`** + **`#recalculate_current_stock!`** as the code already does in services.
 * **Validate stock before selling** — enforced in **`Sales::CreateOrder`** against **`current_stock`**.
-* **Customer `Payment` records are not allocated to specific orders** in the schema; **`Customer#current_balance`** is derived from credit **`Order`** totals minus **`payments`**.
+* **Los `Payment` pueden estar atados a una `Order` (cobros iniciales de venta) o ser sueltos (`order_id: nil`, abonos de cuenta corriente)**; **`Customer#current_balance`** se sigue derivando de credit **`Order`** totals minus **`payments`** (ambos casos cuentan).
 * **`Customer` validation:** `retail` customers cannot have `has_credit_account: true` (`retail_cannot_have_credit_account`).
 * **`Order` validation:** `paper_number` is required when `source: 'from_paper'`; stock validation is skipped for `from_paper` orders.
 * Not every HTTP action uses a service: e.g. **pending invoice cancel** and **credit note** CRUD use **`update` / `save` / `destroy`** on models directly.
