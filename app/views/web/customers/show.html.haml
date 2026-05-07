@@ -1,0 +1,171 @@
+- content_for :page_title, @customer.name
+
+- customer_type_labels = { "retail" => "Minorista", "workshop" => "Taller", "mechanic" => "Mecánico", "store" => "Tienda" }
+- payment_method_labels = { "cash" => "Efectivo", "transfer" => "Transferencia", "check" => "Cheque", "card" => "Tarjeta" }
+
+.container.mx-auto.px-6.py-6
+
+  -# Header
+  .flex.items-center.justify-between.mb-6
+    .flex.items-center.gap-4
+      = link_to web_customers_path, class: "text-gray-600 hover:text-gray-900" do
+        %span.text-xl ←
+      %h1.text-3xl.font-bold.text-gray-900= @customer.name
+
+    .flex.items-center.gap-3
+      - if policy(@customer).edit?
+        = link_to "Editar", edit_web_customer_path(@customer), class: "px-4 py-2 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+
+      - if @customer.has_credit_account? && policy(Payment.new(customer: @customer)).new?
+        = link_to new_web_customer_payment_path(@customer), class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg transition-colors" do
+          %span +
+          %span Registrar Pago
+
+  -# Mensajes
+  - if flash[:notice]
+    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ✓
+      .flex-1
+        %h4.font-semibold.text-green-800.mb-1 Éxito
+        %p.text-sm.text-green-700= flash[:notice]
+
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Error
+        %p.text-sm.text-red-700= flash[:alert]
+
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+
+    -# Columna Izquierda (2/3)
+    .lg:col-span-2.space-y-6
+
+      -# Card Información
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Información
+
+        .space-y-3
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-32.flex-shrink-0 Nombre:
+            %span.font-medium.text-gray-900= @customer.name
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-32.flex-shrink-0 Tipo:
+            %span.text-gray-900= customer_type_labels[@customer.customer_type] || @customer.customer_type
+
+          - if @customer.document.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Documento:
+              %span.text-gray-900.font-mono= @customer.document
+
+          - if @customer.phone.present?
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-32.flex-shrink-0 Teléfono:
+              %span.text-gray-900= @customer.phone
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-32.flex-shrink-0 Cuenta corriente:
+            - if @customer.has_credit_account?
+              %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
+                Habilitada
+            - else
+              %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
+                No habilitada
+
+      -# Card Ventas a Crédito
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4
+          Ventas a Crédito
+          %span.text-sm.font-normal.text-gray-500
+            (#{@credit_orders.count})
+
+        - if @credit_orders.any?
+          .overflow-x-auto
+            %table.min-w-full.divide-y.divide-slate-200
+              %thead
+                %tr
+                  %th.px-3.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Fecha
+                  %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Total
+                  %th.px-3.py-2.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Estado
+
+              %tbody.divide-y.divide-slate-100
+                - @credit_orders.each do |order|
+                  %tr.hover:bg-slate-50.transition-colors
+                    %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
+                      = l(order.sale_date || order.created_at.to_date, format: :default)
+                    %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-slate-900
+                      = currency_ar_int(order.total_amount)
+                    %td.px-3.py-2.whitespace-nowrap.text-center
+                      - if order.confirmed_status?
+                        %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
+                          Confirmada
+                      - else
+                        %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
+                          = order.status
+        - else
+          %p.text-sm.text-slate-500.italic No hay ventas a crédito registradas.
+
+      -# Card Pagos
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4
+          Pagos
+          %span.text-sm.font-normal.text-gray-500
+            (#{@payments.count})
+
+        - if @payments.any?
+          .overflow-x-auto
+            %table.min-w-full.divide-y.divide-slate-200
+              %thead
+                %tr
+                  %th.px-3.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Fecha
+                  %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Monto
+                  %th.px-3.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Método
+                  %th.px-3.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Notas
+
+              %tbody.divide-y.divide-slate-100
+                - @payments.each do |payment|
+                  %tr.hover:bg-slate-50.transition-colors
+                    %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
+                      = l(payment.payment_date, format: :default)
+                    %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-emerald-700
+                      = currency_ar_int(payment.amount)
+                    %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
+                      = payment_method_labels[payment.payment_method] || payment.payment_method
+                    %td.px-3.py-2.text-sm.text-slate-600
+                      - if payment.notes.present?
+                        = payment.notes
+                      - else
+                        %span.text-xs.text-slate-400.italic -
+        - else
+          %p.text-sm.text-slate-500.italic No hay pagos registrados.
+
+    -# Columna Derecha (1/3)
+    .lg:col-span-1
+      - if @customer.has_credit_account?
+        .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Saldo
+
+          .text-center
+            %p.text-sm.text-gray-500.mb-1 Saldo actual
+            %p.text-3xl.font-bold{ class: @current_balance > 0 ? 'text-amber-600' : 'text-emerald-600' }
+              = currency_ar_int(@current_balance.abs)
+              - if @current_balance < 0
+                %span.text-sm.font-normal.block.mt-1 (a favor)
+              - elsif @current_balance == 0
+                %span.text-sm.font-normal.block.mt-1 (al día)
+              - else
+                %span.text-sm.font-normal.block.mt-1 (a cobrar)
+
+          - if policy(Payment.new(customer: @customer)).new?
+            .border-t.border-gray-200.pt-4.mt-4
+              = link_to new_web_customer_payment_path(@customer), class: "w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition-colors" do
+                %span +
+                %span Registrar Pago
+      - else
+        .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
+          %h3.text-lg.font-semibold.text-gray-900.mb-2 Cuenta Corriente
+          %p.text-sm.text-slate-600
+            Este cliente no tiene cuenta corriente habilitada.

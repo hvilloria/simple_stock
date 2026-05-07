@@ -34,7 +34,9 @@ Rails.application.routes.draw do
       post :cancel, on: :member
     end
 
-    resources :customers, only: [ :index ]
+    resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do
+      resources :payments, only: [ :new, :create ], module: :customers
+    end
     resources :suppliers
     resources :invoices, only: [ :index, :new, :create, :show, :edit, :update ] do
       collection do

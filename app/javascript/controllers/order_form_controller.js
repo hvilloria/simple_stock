@@ -1,11 +1,44 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio"]
+  static values = { initialItems: Array }
 
   connect() {
-    this.items = []
+    this.items = this.initialItemsValue.length > 0 ? this.initialItemsValue : []
+    this.renderItems()
     this.updateSummary()
+    this.applyCreditRadioState()
+  }
+
+  customerChanged(event) {
+    const select = event.target
+    const selectedOption = select.options[select.selectedIndex]
+    this.applyCreditRadioStateForOption(selectedOption)
+  }
+
+  applyCreditRadioState() {
+    const customerSelect = this.element.querySelector('select[name="order[customer_id]"]')
+    if (!customerSelect) return
+
+    const selectedOption = customerSelect.options[customerSelect.selectedIndex]
+    this.applyCreditRadioStateForOption(selectedOption)
+  }
+
+  applyCreditRadioStateForOption(selectedOption) {
+    if (!this.hasCreditRadioTarget) return
+
+    const hasCreditAccount = selectedOption && selectedOption.dataset.hasCreditAccount === "true"
+
+    if (hasCreditAccount) {
+      this.creditRadioTarget.disabled = false
+    } else {
+      if (this.creditRadioTarget.checked && this.hasImmediateRadioTarget) {
+        this.immediateRadioTarget.checked = true
+        this.immediateRadioTarget.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+      this.creditRadioTarget.disabled = true
+    }
   }
 
   addProduct(event) {
@@ -116,7 +149,7 @@ export default class extends Controller {
     if (this.hasOrderTypeInfoTarget) {
       const infoTarget = this.orderTypeInfoTarget
 
-      if (orderType === "cash") {
+      if (orderType === "immediate") {
         infoTarget.innerHTML = `
           <span>💵</span>
           <span class="text-gray-600">Contado - Pago inmediato</span>

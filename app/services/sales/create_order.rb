@@ -56,7 +56,7 @@ module Sales
 
     def validate_params
       # Validar order_type
-      unless %w[cash credit].include?(@order_type)
+      unless %w[immediate credit].include?(@order_type)
         raise ValidationError, "Invalid order type"
       end
 
@@ -76,11 +76,15 @@ module Sales
         raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
       end
 
-      # Validar stock ANTES de crear nada
-      @items.each do |item|
-        product = Product.find(item.product_id)
-        if product.current_stock < item.quantity
-          raise ValidationError, "Insufficient stock for #{product.name}. Available: #{product.current_stock}"
+      # Validar stock ANTES de crear nada.
+      # Se omite para ventas from_paper: el inventario puede estar en 0 mientras
+      # no se haya cargado el conteo físico. Revertir cuando el inventario esté listo.
+      unless @source == "from_paper"
+        @items.each do |item|
+          product = Product.find(item.product_id)
+          if product.current_stock < item.quantity
+            raise ValidationError, "Insufficient stock for #{product.name}. Available: #{product.current_stock}"
+          end
         end
       end
     end
@@ -132,7 +136,8 @@ module Sales
           movement_type: "sale",
           quantity: -order_item.quantity,
           reference: @order,
-          note: "Sale ##{@order.id}"
+          note: "Sale ##{@order.id}",
+          allow_negative: @source == "from_paper"
         )
 
         raise ValidationError, result.errors.join(", ") if result.failure?

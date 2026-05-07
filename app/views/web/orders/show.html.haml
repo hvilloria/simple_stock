@@ -74,7 +74,7 @@
             
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Tipo de Venta
-              - if @order.cash_order_type?
+              - if @order.immediate_order_type?
                 %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-gray-100.text-gray-700.w-fit
                   %span 💵
                   %span Contado

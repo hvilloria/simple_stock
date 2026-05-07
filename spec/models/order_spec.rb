@@ -8,7 +8,7 @@ RSpec.describe Order, type: :model do
 
   describe 'enums' do
     it { is_expected.to define_enum_for(:status).with_values(confirmed: 'confirmed', cancelled: 'cancelled').backed_by_column_of_type(:string).with_suffix }
-    it { is_expected.to define_enum_for(:order_type).with_values(cash: 'cash', credit: 'credit').backed_by_column_of_type(:string).with_suffix }
+    it { is_expected.to define_enum_for(:order_type).with_values(immediate: 'immediate', credit: 'credit').backed_by_column_of_type(:string).with_suffix }
   end
 
   describe 'validations' do
@@ -38,17 +38,17 @@ RSpec.describe Order, type: :model do
     end
 
     describe 'credit_order_requires_credit_account' do
-      context 'when order_type is cash' do
+      context 'when order_type is immediate' do
         it 'is valid even if customer does not have credit account' do
           customer = create(:customer, has_credit_account: false)
-          order = build(:order, order_type: 'cash', customer: customer)
+          order = build(:order, order_type: 'immediate', customer: customer)
           expect(order).to be_valid
         end
       end
 
       context 'when order_type is credit' do
         it 'is valid if customer has credit account' do
-          customer = create(:customer, has_credit_account: true)
+          customer = create(:customer, customer_type: "workshop", has_credit_account: true)
           order = build(:order, order_type: 'credit', customer: customer)
           expect(order).to be_valid
         end
@@ -96,7 +96,7 @@ RSpec.describe Order, type: :model do
       end
 
       it 'allows from_paper source' do
-        order = build(:order, source: 'from_paper', total_amount: 0)
+        order = build(:order, source: 'from_paper', total_amount: 0, paper_number: '0001')
         expect(order).to be_valid
       end
 
@@ -106,9 +106,27 @@ RSpec.describe Order, type: :model do
       end
     end
 
+    describe 'paper_number validation' do
+      it 'requires paper_number for from_paper orders' do
+        order = build(:order, source: 'from_paper', total_amount: 0, paper_number: nil)
+        expect(order).not_to be_valid
+        expect(order.errors[:paper_number]).to be_present
+      end
+
+      it 'is valid for from_paper orders with paper_number' do
+        order = build(:order, source: 'from_paper', total_amount: 0, paper_number: '0042')
+        expect(order).to be_valid
+      end
+
+      it 'does not require paper_number for live orders' do
+        order = build(:order, source: 'live', paper_number: nil)
+        expect(order).to be_valid
+      end
+    end
+
     describe 'total_amount validation with from_paper source' do
       it 'allows total_amount = 0 for from_paper orders' do
-        order = build(:order, source: 'from_paper', total_amount: 0)
+        order = build(:order, source: 'from_paper', total_amount: 0, paper_number: '0001')
         expect(order).to be_valid
       end
 
@@ -133,29 +151,29 @@ RSpec.describe Order, type: :model do
   end
 
   describe 'scopes' do
-    let!(:cash_order) { create(:order, order_type: 'cash') }
+    let!(:immediate_order) { create(:order, order_type: 'immediate') }
     let!(:credit_order) { create(:order, :credit_order) }
     let!(:cancelled_order) { create(:order, :cancelled) }
     let!(:live_order) { create(:order, source: 'live') }
-    let!(:paper_order) { create(:order, source: 'from_paper', total_amount: 0) }
+    let!(:paper_order) { create(:order, :from_paper) }
 
-    describe '.cash' do
-      it 'returns only cash orders' do
-        expect(Order.cash).to include(cash_order)
-        expect(Order.cash).not_to include(credit_order)
+    describe '.immediate' do
+      it 'returns only immediate orders' do
+        expect(Order.immediate).to include(immediate_order)
+        expect(Order.immediate).not_to include(credit_order)
       end
     end
 
     describe '.credit' do
       it 'returns only credit orders' do
         expect(Order.credit).to include(credit_order)
-        expect(Order.credit).not_to include(cash_order)
+        expect(Order.credit).not_to include(immediate_order)
       end
     end
 
     describe '.active' do
       it 'returns only non-cancelled orders' do
-        expect(Order.active).to include(cash_order, credit_order)
+        expect(Order.active).to include(immediate_order, credit_order)
         expect(Order.active).not_to include(cancelled_order)
       end
     end
@@ -203,20 +221,20 @@ RSpec.describe Order, type: :model do
   end
 
   describe 'business rules' do
-    it 'allows a customer to have both cash and credit orders' do
-      customer = create(:customer, has_credit_account: true)
+    it 'allows a customer to have both immediate and credit orders' do
+      customer = create(:customer, customer_type: "workshop", has_credit_account: true)
 
-      cash_order = create(:order, order_type: 'cash', customer: customer)
+      immediate_order = create(:order, order_type: 'immediate', customer: customer)
       credit_order = create(:order, order_type: 'credit', customer: customer)
 
-      expect(cash_order).to be_valid
+      expect(immediate_order).to be_valid
       expect(credit_order).to be_valid
-      expect(customer.orders).to include(cash_order, credit_order)
+      expect(customer.orders).to include(immediate_order, credit_order)
     end
 
     it 'credit orders are only for customers with credit account enabled' do
       customer_without_credit = create(:customer, has_credit_account: false)
-      customer_with_credit = create(:customer, has_credit_account: true)
+      customer_with_credit = create(:customer, customer_type: "workshop", has_credit_account: true)
 
       order1 = build(:order, order_type: 'credit', customer: customer_without_credit)
       order2 = build(:order, order_type: 'credit', customer: customer_with_credit)

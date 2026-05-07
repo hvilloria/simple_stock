@@ -9,6 +9,34 @@ RSpec.describe Customer, type: :model do
   describe 'validations' do
     it { should validate_presence_of(:name) }
     it { should validate_presence_of(:customer_type) }
+
+    describe 'retail customers cannot have a credit account' do
+      it 'is invalid when a retail customer has has_credit_account: true' do
+        customer = build(:customer, customer_type: 'retail', has_credit_account: true)
+        expect(customer).not_to be_valid
+        expect(customer.errors[:has_credit_account]).to include('no puede estar habilitada para clientes minoristas')
+      end
+
+      it 'is valid when a retail customer does not have a credit account' do
+        customer = build(:customer, customer_type: 'retail', has_credit_account: false)
+        expect(customer).to be_valid
+      end
+
+      it 'is valid when a workshop customer has a credit account' do
+        customer = build(:customer, :workshop)
+        expect(customer).to be_valid
+      end
+
+      it 'is valid when a mechanic customer has a credit account' do
+        customer = build(:customer, :mechanic)
+        expect(customer).to be_valid
+      end
+
+      it 'is valid when a store customer has a credit account' do
+        customer = build(:customer, :store)
+        expect(customer).to be_valid
+      end
+    end
   end
 
   describe 'enums' do
@@ -30,20 +58,20 @@ RSpec.describe Customer, type: :model do
 
   describe 'scopes' do
     let!(:retail_customer) { create(:customer, customer_type: 'retail') }
+    let!(:retail_customer_no_credit) { create(:customer, customer_type: 'retail') }
     let!(:workshop_customer) { create(:customer, :workshop) }
     let!(:mechanic_customer) { create(:customer, :mechanic) }
     let!(:store_customer) { create(:customer, :store) }
-    let!(:credit_customer) { create(:customer, :with_credit, customer_type: 'retail') }
 
     describe '.with_credit_account' do
       it 'returns only customers with credit account' do
-        expect(Customer.with_credit_account).to contain_exactly(workshop_customer, mechanic_customer, store_customer, credit_customer)
+        expect(Customer.with_credit_account).to contain_exactly(workshop_customer, mechanic_customer, store_customer)
       end
     end
 
     describe '.retail' do
       it 'returns only retail customers' do
-        expect(Customer.retail).to include(retail_customer, credit_customer)
+        expect(Customer.retail).to include(retail_customer, retail_customer_no_credit)
       end
     end
 
@@ -126,12 +154,12 @@ RSpec.describe Customer, type: :model do
         end
       end
 
-      context 'with cash orders' do
+      context 'with immediate orders' do
         before do
-          create(:order, customer: customer, order_type: 'cash', status: 'confirmed', total_amount: 1000)
+          create(:order, customer: customer, order_type: 'immediate', status: 'confirmed', total_amount: 1000)
         end
 
-        it 'does not include cash orders in balance' do
+        it 'does not include immediate orders in balance' do
           expect(customer.current_balance).to eq(0)
         end
       end

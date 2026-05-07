@@ -1,0 +1,11 @@
+- content_for :page_title, "Editar Cliente"
+
+.container.mx-auto.px-6.py-6.max-w-2xl
+
+  -# Header
+  .flex.items-center.gap-4.mb-6
+    = link_to web_customer_path(@customer), class: "text-gray-600 hover:text-gray-900" do
+      %span.text-xl ←
+    %h1.text-3xl.font-bold.text-gray-900 Editar Cliente
+
+  = render "form", submit_label: "Guardar Cambios", cancel_path: web_customer_path(@customer)

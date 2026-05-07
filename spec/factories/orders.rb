@@ -2,7 +2,7 @@ FactoryBot.define do
   factory :order do
     customer { Customer.mostrador }
     status { "confirmed" }
-    order_type { "cash" }
+    order_type { "immediate" }
     total_amount { 100.0 }
     channel { nil }
     source { "live" }

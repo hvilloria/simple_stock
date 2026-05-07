@@ -328,7 +328,7 @@ ventas_fallidas = 0
   result = Sales::CreateOrder.call(
     customer: mostrador,
     items: items,
-    order_type: "cash",
+    order_type: "immediate",
     channel: [ 'counter', 'whatsapp', 'mercadolibre' ].sample
   )
 
@@ -639,7 +639,7 @@ puts "  Saldo total disponible: $#{CreditNote.available.sum { |cn| cn.remaining_
 
 puts "\n💰 Ventas:"
 puts "  Total: #{Order.where.not(status: 'cancelled').count}"
-puts "  Contado: #{Order.where(order_type: 'cash').where.not(status: 'cancelled').count}"
+puts "  Contado: #{Order.where(order_type: 'immediate').where.not(status: 'cancelled').count}"
 puts "  Crédito: #{Order.where(order_type: 'credit').where.not(status: 'cancelled').count}"
 puts "  Items vendidos: #{OrderItem.sum(:quantity)}"
 puts "  Total facturado: $#{Order.where.not(status: 'cancelled').sum(:total_amount).to_i}"

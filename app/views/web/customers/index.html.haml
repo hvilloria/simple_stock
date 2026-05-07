@@ -1,8 +1,110 @@
 - content_for :page_title, "Clientes"
 
-.flex.items-center.justify-between.mb-6
-  %h1.text-3xl.font-bold.text-gray-900 Clientes
+- customer_type_labels = { "retail" => "Minorista", "workshop" => "Taller", "mechanic" => "Mecánico", "store" => "Tienda" }
 
-.bg-white.rounded-2xl.shadow-soft.p-6
-  %p.text-gray-600 Próximamente: Listado de clientes
+.container.mx-auto.px-6.py-6
 
+  -# Header
+  .flex.items-center.justify-between.mb-6
+    %h1.text-3xl.font-bold.text-gray-900 Clientes
+
+    - if policy(Customer.new).new?
+      = link_to new_web_customer_path, class: "inline-flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
+        %span +
+        %span Nuevo Cliente
+
+  -# Mensajes
+  - if flash[:notice]
+    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ✓
+      .flex-1
+        %h4.font-semibold.text-green-800.mb-1 Éxito
+        %p.text-sm.text-green-700= flash[:notice]
+
+  - if flash[:alert]
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
+      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
+        ⚠️
+      .flex-1
+        %h4.font-semibold.text-red-800.mb-1 Error
+        %p.text-sm.text-red-700= flash[:alert]
+
+  -# Lista de clientes en tabla
+  - if @customers.any?
+    .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+      %table.min-w-full.divide-y.divide-slate-200
+        %thead.bg-slate-50
+          %tr
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Nombre
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Tipo
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Teléfono
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Documento
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Cuenta Corriente
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Acciones
+
+        %tbody.divide-y.divide-slate-100.bg-white
+          - @customers.each do |customer|
+            %tr.hover:bg-slate-50.transition-colors
+              -# Nombre
+              %td.px-4.py-3.whitespace-nowrap
+                .flex.items-center.gap-3
+                  .w-10.h-10.rounded-lg.bg-slate-100.flex.items-center.justify-center.text-xl.flex-shrink-0
+                    👤
+                  %div
+                    %p.text-sm.font-semibold.text-slate-900= customer.name
+
+              -# Tipo
+              %td.px-4.py-3.whitespace-nowrap
+                %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
+                  = customer_type_labels[customer.customer_type] || customer.customer_type
+
+              -# Teléfono
+              %td.px-4.py-3.whitespace-nowrap
+                - if customer.phone.present?
+                  %span.text-sm.text-slate-700= customer.phone
+                - else
+                  %span.text-xs.text-slate-400.italic -
+
+              -# Documento
+              %td.px-4.py-3.whitespace-nowrap
+                - if customer.document.present?
+                  %span.text-sm.font-mono.text-slate-700= customer.document
+                - else
+                  %span.text-xs.text-slate-400.italic -
+
+              -# Cuenta corriente
+              %td.px-4.py-3.whitespace-nowrap.text-center
+                - if customer.has_credit_account?
+                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
+                    Sí
+                - else
+                  %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
+                    No
+
+              -# Acciones
+              %td.px-4.py-3.whitespace-nowrap.text-center
+                .flex.items-center.justify-center.gap-2
+                  = link_to web_customer_path(customer), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Ver detalle" do
+                    %span 👁️
+
+                  - if policy(customer).edit?
+                    = link_to edit_web_customer_path(customer), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Editar" do
+                      %span ✏️
+
+  - else
+    .bg-white.border.border-slate-200.rounded-lg.p-12.text-center
+      .inline-flex.w-20.h-20.rounded-full.bg-slate-100.items-center.justify-center.text-4xl.mb-4
+        👤
+      %h3.text-xl.font-bold.text-slate-900.mb-2 No hay clientes registrados
+      %p.text-slate-600.mb-6 Creá tu primer cliente para comenzar a gestionar cuentas corrientes
+      - if policy(Customer.new).new?
+        = link_to new_web_customer_path, class: "inline-flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
+          %span +
+          %span Nuevo Cliente
