@@ -89,22 +89,32 @@
                 %tr
                   %th.px-3.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Fecha
                   %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Total
+                  %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Cobrado
+                  %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Pendiente
                   %th.px-3.py-2.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Estado
 
               %tbody.divide-y.divide-slate-100
                 - @credit_orders.each do |order|
-                  %tr.hover:bg-slate-50.transition-colors
+                  - pending = order.outstanding_balance
+                  %tr.hover:bg-slate-50.transition-colors.cursor-pointer{ onclick: "window.location='#{web_order_path(order)}'" }
                     %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
                       = l(order.sale_date || order.created_at.to_date, format: :default)
                     %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-slate-900
                       = currency_ar_int(order.total_amount)
+                    %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.text-emerald-700
+                      = currency_ar_int(order.payments.map(&:amount).sum)
+                    %td.px-3.py-2.whitespace-nowrap.text-right.text-sm
+                      %span{ class: pending > 0 ? 'font-semibold text-amber-600' : 'text-slate-400' }
+                        = currency_ar_int(pending)
                     %td.px-3.py-2.whitespace-nowrap.text-center
-                      - if order.confirmed_status?
-                        %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
-                          Confirmada
+                      - if pending == 0
+                        %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
+                          Al día
                       - else
-                        %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
-                          = order.status
+                        %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-700
+                          Pendiente
+          %p.text-xs.text-slate-400.italic.mt-2
+            * El saldo pendiente por venta solo refleja cobros vinculados directamente a esa venta. Los abonos a cuenta se descuentan del saldo total del cliente.
         - else
           %p.text-sm.text-slate-500.italic No hay ventas a crédito registradas.
 

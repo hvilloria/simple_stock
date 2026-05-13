@@ -200,4 +200,79 @@ RSpec.describe Customer, type: :model do
       end
     end
   end
+
+  describe '.with_outstanding_balance' do
+    let!(:stock_location) { create(:stock_location) }
+    let(:product) { create(:product, current_stock: 50, price_unit: 100) }
+
+    let(:debtor) { create(:customer, :with_credit) }
+    let(:paid_up) { create(:customer, :with_credit) }
+    let(:no_credit) { create(:customer, has_credit_account: false) }
+
+    before do
+      # debtor: orden de $200, sin pagos
+      Sales::CreateOrder.call(
+        customer: debtor,
+        items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+        order_type: 'credit'
+      )
+
+      # paid_up: orden de $100, pagada completamente
+      Sales::CreateOrder.call(
+        customer: paid_up,
+        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+        order_type: 'credit',
+        initial_payment: { amount: 100, payment_method: 'cash' }
+      )
+    end
+
+    it 'includes customers with outstanding balance' do
+      expect(Customer.with_outstanding_balance).to include(debtor)
+    end
+
+    it 'excludes customers with zero balance' do
+      expect(Customer.with_outstanding_balance).not_to include(paid_up)
+    end
+
+    it 'excludes customers without credit account' do
+      expect(Customer.with_outstanding_balance).not_to include(no_credit)
+    end
+
+    it 'excludes "Cliente Mostrador"' do
+      Customer.mostrador # ensure the record exists in DB
+      expect(Customer.with_outstanding_balance.map(&:name)).not_to include('Cliente Mostrador')
+    end
+  end
+
+  describe '#last_payment_date' do
+    let(:customer) { create(:customer, :with_credit) }
+
+    it 'returns nil when no payments exist' do
+      expect(customer.last_payment_date).to be_nil
+    end
+
+    it 'returns the most recent payment date' do
+      create(:payment, customer: customer, payment_date: 5.days.ago.to_date)
+      create(:payment, customer: customer, payment_date: 2.days.ago.to_date)
+      expect(customer.last_payment_date).to eq(2.days.ago.to_date)
+    end
+  end
+
+  describe '#days_without_paying' do
+    let(:customer) { create(:customer, :with_credit) }
+
+    it 'returns nil when no payments exist' do
+      expect(customer.days_without_paying).to be_nil
+    end
+
+    it 'returns 0 when last payment is today' do
+      create(:payment, customer: customer, payment_date: Date.today)
+      expect(customer.days_without_paying).to eq(0)
+    end
+
+    it 'returns number of days since last payment' do
+      create(:payment, customer: customer, payment_date: 7.days.ago.to_date)
+      expect(customer.days_without_paying).to eq(7)
+    end
+  end
 end

@@ -21,7 +21,7 @@ Only includes behavior that is important for implementing features safely.
 * **Dashboard** (`web/dashboard#index`): metrics include “sales today” = sum of **confirmed** orders where **`created_at`** is today (not `sale_date`); receivables = sum of `Customer#current_balance` for customers with credit; low-stock lists; recent orders ordered by `created_at`.
 * **Products**: CRUD without destroy; collection **`search`**; nested **`stock_movements`** new/create → `Inventory::AdjustStock` (stock location = **`StockLocation.first!`**).
 * **Orders**: index/show/new/create; member **POST `cancel`** → `Sales::CancelOrder`. Create builds items from **`purchase_items`** params and resolves customer via **`Customer.mostrador`** when `customer_id` is blank or `"mostrador"`.
-* **Customers**: index/show/new/create/edit/update; nested **`payments`** new/create → `Payments::RegisterPayment` (module `Web::Customers`).
+* **Customers**: index/show/new/create/edit/update; **`debtors`** collection → lista de clientes con balance > 0 ordenada por deuda; nested **`payments`** new/create → `Payments::RegisterPayment` (module `Web::Customers`).
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
 * **Credit notes**: full CRUD + **`supplier_invoices`** JSON for pending simple invoices by supplier — **direct ActiveRecord** in the controller (no dedicated service class).
@@ -59,6 +59,10 @@ Only includes behavior that is important for implementing features safely.
 * **`Sales::CreateOrder`** acepta `initial_payment: { amount:, payment_method: }` opcional para órdenes `credit`. Cuando viene, crea un **`Payment`** con `order_id` apuntando a la orden, dentro de la misma transacción.
 * **`Sales::CancelOrder`** destruye los **`Payment`** asociados a la orden (`@order.payments.destroy_all`) dentro de su transacción.
 * **`Web::Customers::PaymentsController`** registra pagos sueltos al cliente (`order_id: nil`).
+* **`Order#outstanding_balance`** = `total_amount - order.payments.sum(:amount)` — solo cuenta pagos vinculados directamente a la orden (no pagos sueltos del cliente). Returns 0 for immediate and cancelled orders.
+* **`Customer#last_payment_date`** / **`#days_without_paying`** — helpers para la vista de deudores.
+* **`Customer.with_outstanding_balance`** scope — clientes cuyas ventas a crédito confirmadas superan el total de sus pagos.
+* **`Payment#amount_within_order_total`** valida contra el saldo pendiente de la orden (`order.outstanding_balance` excluyendo el pago actual), no contra el total. Fix de bug: antes comparaba contra `total_amount`.
 
 ### Sales ledger
 

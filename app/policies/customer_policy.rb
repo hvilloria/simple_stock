@@ -5,6 +5,10 @@ class CustomerPolicy < ApplicationPolicy
     true  # Todos ven clientes
   end
 
+  def debtors?
+    index?
+  end
+
   def show?
     true
   end

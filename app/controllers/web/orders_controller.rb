@@ -103,7 +103,7 @@ module Web
     end
 
     def load_order
-      @order = Order.find(params[:id])
+      @order = Order.includes(order_items: :product, stock_movements: [ :product, :stock_location ], payments: []).find(params[:id])
     end
 
     def parse_items

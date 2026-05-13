@@ -21,7 +21,7 @@
       %span Productos
     
     -# Ventas (con submenu desplegable)
-    - ventas_active = controller_path.start_with?('web/sales_ledger')
+    - ventas_active = controller_path.start_with?('web/sales_ledger') || controller_name == 'orders'
     .nav-group{ data: { controller: "dropdown" } }
       %button.nav-item.nav-group-toggle{
         type: "button",
@@ -37,6 +37,10 @@
             ▼
 
       .nav-submenu.pl-8.border-l-2.border-slate-200.ml-4{ data: { dropdown_target: "menu" } }
+        = link_to web_orders_path, class: "nav-subitem #{controller_name == 'orders' ? 'active' : ''}" do
+          %span.text-base 🧾
+          %span Ventas del Sistema
+
         = link_to web_sales_ledger_imports_path, class: "nav-subitem #{controller_name == 'imports' ? 'active' : ''}" do
           %span.text-base 📋
           %span Ventas Importadas
@@ -45,9 +49,36 @@
           %span.text-base 📊
           %span Reportes
     
-    = link_to web_customers_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'customers' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
-      %span.text-base 👥
-      %span Clientes
+    -# Clientes (con submenu)
+    - clientes_active = controller_name == 'customers' || controller_path.start_with?('web/customers/')
+    - debtors_count = Customer.with_outstanding_balance.count
+    .nav-group{ data: { controller: "dropdown" } }
+      %button.nav-item.nav-group-toggle{
+        type: "button",
+        data: { action: "click->dropdown#toggle" },
+        class: (clientes_active ? 'bg-slate-100' : '')
+      }
+        .flex.items-center.justify-between.w-full
+          .flex.items-center.gap-3
+            .nav-icon
+              %span.text-base 👥
+            %span.font-medium.text-slate-900 Clientes
+          .nav-arrow{ data: { dropdown_target: "arrow" } }
+            ▼
+
+      .nav-submenu.pl-8.border-l-2.border-slate-200.ml-4{ data: { dropdown_target: "menu" } }
+        = link_to web_customers_path, class: "nav-subitem #{(clientes_active && action_name != 'debtors') ? 'active' : ''}" do
+          %span.text-base 👤
+          %span Todos los Clientes
+
+        = link_to debtors_web_customers_path, class: "nav-subitem #{(controller_name == 'customers' && action_name == 'debtors') ? 'active' : ''}" do
+          .flex.items-center.justify-between.w-full
+            .flex.items-center.gap-2
+              %span.text-base 💳
+              %span Cuentas por Cobrar
+            - if debtors_count > 0
+              %span.inline-flex.items-center.justify-center.w-5.h-5.rounded-full.bg-amber-100.text-amber-700.text-xs.font-bold
+                = debtors_count
     
     -# Facturación (con submenu desplegable)
     .nav-group{ data: { controller: "dropdown" } }

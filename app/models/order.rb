@@ -3,6 +3,7 @@ class Order < ApplicationRecord
   belongs_to :customer, optional: true
   has_many :order_items, dependent: :destroy
   has_many :products, through: :order_items
+  has_many :payments, dependent: :destroy
   has_many :stock_movements, as: :reference, dependent: :nullify
   has_many :payments, dependent: :destroy
 
@@ -56,6 +57,16 @@ class Order < ApplicationRecord
   # Validación de total_amount:
   #   - Ventas 'live': total_amount DEBE ser > 0
   #   - Ventas 'from_paper': total_amount PUEDE ser >= 0 (incluso 0 si precios desconocidos)
+
+  # Monto pendiente de cobrar para esta orden específica.
+  # Solo considera pagos directamente vinculados via order_id.
+  # Los pagos sueltos del cliente (sin order_id) no se descontan aquí.
+  def outstanding_balance
+    return 0 unless credit_order_type?
+    return 0 if cancelled_status?
+
+    total_amount - payments.sum(:amount)
+  end
 
   def from_paper?
     source == "from_paper"
