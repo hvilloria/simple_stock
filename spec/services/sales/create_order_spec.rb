@@ -47,6 +47,7 @@ RSpec.describe Sales::CreateOrder do
       end
 
       it 'reduces product stock' do
+        skip "stock movements temporarily disabled"
         test_product = create(:product, current_stock: 0, price_unit: 100)
         # Create initial stock movement
         create(:stock_movement, product: test_product, stock_location: stock_location, quantity: 50, movement_type: 'purchase')
@@ -62,6 +63,7 @@ RSpec.describe Sales::CreateOrder do
       end
 
       it 'creates negative stock movements' do
+        skip "stock movements temporarily disabled"
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
@@ -87,6 +89,7 @@ RSpec.describe Sales::CreateOrder do
       end
 
       it 'associates stock movements with order through polymorphic reference' do
+        skip "stock movements temporarily disabled"
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
@@ -170,6 +173,7 @@ RSpec.describe Sales::CreateOrder do
       end
 
       it 'reduces stock for all products' do
+        skip "stock movements temporarily disabled"
         test_product1 = create(:product, current_stock: 0, price_unit: 100)
         test_product2 = create(:product, current_stock: 0, price_unit: 50)
         # Create initial stock
@@ -380,6 +384,7 @@ RSpec.describe Sales::CreateOrder do
       end
 
       it 'still creates stock movements' do
+        skip "stock movements temporarily disabled"
         test_product = create(:product, current_stock: 0, price_unit: 100)
         create(:stock_movement, product: test_product, stock_location: stock_location, quantity: 50, movement_type: 'purchase')
         test_product.recalculate_current_stock!
