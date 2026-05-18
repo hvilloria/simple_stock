@@ -283,18 +283,18 @@
           .border-t.border-gray-200.py-4
             %h4.text-sm.font-semibold.text-gray-900.mb-3 Pagos de esta Venta
 
-            - order_payments = @order.payments.order(payment_date: :asc)
-            - if order_payments.any?
+            - allocations = @order.payment_allocations.includes(:payment).joins(:payment).order("payments.payment_date ASC")
+            - if allocations.any?
               .space-y-2.mb-3
-                - order_payments.each do |p|
+                - allocations.each do |a|
                   .flex.justify-between.items-center.text-sm
-                    %span.text-gray-500= l(p.payment_date, format: :default)
-                    %span.font-medium.text-emerald-700= currency_ar(p.amount)
+                    %span.text-gray-500= l(a.payment.payment_date, format: :default)
+                    %span.font-medium.text-emerald-700= currency_ar(a.amount)
 
               .border-t.border-gray-100.pt-2.space-y-1
                 .flex.justify-between.text-sm
                   %span.text-gray-600 Total cobrado
-                  %span.font-medium.text-gray-900= currency_ar(order_payments.sum(:amount))
+                  %span.font-medium.text-gray-900= currency_ar(allocations.sum(:amount))
                 .flex.justify-between.text-sm
                   %span.text-gray-600 Pendiente
                   - pending = @order.outstanding_balance

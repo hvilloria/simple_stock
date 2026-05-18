@@ -14,8 +14,8 @@ module Sales
 
       ActiveRecord::Base.transaction do
         cancel_order
-        reverse_stock_movements
-        destroy_associated_payments
+        # reverse_stock_movements, commented out until we have a updated stock.
+        destroy_associated_allocations
 
         Result.new(success?: true, record: @order, errors: [])
       end
@@ -56,8 +56,8 @@ module Sales
       end
     end
 
-    def destroy_associated_payments
-      @order.payments.destroy_all
+    def destroy_associated_allocations
+      @order.payment_allocations.destroy_all
     end
   end
 end

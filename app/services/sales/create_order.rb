@@ -54,7 +54,7 @@ module Sales
       ActiveRecord::Base.transaction do
         create_order
         create_order_items
-        create_stock_movements
+        # create_stock_movements, Commented out until we have a updated stock.
         create_initial_payment if @initial_payment
 
         Result.new(success?: true, record: @order, errors: [])
@@ -182,12 +182,17 @@ module Sales
     end
 
     def create_initial_payment
-      Payment.create!(
+      payment = Payment.create!(
         customer: @customer,
-        order: @order,
         amount: @initial_payment[:amount],
         payment_method: @initial_payment[:payment_method],
         payment_date: @sale_date
+      )
+
+      PaymentAllocation.create!(
+        payment: payment,
+        order: @order,
+        amount: @initial_payment[:amount]
       )
     end
   end

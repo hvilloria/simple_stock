@@ -21,7 +21,7 @@ Only includes behavior that is important for implementing features safely.
 * **Dashboard** (`web/dashboard#index`): metrics include “sales today” = sum of **confirmed** orders where **`created_at`** is today (not `sale_date`); receivables = sum of `Customer#current_balance` for customers with credit; low-stock lists; recent orders ordered by `created_at`.
 * **Products**: CRUD without destroy; collection **`search`**; nested **`stock_movements`** new/create → `Inventory::AdjustStock` (stock location = **`StockLocation.first!`**).
 * **Orders**: index/show/new/create; member **POST `cancel`** → `Sales::CancelOrder`. Create builds items from **`purchase_items`** params and resolves customer via **`Customer.mostrador`** when `customer_id` is blank or `"mostrador"`.
-* **Customers**: index/show/new/create/edit/update; **`debtors`** collection → lista de clientes con balance > 0 ordenada por deuda; nested **`payments`** new/create → `Payments::RegisterPayment` (module `Web::Customers`).
+* **Customers**: index/show/new/create/edit/update; **`debtors`** collection → lista de clientes con balance > 0 ordenada por deuda; nested **`payments`** new/create → `Payments::AllocatePayment` (module `Web::Customers`). El form de cobro permite distribuir el pago entre una o varias órdenes pendientes con método de pago independiente por fila.
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
 * **Credit notes**: full CRUD + **`supplier_invoices`** JSON for pending simple invoices by supplier — **direct ActiveRecord** in the controller (no dedicated service class).
@@ -53,16 +53,20 @@ Only includes behavior that is important for implementing features safely.
   * **`Invoices::ProcessPayment`** — batch for one supplier; can create **`AppliedCredit`** rows from **`CreditNote`** then mark invoices paid.
 * **Canceling** a pending simple invoice (`Web::InvoicesController#cancel`) sets **`status: cancelled`** only — **still no stock** (consistent with simple invoices not touching inventory).
 
-### Customer account payments (`Payment` model)
+### Customer account payments (`Payment` + `PaymentAllocation` models)
 
-* **`Payments::RegisterPayment`** creates a **`Payment`** tied only to **`customer`** (no `order_id`); **`Payment`** validates **`has_credit_account`** on the customer.
-* **`Sales::CreateOrder`** acepta `initial_payment: { amount:, payment_method: }` opcional para órdenes `credit`. Cuando viene, crea un **`Payment`** con `order_id` apuntando a la orden, dentro de la misma transacción.
-* **`Sales::CancelOrder`** destruye los **`Payment`** asociados a la orden (`@order.payments.destroy_all`) dentro de su transacción.
-* **`Web::Customers::PaymentsController`** registra pagos sueltos al cliente (`order_id: nil`).
-* **`Order#outstanding_balance`** = `total_amount - order.payments.sum(:amount)` — solo cuenta pagos vinculados directamente a la orden (no pagos sueltos del cliente). Returns 0 for immediate and cancelled orders.
+* **`Payment`** representa un *tender* (entrega física de dinero con un método único). Pertenece al `customer`; **ya no tiene `order_id`**. Validaciones: `customer_must_have_credit_account`, `amount > 0`, `payment_method ∈ %w[cash transfer check card]`.
+* **`PaymentAllocation`** (join `payment_allocations(payment_id, order_id, amount)`) distribuye el monto de un Payment sobre una o varias órdenes. Validaciones: `amount > 0`, `order_belongs_to_payment_customer`, `amount_within_order_outstanding_balance` (con `where.not(id: id)` para excluir la allocation actual). Índice único `(payment_id, order_id)`.
+* **Invariante:** `payment.amount == SUM(payment.allocations.amount)` — garantizada por el servicio, no por una validación de modelo.
+* **`Payments::AllocatePayment`** servicio principal del web. Recibe `customer:, payment_date:, notes:, allocations: [{order_id:, amount:, payment_method:}]`, **agrupa por `payment_method`** y crea un `Payment` por grupo + sus `PaymentAllocation`s en una sola transacción. Valida que cada orden pertenezca al cliente, sea `credit + confirmed`, y que el monto no exceda el `outstanding_balance` de cada orden.
+* **`Sales::CreateOrder`** con `initial_payment: { amount:, payment_method: }` crea un `Payment` + 1 `PaymentAllocation` apuntando a la nueva orden, dentro de la misma transacción.
+* **`Sales::CancelOrder`** destruye las `PaymentAllocation` de la orden cancelada (`@order.payment_allocations.destroy_all`); los `Payment` **quedan vivos** (known limitation — pueden quedar huérfanos sin asignación, el `current_balance` del cliente los sigue descontando como crédito a favor).
+* **`Order#outstanding_balance`** = `total_amount - payment_allocations.sum(:amount)` para `credit + confirmed`; `0` para `immediate` o `cancelled`.
+* **`Customer#current_balance`** suma `total_amount` de credit orders confirmadas y le resta `payments.sum(:amount)` (a nivel de tender — sin tocar allocations).
 * **`Customer#last_payment_date`** / **`#days_without_paying`** — helpers para la vista de deudores.
 * **`Customer.with_outstanding_balance`** scope — clientes cuyas ventas a crédito confirmadas superan el total de sus pagos.
-* **`Payment#amount_within_order_total`** valida contra el saldo pendiente de la orden (`order.outstanding_balance` excluyendo el pago actual), no contra el total. Fix de bug: antes comparaba contra `total_amount`.
+* **`Web::Customers::PaymentsController#new`** muestra una tabla con todas las órdenes pendientes; cada fila tiene checkbox de inclusión, monto editable, y método de pago propio. El submit POST recibe `params[:allocations]` indexado (`allocations[N][order_id|include|amount|payment_method]`) y delega en `Payments::AllocatePayment`. Stimulus controller (`payment_allocation_controller.js`) recalcula resumen en vivo y deshabilita submit si no hay órdenes tildadas.
+* **`payments` table** ya no tiene la columna `order_id` — la relación vive en `payment_allocations`. `Payments::RegisterPayment` queda en codebase pero sin callers (deprecated).
 
 ### Sales ledger
 
@@ -74,7 +78,7 @@ Only includes behavior that is important for implementing features safely.
 
 * Do **not** bump **`products.current_stock`** ad hoc in controllers/views — keep stock changes through **`StockMovement`** + **`#recalculate_current_stock!`** as the code already does in services.
 * **Validate stock before selling** — enforced in **`Sales::CreateOrder`** against **`current_stock`**.
-* **Los `Payment` pueden estar atados a una `Order` (cobros iniciales de venta) o ser sueltos (`order_id: nil`, abonos de cuenta corriente)**; **`Customer#current_balance`** se sigue derivando de credit **`Order`** totals minus **`payments`** (ambos casos cuentan).
+* **Un `Payment` representa un tender** con método único; su distribución sobre órdenes vive en `payment_allocations`. **`Customer#current_balance`** = sum(credit orders confirmadas `total_amount`) − sum(`payments.amount`). Las allocations no entran en el cálculo del balance del cliente.
 * **`Customer` validation:** `retail` customers cannot have `has_credit_account: true` (`retail_cannot_have_credit_account`).
 * **`Order` validation:** `paper_number` is required when `source: 'from_paper'`; stock validation is skipped for `from_paper` orders.
 * Not every HTTP action uses a service: e.g. **pending invoice cancel** and **credit note** CRUD use **`update` / `save` / `destroy`** on models directly.
@@ -86,16 +90,16 @@ Only includes behavior that is important for implementing features safely.
 * **Sales:** `Sales::CreateOrder`, `Sales::CancelOrder`
 * **Inventory:** `Inventory::AdjustStock`
 * **Invoices:** `Invoices::CreateSimpleInvoice`, `Invoices::MarkAsPaid`, `Invoices::ProcessPayment`
-* **Payments:** `Payments::RegisterPayment`
+* **Payments:** `Payments::AllocatePayment`
 * **Sales ledger:** `SalesLedger::ImportCsv`; report query objects under **`SalesLedger::Reports::`** (from `Web::SalesLedger::ReportsController`)
 
-**Present in codebase but not wired to `Web::` controllers:** `Purchasing::CreatePurchase`, `Purchasing::CancelPurchase`, **`Inventory::SyncFromCsv`** (invoked from **`lib/tasks/inventory.rake`**, not from HTTP).
+**Present in codebase but not wired to `Web::` controllers:** `Purchasing::CreatePurchase`, `Purchasing::CancelPurchase`, **`Inventory::SyncFromCsv`** (invoked from **`lib/tasks/inventory.rake`**, not from HTTP), **`Payments::RegisterPayment`** (deprecated — superseded by `Payments::AllocatePayment`).
 
 ---
 
 ## Important gaps
 
-* **`Payment`** / `Payments::RegisterPayment` now has web UI under `web/customers/:customer_id/payments` (new/create only).
+* **`Payment` / `PaymentAllocation`** web UI under `web/customers/:customer_id/payments` (new/create only) usa `Payments::AllocatePayment`; permite distribuir un cobro entre varias órdenes con método de pago independiente por fila.
 * **No web UI** for itemized purchasing: **`Purchasing::CreatePurchase`** is used in **seeds/specs**, not `Web::InvoicesController`.
 * **`Inventory::SyncFromCsv`** is **rake-only**, not exposed in routes.
 

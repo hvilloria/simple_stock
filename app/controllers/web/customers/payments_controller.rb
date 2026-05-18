@@ -6,23 +6,37 @@ module Web
       before_action :set_customer
 
       def new
-        @payment = Payment.new
-        authorize @payment
+        authorize Payment.new(customer: @customer), :new?
+        @pending_orders = @customer.orders
+                                    .credit
+                                    .where(status: "confirmed")
+                                    .includes(:payment_allocations)
+                                    .order(:created_at)
+                                    .select { |o| o.outstanding_balance > 0 }
       end
 
       def create
-        authorize Payment.new(customer: @customer)
-        result = Payments::RegisterPayment.call(
+        authorize Payment.new(customer: @customer), :new?
+
+        result = Payments::AllocatePayment.call(
           customer: @customer,
-          amount: payment_params[:amount],
-          payment_method: payment_params[:payment_method],
-          payment_date: payment_params[:payment_date],
-          notes: payment_params[:notes]
+          payment_date: params[:payment_date].presence || Date.today,
+          notes: params[:notes],
+          allocations: parsed_allocations
         )
+
         if result.success?
-          redirect_to web_customer_path(@customer), notice: "Pago registrado exitosamente."
+          total = result.record.sum(&:amount)
+          orders_count = result.record.sum { |p| p.allocations.size }
+          redirect_to web_customer_path(@customer),
+                      notice: "Cobro de $#{total.to_i} registrado sobre #{orders_count} #{'orden'.pluralize(orders_count)}."
         else
-          @payment = Payment.new(payment_params)
+          @pending_orders = @customer.orders
+                                      .credit
+                                      .where(status: "confirmed")
+                                      .includes(:payment_allocations)
+                                      .order(:created_at)
+                                      .select { |o| o.outstanding_balance > 0 }
           flash.now[:alert] = result.errors.join(", ")
           render :new, status: :unprocessable_entity
         end
@@ -34,8 +48,20 @@ module Web
         @customer = Customer.find(params[:customer_id])
       end
 
-      def payment_params
-        params.require(:payment).permit(:amount, :payment_method, :payment_date, :notes)
+      def parsed_allocations
+        rows = params[:allocations]
+        return [] if rows.blank?
+
+        rows.to_unsafe_h.values.filter_map do |row|
+          next if row[:include] != "1"
+          next if row[:amount].blank? || row[:amount].to_f <= 0
+
+          {
+            order_id: row[:order_id],
+            amount: row[:amount].to_f,
+            payment_method: row[:payment_method]
+          }
+        end
       end
     end
   end

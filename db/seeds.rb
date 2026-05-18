@@ -92,7 +92,7 @@ particular = FactoryBot.create(:customer, :with_credit,
   name: "Juan Pérez",
   document: "20-35678901-2",
   phone: "11-5678-9012",
-  customer_type: "retail"
+  customer_type: "mechanic"
 )
 
 clientes_con_credito = talleres + [ particular ]

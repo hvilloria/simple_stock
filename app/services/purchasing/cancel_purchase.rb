@@ -15,7 +15,7 @@ module Purchasing
 
       ActiveRecord::Base.transaction do
         cancel_invoice_record
-        reverse_stock_movements
+        # reverse_stock_movements, commented out until we have a updated stock.
         recalculate_product_costs
 
         Result.new(success?: true, record: @invoice, errors: [])
