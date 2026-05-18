@@ -19,7 +19,7 @@ module Web
       @credit_orders = @customer.orders
                                 .where(order_type: "credit")
                                 .where.not(status: "cancelled")
-                                .includes(:payments)
+                                .includes(:payment_allocations)
                                 .order(created_at: :desc)
       @payments = @customer.payments.order(payment_date: :desc)
       @current_balance = @customer.current_balance

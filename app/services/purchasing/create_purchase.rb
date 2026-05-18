@@ -28,7 +28,7 @@ module Purchasing
       ActiveRecord::Base.transaction do
         create_invoice
         create_invoice_items
-        create_stock_movements
+        # create_stock_movements, commented out until we have a updated stock.
         recalculate_product_costs
 
         Result.new(success?: true, record: @invoice, errors: [])

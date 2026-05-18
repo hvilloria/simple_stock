@@ -136,8 +136,11 @@ These rules must NEVER be violated:
 
 ### Payments
 
-* Payments are global (not tied to a specific sale)
-* Customer balance = credit sales - payments
+* `Payment` representa un *tender* — entrega física de dinero con un método único (cash/transfer/check/card)
+* Un `Payment` se asigna a una o más `Order`s vía `PaymentAllocation`s (`payment_allocations(payment_id, order_id, amount)`)
+* Invariante: `payment.amount == SUM(allocations.amount)` — garantizada por `Payments::AllocatePayment`
+* `Order#outstanding_balance` = `total_amount − payment_allocations.sum(:amount)` (solo `credit + confirmed`)
+* `Customer#current_balance` = `SUM(credit_orders.total_amount) − SUM(payments.amount)` — los allocations no intervienen en el balance del cliente
 
 ---
 

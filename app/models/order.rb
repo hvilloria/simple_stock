@@ -3,9 +3,9 @@ class Order < ApplicationRecord
   belongs_to :customer, optional: true
   has_many :order_items, dependent: :destroy
   has_many :products, through: :order_items
-  has_many :payments, dependent: :destroy
+  has_many :payment_allocations, dependent: :destroy
+  has_many :payments, through: :payment_allocations
   has_many :stock_movements, as: :reference, dependent: :nullify
-  has_many :payments, dependent: :destroy
 
   # Nested attributes
   accepts_nested_attributes_for :order_items, allow_destroy: true, reject_if: :all_blank
@@ -65,7 +65,7 @@ class Order < ApplicationRecord
     return 0 unless credit_order_type?
     return 0 if cancelled_status?
 
-    total_amount - payments.sum(:amount)
+    total_amount - payment_allocations.sum(:amount)
   end
 
   def from_paper?

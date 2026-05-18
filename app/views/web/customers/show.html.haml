@@ -102,7 +102,7 @@
                     %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-slate-900
                       = currency_ar_int(order.total_amount)
                     %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.text-emerald-700
-                      = currency_ar_int(order.payments.map(&:amount).sum)
+                      = currency_ar_int(order.payment_allocations.sum(:amount))
                     %td.px-3.py-2.whitespace-nowrap.text-right.text-sm
                       %span{ class: pending > 0 ? 'font-semibold text-amber-600' : 'text-slate-400' }
                         = currency_ar_int(pending)

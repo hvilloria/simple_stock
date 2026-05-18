@@ -5,7 +5,8 @@ require "rails_helper"
 RSpec.describe Payment, type: :model do
   describe "associations" do
     it { should belong_to(:customer) }
-    it { should belong_to(:order).optional }
+    it { should have_many(:allocations).class_name("PaymentAllocation") }
+    it { should have_many(:orders).through(:allocations) }
   end
 
   describe "validations" do
@@ -28,62 +29,6 @@ RSpec.describe Payment, type: :model do
         payment = build(:payment, customer: customer_without_credit)
         expect(payment).not_to be_valid
         expect(payment.errors[:customer]).to include("must have credit account enabled")
-      end
-    end
-
-    describe "amount_within_order_total" do
-      let(:customer) { create(:customer, :with_credit) }
-      let(:product) { create(:product, current_stock: 10, price_unit: 100) }
-      let!(:stock_location) { create(:stock_location) }
-      let(:credit_order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit"
-        ).record
-      end
-
-      it "is valid when amount equals order total" do
-        payment = build(:payment, customer: customer, order: credit_order, amount: credit_order.total_amount)
-        expect(payment).to be_valid
-      end
-
-      it "is valid when amount is below order total" do
-        payment = build(:payment, customer: customer, order: credit_order, amount: credit_order.total_amount - 1)
-        expect(payment).to be_valid
-      end
-
-      it "is invalid when amount exceeds order total" do
-        payment = build(:payment, customer: customer, order: credit_order, amount: credit_order.total_amount + 1)
-        expect(payment).not_to be_valid
-        expect(payment.errors[:amount].first).to match(/no puede exceder el saldo pendiente de la orden/)
-      end
-
-      it "is valid when order is nil (standalone payment)" do
-        payment = build(:payment, customer: customer, order: nil, amount: 999_999)
-        expect(payment).to be_valid
-      end
-
-      context 'when order already has a partial payment' do
-        let(:partial_order) do
-          Sales::CreateOrder.call(
-            customer: customer,
-            items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-            order_type: 'credit',
-            initial_payment: { amount: 50, payment_method: 'cash' }
-          ).record
-        end
-
-        it 'is valid when amount covers remaining balance exactly' do
-          payment = build(:payment, customer: customer, order: partial_order, amount: 150)
-          expect(payment).to be_valid
-        end
-
-        it 'is invalid when amount exceeds remaining balance' do
-          payment = build(:payment, customer: customer, order: partial_order, amount: 151)
-          expect(payment).not_to be_valid
-          expect(payment.errors[:amount].first).to match(/no puede exceder el saldo pendiente de la orden/)
-        end
       end
     end
   end

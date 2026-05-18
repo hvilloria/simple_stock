@@ -220,99 +220,80 @@ RSpec.describe Order, type: :model do
     end
   end
 
-  describe '#outstanding_balance' do
+  describe "#outstanding_balance" do
     let!(:stock_location) { create(:stock_location) }
     let(:customer) { create(:customer, :with_credit) }
     let(:product) { create(:product, current_stock: 20, price_unit: 100) }
 
-    context 'when order is immediate' do
+    context "when order is immediate" do
       let(:order) do
         Sales::CreateOrder.call(
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: "immediate"
         ).record
       end
 
-      it 'returns 0 regardless of payments' do
+      it "returns 0 regardless of allocations" do
         expect(order.outstanding_balance).to eq(0)
       end
     end
 
-    context 'when order is credit with no linked payments' do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'credit'
-        ).record
-      end
-
-      it 'returns the full total_amount' do
-        expect(order.outstanding_balance).to eq(200)
-      end
-    end
-
-    context 'when order has a partial linked payment' do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'credit'
-        ).record
-      end
-
-      before do
-        Payment.create!(
-          customer: customer,
-          order_id: order.id,
-          amount: 50,
-          payment_method: 'cash',
-          payment_date: Date.today
-        )
-      end
-
-      it 'returns total minus paid amount' do
-        expect(order.outstanding_balance).to eq(150)
-      end
-    end
-
-    context 'when order is fully paid' do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'credit'
-        ).record
-      end
-
-      before do
-        Payment.create!(
-          customer: customer,
-          order_id: order.id,
-          amount: 200,
-          payment_method: 'cash',
-          payment_date: Date.today
-        )
-      end
-
-      it 'returns 0' do
-        expect(order.outstanding_balance).to eq(0)
-      end
-    end
-
-    context 'when order is cancelled' do
+    context "when order is cancelled" do
       let(:order) do
         result = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'credit'
+          order_type: "credit"
         )
-        Sales::CancelOrder.call(order: result.record)
-        result.record.reload
+        result.record.tap { |o| Sales::CancelOrder.call(order: o) }
       end
 
-      it 'returns 0' do
+      it "returns 0" do
+        expect(order.outstanding_balance).to eq(0)
+      end
+    end
+
+    context "when order is credit with no allocations" do
+      let(:order) do
+        Sales::CreateOrder.call(
+          customer: customer,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          order_type: "credit"
+        ).record
+      end
+
+      it "returns the full total_amount" do
+        expect(order.outstanding_balance).to eq(200)
+      end
+    end
+
+    context "when order has a partial allocation" do
+      let(:order) do
+        Sales::CreateOrder.call(
+          customer: customer,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          order_type: "credit",
+          initial_payment: { amount: 50, payment_method: "cash" }
+        ).record
+      end
+
+      it "returns total minus allocated amount" do
+        expect(order.outstanding_balance).to eq(150)
+      end
+    end
+
+    context "when order is fully allocated" do
+      let(:order) do
+        Sales::CreateOrder.call(
+          customer: customer,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          order_type: "credit",
+          initial_payment: { amount: 200, payment_method: "cash" }
+        ).record
+      end
+
+      it "returns 0" do
         expect(order.outstanding_balance).to eq(0)
       end
     end

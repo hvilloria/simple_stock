@@ -41,3 +41,6 @@
 # Claude Code — local agent memory and settings (not shared)
 /.claude/agent-memory/
 /.claude/settings.local.json
+
+# Superpowers — agent scaffolding, brainstorm artifacts (not part of the project)
+/.superpowers/

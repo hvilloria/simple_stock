@@ -27,19 +27,22 @@ RSpec.describe "Web::Orders", type: :request do
     end
 
     context "with initial_payment_amount on a credit order" do
-      it "creates Order and a Payment tied to it" do
+      it "creates Order and a Payment allocated to it" do
         expect {
           post "/web/orders", params: base_params.merge(
             initial_payment_amount: "50",
             initial_payment_method: "cash"
           )
-        }.to change(Order, :count).by(1).and change(Payment, :count).by(1)
+        }.to change(Order, :count).by(1)
+         .and change(Payment, :count).by(1)
+         .and change(PaymentAllocation, :count).by(1)
 
         order = Order.order(:created_at).last
         payment = Payment.order(:created_at).last
-        expect(payment.order_id).to eq(order.id)
         expect(payment.amount).to eq(50)
         expect(payment.payment_method).to eq("cash")
+        expect(order.payment_allocations.first.payment_id).to eq(payment.id)
+        expect(order.payment_allocations.first.amount).to eq(50)
       end
     end
 
