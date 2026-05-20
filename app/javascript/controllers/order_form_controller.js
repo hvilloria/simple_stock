@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "creditPaymentSection", "initialPaymentInput", "initialPaymentWarning"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "paymentSection", "paymentSectionTitle", "paymentSectionSubtitle", "paymentSectionBadge", "paymentRows", "paymentRow", "paymentMethod", "paymentAmount", "paymentDeclared", "paymentStatus", "paymentSummary", "summaryBreakdown", "summaryPaidNow", "summaryOutstanding"]
   static values = { initialItems: Array }
 
   connect() {
@@ -9,6 +9,8 @@ export default class extends Controller {
     this.renderItems()
     this.updateSummary()
     this.applyCreditRadioState()
+    const initialOrderType = this.hasCreditRadioTarget && this.creditRadioTarget.checked ? "credit" : "immediate"
+    this.applyPaymentMode(initialOrderType)
   }
 
   customerChanged(event) {
@@ -162,49 +164,7 @@ export default class extends Controller {
       }
     }
 
-    this.toggleCreditPaymentSection(orderType)
-  }
-
-  toggleCreditPaymentSection(orderType) {
-    if (!this.hasCreditPaymentSectionTarget) return
-
-    if (orderType === "credit") {
-      this.creditPaymentSectionTarget.classList.remove("hidden")
-    } else {
-      this.creditPaymentSectionTarget.classList.add("hidden")
-      if (this.hasInitialPaymentInputTarget) {
-        this.initialPaymentInputTarget.value = 0
-      }
-      if (this.hasInitialPaymentWarningTarget) {
-        this.initialPaymentWarningTarget.classList.add("hidden")
-      }
-    }
-    this.updateSummary()
-  }
-
-  updateInitialPayment(event) {
-    const value = parseFloat(event.currentTarget.value) || 0
-    const total = this.calculateTotal()
-
-    if (this.hasInitialPaymentWarningTarget) {
-      if (value > total) {
-        this.initialPaymentWarningTarget.classList.remove("hidden")
-      } else {
-        this.initialPaymentWarningTarget.classList.add("hidden")
-      }
-    }
-
-    if (this.hasSubmitButtonTarget) {
-      const overTotal = value > total
-      this.submitButtonTarget.disabled = overTotal || this.items.length === 0
-      if (overTotal || this.items.length === 0) {
-        this.submitButtonTarget.classList.add("opacity-50", "cursor-not-allowed")
-      } else {
-        this.submitButtonTarget.classList.remove("opacity-50", "cursor-not-allowed")
-      }
-    }
-
-    this.updateSummary()
+    this.applyPaymentMode(orderType)
   }
 
   calculateTotal() {
@@ -307,24 +267,142 @@ export default class extends Controller {
       this.totalQuantityTarget.textContent = `${totalQuantity} unidad${totalQuantity !== 1 ? 'es' : ''}`
     }
 
-    if (this.hasSubmitButtonTarget) {
-      const initialPayment = this.hasInitialPaymentInputTarget ? (parseFloat(this.initialPaymentInputTarget.value) || 0) : 0
-      const overTotal = initialPayment > total
+    this.updatePaymentTotal()
+  }
 
-      if (this.hasInitialPaymentWarningTarget) {
-        if (overTotal) {
-          this.initialPaymentWarningTarget.classList.remove('hidden')
-        } else {
-          this.initialPaymentWarningTarget.classList.add('hidden')
-        }
-      }
+  applyPaymentMode(orderType) {
+    if (!this.hasPaymentSectionTitleTarget) return
 
-      this.submitButtonTarget.disabled = this.items.length === 0 || overTotal
-      if (this.items.length === 0 || overTotal) {
-        this.submitButtonTarget.classList.add('opacity-50', 'cursor-not-allowed')
+    if (orderType === "credit") {
+      this.paymentSectionTitleTarget.textContent = "Cobro al Momento"
+      this.paymentSectionSubtitleTarget.textContent = "Opcional — si el cliente paga algo ahora"
+      this.paymentSectionBadgeTarget.textContent = "Opcional"
+      this.paymentSectionBadgeTarget.classList.remove("bg-red-50", "text-red-700")
+      this.paymentSectionBadgeTarget.classList.add("bg-gray-100", "text-gray-700")
+    } else {
+      this.paymentSectionTitleTarget.textContent = "Detalle de Pago"
+      this.paymentSectionSubtitleTarget.textContent = "La suma debe coincidir con el total de la venta"
+      this.paymentSectionBadgeTarget.textContent = "Requerido"
+      this.paymentSectionBadgeTarget.classList.remove("bg-gray-100", "text-gray-700")
+      this.paymentSectionBadgeTarget.classList.add("bg-red-50", "text-red-700")
+    }
+
+    if (this.hasSummaryBreakdownTarget) {
+      if (orderType === "credit") {
+        this.summaryBreakdownTarget.classList.remove("hidden")
       } else {
-        this.submitButtonTarget.classList.remove('opacity-50', 'cursor-not-allowed')
+        this.summaryBreakdownTarget.classList.add("hidden")
       }
+    }
+
+    this.updatePaymentTotal()
+  }
+
+  addPaymentRow() {
+    const existingRows = this.paymentRowTargets
+    const nextIndex = existingRows.length
+    const template = existingRows[0].cloneNode(true)
+
+    template.querySelectorAll("[name]").forEach(el => {
+      el.name = el.name.replace(/payments\[\d+\]/, `payments[${nextIndex}]`)
+      if (el.tagName === "INPUT" && el.type === "number") el.value = ""
+      if (el.tagName === "SELECT") el.selectedIndex = 0
+    })
+
+    this.paymentRowsTarget.appendChild(template)
+    this.updatePaymentTotal()
+  }
+
+  removePaymentRow(event) {
+    const row = event.target.closest("[data-order-form-target='paymentRow']")
+    if (!row) return
+    if (this.paymentRowTargets.length <= 1) {
+      // Don't remove the last row; just clear it
+      row.querySelector("input[type=number]").value = ""
+      row.querySelector("select").selectedIndex = 0
+    } else {
+      row.remove()
+      this.paymentRowTargets.forEach((r, i) => {
+        r.querySelectorAll("[name]").forEach(el => {
+          el.name = el.name.replace(/payments\[\d+\]/, `payments[${i}]`)
+        })
+      })
+    }
+    this.updatePaymentTotal()
+  }
+
+  updatePaymentTotal() {
+    const total = this.calculateTotal()
+    const declared = this.paymentAmountTargets.reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0)
+    const orderType = this.hasCreditRadioTarget && this.creditRadioTarget.checked ? "credit" : "immediate"
+
+    if (this.hasPaymentDeclaredTarget) {
+      this.paymentDeclaredTarget.textContent = `$${this.formatCurrency(declared)}`
+    }
+
+    let ok = true
+    let statusText = ""
+    let statusClass = "text-green-700"
+
+    if (orderType === "immediate") {
+      const matches = Math.abs(declared - total) < 0.01 && declared > 0
+      ok = matches
+      if (declared === 0) {
+        statusText = "Cargá los métodos de pago"
+        statusClass = "text-gray-500"
+      } else if (declared < total) {
+        statusText = `Faltan $${this.formatCurrency(total - declared)}`
+        statusClass = "text-red-600"
+      } else if (declared > total) {
+        statusText = `Excede el total por $${this.formatCurrency(declared - total)}`
+        statusClass = "text-red-600"
+      } else {
+        statusText = "✓ Coincide con el total"
+        statusClass = "text-green-700"
+      }
+    } else {
+      ok = declared <= total + 0.01
+      if (declared === 0) {
+        statusText = "Sin cobro al momento"
+        statusClass = "text-gray-500"
+      } else if (declared > total) {
+        statusText = `Excede el total por $${this.formatCurrency(declared - total)}`
+        statusClass = "text-red-600"
+      } else {
+        statusText = `Queda pendiente $${this.formatCurrency(total - declared)}`
+        statusClass = "text-gray-700"
+      }
+    }
+
+    if (this.hasPaymentStatusTarget) {
+      this.paymentStatusTarget.textContent = statusText
+      this.paymentStatusTarget.className = `font-semibold text-xs mt-1 ${statusClass}`
+    }
+
+    if (this.hasSummaryPaidNowTarget) {
+      this.summaryPaidNowTarget.textContent = `$${this.formatCurrency(declared)}`
+      this.summaryPaidNowTarget.classList.remove("text-green-700", "text-gray-500")
+      this.summaryPaidNowTarget.classList.add(declared > 0 ? "text-green-700" : "text-gray-500")
+    }
+
+    if (this.hasSummaryOutstandingTarget) {
+      const outstanding = Math.max(0, total - declared)
+      this.summaryOutstandingTarget.textContent = `$${this.formatCurrency(outstanding)}`
+      this.summaryOutstandingTarget.classList.remove("text-amber-700", "text-gray-500")
+      this.summaryOutstandingTarget.classList.add(outstanding > 0 ? "text-amber-700" : "text-gray-500")
+    }
+
+    this.updateSubmitButton(ok)
+  }
+
+  updateSubmitButton(paymentsOk) {
+    if (!this.hasSubmitButtonTarget) return
+    const disabled = this.items.length === 0 || !paymentsOk
+    this.submitButtonTarget.disabled = disabled
+    if (disabled) {
+      this.submitButtonTarget.classList.add("opacity-50", "cursor-not-allowed")
+    } else {
+      this.submitButtonTarget.classList.remove("opacity-50", "cursor-not-allowed")
     }
   }
 

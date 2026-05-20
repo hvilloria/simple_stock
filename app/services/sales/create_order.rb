@@ -1,29 +1,24 @@
 module Sales
   # Sales::CreateOrder
   #
-  # Service para crear órdenes de venta.
+  # Crea órdenes de venta + pagos asociados en una sola transacción.
   #
-  # Soporta dos modos:
-  # 1. LIVE (default): Venta en tiempo real con precios de BD
-  # 2. FROM_PAPER: Venta cargada desde talonario físico
-  #    - Permite unit_price nil (se trata como 0)
-  #    - Permite total_amount = 0
-  #    - Requiere paper_number para cruzar con talonario físico
+  # Modos:
+  #   - LIVE (default): precios desde la BD, valida stock disponible
+  #   - FROM_PAPER:     unit_price puede ser nil, total puede ser 0,
+  #                     requiere paper_number, no valida stock
   #
-  # En ambos modos:
-  # - Valida stock disponible
-  # - Crea stock_movements de salida
-  # - Actualiza current_stock de productos
+  # Pagos (`payments:` array de `{ amount:, payment_method: }`):
+  #   - immediate: OBLIGATORIO, sum(amount) == total_amount (tolerancia 0.01)
+  #   - credit:    OPCIONAL, sum(amount) <= total_amount
   #
-  # Para órdenes a crédito acepta opcionalmente initial_payment:
-  #   { amount: <decimal>, payment_method: <string> }
-  # cuando viene, se crea un Payment atado a la Order dentro de la
-  # misma transacción.
+  # Cada entrada produce un Payment + PaymentAllocation apuntando a la orden.
   class CreateOrder
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
+    PAYMENT_SUM_TOLERANCE = 0.01
 
     def self.call(customer:, items:, order_type:, channel: nil, source: "live",
-                  sale_date: nil, paper_number: nil, initial_payment: nil)
+                  sale_date: nil, paper_number: nil, payments: [])
       new(
         customer: customer,
         items: items,
@@ -32,12 +27,12 @@ module Sales
         source: source,
         sale_date: sale_date,
         paper_number: paper_number,
-        initial_payment: initial_payment
+        payments: payments
       ).call
     end
 
     def initialize(customer:, items:, order_type:, channel: nil, source: "live",
-                   sale_date: nil, paper_number: nil, initial_payment: nil)
+                   sale_date: nil, paper_number: nil, payments: [])
       @customer = customer
       @items = items.map { |item| item.is_a?(Item) ? item : Item.new(item) }
       @order_type = order_type
@@ -45,7 +40,7 @@ module Sales
       @source = source
       @sale_date = sale_date || Date.today
       @paper_number = paper_number
-      @initial_payment = normalize_initial_payment(initial_payment)
+      @payments_data = normalize_payments(payments)
     end
 
     def call
@@ -54,8 +49,7 @@ module Sales
       ActiveRecord::Base.transaction do
         create_order
         create_order_items
-        # create_stock_movements, Commented out until we have a updated stock.
-        create_initial_payment if @initial_payment
+        create_payments if @payments_data.any?
 
         Result.new(success?: true, record: @order, errors: [])
       end
@@ -71,16 +65,13 @@ module Sales
 
     class ValidationError < StandardError; end
 
-    # Si amount viene 0 o nil, anula initial_payment para no crear Payment.
-    def normalize_initial_payment(initial_payment)
-      return nil if initial_payment.nil?
-      amount = initial_payment[:amount].to_f
-      return nil if amount <= 0
-
-      {
-        amount: amount,
-        payment_method: initial_payment[:payment_method]
-      }
+    def normalize_payments(payments)
+      Array(payments).filter_map do |entry|
+        h = entry.to_h.symbolize_keys
+        amount = h[:amount].to_f
+        next if amount <= 0
+        { amount: amount, payment_method: h[:payment_method] }
+      end
     end
 
     def validate_params
@@ -110,21 +101,34 @@ module Sales
         end
       end
 
-      validate_initial_payment if @initial_payment
+      validate_payments
     end
 
-    def validate_initial_payment
-      if @order_type != "credit"
-        raise ValidationError, "El cobro al momento solo aplica a ventas a cuenta corriente"
+    def validate_payments
+      @payments_data.each do |entry|
+        unless Payment::PAYMENT_METHODS.include?(entry[:payment_method])
+          raise ValidationError, "Método de pago inválido: #{entry[:payment_method]}"
+        end
       end
+
+      # from_paper orders cargan ventas históricas — no validamos pagos.
+      return if @source == "from_paper"
 
       total = calculate_total
-      if @initial_payment[:amount] > total
-        raise ValidationError, "El monto cobrado no puede exceder el total de la venta ($#{total})"
-      end
+      paid_sum = @payments_data.sum { |e| e[:amount] }
 
-      unless Payment::PAYMENT_METHODS.include?(@initial_payment[:payment_method])
-        raise ValidationError, "Método de pago inválido"
+      case @order_type
+      when "immediate"
+        if @payments_data.empty?
+          raise ValidationError, "El pago es requerido para ventas de contado"
+        end
+        if (paid_sum - total).abs > PAYMENT_SUM_TOLERANCE
+          raise ValidationError, "La suma de los pagos ($#{paid_sum}) debe coincidir con el total de la venta ($#{total})"
+        end
+      when "credit"
+        if paid_sum > total + PAYMENT_SUM_TOLERANCE
+          raise ValidationError, "El monto cobrado no puede exceder el total de la venta ($#{total})"
+        end
       end
     end
 
@@ -142,7 +146,7 @@ module Sales
     end
 
     def calculate_total
-      @items.sum do |item|
+      @calculate_total ||= @items.sum do |item|
         product = Product.find(item.product_id)
         unit_price = item.unit_price || product.price_unit || 0
         item.quantity * unit_price
@@ -163,37 +167,20 @@ module Sales
       end
     end
 
-    def create_stock_movements
-      stock_location = StockLocation.first!
-
-      @order.order_items.each do |order_item|
-        result = Inventory::AdjustStock.call(
-          product: order_item.product,
-          stock_location: stock_location,
-          movement_type: "sale",
-          quantity: -order_item.quantity,
-          reference: @order,
-          note: "Sale ##{@order.id}",
-          allow_negative: @source == "from_paper"
+    def create_payments
+      @payments_data.each do |entry|
+        payment = Payment.create!(
+          customer:       @customer,
+          amount:         entry[:amount],
+          payment_method: entry[:payment_method],
+          payment_date:   @sale_date
         )
-
-        raise ValidationError, result.errors.join(", ") if result.failure?
+        PaymentAllocation.create!(
+          payment: payment,
+          order:   @order,
+          amount:  entry[:amount]
+        )
       end
-    end
-
-    def create_initial_payment
-      payment = Payment.create!(
-        customer: @customer,
-        amount: @initial_payment[:amount],
-        payment_method: @initial_payment[:payment_method],
-        payment_date: @sale_date
-      )
-
-      PaymentAllocation.create!(
-        payment: payment,
-        order: @order,
-        amount: @initial_payment[:amount]
-      )
     end
   end
 end

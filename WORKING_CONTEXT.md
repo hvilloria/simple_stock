@@ -34,7 +34,8 @@ Only includes behavior that is important for implementing features safely.
 ### Orders
 
 * `order_type` enum values: **`immediate`** (was `cash`) and **`credit`**. `cash` is reserved for payment methods.
-* Created via **`Sales::CreateOrder`** (from `Web::OrdersController#create`).
+* Created via **`Sales::CreateOrder`** (from `Web::OrdersController#create`). Acepta **`payments:`** array de `{ amount:, payment_method: }` — **obligatorio para `immediate`** (suma debe igualar `total_amount` con tolerancia $0.01; el origen `from_paper` está exento), **opcional para `credit`** (suma ≤ `total_amount`). Cada entrada produce un `Payment` + `PaymentAllocation` apuntando a la nueva orden.
+* El formulario de nueva venta muestra un bloque "Detalle de Pago" multi-fila (método + monto por fila, con add/remove) visible para ambos tipos de venta. Badge "Requerido" para immediate / "Opcional" para credit. El submit valida en vivo que la suma coincida con el total.
 * Cancelled via **`Sales::CancelOrder`** (member cancel).
 * Confirmed sales create **`StockMovement`** rows with **`movement_type: sale`** via **`Inventory::AdjustStock`** (signed quantity: **outbound is negative** in the implemented paths).
 * **`Sales::CancelOrder`** restocks using **`Inventory::AdjustStock`** with **`movement_type: adjustment`** and a **positive** quantity per line (not a second `sale` movement).
@@ -55,14 +56,14 @@ Only includes behavior that is important for implementing features safely.
 
 ### Customer account payments (`Payment` + `PaymentAllocation` models)
 
-* **`Payment`** representa un *tender* (entrega física de dinero con un método único). Pertenece al `customer`; **ya no tiene `order_id`**. Validaciones: `customer_must_have_credit_account`, `amount > 0`, `payment_method ∈ %w[cash transfer check card]`.
+* **`Payment`** representa un *tender* (entrega física de dinero con un método único). Pertenece al `customer`; **ya no tiene `order_id`**. Validaciones: `amount > 0`, `payment_method ∈ %w[cash transfer check card]`, `payment_date presente`. **Ya no exige `has_credit_account?`** — los Payments pueden pertenecer a clientes retail (mostrador).
 * **`PaymentAllocation`** (join `payment_allocations(payment_id, order_id, amount)`) distribuye el monto de un Payment sobre una o varias órdenes. Validaciones: `amount > 0`, `order_belongs_to_payment_customer`, `amount_within_order_outstanding_balance` (con `where.not(id: id)` para excluir la allocation actual). Índice único `(payment_id, order_id)`.
 * **Invariante:** `payment.amount == SUM(payment.allocations.amount)` — garantizada por el servicio, no por una validación de modelo.
 * **`Payments::AllocatePayment`** servicio principal del web. Recibe `customer:, payment_date:, notes:, allocations: [{order_id:, amount:, payment_method:}]`, **agrupa por `payment_method`** y crea un `Payment` por grupo + sus `PaymentAllocation`s en una sola transacción. Valida que cada orden pertenezca al cliente, sea `credit + confirmed`, y que el monto no exceda el `outstanding_balance` de cada orden.
-* **`Sales::CreateOrder`** con `initial_payment: { amount:, payment_method: }` crea un `Payment` + 1 `PaymentAllocation` apuntando a la nueva orden, dentro de la misma transacción.
+* **`Sales::CreateOrder`** ahora crea Payments + Allocations para **ambos tipos** de orden vía el array `payments:`. Para órdenes `immediate` la suma debe igualar el total (excepto `from_paper`); para `credit` puede ser parcial o cero. Cada entrada genera un `Payment` + `PaymentAllocation`.
 * **`Sales::CancelOrder`** destruye las `PaymentAllocation` de la orden cancelada (`@order.payment_allocations.destroy_all`); los `Payment` **quedan vivos** (known limitation — pueden quedar huérfanos sin asignación, el `current_balance` del cliente los sigue descontando como crédito a favor).
 * **`Order#outstanding_balance`** = `total_amount - payment_allocations.sum(:amount)` para `credit + confirmed`; `0` para `immediate` o `cancelled`.
-* **`Customer#current_balance`** suma `total_amount` de credit orders confirmadas y le resta `payments.sum(:amount)` (a nivel de tender — sin tocar allocations).
+* **`Customer#current_balance`** = `SUM(credit_orders.total_amount) − SUM(payment_allocations on credit orders)`. **Los payments de ventas immediate no afectan el balance de crédito** (a diferencia del modelo anterior). `Customer.with_outstanding_balance` usa la misma fórmula.
 * **`Customer#last_payment_date`** / **`#days_without_paying`** — helpers para la vista de deudores.
 * **`Customer.with_outstanding_balance`** scope — clientes cuyas ventas a crédito confirmadas superan el total de sus pagos.
 * **`Web::Customers::PaymentsController#new`** muestra una tabla con todas las órdenes pendientes; cada fila tiene checkbox de inclusión, monto editable, y método de pago propio. El submit POST recibe `params[:allocations]` indexado (`allocations[N][order_id|include|amount|payment_method]`) y delega en `Payments::AllocatePayment`. Stimulus controller (`payment_allocation_controller.js`) recalcula resumen en vivo y deshabilita submit si no hay órdenes tildadas.
@@ -78,7 +79,7 @@ Only includes behavior that is important for implementing features safely.
 
 * Do **not** bump **`products.current_stock`** ad hoc in controllers/views — keep stock changes through **`StockMovement`** + **`#recalculate_current_stock!`** as the code already does in services.
 * **Validate stock before selling** — enforced in **`Sales::CreateOrder`** against **`current_stock`**.
-* **Un `Payment` representa un tender** con método único; su distribución sobre órdenes vive en `payment_allocations`. **`Customer#current_balance`** = sum(credit orders confirmadas `total_amount`) − sum(`payments.amount`). Las allocations no entran en el cálculo del balance del cliente.
+* **Un `Payment` representa un tender** con método único; su distribución sobre órdenes vive en `payment_allocations`. **`Customer#current_balance`** = sum(credit orders confirmadas `total_amount`) − sum(`payment_allocations` sobre esas credit orders). Los Payments asignados a ventas `immediate` no afectan el balance.
 * **`Customer` validation:** `retail` customers cannot have `has_credit_account: true` (`retail_cannot_have_credit_account`).
 * **`Order` validation:** `paper_number` is required when `source: 'from_paper'`; stock validation is skipped for `from_paper` orders.
 * Not every HTTP action uses a service: e.g. **pending invoice cancel** and **credit note** CRUD use **`update` / `save` / `destroy`** on models directly.

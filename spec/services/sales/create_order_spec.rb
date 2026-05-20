@@ -13,7 +13,8 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 200, payment_method: "cash" } ]
         )
 
         expect(result.success?).to be true
@@ -27,7 +28,8 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 200, payment_method: "cash" } ]
         )
 
         expect(result.record.total_amount).to eq(200)
@@ -37,7 +39,8 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 200, payment_method: "cash" } ]
         )
 
         expect(result.record.order_items.count).to eq(1)
@@ -81,7 +84,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
-          channel: 'whatsapp'
+          channel: 'whatsapp',
+          payments: [ { amount: 200, payment_method: "cash" } ]
         )
 
         expect(result.success?).to be true
@@ -107,7 +111,8 @@ RSpec.describe Sales::CreateOrder do
         result = described_class.call(
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 200, payment_method: "cash" } ]
         )
 
         expect(result.success?).to be true
@@ -164,7 +169,8 @@ RSpec.describe Sales::CreateOrder do
             { product_id: product.id, quantity: 2, unit_price: 100 },
             { product_id: product2.id, quantity: 3, unit_price: 50 }
           ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 350, payment_method: "cash" } ]
         )
 
         expect(result.success?).to be true
@@ -421,141 +427,144 @@ RSpec.describe Sales::CreateOrder do
       end
     end
 
-    context 'with initial_payment' do
-      let(:product) { create(:product, current_stock: 50, price_unit: 100) }
-      let(:base_args) do
-        {
-          customer: customer_with_credit,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: 'credit'
-        }
+    describe "#payments handling" do
+      let(:credit_customer) { create(:customer, :with_credit) }
+      let(:retail_customer) { create(:customer, customer_type: "retail", has_credit_account: false, name: "Mostrador") }
+      let(:product) do
+        p = create(:product, price_unit: 100)
+        create(:stock_movement, product: p, stock_location: stock_location, movement_type: "purchase", quantity: 100)
+        p.recalculate_current_stock!
+        p
       end
 
-      it 'creates Order and Payment atomically when amount is partial' do
-        result = described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'cash' })
+      context "immediate order" do
+        it "fails when payments are empty" do
+          result = described_class.call(
+            customer: retail_customer, order_type: "immediate",
+            items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+            payments: []
+          )
+          expect(result.failure?).to be true
+          expect(result.errors.join).to match(/pago.*requerido|payment.*required/i)
+        end
 
-        expect(result.success?).to be true
-        order = result.record
-        expect(order.payments.count).to eq(1)
-        payment = order.payments.first
-        expect(payment.amount).to eq(50)
-        expect(payment.payment_method).to eq('cash')
-        expect(payment.customer).to eq(customer_with_credit)
-        expect(payment.payment_date).to eq(order.sale_date)
+        it "fails when payments do not sum to total" do
+          result = described_class.call(
+            customer: retail_customer, order_type: "immediate",
+            items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+            payments: [ { amount: 50, payment_method: "cash" } ]
+          )
+          expect(result.failure?).to be true
+          expect(result.errors.join).to match(/suma.*total|sum.*total/i)
+        end
+
+        it "creates one Payment + one PaymentAllocation when a single payment matches total" do
+          expect {
+            result = described_class.call(
+              customer: retail_customer, order_type: "immediate",
+              items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+              payments: [ { amount: 100, payment_method: "cash" } ]
+            )
+            expect(result.success?).to be true
+          }.to change(Payment, :count).by(1).and change(PaymentAllocation, :count).by(1)
+        end
+
+        it "creates two Payments + two Allocations when split across methods" do
+          expect {
+            result = described_class.call(
+              customer: retail_customer, order_type: "immediate",
+              items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+              payments: [
+                { amount: 80, payment_method: "cash" },
+                { amount: 120, payment_method: "transfer" }
+              ]
+            )
+            expect(result.success?).to be true
+          }.to change(Payment, :count).by(2).and change(PaymentAllocation, :count).by(2)
+        end
       end
 
-      it 'creates Payment when amount equals order total' do
-        result = described_class.call(**base_args, initial_payment: { amount: 200, payment_method: 'transfer' })
+      context "credit order" do
+        it "succeeds with empty payments" do
+          expect {
+            result = described_class.call(
+              customer: credit_customer, order_type: "credit",
+              items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+              payments: []
+            )
+            expect(result.success?).to be true
+          }.to change(Payment, :count).by(0)
+        end
 
-        expect(result.success?).to be true
-        expect(result.record.payments.count).to eq(1)
-        expect(result.record.payments.first.amount).to eq(200)
-      end
+        it "succeeds with a partial upfront payment" do
+          expect {
+            result = described_class.call(
+              customer: credit_customer, order_type: "credit",
+              items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+              payments: [ { amount: 60, payment_method: "transfer" } ]
+            )
+            expect(result.success?).to be true
+          }.to change(Payment, :count).by(1).and change(PaymentAllocation, :count).by(1)
+        end
 
-      it 'reduces customer balance by the paid amount' do
-        described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'cash' })
-        expect(customer_with_credit.current_balance).to eq(150) # 200 total - 50 pagado
-      end
+        it "fails when payments exceed the total" do
+          result = described_class.call(
+            customer: credit_customer, order_type: "credit",
+            items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+            payments: [ { amount: 150, payment_method: "cash" } ]
+          )
+          expect(result.failure?).to be true
+          expect(result.errors.join).to match(/total|exceed/i)
+        end
 
-      it 'does not create Payment when amount is zero' do
-        result = described_class.call(**base_args, initial_payment: { amount: 0, payment_method: 'cash' })
+        it "creates Payment tied to the customer and a PaymentAllocation for the order" do
+          result = described_class.call(
+            customer: credit_customer, order_type: "credit",
+            items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+            payments: [ { amount: 150, payment_method: "cash" } ]
+          )
 
-        expect(result.success?).to be true
-        expect(result.record.payments.count).to eq(0)
-      end
+          expect(result.success?).to be true
+          payment = Payment.last
+          expect(payment.customer_id).to eq(credit_customer.id)
+          expect(payment.amount).to eq(150)
+          expect(payment.payment_method).to eq("cash")
 
-      it 'does not create Payment when initial_payment is nil' do
-        result = described_class.call(**base_args, initial_payment: nil)
+          allocation = result.record.payment_allocations.first
+          expect(allocation).to be_present
+          expect(allocation.amount).to eq(150)
+          expect(allocation.payment_id).to eq(payment.id)
+          expect(result.record.outstanding_balance).to eq(50)
+        end
 
-        expect(result.success?).to be true
-        expect(result.record.payments.count).to eq(0)
-      end
+        it "rejects invalid payment_method" do
+          result = described_class.call(
+            customer: credit_customer, order_type: "credit",
+            items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+            payments: [ { amount: 50, payment_method: "crypto" } ]
+          )
 
-      it 'rejects initial_payment when order_type is immediate' do
-        result = described_class.call(
-          **base_args.merge(order_type: 'immediate', customer: customer_without_credit),
-          initial_payment: { amount: 50, payment_method: 'cash' }
-        )
+          expect(result.failure?).to be true
+          expect(result.errors.join).to match(/método de pago/i)
+        end
 
-        expect(result.success?).to be false
-        expect(result.errors).to include('El cobro al momento solo aplica a ventas a cuenta corriente')
-      end
+        it "rolls back the order when Payment.create! raises" do
+          allow(Payment).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(Payment.new))
 
-      it 'rejects amount greater than total' do
-        result = described_class.call(**base_args, initial_payment: { amount: 500, payment_method: 'cash' })
+          initial_orders   = Order.count
+          initial_items    = OrderItem.count
+          initial_payments = Payment.count
 
-        expect(result.success?).to be false
-        expect(result.errors).to include(/El monto cobrado no puede exceder el total de la venta/)
-      end
+          described_class.call(
+            customer: credit_customer, order_type: "credit",
+            items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+            payments: [ { amount: 50, payment_method: "cash" } ]
+          )
 
-      it 'rejects invalid payment_method' do
-        result = described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'crypto' })
-
-        expect(result.success?).to be false
-        expect(result.errors).to include('Método de pago inválido')
-      end
-
-      it 'rolls back the order when Payment.create! raises' do
-        allow(Payment).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(Payment.new))
-
-        initial_orders   = Order.count
-        initial_items    = OrderItem.count
-        initial_payments = Payment.count
-        initial_movements = StockMovement.count
-
-        described_class.call(**base_args, initial_payment: { amount: 50, payment_method: 'cash' })
-
-        expect(Order.count).to eq(initial_orders)
-        expect(OrderItem.count).to eq(initial_items)
-        expect(Payment.count).to eq(initial_payments)
-        expect(StockMovement.count).to eq(initial_movements)
-      end
-    end
-
-    context "with initial_payment on a credit order" do
-      let!(:stock_location) { create(:stock_location) }
-      let(:customer) { create(:customer, :with_credit) }
-      let(:product) { create(:product, current_stock: 10, price_unit: 100) }
-
-      it "creates a Payment tied to the customer" do
-        result = described_class.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit",
-          initial_payment: { amount: 150, payment_method: "cash" }
-        )
-
-        expect(result.success?).to be true
-        payment = Payment.last
-        expect(payment.customer_id).to eq(customer.id)
-        expect(payment.amount).to eq(150)
-        expect(payment.payment_method).to eq("cash")
-      end
-
-      it "creates a PaymentAllocation linking the payment to the new order" do
-        result = described_class.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit",
-          initial_payment: { amount: 150, payment_method: "cash" }
-        )
-
-        order = result.record
-        allocation = order.payment_allocations.first
-        expect(allocation).to be_present
-        expect(allocation.amount).to eq(150)
-        expect(allocation.payment_id).to eq(Payment.last.id)
-      end
-
-      it "results in order.outstanding_balance reflecting the allocation" do
-        result = described_class.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit",
-          initial_payment: { amount: 150, payment_method: "cash" }
-        )
-
-        expect(result.record.outstanding_balance).to eq(50)
+          expect(Order.count).to eq(initial_orders)
+          expect(OrderItem.count).to eq(initial_items)
+          expect(Payment.count).to eq(initial_payments)
+        end
       end
     end
   end

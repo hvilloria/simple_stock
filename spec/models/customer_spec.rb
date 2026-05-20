@@ -165,32 +165,38 @@ RSpec.describe Customer, type: :model do
       end
 
       context 'with payments' do
-        before do
+        let!(:credit_order) do
           create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 10000)
         end
 
-        it 'subtracts payments from credit orders' do
-          create(:payment, customer: customer, amount: 3000)
+        it 'subtracts payments allocated to credit orders' do
+          payment = create(:payment, customer: customer, amount: 3000)
+          create(:payment_allocation, payment: payment, order: credit_order, amount: 3000)
           expect(customer.current_balance).to eq(7000)
         end
 
-        it 'handles multiple payments' do
-          create(:payment, customer: customer, amount: 3000)
-          create(:payment, customer: customer, amount: 2000)
+        it 'handles multiple allocated payments' do
+          p1 = create(:payment, customer: customer, amount: 3000)
+          p2 = create(:payment, customer: customer, amount: 2000)
+          create(:payment_allocation, payment: p1, order: credit_order, amount: 3000)
+          create(:payment_allocation, payment: p2, order: credit_order, amount: 2000)
           expect(customer.current_balance).to eq(5000)
         end
 
-        it 'can have negative balance if overpaid' do
+        it 'ignores unallocated payments (they have no effect on the balance)' do
+          # Under the allocation-aware balance, only allocations count.
+          # A payment with no allocation has zero effect on the customer balance.
           create(:payment, customer: customer, amount: 12000)
-          expect(customer.current_balance).to eq(-2000)
+          expect(customer.current_balance).to eq(10000)
         end
       end
 
       context 'with credit orders and payments' do
         before do
-          create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 10000)
+          order1 = create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 10000)
           create(:order, customer: customer, order_type: 'credit', status: 'confirmed', total_amount: 5000)
-          create(:payment, customer: customer, amount: 3000)
+          payment = create(:payment, customer: customer, amount: 3000)
+          create(:payment_allocation, payment: payment, order: order1, amount: 3000)
         end
 
         it 'calculates balance correctly' do
@@ -222,7 +228,7 @@ RSpec.describe Customer, type: :model do
         customer: paid_up,
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
         order_type: 'credit',
-        initial_payment: { amount: 100, payment_method: 'cash' }
+        payments: [ { amount: 100, payment_method: 'cash' } ]
       )
     end
 
@@ -241,6 +247,58 @@ RSpec.describe Customer, type: :model do
     it 'excludes "Cliente Mostrador"' do
       Customer.mostrador # ensure the record exists in DB
       expect(Customer.with_outstanding_balance.map(&:name)).not_to include('Cliente Mostrador')
+    end
+  end
+
+  describe "#current_balance — allocation-aware" do
+    let(:customer) { create(:customer, :with_credit) }
+
+    it "only counts payments allocated to credit orders" do
+      create(:order, customer: customer, order_type: "credit", status: "confirmed", total_amount: 100)
+      immediate_order = create(:order, customer: customer, order_type: "immediate", status: "confirmed", total_amount: 100)
+
+      immediate_payment = create(:payment, customer: customer, amount: 100, payment_method: "cash")
+      create(:payment_allocation, payment: immediate_payment, order: immediate_order, amount: 100)
+
+      expect(customer.reload.current_balance).to eq(100)
+    end
+
+    it "is zero when the credit order is fully allocated" do
+      credit_order = create(:order, customer: customer, order_type: "credit", status: "confirmed", total_amount: 100)
+      credit_payment = create(:payment, customer: customer, amount: 100, payment_method: "cash")
+      create(:payment_allocation, payment: credit_payment, order: credit_order, amount: 100)
+
+      expect(customer.reload.current_balance).to eq(0)
+    end
+  end
+
+  describe ".with_outstanding_balance — allocation-aware" do
+    let(:customer) { create(:customer, :with_credit) }
+
+    it "includes a customer with an unpaid credit order even if they have immediate-sale payments" do
+      create(:order, customer: customer, order_type: "credit", status: "confirmed", total_amount: 100)
+      immediate_order = create(:order, customer: customer, order_type: "immediate", status: "confirmed", total_amount: 200)
+
+      immediate_payment = create(:payment, customer: customer, amount: 200, payment_method: "cash")
+      create(:payment_allocation, payment: immediate_payment, order: immediate_order, amount: 200)
+
+      expect(Customer.with_outstanding_balance).to include(customer)
+    end
+
+    it "excludes a customer whose only payments are for immediate orders if they have no credit orders" do
+      immediate_order = create(:order, customer: customer, order_type: "immediate", status: "confirmed", total_amount: 100)
+      immediate_payment = create(:payment, customer: customer, amount: 100, payment_method: "cash")
+      create(:payment_allocation, payment: immediate_payment, order: immediate_order, amount: 100)
+
+      expect(Customer.with_outstanding_balance).not_to include(customer)
+    end
+
+    it "excludes a customer whose credit orders are fully allocated" do
+      credit_order = create(:order, customer: customer, order_type: "credit", status: "confirmed", total_amount: 100)
+      credit_payment = create(:payment, customer: customer, amount: 100, payment_method: "cash")
+      create(:payment_allocation, payment: credit_payment, order: credit_order, amount: 100)
+
+      expect(Customer.with_outstanding_balance).not_to include(customer)
     end
   end
 

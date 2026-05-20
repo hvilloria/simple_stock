@@ -20,21 +20,23 @@ RSpec.describe Payments::RegisterPayment do
         expect(result.record.amount).to eq(5000)
       end
 
-      it "reduces customer balance" do
+      it "reduces customer balance when allocated to a credit order" do
         # Crear venta a crédito
-        create(:order,
-               customer: customer_with_credit,
-               order_type: "credit",
-               status: "confirmed",
-               total_amount: 10000)
+        credit_order = create(:order,
+                              customer: customer_with_credit,
+                              order_type: "credit",
+                              status: "confirmed",
+                              total_amount: 10000)
 
         expect(customer_with_credit.current_balance).to eq(10000)
 
-        described_class.call(
+        result = described_class.call(
           customer: customer_with_credit,
           amount: 3000,
           payment_method: "cash"
         )
+
+        create(:payment_allocation, payment: result.record, order: credit_order, amount: 3000)
 
         expect(customer_with_credit.reload.current_balance).to eq(7000)
       end
@@ -94,7 +96,7 @@ RSpec.describe Payments::RegisterPayment do
                status: "confirmed",
                total_amount: 5000)
 
-        # Pay more than balance
+        # Pay more than balance (unallocated overpayment)
         result = described_class.call(
           customer: customer_with_credit,
           amount: 7000,
@@ -102,7 +104,8 @@ RSpec.describe Payments::RegisterPayment do
         )
 
         expect(result.success?).to be true
-        expect(customer_with_credit.reload.current_balance).to eq(-2000)
+        # Allocation-aware balance: unallocated payments do not reduce balance.
+        expect(customer_with_credit.reload.current_balance).to eq(5000)
       end
     end
 

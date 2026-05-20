@@ -15,7 +15,8 @@ RSpec.describe Sales::CancelOrder do
         result = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 500, payment_method: "cash" } ]
         )
         result.record
       end
@@ -98,7 +99,7 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          initial_payment: { amount: 200, payment_method: 'cash' }
+          payments: [ { amount: 200, payment_method: 'cash' } ]
         )
         order_with_payment = order_with_payment_result.record
         expect(order_with_payment.payment_allocations.count).to eq(1)
@@ -113,7 +114,7 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          initial_payment: { amount: 200, payment_method: 'cash' }
+          payments: [ { amount: 200, payment_method: 'cash' } ]
         )
         order_with_payment = order_with_payment_result.record
         payment_id = order_with_payment.payment_allocations.first.payment_id
@@ -133,7 +134,8 @@ RSpec.describe Sales::CancelOrder do
             { product_id: product.id, quantity: 3, unit_price: 100 },
             { product_id: product2.id, quantity: 2, unit_price: 50 }
           ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 400, payment_method: "cash" } ]
         )
         result.record
       end
@@ -164,7 +166,8 @@ RSpec.describe Sales::CancelOrder do
         result = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 500, payment_method: "cash" } ]
         )
         result.record
       end
@@ -203,7 +206,8 @@ RSpec.describe Sales::CancelOrder do
         result = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 500, payment_method: "cash" } ]
         )
         result.record
       end
@@ -226,7 +230,8 @@ RSpec.describe Sales::CancelOrder do
         result = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
-          order_type: 'immediate'
+          order_type: 'immediate',
+          payments: [ { amount: 500, payment_method: "cash" } ]
         )
         result.record
       end

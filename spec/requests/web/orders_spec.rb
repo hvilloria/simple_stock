@@ -26,57 +26,82 @@ RSpec.describe "Web::Orders", type: :request do
       }
     end
 
-    context "with initial_payment_amount on a credit order" do
-      it "creates Order and a Payment allocated to it" do
-        expect {
-          post "/web/orders", params: base_params.merge(
-            initial_payment_amount: "50",
-            initial_payment_method: "cash"
-          )
-        }.to change(Order, :count).by(1)
-         .and change(Payment, :count).by(1)
-         .and change(PaymentAllocation, :count).by(1)
-
-        order = Order.order(:created_at).last
-        payment = Payment.order(:created_at).last
-        expect(payment.amount).to eq(50)
-        expect(payment.payment_method).to eq("cash")
-        expect(order.payment_allocations.first.payment_id).to eq(payment.id)
-        expect(order.payment_allocations.first.amount).to eq(50)
-      end
-    end
-
-    context "with initial_payment_amount on an immediate order" do
-      it "ignores the amount and creates only the Order" do
-        retail_customer = create(:customer, has_credit_account: false)
-
-        expect {
-          post "/web/orders", params: base_params.deep_merge(
-            order: { customer_id: retail_customer.id, order_type: "immediate" }
-          ).merge(
-            initial_payment_amount: "50",
-            initial_payment_method: "cash"
-          )
-        }.to change(Order, :count).by(1).and change(Payment, :count).by(0)
-      end
-    end
-
-    context "with no initial_payment_amount on a credit order" do
-      it "creates the Order with no Payment" do
+    context "credit order with no payments" do
+      it "creates Order and no Payment" do
         expect {
           post "/web/orders", params: base_params
         }.to change(Order, :count).by(1).and change(Payment, :count).by(0)
       end
     end
 
-    context "with initial_payment_amount = 0 on a credit order" do
-      it "creates the Order with no Payment" do
+    context "credit order with a partial payment" do
+      it "creates Order + 1 Payment + 1 Allocation" do
+        params = base_params.merge(
+          payments: { "0" => { amount: "50", payment_method: "cash" } }
+        )
         expect {
-          post "/web/orders", params: base_params.merge(
-            initial_payment_amount: "0",
-            initial_payment_method: "cash"
-          )
-        }.to change(Order, :count).by(1).and change(Payment, :count).by(0)
+          post "/web/orders", params: params
+        }.to change(Order, :count).by(1)
+          .and change(Payment, :count).by(1)
+          .and change(PaymentAllocation, :count).by(1)
+
+        order   = Order.order(:created_at).last
+        payment = Payment.order(:created_at).last
+        expect(payment.amount).to eq(50)
+        expect(payment.payment_method).to eq("cash")
+        expect(order.payment_allocations.first.payment_id).to eq(payment.id)
+      end
+    end
+
+    context "immediate order with matching single payment" do
+      it "creates Order + Payment + Allocation" do
+        retail = create(:customer, has_credit_account: false, name: "Walk-in")
+        params = base_params.deep_merge(
+          order: { customer_id: retail.id, order_type: "immediate" }
+        ).merge(
+          payments: { "0" => { amount: "200", payment_method: "cash" } }
+        )
+
+        expect {
+          post "/web/orders", params: params
+        }.to change(Order, :count).by(1)
+          .and change(Payment, :count).by(1)
+          .and change(PaymentAllocation, :count).by(1)
+      end
+    end
+
+    context "immediate order with split payments" do
+      it "creates one Payment per row" do
+        retail = create(:customer, has_credit_account: false, name: "Walk-in")
+        params = base_params.deep_merge(
+          order: { customer_id: retail.id, order_type: "immediate" }
+        ).merge(
+          payments: {
+            "0" => { amount: "120", payment_method: "cash" },
+            "1" => { amount: "80",  payment_method: "transfer" }
+          }
+        )
+
+        expect {
+          post "/web/orders", params: params
+        }.to change(Order, :count).by(1)
+          .and change(Payment, :count).by(2)
+          .and change(PaymentAllocation, :count).by(2)
+      end
+    end
+
+    context "immediate order without payments" do
+      it "fails and renders new" do
+        retail = create(:customer, has_credit_account: false, name: "Walk-in")
+        params = base_params.deep_merge(
+          order: { customer_id: retail.id, order_type: "immediate" }
+        )
+
+        expect {
+          post "/web/orders", params: params
+        }.to change(Order, :count).by(0)
+
+        expect(response).to have_http_status(:unprocessable_entity)
       end
     end
   end
