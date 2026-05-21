@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_05_13_234228) do
+ActiveRecord::Schema[7.2].define(version: 2026_05_21_180234) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -112,6 +112,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_05_13_234228) do
     t.decimal "unit_price", precision: 10, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "discount_percent", precision: 5, scale: 2, default: "0.0", null: false
     t.index ["order_id"], name: "index_order_items_on_order_id"
     t.index ["product_id"], name: "index_order_items_on_product_id"
   end
@@ -127,6 +128,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_05_13_234228) do
     t.string "source", default: "live", null: false
     t.date "sale_date", default: -> { "CURRENT_DATE" }, null: false
     t.string "paper_number"
+    t.decimal "original_total_amount", precision: 10, scale: 2, null: false
     t.index ["customer_id"], name: "index_orders_on_customer_id"
     t.index ["order_type"], name: "index_orders_on_order_type"
     t.index ["paper_number"], name: "index_orders_on_paper_number"

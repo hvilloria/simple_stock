@@ -77,52 +77,88 @@
             = f.select :customer_id, options_for_select(customer_options, "mostrador"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all", data: { action: "change->order-form#customerChanged" }
             %p.text-xs.text-gray-500.mt-1 Para ventas a crédito, selecciona un cliente con cuenta corriente
 
-          -# Detalle de pago (visible para ambos tipos de venta)
-          .border-t.border-gray-200.pt-4{ data: { order_form_target: "paymentSection" } }
-            .flex.items-center.justify-between.mb-3
-              %div
-                %h4.text-sm.font-semibold.text-gray-900{ data: { order_form_target: "paymentSectionTitle" } }
-                  Detalle de Pago
-                %p.text-xs.text-gray-500.mt-0.5{ data: { order_form_target: "paymentSectionSubtitle" } }
-                  La suma debe coincidir con el total de la venta
-              %span.text-xs.font-semibold.px-2.py-0.5.rounded.bg-red-50.text-red-700{ data: { order_form_target: "paymentSectionBadge" } }
-                Requerido
-
-            .space-y-2.mb-3{ data: { order_form_target: "paymentRows" } }
-              .flex.gap-2.items-center{ data: { order_form_target: "paymentRow" } }
-                = select_tag "payments[0][payment_method]",
-                    options_for_select([["💵 Efectivo", "cash"], ["🏦 Transferencia", "transfer"], ["📄 Cheque", "check"], ["💳 Tarjeta", "card"]], "cash"),
-                    data: { order_form_target: "paymentMethod" },
-                    class: "flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-700 focus:border-transparent"
-                = number_field_tag "payments[0][amount]", nil,
-                    step: "0.01", min: "0", placeholder: "Monto",
-                    data: { order_form_target: "paymentAmount", action: "input->order-form#updatePaymentTotal" },
-                    class: "w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-700 focus:border-transparent"
-                %button{ type: "button", data: { action: "click->order-form#removePaymentRow" }, class: "text-gray-400 hover:text-red-500 text-lg px-1", aria: { label: "Quitar método de pago" } } ×
-
-            %button{ type: "button", data: { action: "click->order-form#addPaymentRow" }, class: "text-xs text-slate-600 hover:text-slate-900 font-medium flex items-center gap-1 mb-3" }
-              %span.text-base +
-              Agregar método de pago
-
-            .rounded-lg.p-3.text-sm.bg-gray-50{ data: { order_form_target: "paymentSummary" } }
-              .flex.justify-between.mb-1
-                %span.text-gray-600 Total declarado
-                %span.font-semibold{ data: { order_form_target: "paymentDeclared" } } $0
-              %p.font-semibold.text-xs.mt-1{ data: { order_form_target: "paymentStatus" } }
-
           -# Canal de venta
           %div
             = f.label :channel, "Canal de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
             = f.select :channel, options_for_select([["🏪 Mostrador", "counter"], ["💬 WhatsApp", "whatsapp"], ["🛒 Mercado Libre", "mercadolibre"]], "counter"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
-      -# ============ CARD 2 - Resumen de Venta (derecha, ocupando 2 filas) ============
-      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24.md:row-span-2
+      -# ============ CARD - Productos (izquierda) ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
+
+        -# Search input con dropdown
+        %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
+          %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
+          %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
+
+        -# Lista de productos agregados
+        .mt-6
+          #order-items{ data: { 'order-form-target': 'items' } }
+            .text-center.py-12.text-gray-400
+              %p.text-5xl.mb-3 📦
+              %p.text-gray-600.font-medium No hay productos agregados
+              %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba
+
+      -# ============ CARD - Descuento (visible solo en venta inmediata) ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6{ data: { order_form_target: "discountCard" } }
+        %h3.text-lg.font-semibold.text-gray-900.mb-2 Descuento
+        .flex.items-center.justify-between.gap-4
+          %p.text-xs.text-gray-500 Se aplica al total de la venta. Máx. 10% en ventas inmediatas.
+          = select_tag :discount_percent,
+              options_for_select([["0%", 0], ["5%", 5], ["10%", 10]], 0),
+              data: { order_form_target: "discountSelect", action: "change->order-form#discountChanged" },
+              class: "w-32 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-center focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+
+      -# ============ CARD - Detalle de Pago ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6{ data: { order_form_target: "paymentSection" } }
+        .flex.items-center.justify-between.mb-3
+          %div
+            %h4.text-sm.font-semibold.text-gray-900{ data: { order_form_target: "paymentSectionTitle" } }
+              Detalle de Pago
+            %p.text-xs.text-gray-500.mt-0.5{ data: { order_form_target: "paymentSectionSubtitle" } }
+              La suma debe coincidir con el total de la venta
+          %span.text-xs.font-semibold.px-2.py-0.5.rounded.bg-red-50.text-red-700{ data: { order_form_target: "paymentSectionBadge" } }
+            Requerido
+
+        .space-y-2.mb-3{ data: { order_form_target: "paymentRows" } }
+          .flex.gap-2.items-center{ data: { order_form_target: "paymentRow" } }
+            = select_tag "payments[0][payment_method]",
+                options_for_select([["💵 Efectivo", "cash"], ["🏦 Transferencia", "transfer"], ["📄 Cheque", "check"], ["💳 Tarjeta", "card"]], "cash"),
+                data: { order_form_target: "paymentMethod" },
+                class: "flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-700 focus:border-transparent"
+            = number_field_tag "payments[0][amount]", nil,
+                step: "0.01", min: "0", placeholder: "Monto",
+                data: { order_form_target: "paymentAmount", action: "input->order-form#updatePaymentTotal" },
+                class: "w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-700 focus:border-transparent"
+            %button{ type: "button", data: { action: "click->order-form#removePaymentRow" }, class: "text-gray-400 hover:text-red-500 text-lg px-1", aria: { label: "Quitar método de pago" } } ×
+
+        %button{ type: "button", data: { action: "click->order-form#addPaymentRow" }, class: "text-xs text-slate-600 hover:text-slate-900 font-medium flex items-center gap-1 mb-3" }
+          %span.text-base +
+          Agregar método de pago
+
+        .rounded-lg.p-3.text-sm.bg-gray-50{ data: { order_form_target: "paymentSummary" } }
+          .flex.justify-between.mb-1
+            %span.text-gray-600 Total declarado
+            %span.font-semibold{ data: { order_form_target: "paymentDeclared" } } $0
+          %p.font-semibold.text-xs.mt-1{ data: { order_form_target: "paymentStatus" } }
+
+      -# ============ CARD - Resumen de Venta (derecha, ocupando 4 filas) ============
+      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24.md:row-span-4
         %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Venta
 
         -# Total principal (calculado dinámicamente)
         .text-center.mb-6
           %p.text-sm.text-gray-500.mb-2 Total
           %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0
+
+        -# Desglose descuento (solo visible cuando discount > 0)
+        .border-t.border-gray-200.py-4.hidden{ data: { order_form_target: "summaryDiscountRow" } }
+          .flex.justify-between.text-sm.mb-2
+            %span.text-gray-600 Subtotal
+            %span.text-gray-500.line-through{ data: { order_form_target: "summarySubtotal" } } $0
+          .flex.justify-between.text-sm
+            %span.text-amber-700{ data: { order_form_target: "summaryDiscountLabel" } } Descuento −0%
+            %span.font-semibold.text-amber-700{ data: { order_form_target: "summaryDiscount" } } −$0
 
         -# Desglose de pago (solo visible en venta a crédito)
         .border-t.border-gray-200.py-4.hidden{ data: { order_form_target: "summaryBreakdown" } }
@@ -160,20 +196,3 @@
 
         .mt-4.text-center
           %p.text-xs.text-gray-500 Se validará el stock disponible antes de confirmar
-
-      -# ============ CARD 3 - Productos (izquierda, abajo) ============
-      .bg-white.border.border-slate-200.rounded-lg.p-6
-        %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
-
-        -# Search input con dropdown
-        %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
-          %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
-          %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
-
-        -# Lista de productos agregados
-        .mt-6
-          #order-items{ data: { 'order-form-target': 'items' } }
-            .text-center.py-12.text-gray-400
-              %p.text-5xl.mb-3 📦
-              %p.text-gray-600.font-medium No hay productos agregados
-              %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba

@@ -18,7 +18,7 @@ module Sales
     PAYMENT_SUM_TOLERANCE = 0.01
 
     def self.call(customer:, items:, order_type:, channel: nil, source: "live",
-                  sale_date: nil, paper_number: nil, payments: [])
+                  sale_date: nil, paper_number: nil, payments: [], discount_percent: 0)
       new(
         customer: customer,
         items: items,
@@ -27,12 +27,13 @@ module Sales
         source: source,
         sale_date: sale_date,
         paper_number: paper_number,
-        payments: payments
+        payments: payments,
+        discount_percent: discount_percent
       ).call
     end
 
     def initialize(customer:, items:, order_type:, channel: nil, source: "live",
-                   sale_date: nil, paper_number: nil, payments: [])
+                   sale_date: nil, paper_number: nil, payments: [], discount_percent: 0)
       @customer = customer
       @items = items.map { |item| item.is_a?(Item) ? item : Item.new(item) }
       @order_type = order_type
@@ -41,6 +42,7 @@ module Sales
       @sale_date = sale_date || Date.today
       @paper_number = paper_number
       @payments_data = normalize_payments(payments)
+      @discount_percent = discount_percent.to_d
     end
 
     def call
@@ -101,7 +103,20 @@ module Sales
         end
       end
 
+      validate_discount
       validate_payments
+    end
+
+    def validate_discount
+      return if @discount_percent.zero?
+
+      if @order_type == "credit"
+        raise ValidationError, "No se permite descuento en ventas a crédito"
+      end
+
+      if @order_type == "immediate" && @discount_percent > 10
+        raise ValidationError, "Descuento máximo permitido en ventas inmediatas: 10%"
+      end
     end
 
     def validate_payments
@@ -141,12 +156,17 @@ module Sales
         sale_date: @sale_date,
         paper_number: @paper_number,
         status: "confirmed",
-        total_amount: calculate_total
+        total_amount: calculate_total,
+        original_total_amount: original_total
       )
     end
 
     def calculate_total
-      @calculate_total ||= @items.sum do |item|
+      @calculate_total ||= (original_total * (1 - @discount_percent / 100)).round(2)
+    end
+
+    def original_total
+      @original_total ||= @items.sum do |item|
         product = Product.find(item.product_id)
         unit_price = item.unit_price || product.price_unit || 0
         item.quantity * unit_price
@@ -162,7 +182,8 @@ module Sales
           order: @order,
           product: product,
           quantity: item.quantity,
-          unit_price: final_price
+          unit_price: final_price,
+          discount_percent: @discount_percent
         )
       end
     end

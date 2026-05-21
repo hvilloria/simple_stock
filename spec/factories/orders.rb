@@ -4,6 +4,7 @@ FactoryBot.define do
     status { "confirmed" }
     order_type { "immediate" }
     total_amount { 100.0 }
+    original_total_amount { total_amount }
     channel { nil }
     source { "live" }
     sale_date { Date.today }

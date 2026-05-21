@@ -1,13 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "paymentSection", "paymentSectionTitle", "paymentSectionSubtitle", "paymentSectionBadge", "paymentRows", "paymentRow", "paymentMethod", "paymentAmount", "paymentDeclared", "paymentStatus", "paymentSummary", "summaryBreakdown", "summaryPaidNow", "summaryOutstanding"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "paymentSection", "paymentSectionTitle", "paymentSectionSubtitle", "paymentSectionBadge", "paymentRows", "paymentRow", "paymentMethod", "paymentAmount", "paymentDeclared", "paymentStatus", "paymentSummary", "summaryBreakdown", "summaryPaidNow", "summaryOutstanding", "discountSelect", "discountCard", "summaryDiscountRow", "summarySubtotal", "summaryDiscount", "summaryDiscountLabel"]
   static values = { initialItems: Array }
 
   connect() {
     this.items = this.initialItemsValue.length > 0 ? this.initialItemsValue : []
     this.renderItems()
     this.updateSummary()
+    this.refreshDiscountBreakdown()
     this.applyCreditRadioState()
     const initialOrderType = this.hasCreditRadioTarget && this.creditRadioTarget.checked ? "credit" : "immediate"
     this.applyPaymentMode(initialOrderType)
@@ -167,8 +168,19 @@ export default class extends Controller {
     this.applyPaymentMode(orderType)
   }
 
-  calculateTotal() {
+  discountPercent() {
+    if (!this.hasDiscountSelectTarget) return 0
+    return parseFloat(this.discountSelectTarget.value) || 0
+  }
+
+  calculateSubtotal() {
     return this.items.reduce((sum, item) => sum + (item.price_unit * item.quantity), 0)
+  }
+
+  calculateTotal() {
+    const subtotal = this.calculateSubtotal()
+    const d = this.discountPercent()
+    return Math.round(subtotal * (1 - d / 100) * 100) / 100
   }
 
   renderItems() {
@@ -251,6 +263,7 @@ export default class extends Controller {
   }
 
   updateSummary() {
+    this.refreshDiscountBreakdown()
     const total = this.calculateTotal()
     const itemCount = this.items.length
     const totalQuantity = this.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -296,6 +309,44 @@ export default class extends Controller {
     }
 
     this.updatePaymentTotal()
+
+    if (this.hasDiscountCardTarget) {
+      if (orderType === "credit") {
+        if (this.hasDiscountSelectTarget) this.discountSelectTarget.value = "0"
+        this.discountCardTarget.classList.add("hidden")
+      } else {
+        this.discountCardTarget.classList.remove("hidden")
+      }
+      this.refreshDiscountBreakdown()
+    }
+  }
+
+  discountChanged() {
+    this.refreshDiscountBreakdown()
+    this.updateSummary()
+  }
+
+  refreshDiscountBreakdown() {
+    if (!this.hasSummaryDiscountRowTarget) return
+
+    const subtotal = this.calculateSubtotal()
+    const d = this.discountPercent()
+    const discountAmount = Math.round(subtotal * d) / 100
+
+    if (d > 0) {
+      this.summaryDiscountRowTarget.classList.remove("hidden")
+      if (this.hasSummarySubtotalTarget) {
+        this.summarySubtotalTarget.textContent = `$${this.formatCurrency(subtotal)}`
+      }
+      if (this.hasSummaryDiscountLabelTarget) {
+        this.summaryDiscountLabelTarget.textContent = `Descuento −${d}%`
+      }
+      if (this.hasSummaryDiscountTarget) {
+        this.summaryDiscountTarget.textContent = `−$${this.formatCurrency(discountAmount)}`
+      }
+    } else {
+      this.summaryDiscountRowTarget.classList.add("hidden")
+    }
   }
 
   addPaymentRow() {
