@@ -58,57 +58,76 @@
               %span{ data: { "payment-allocation-target": "selectedCount" } } 0
               %span.text-sm.text-slate-400.font-medium= " de #{@pending_orders.size}"
 
-      -# Orders table card
-      .bg-white.border.border-slate-200.rounded-xl.p-6.mb-4
-        %h3.text-base.font-semibold.text-slate-900.mb-4 Órdenes pendientes
+      -# Orders cards
+      .space-y-3.mb-4
+        - @pending_orders.each_with_index do |order, idx|
+          - paid_so_far = order.payment_allocations.sum(:amount)
+          - pending = order.outstanding_balance
+          - locked = order.payment_allocations.any?
+          - paper = order.paper_number.presence
+          - order_title = paper ? "Orden ##{order.id}/#{paper}" : "Orden ##{order.id}"
+          .bg-white.border.border-slate-200.rounded-xl.p-4{ data: { "payment-allocation-target": "row", "pending": pending, "order-id": order.id, "locked": locked.to_s } }
+            = hidden_field_tag "allocations[#{idx}][order_id]", order.id
+            .flex.items-center.gap-3
+              = check_box_tag "allocations[#{idx}][include]", "1", false,
+                  class: "w-4 h-4 rounded border-slate-300",
+                  data: { "role": "include-checkbox", action: "change->payment-allocation#toggleRow" }
+              .flex-1.flex.flex-wrap.items-center.gap-x-4.gap-y-1.text-sm
+                %span.font-semibold.text-slate-900= order_title
+                %span.text-slate-500= l(order.sale_date || order.created_at.to_date, format: :default)
+                %span.text-slate-600 Total #{currency_ar_int(order.total_amount)}
+                %span.font-semibold.text-amber-600 Pendiente #{currency_ar_int(pending)}
+                - if locked
+                  %span.text-xs.px-2.py-0.5.rounded.bg-slate-100.text-slate-600 descuentos congelados
+              %button.text-xs.text-slate-500.underline.decoration-dotted{ type: "button", data: { action: "click->payment-allocation#toggleProducts" } }
+                = "#{order.order_items.size} #{'producto'.pluralize(order.order_items.size)} ▸"
 
-        .overflow-x-auto
-          %table.min-w-full
-            %thead
-              %tr.border-b.border-slate-200
-                %th.px-2.py-2.w-10
-                %th.px-2.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Factura
-                %th.px-2.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Fecha
-                %th.px-2.py-2.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Ítems
-                %th.px-2.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Total
-                %th.px-2.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Cobrado
-                %th.px-2.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Pendiente
-                %th.px-2.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider.w-32 Cobrar
-                %th.px-2.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider.w-40 Método
+            .mt-3.pt-3.border-t.border-dashed.border-slate-200.hidden{ data: { "role": "products-block" } }
+              %table.w-full.text-xs
+                %thead
+                  %tr.text-slate-500
+                    %th.text-left.py-1.font-medium.uppercase.tracking-wider Producto
+                    %th.text-center.py-1.font-medium.uppercase.tracking-wider Cant.
+                    %th.text-center.py-1.font-medium.uppercase.tracking-wider Desc.
+                    %th.text-right.py-1.font-medium.uppercase.tracking-wider Subtotal
+                %tbody
+                  - order.order_items.each do |item|
+                    - locked_pct = item.discount_percent.to_i
+                    %tr.border-t.border-slate-100
+                      %td.py-1.5= item.product&.name
+                      %td.py-1.5.text-center= item.quantity
+                      %td.py-1.5.text-center
+                        - if locked
+                          %span.text-slate-500= "#{locked_pct}% (fijado)"
+                        - else
+                          = select_tag "allocations[#{idx}][discounts][#{item.id}]",
+                              options_for_select([["0%","0"],["5%","5"],["10%","10"],["15%","15"],["20%","20"]], locked_pct.to_s),
+                              disabled: true,
+                              class: "border border-slate-300 rounded px-2 py-0.5 text-xs disabled:bg-slate-50 disabled:text-slate-400",
+                              data: { "role": "discount-select", "item-id": item.id, "unit-price": (item.unit_price || 0).to_f, "quantity": item.quantity, action: "change->payment-allocation#discountChanged" }
+                      %td.py-1.5.text-right{ data: { "role": "subtotal-cell" } }= currency_ar_int((item.unit_price || 0) * item.quantity * (1 - locked_pct / 100.0))
 
-            %tbody
-              - @pending_orders.each_with_index do |order, idx|
-                - paid_so_far = order.payment_allocations.sum(:amount)
-                - pending = order.outstanding_balance
-                %tr.border-b.border-slate-100.opacity-60{ data: { "payment-allocation-target": "row", "pending": pending } }
-                  = hidden_field_tag "allocations[#{idx}][order_id]", order.id
-
-                  %td.px-2.py-3.text-center
-                    = check_box_tag "allocations[#{idx}][include]", "1", false,
-                        class: "w-4 h-4 rounded border-slate-300",
-                        data: { "role": "include-checkbox", action: "change->payment-allocation#toggleRow" }
-                  %td.px-2.py-3.text-sm.font-semibold.text-slate-900= "##{order.id}"
-                  %td.px-2.py-3.text-sm.text-slate-600= l(order.sale_date || order.created_at.to_date, format: :default)
-                  %td.px-2.py-3.text-center.text-sm
-                    %span.text-slate-700.underline.decoration-dotted= "#{order.order_items.size} productos"
-                  %td.px-2.py-3.text-right.text-sm.font-semibold.text-slate-900= currency_ar_int(order.total_amount)
-                  %td.px-2.py-3.text-right.text-sm.text-slate-600= currency_ar_int(paid_so_far)
-                  %td.px-2.py-3.text-right.text-sm.font-semibold.text-amber-600= currency_ar_int(pending)
-                  %td.px-2.py-3.text-right
-                    = number_field_tag "allocations[#{idx}][amount]", nil,
-                        step: "0.01", min: "0",
-                        disabled: true,
-                        class: "w-28 px-2 py-1.5 text-right text-sm font-semibold border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400",
-                        data: { "role": "amount-input", action: "input->payment-allocation#recalc" }
-                  %td.px-2.py-3
-                    = select_tag "allocations[#{idx}][payment_method]",
-                        options_for_select(payment_method_options, "cash"),
-                        disabled: true,
-                        class: "w-36 px-2 py-1.5 text-sm border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-400",
-                        data: { "role": "method-select" }
+              .flex.items-center.justify-between.mt-3.pt-2.text-xs
+                %div{ data: { "role": "discount-summary" }, class: ("hidden" unless locked && order.discount_amount.to_f > 0) }
+                  Total con descuento:
+                  %span.line-through.text-slate-400{ data: { "role": "summary-original" } }= currency_ar_int(order.original_total_amount)
+                  %span.mx-1 →
+                  %span.font-semibold.text-slate-900{ data: { "role": "summary-new" } }= currency_ar_int(order.total_amount)
+                .flex.items-center.gap-2
+                  %label.text-slate-500 Cobrar
+                  = number_field_tag "allocations[#{idx}][amount]", nil,
+                      step: "0.01", min: "0",
+                      disabled: true,
+                      class: "w-32 px-2 py-1 text-right text-sm font-semibold border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
+                      data: { "role": "amount-input", action: "input->payment-allocation#recalc" }
+                  = select_tag "allocations[#{idx}][payment_method]",
+                      options_for_select(payment_method_options, "cash"),
+                      disabled: true,
+                      class: "px-2 py-1 text-sm border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
+                      data: { "role": "method-select" }
 
         %p.text-xs.text-slate-400.italic.mt-3
-          Tildá una orden y el monto se rellena con el saldo pendiente. Editalo si es pago parcial. "N productos" abrirá un modal con el detalle (futura mejora).
+          Tildá una orden para incluirla en el cobro. Los descuentos se aplican una sola vez por orden y quedan fijos al primer cobro.
 
       -# Footer: date + notes + submit
       .bg-white.border.border-slate-200.rounded-xl.p-5.flex.items-end.gap-4
