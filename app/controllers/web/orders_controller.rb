@@ -62,7 +62,7 @@ module Web
         source: params[:source] || "live",
         sale_date: params[:sale_date],
         paper_number: params[:paper_number],
-        initial_payment: parse_initial_payment
+        payments: parse_payments
       )
 
       if result.success?
@@ -119,17 +119,14 @@ module Web
       end.reject { |item| item[:quantity] <= 0 }
     end
 
-    def parse_initial_payment
-      return nil unless params.dig(:order, :order_type) == "credit"
-      return nil if params[:initial_payment_amount].blank?
+    def parse_payments
+      return [] if params[:payments].blank?
 
-      amount = params[:initial_payment_amount].to_f
-      return nil if amount <= 0
-
-      {
-        amount: amount,
-        payment_method: params[:initial_payment_method].presence || "cash"
-      }
+      params[:payments].to_unsafe_h.values.filter_map do |entry|
+        amount = entry[:amount].to_f
+        next if amount <= 0
+        { amount: amount, payment_method: entry[:payment_method].presence || "cash" }
+      end
     end
 
     def find_or_create_customer

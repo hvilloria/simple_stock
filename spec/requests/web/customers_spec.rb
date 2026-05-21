@@ -27,7 +27,7 @@ RSpec.describe 'Web::Customers', type: :request do
         customer: paid_customer,
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
         order_type: 'credit',
-        initial_payment: { amount: 100, payment_method: 'cash' }
+        payments: [ { amount: 100, payment_method: 'cash' } ]
       )
     end
 

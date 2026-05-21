@@ -77,24 +77,38 @@
             = f.select :customer_id, options_for_select(customer_options, "mostrador"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all", data: { action: "change->order-form#customerChanged" }
             %p.text-xs.text-gray-500.mt-1 Para ventas a crédito, selecciona un cliente con cuenta corriente
 
-          -# Cobro al momento (visible solo en cuenta corriente)
-          %div{ data: { order_form_target: "creditPaymentSection" }, class: "space-y-3 hidden border-t border-gray-200 pt-4" }
-            %h4.text-sm.font-semibold.text-gray-900.mb-3 Cobro al Momento
+          -# Detalle de pago (visible para ambos tipos de venta)
+          .border-t.border-gray-200.pt-4{ data: { order_form_target: "paymentSection" } }
+            .flex.items-center.justify-between.mb-3
+              %div
+                %h4.text-sm.font-semibold.text-gray-900{ data: { order_form_target: "paymentSectionTitle" } }
+                  Detalle de Pago
+                %p.text-xs.text-gray-500.mt-0.5{ data: { order_form_target: "paymentSectionSubtitle" } }
+                  La suma debe coincidir con el total de la venta
+              %span.text-xs.font-semibold.px-2.py-0.5.rounded.bg-red-50.text-red-700{ data: { order_form_target: "paymentSectionBadge" } }
+                Requerido
 
-            %div
-              = label_tag :initial_payment_amount, "Monto que paga ahora", class: "block text-sm font-medium text-gray-700 mb-2"
-              = number_field_tag :initial_payment_amount, 0,
-                  step: "0.01", min: "0",
-                  data: { order_form_target: "initialPaymentInput", action: "input->order-form#updateInitialPayment" },
-                  class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
-              %p.text-xs.text-gray-500.mt-1 Dejá en 0 si el cliente no paga nada al momento
-              %p.text-xs.text-red-600.mt-1.hidden{ data: { order_form_target: "initialPaymentWarning" } } El monto no puede superar el total
+            .space-y-2.mb-3{ data: { order_form_target: "paymentRows" } }
+              .flex.gap-2.items-center{ data: { order_form_target: "paymentRow" } }
+                = select_tag "payments[0][payment_method]",
+                    options_for_select([["💵 Efectivo", "cash"], ["🏦 Transferencia", "transfer"], ["📄 Cheque", "check"], ["💳 Tarjeta", "card"]], "cash"),
+                    data: { order_form_target: "paymentMethod" },
+                    class: "flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-700 focus:border-transparent"
+                = number_field_tag "payments[0][amount]", nil,
+                    step: "0.01", min: "0", placeholder: "Monto",
+                    data: { order_form_target: "paymentAmount", action: "input->order-form#updatePaymentTotal" },
+                    class: "w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-700 focus:border-transparent"
+                %button{ type: "button", data: { action: "click->order-form#removePaymentRow" }, class: "text-gray-400 hover:text-red-500 text-lg px-1", aria: { label: "Quitar método de pago" } } ×
 
-            %div
-              = label_tag :initial_payment_method, "Método de pago", class: "block text-sm font-medium text-gray-700 mb-2"
-              = select_tag :initial_payment_method,
-                  options_for_select([["💵 Efectivo", "cash"], ["🏦 Transferencia", "transfer"], ["📄 Cheque", "check"], ["💳 Tarjeta", "card"]], "cash"),
-                  class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+            %button{ type: "button", data: { action: "click->order-form#addPaymentRow" }, class: "text-xs text-slate-600 hover:text-slate-900 font-medium flex items-center gap-1 mb-3" }
+              %span.text-base +
+              Agregar método de pago
+
+            .rounded-lg.p-3.text-sm.bg-gray-50{ data: { order_form_target: "paymentSummary" } }
+              .flex.justify-between.mb-1
+                %span.text-gray-600 Total declarado
+                %span.font-semibold{ data: { order_form_target: "paymentDeclared" } } $0
+              %p.font-semibold.text-xs.mt-1{ data: { order_form_target: "paymentStatus" } }
 
           -# Canal de venta
           %div
@@ -109,6 +123,16 @@
         .text-center.mb-6
           %p.text-sm.text-gray-500.mb-2 Total
           %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0
+
+        -# Desglose de pago (solo visible en venta a crédito)
+        .border-t.border-gray-200.py-4.hidden{ data: { order_form_target: "summaryBreakdown" } }
+          .space-y-2
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Cobrás ahora
+              %span.font-semibold.text-gray-500{ data: { order_form_target: "summaryPaidNow" } } $0
+            .flex.justify-between.text-sm
+              %span.text-gray-600 A cuenta corriente
+              %span.font-semibold.text-gray-500{ data: { order_form_target: "summaryOutstanding" } } $0
 
         .border-t.border-gray-200.py-4.space-y-3
           .flex.justify-between.text-sm

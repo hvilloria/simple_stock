@@ -72,7 +72,8 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         immediate = Sales::CreateOrder.call(
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-          order_type: "immediate"
+          order_type: "immediate",
+          payments: [ { amount: 100, payment_method: "cash" } ]
         ).record
 
         result = described_class.call(

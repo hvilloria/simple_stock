@@ -16,19 +16,13 @@ RSpec.describe Payment, type: :model do
     it { should validate_inclusion_of(:payment_method).in_array(Payment::PAYMENT_METHODS) }
     it { should validate_presence_of(:payment_date) }
 
-    describe "customer_must_have_credit_account" do
-      let(:customer_with_credit) { create(:customer, customer_type: "workshop", has_credit_account: true) }
-      let(:customer_without_credit) { create(:customer, has_credit_account: false) }
+    context "for a customer without a credit account (retail / mostrador)" do
+      let(:retail) { create(:customer, customer_type: "retail", has_credit_account: false) }
 
-      it "is valid when customer has credit account" do
-        payment = build(:payment, customer: customer_with_credit)
-        expect(payment).to be_valid
-      end
-
-      it "is invalid when customer does not have credit account" do
-        payment = build(:payment, customer: customer_without_credit)
-        expect(payment).not_to be_valid
-        expect(payment.errors[:customer]).to include("must have credit account enabled")
+      it "is persisted successfully" do
+        expect {
+          create(:payment, customer: retail, amount: 100, payment_method: "cash", payment_date: Date.today)
+        }.to change(Payment, :count).by(1)
       end
     end
   end

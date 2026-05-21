@@ -230,7 +230,8 @@ RSpec.describe Order, type: :model do
         Sales::CreateOrder.call(
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-          order_type: "immediate"
+          order_type: "immediate",
+          payments: [ { amount: 100, payment_method: "cash" } ]
         ).record
       end
 
@@ -274,7 +275,7 @@ RSpec.describe Order, type: :model do
           customer: customer,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: "credit",
-          initial_payment: { amount: 50, payment_method: "cash" }
+          payments: [ { amount: 50, payment_method: "cash" } ]
         ).record
       end
 
@@ -289,7 +290,7 @@ RSpec.describe Order, type: :model do
           customer: customer,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: "credit",
-          initial_payment: { amount: 200, payment_method: "cash" }
+          payments: [ { amount: 200, payment_method: "cash" } ]
         ).record
       end
 

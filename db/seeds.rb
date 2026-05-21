@@ -325,11 +325,13 @@ ventas_fallidas = 0
 
   next if items.empty?
 
+  total = items.sum { |i| i[:quantity] * i[:unit_price] }
   result = Sales::CreateOrder.call(
     customer: mostrador,
     items: items,
     order_type: "immediate",
-    channel: [ 'counter', 'whatsapp', 'mercadolibre' ].sample
+    channel: [ 'counter', 'whatsapp', 'mercadolibre' ].sample,
+    payments: [ { amount: total, payment_method: %w[cash transfer card].sample } ]
   )
 
   if result.success?
@@ -365,11 +367,16 @@ end
 
   next if items.empty?
 
+  total = items.sum { |i| i[:quantity] * i[:unit_price] }
+  partial = (total * rand(0.0..0.5)).round(2)
+  payments = partial.positive? ? [ { amount: partial, payment_method: %w[cash transfer].sample } ] : []
+
   result = Sales::CreateOrder.call(
     customer: cliente,
     items: items,
     order_type: "credit",
-    channel: "counter"
+    channel: "counter",
+    payments: payments
   )
 
   if result.success?

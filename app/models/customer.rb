@@ -23,18 +23,20 @@ class Customer < ApplicationRecord
   scope :mechanics, -> { where(customer_type: "mechanic") }
   scope :stores, -> { where(customer_type: "store") }
   scope :with_outstanding_balance, -> {
-    with_credit_account
-      .where(
-        "( SELECT COALESCE(SUM(o.total_amount), 0)
-           FROM orders o
-           WHERE o.customer_id = customers.id
-             AND o.order_type = 'credit'
-             AND o.status = 'confirmed' )
-         >
-         ( SELECT COALESCE(SUM(p.amount), 0)
-           FROM payments p
-           WHERE p.customer_id = customers.id )"
-      )
+    with_credit_account.where(
+      "( SELECT COALESCE(SUM(o.total_amount), 0)
+         FROM orders o
+         WHERE o.customer_id = customers.id
+           AND o.order_type = 'credit'
+           AND o.status = 'confirmed' )
+       >
+       ( SELECT COALESCE(SUM(pa.amount), 0)
+         FROM payment_allocations pa
+         JOIN orders o ON pa.order_id = o.id
+         WHERE o.customer_id = customers.id
+           AND o.order_type = 'credit'
+           AND o.status = 'confirmed' )"
+    )
   }
 
   # Retorna el cliente genérico para ventas de mostrador (contado)
@@ -46,18 +48,22 @@ class Customer < ApplicationRecord
     end
   end
 
-  # Calculate current balance for customers with credit account
+  # Calculate current balance for customers with credit account.
+  # Only payments allocated to credit orders count against the balance —
+  # payments for immediate sales do not affect credit debt.
   def current_balance
     return 0 unless has_credit_account?
 
-    total_credit_sales = orders
-                          .where(order_type: "credit")
-                          .where.not(status: "cancelled")
-                          .sum(:total_amount)
+    credit_owed = orders
+                    .where(order_type: "credit", status: "confirmed")
+                    .sum(:total_amount)
 
-    total_payments = payments.sum(:amount) rescue 0  # rescue because Payment might not exist yet
+    credit_paid = PaymentAllocation
+                    .joins(:order)
+                    .where(orders: { customer_id: id, order_type: "credit", status: "confirmed" })
+                    .sum(:amount)
 
-    total_credit_sales - total_payments
+    credit_owed - credit_paid
   end
 
   def last_payment_date
