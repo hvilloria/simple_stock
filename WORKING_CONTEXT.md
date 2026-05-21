@@ -20,7 +20,7 @@ Only includes behavior that is important for implementing features safely.
 
 * **Dashboard** (`web/dashboard#index`): metrics include “sales today” = sum of **confirmed** orders where **`created_at`** is today (not `sale_date`); receivables = sum of `Customer#current_balance` for customers with credit; low-stock lists; recent orders ordered by `created_at`.
 * **Products**: CRUD without destroy; collection **`search`**; nested **`stock_movements`** new/create → `Inventory::AdjustStock` (stock location = **`StockLocation.first!`**).
-* **Orders**: index/show/new/create; member **POST `cancel`** → `Sales::CancelOrder`. Create builds items from **`purchase_items`** params and resolves customer via **`Customer.mostrador`** when `customer_id` is blank or `"mostrador"`.
+* **Orders**: index/show/new/create; member **POST `cancel`** → `Sales::CancelOrder`. Create builds items from **`purchase_items`** params and resolves customer via **`Customer.mostrador`** when `customer_id` is blank or `"mostrador"`. El form `new` ordena la columna izquierda como **Cliente → Productos → Descuento → Detalle de Pago**; el card "Descuento" se oculta cuando `order_type = credit` (descuento de credit vive en feat_09).
 * **Customers**: index/show/new/create/edit/update; **`debtors`** collection → lista de clientes con balance > 0 ordenada por deuda; nested **`payments`** new/create → `Payments::AllocatePayment` (module `Web::Customers`). El form de cobro permite distribuir el pago entre una o varias órdenes pendientes con método de pago independiente por fila.
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
@@ -39,6 +39,7 @@ Only includes behavior that is important for implementing features safely.
 * Cancelled via **`Sales::CancelOrder`** (member cancel).
 * Confirmed sales create **`StockMovement`** rows with **`movement_type: sale`** via **`Inventory::AdjustStock`** (signed quantity: **outbound is negative** in the implemented paths).
 * **`Sales::CancelOrder`** restocks using **`Inventory::AdjustStock`** with **`movement_type: adjustment`** and a **positive** quantity per line (not a second `sale` movement).
+* **Descuento (immediate):** `Sales::CreateOrder` acepta `discount_percent:` (0–10 en immediate, debe ser 0 en credit; tope superior absoluto 20 enforced en `OrderItem`). El servicio guarda `orders.original_total_amount` (pre-descuento, NOT NULL) y `order_items.discount_percent` por línea (default 0, NOT NULL). `total_amount` queda con el valor post-descuento — toda la lógica downstream (pagos, dashboard, `outstanding_balance`) lee `total_amount` sin cambios. El form `web/orders/new` envía un único `discount_percent` global y el servicio lo reparte a cada item. Helpers: `Order#discount_amount`, `Order#discount_percent_display`.
 
 ### Stock
 

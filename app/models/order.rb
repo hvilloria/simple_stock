@@ -37,6 +37,10 @@ class Order < ApplicationRecord
   validates :channel, inclusion: { in: ALLOWED_CHANNELS, allow_nil: true }
   validates :paper_number, presence: true, if: :from_paper?
   validate :credit_order_requires_credit_account
+  validates :original_total_amount,
+            presence: true,
+            numericality: { greater_than_or_equal_to: 0 }
+  validate :original_total_at_least_current_total
 
   # Scopes
   scope :immediate, -> { where(order_type: "immediate") }
@@ -80,6 +84,17 @@ class Order < ApplicationRecord
     update!(total_amount: order_items.sum("quantity * unit_price"))
   end
 
+  def discount_amount
+    return 0 if original_total_amount.nil? || total_amount.nil?
+    original_total_amount - total_amount
+  end
+
+  # Assumes all items share the same discount_percent (true for feat_08 immediate sales).
+  # Revisit this helper in feat_09 when credit orders introduce per-item discounts.
+  def discount_percent_display
+    order_items.first&.discount_percent.to_i
+  end
+
   def cancel!(reason: nil)
     result = Sales::CancelOrder.call(order: self, reason: reason)
 
@@ -99,6 +114,13 @@ class Order < ApplicationRecord
 
     unless customer.has_credit_account?
       errors.add(:base, "Credit orders require a customer with credit account enabled")
+    end
+  end
+
+  def original_total_at_least_current_total
+    return if original_total_amount.nil? || total_amount.nil?
+    if original_total_amount < total_amount
+      errors.add(:original_total_amount, "no puede ser menor al total actual")
     end
   end
 end

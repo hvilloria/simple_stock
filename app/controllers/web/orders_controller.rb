@@ -62,7 +62,8 @@ module Web
         source: params[:source] || "live",
         sale_date: params[:sale_date],
         paper_number: params[:paper_number],
-        payments: parse_payments
+        payments: parse_payments,
+        discount_percent: params[:discount_percent].to_f
       )
 
       if result.success?

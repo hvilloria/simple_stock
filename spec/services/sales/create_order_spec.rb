@@ -568,4 +568,88 @@ RSpec.describe Sales::CreateOrder do
       end
     end
   end
+
+  describe "with discount_percent" do
+    let(:customer) { Customer.create!(name: "Walk-in", customer_type: "retail") }
+    let(:product) do
+      Product.create!(sku: "DISC-1", name: "Discountable", price_unit: 100, cost_unit: 40, cost_currency: "ARS")
+    end
+
+    before do
+      StockLocation.find_or_create_by!(name: "Default")
+      StockMovement.create!(product: product, stock_location: StockLocation.first!, quantity: 10, movement_type: "adjustment")
+      product.recalculate_current_stock!
+    end
+
+    def call_with(discount:, order_type: "immediate", payments: nil)
+      payments ||= order_type == "immediate" ? [ { amount: discounted_total(discount), payment_method: "cash" } ] : []
+      Sales::CreateOrder.call(
+        customer: customer,
+        items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+        order_type: order_type,
+        source: "live",
+        discount_percent: discount,
+        payments: payments
+      )
+    end
+
+    def discounted_total(d)
+      (200 * (1 - d.to_f / 100)).round(2)
+    end
+
+    it "applies discount_percent to all created order_items" do
+      result = call_with(discount: 10)
+      expect(result.success?).to be true
+      expect(result.record.order_items.map(&:discount_percent).map(&:to_i)).to all(eq(10))
+    end
+
+    it "persists original_total_amount = sum(qty * unit_price)" do
+      result = call_with(discount: 10)
+      expect(result.record.original_total_amount.to_f).to eq(200.0)
+    end
+
+    it "persists total_amount = post-discount total" do
+      result = call_with(discount: 10)
+      expect(result.record.total_amount.to_f).to eq(180.0)
+    end
+
+    it "returns failure when order_type=credit and discount_percent > 0" do
+      credit_customer = Customer.create!(name: "C", customer_type: "workshop", has_credit_account: true)
+      result = Sales::CreateOrder.call(
+        customer: credit_customer,
+        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+        order_type: "credit",
+        source: "live",
+        discount_percent: 5
+      )
+      expect(result.success?).to be false
+      expect(result.errors.join).to match(/descuento.*cr[eé]dito/i)
+    end
+
+    it "returns failure when order_type=immediate and discount_percent > 10" do
+      result = call_with(discount: 15)
+      expect(result.success?).to be false
+      expect(result.errors.join).to match(/10%/)
+    end
+
+    it "succeeds with discount_percent = 0 (no behavioral change)" do
+      result = call_with(discount: 0)
+      expect(result.success?).to be true
+      expect(result.record.total_amount.to_f).to eq(200.0)
+      expect(result.record.original_total_amount.to_f).to eq(200.0)
+    end
+
+    it "rejects payment whose sum does not match the post-discount total" do
+      result = Sales::CreateOrder.call(
+        customer: customer,
+        items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+        order_type: "immediate",
+        source: "live",
+        discount_percent: 10,
+        payments: [ { amount: 200, payment_method: "cash" } ]
+      )
+      expect(result.success?).to be false
+      expect(result.errors.join).to match(/suma de los pagos/i)
+    end
+  end
 end
