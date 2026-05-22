@@ -190,5 +190,130 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect(Payment.pluck(:notes).uniq).to eq([ "Pago semanal" ])
       end
     end
+
+    context "with item_discounts on the first cobro of an order" do
+      let(:multi_item_order) do
+        Sales::CreateOrder.call(
+          customer: customer,
+          items: [
+            { product_id: product.id, quantity: 2, unit_price: 100 },
+            { product_id: product.id, quantity: 1, unit_price: 100 }
+          ],
+          order_type: "credit"
+        ).record
+      end
+
+      it "applies the per-item discounts, recalculates total_amount, and creates the allocation" do
+        items = multi_item_order.order_items.order(:id).to_a
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [
+            {
+              order_id: multi_item_order.id,
+              amount: 260,
+              payment_method: "cash",
+              item_discounts: { items.first.id => 10, items.last.id => 20 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        multi_item_order.reload
+        expect(multi_item_order.original_total_amount.to_f).to eq(300.0)
+        expect(multi_item_order.total_amount.to_f).to eq(260.0)
+        items.each(&:reload)
+        expect(items.first.discount_percent.to_i).to eq(10)
+        expect(items.last.discount_percent.to_i).to eq(20)
+        expect(multi_item_order.payment_allocations.sum(:amount).to_f).to eq(260.0)
+      end
+
+      it "ignores item_discounts when the order already has an allocation (locked)" do
+        items = multi_item_order.order_items.order(:id).to_a
+
+        described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [
+            {
+              order_id: multi_item_order.id,
+              amount: 50,
+              payment_method: "cash",
+              item_discounts: { items.first.id => 10, items.last.id => 0 }
+            }
+          ]
+        )
+
+        multi_item_order.reload
+        locked_total = multi_item_order.total_amount.to_f
+
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [
+            {
+              order_id: multi_item_order.id,
+              amount: 30,
+              payment_method: "cash",
+              item_discounts: { items.first.id => 20, items.last.id => 20 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        multi_item_order.reload
+        items.each(&:reload)
+        expect(multi_item_order.total_amount.to_f).to eq(locked_total)
+        expect(items.first.discount_percent.to_i).to eq(10)
+        expect(items.last.discount_percent.to_i).to eq(0)
+      end
+
+      it "fails when a percent is outside 0..20" do
+        items = multi_item_order.order_items.order(:id).to_a
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [
+            {
+              order_id: multi_item_order.id,
+              amount: 100,
+              payment_method: "cash",
+              item_discounts: { items.first.id => 25 }
+            }
+          ]
+        )
+        expect(result.failure?).to be true
+        expect(result.errors.join).to match(/0-20/)
+      end
+
+      it "ignores item_discounts entries referencing items that do not belong to the order" do
+        items = multi_item_order.order_items.order(:id).to_a
+        other_order = Sales::CreateOrder.call(
+          customer: customer,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+          order_type: "credit"
+        ).record
+        foreign_item_id = other_order.order_items.first.id
+
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [
+            {
+              order_id: multi_item_order.id,
+              amount: 270, # 10% on first item => total 280; 270 fits within outstanding balance
+              payment_method: "cash",
+              item_discounts: { items.first.id => 10, foreign_item_id => 20 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        multi_item_order.reload
+        items.each(&:reload)
+        expect(items.first.discount_percent.to_i).to eq(10)
+        expect(items.last.discount_percent.to_i).to eq(0)
+      end
+    end
   end
 end

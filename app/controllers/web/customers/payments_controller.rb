@@ -56,10 +56,18 @@ module Web
           next if row[:include] != "1"
           next if row[:amount].blank? || row[:amount].to_f <= 0
 
+          discounts_hash =
+            if row[:discounts].respond_to?(:to_unsafe_h)
+              row[:discounts].to_unsafe_h
+            else
+              row[:discounts] || {}
+            end
+
           {
             order_id: row[:order_id],
             amount: row[:amount].to_f,
-            payment_method: row[:payment_method]
+            payment_method: row[:payment_method],
+            item_discounts: discounts_hash.transform_values { |v| v.to_f }
           }
         end
       end

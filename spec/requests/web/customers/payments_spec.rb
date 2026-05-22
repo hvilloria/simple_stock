@@ -29,7 +29,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         get new_web_customer_payment_path(customer)
         expect(response).to have_http_status(:ok)
         expect(response.body).to include("Registrar Cobro")
-        expect(response.body).to include("Órdenes pendientes")
+        # "Órdenes pendientes" heading was removed when the table was replaced with per-order cards
+        expect(response.body).to include("Orden #")
       end
     end
 
@@ -143,6 +144,56 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         expect(response).to have_http_status(:unprocessable_entity)
         expect(response.body).to match(/al menos una orden/i)
       end
+    end
+  end
+
+  describe "POST with item_discounts (feat_09)" do
+    let!(:stock_location_alt) { StockLocation.first || create(:stock_location) }
+    let(:credit_customer) { create(:customer, :with_credit) }
+    let(:product_a) do
+      p = create(:product, current_stock: 0, price_unit: 100)
+      create(:stock_movement, product: p, stock_location: stock_location_alt, quantity: 50, movement_type: "purchase")
+      p.recalculate_current_stock!
+      p
+    end
+    let(:credit_order) do
+      Sales::CreateOrder.call(
+        customer: credit_customer,
+        items: [
+          { product_id: product_a.id, quantity: 2, unit_price: 100 },
+          { product_id: product_a.id, quantity: 1, unit_price: 100 }
+        ],
+        order_type: "credit"
+      ).record
+    end
+    # Use admin since PaymentPolicy only permits caja and admin
+    let(:payment_admin) { create(:user, role: "admin") }
+    before { sign_in payment_admin }
+
+    it "applies the discounts, persists the cobro, and updates customer balance" do
+      items = credit_order.order_items.order(:id).to_a
+
+      post web_customer_payments_path(credit_customer), params: {
+        payment_date: Date.today.iso8601,
+        allocations: {
+          "0" => {
+            order_id: credit_order.id.to_s,
+            include: "1",
+            amount: "260",
+            payment_method: "cash",
+            discounts: { items.first.id.to_s => "10", items.last.id.to_s => "20" }
+          }
+        }
+      }
+
+      expect(response).to redirect_to(web_customer_path(credit_customer))
+
+      credit_order.reload
+      expect(credit_order.original_total_amount.to_f).to eq(300.0)
+      expect(credit_order.total_amount.to_f).to eq(260.0)
+      expect(credit_order.payment_allocations.sum(:amount).to_f).to eq(260.0)
+      credit_customer.reload
+      expect(credit_customer.current_balance.to_f).to eq(0.0)
     end
   end
 end

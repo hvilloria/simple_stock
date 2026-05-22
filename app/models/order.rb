@@ -89,8 +89,8 @@ class Order < ApplicationRecord
     original_total_amount - total_amount
   end
 
-  # Assumes all items share the same discount_percent (true for feat_08 immediate sales).
-  # Revisit this helper in feat_09 when credit orders introduce per-item discounts.
+  # Assumes all items share the same discount_percent (true for immediate sales).
+  # For credit orders with per-item discounts, this returns the first item's percent only.
   def discount_percent_display
     order_items.first&.discount_percent.to_i
   end

@@ -67,8 +67,13 @@ RSpec.describe OrderItem, type: :model do
       expect(item.errors[:discount_percent]).to be_present
     end
 
-    it "is invalid with discount_percent > 0 when order is credit" do
-      item = build_item(order: credit_order, percent: 5)
+    it "is valid with discount_percent = 20 when order is credit" do
+      item = build_item(order: credit_order, percent: 20)
+      expect(item).to be_valid
+    end
+
+    it "is invalid with discount_percent > 20 when order is credit" do
+      item = build_item(order: credit_order, percent: 21)
       expect(item).not_to be_valid
       expect(item.errors[:discount_percent]).to be_present
     end

@@ -23,6 +23,9 @@ module Payments
 
       payments = []
       ActiveRecord::Base.transaction do
+        @allocations.each { |row| apply_discounts_for(row) }
+        @allocations.each { |row| check_outstanding_after_discounts!(row) }
+
         grouped_by_method.each do |method, rows|
           total = rows.sum { |r| r[:amount].to_f }
           payment = Payment.create!(
@@ -87,15 +90,49 @@ module Payments
         unless order.credit_order_type? && order.confirmed_status?
           raise ValidationError, "La orden ##{order.id} no es una venta a crédito confirmada"
         end
-
-        if amount > order.outstanding_balance
-          raise ValidationError, "El monto excede el saldo pendiente de la orden ##{order.id} ($#{order.outstanding_balance})"
-        end
       end
     end
 
     def grouped_by_method
       @allocations.group_by { |row| row[:payment_method] }
+    end
+
+    def apply_discounts_for(row)
+      raw = row[:item_discounts]
+      return if raw.blank?
+
+      order = Order.find(row[:order_id])
+      # Discounts are frozen once any allocation has landed on the order.
+      return if order.payment_allocations.exists?
+
+      percents_by_item_id = raw.to_h.transform_keys(&:to_i).transform_values { |v| v.to_f }
+
+      percents_by_item_id.each_value do |percent|
+        if percent < 0 || percent > 20
+          raise ValidationError, "Descuento fuera de rango (0-20%)"
+        end
+      end
+
+      order.order_items.each do |item|
+        next unless percents_by_item_id.key?(item.id)
+        item.update!(discount_percent: percents_by_item_id[item.id])
+      end
+
+      new_total = order.order_items.reload.sum do |oi|
+        unit = (oi.unit_price || 0).to_d
+        discount_factor = 1 - oi.discount_percent.to_d / 100
+        (unit * oi.quantity * discount_factor).round(2)
+      end
+      order.update!(total_amount: new_total)
+    end
+
+    def check_outstanding_after_discounts!(row)
+      order = Order.find(row[:order_id])
+      amount = row[:amount].to_f
+      if amount > order.outstanding_balance
+        raise ValidationError,
+              "El monto excede el saldo pendiente de la orden ##{order.id} ($#{order.outstanding_balance})"
+      end
     end
   end
 end
