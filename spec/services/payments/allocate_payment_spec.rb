@@ -16,7 +16,8 @@ RSpec.describe Payments::AllocatePayment, type: :service do
     Sales::CreateOrder.call(
       customer: customer,
       items: [ { product_id: product.id, quantity: 3, unit_price: 100 } ],
-      order_type: "credit"
+      order_type: "credit",
+      paper_number: "AP-001"
     ).record
   end
 
@@ -24,7 +25,8 @@ RSpec.describe Payments::AllocatePayment, type: :service do
     Sales::CreateOrder.call(
       customer: customer,
       items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-      order_type: "credit"
+      order_type: "credit",
+      paper_number: "AP-002"
     ).record
   end
 
@@ -56,7 +58,8 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         foreign_order = Sales::CreateOrder.call(
           customer: other_customer,
           items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-          order_type: "credit"
+          order_type: "credit",
+          paper_number: "AP-003"
         ).record
 
         result = described_class.call(
@@ -73,7 +76,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
           order_type: "immediate",
-          payments: [ { amount: 100, payment_method: "cash" } ]
+          paper_number: "AP-004"
         ).record
 
         result = described_class.call(
@@ -199,7 +202,8 @@ RSpec.describe Payments::AllocatePayment, type: :service do
             { product_id: product.id, quantity: 2, unit_price: 100 },
             { product_id: product.id, quantity: 1, unit_price: 100 }
           ],
-          order_type: "credit"
+          order_type: "credit",
+          paper_number: "AP-005"
         ).record
       end
 
@@ -291,7 +295,8 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         other_order = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-          order_type: "credit"
+          order_type: "credit",
+          paper_number: "AP-006"
         ).record
         foreign_item_id = other_order.order_items.first.id
 
@@ -313,6 +318,53 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         items.each(&:reload)
         expect(items.first.discount_percent.to_i).to eq(10)
         expect(items.last.discount_percent.to_i).to eq(0)
+      end
+    end
+
+    describe "status promotion" do
+      let(:customer) { create(:customer, :with_credit) }
+      let(:order) do
+        create(:order, :pending, :credit_order,
+               customer: customer,
+               total_amount: 1000,
+               original_total_amount: 1000)
+      end
+
+      it "accepts a pending credit order (no longer requires confirmed)" do
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [ { order_id: order.id, amount: 400, payment_method: "cash" } ]
+        )
+
+        expect(result).to be_success
+        expect(order.reload.status).to eq("pending")
+      end
+
+      it "promotes the order to confirmed when balance reaches 0" do
+        described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [ { order_id: order.id, amount: 1000, payment_method: "cash" } ]
+        )
+
+        expect(order.reload.status).to eq("confirmed")
+      end
+
+      it "keeps pending after a partial then promotes on the final allocation" do
+        described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [ { order_id: order.id, amount: 600, payment_method: "cash" } ]
+        )
+        expect(order.reload.status).to eq("pending")
+
+        described_class.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [ { order_id: order.id, amount: 400, payment_method: "cash" } ]
+        )
+        expect(order.reload.status).to eq("confirmed")
       end
     end
   end

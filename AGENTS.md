@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file defines how AI agents should operate in this project.
+This file defines how AI agents should operate in this project. It is the **single source of truth for agent rules**; `CLAUDE.md` defers to it and only adds Claude Code-specific commands and an architecture quick-reference.
 
 Its goal is to ensure:
 - correct context usage

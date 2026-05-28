@@ -28,7 +28,7 @@
         %tr.hover:bg-gray-50.transition-colors
           %td.px-6.py-4.whitespace-nowrap
             = link_to web_order_path(order), class: "font-mono text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline" do
-              = "#{order.stock_movements.count}"
+              = "#{order.order_items.sum(&:quantity)} (##{order.paper_number})"
           %td.px-6.py-4.whitespace-nowrap
             %span.text-sm.text-gray-900= l(order.created_at, format: :short)
           %td.px-6.py-4
@@ -37,7 +37,11 @@
             - else
               %span.text-sm.text-gray-500 -
           %td.px-6.py-4.whitespace-nowrap
-            - if order.confirmed_status?
+            - if order.pending_status?
+              %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-full.text-xs.font-medium.bg-amber-100.text-amber-800
+                %span ⏳
+                %span Pendiente
+            - elsif order.confirmed_status?
               %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-full.text-xs.font-medium.bg-success-light.text-success-dark
                 %span ✓
                 %span Confirmada
@@ -48,10 +52,10 @@
           %td.px-6.py-4.whitespace-nowrap.text-right
             %span.text-sm.font-bold.text-gray-900= currency_ar(order.total_amount)
           %td.px-6.py-4.whitespace-nowrap.text-right.text-sm.font-medium
-            - if order.confirmed_status?
+            - if !order.cancelled_status?
               = button_to cancel_web_order_path(order),
                           method: :post,
-                          data: { confirm: "¿Seguro que quieres cancelar esta venta?" },
+                          data: { turbo_confirm: "¿Seguro que quieres cancelar esta venta?" },
                           class: "text-red-600 hover:text-red-800" do
                 Cancelar
             - else

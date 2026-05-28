@@ -34,6 +34,14 @@ Rails.application.routes.draw do
       post :cancel, on: :member
     end
 
+    resources :sale_notes, only: [ :index ] do
+      resource :payment, only: [ :new, :create ],
+                         controller: "sale_notes/payments"
+      member do
+        post :cancel
+      end
+    end
+
     resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do
       collection do
         get :debtors

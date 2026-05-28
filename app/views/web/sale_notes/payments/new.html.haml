@@ -1,0 +1,117 @@
+- content_for :page_title, "Cobrar nota #{@note.paper_number}"
+
+.container.mx-auto.px-6.py-6{ data: { controller: "sale-note-payment",
+                                       "sale-note-payment-original-total-value": @note.original_total_amount.to_f } }
+
+  .flex.items-baseline.justify-between.mb-6
+    %div
+      %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Talonario
+      %h1.text-3xl.font-semibold.text-slate-900= @note.paper_number
+    = link_to "← Volver al listado", web_sale_notes_path, class: "text-sm text-slate-500 hover:text-slate-900"
+
+  - if flash[:alert]
+    .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash[:alert]
+
+  = form_with url: web_sale_note_payment_path(@note), method: :post, local: true do |f|
+
+    .grid.grid-cols-1.gap-5{ class: "lg:grid-cols-[1fr_360px]" }
+
+      -# LEFT column
+      .space-y-4
+
+        -# Productos read-only
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          .flex.items-baseline.justify-between.mb-3
+            %h3.text-sm.font-semibold.text-slate-900 Productos
+            %span.text-xs.text-slate-500
+              = pluralize(@note.order_items.size, "ítem")
+              · Cliente:
+              = @note.customer&.name || "Mostrador"
+          %table.w-full.text-sm
+            %thead
+              %tr.text-slate-500.text-left
+                %th.py-2.font-medium.border-b.border-slate-100 Producto
+                %th.py-2.font-medium.border-b.border-slate-100.text-center Cant
+                %th.py-2.font-medium.border-b.border-slate-100.text-right P. Unit
+                %th.py-2.font-medium.border-b.border-slate-100.text-right Subtotal
+            %tbody.text-slate-900
+              - @note.order_items.each do |oi|
+                %tr
+                  %td.py-2= oi.product.name
+                  %td.py-2.text-center= oi.quantity
+                  %td.py-2.text-right= number_to_currency(oi.unit_price, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right= number_to_currency(oi.quantity * oi.unit_price, unit: "$", separator: ",", delimiter: ".")
+
+        -# Descuento
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          %h3.text-sm.font-semibold.text-slate-900.mb-1 Descuento
+          %p.text-xs.text-slate-500.mb-3{ data: { "sale-note-payment-target": "discountHelper" } }
+            Habilitado solo si la totalidad se paga en efectivo
+          = select_tag :discount_percent,
+              options_for_select([["0%", 0], ["5%", 5], ["10%", 10]], 0),
+              data: { "sale-note-payment-target": "discountSelect",
+                      action: "change->sale-note-payment#discountChanged" },
+              class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+
+        -# Detalle de pago
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          .flex.items-baseline.justify-between.mb-3
+            %h3.text-sm.font-semibold.text-slate-900 Detalle de pago
+            %span.text-xs.font-medium.text-slate-700.bg-slate-100.px-2.py-0.5.rounded Requerido
+
+          .space-y-2{ data: { "sale-note-payment-target": "tenderRows" } }
+            .flex.gap-2.items-center{ data: { "sale-note-payment-target": "tenderRow" } }
+              = select_tag "tenders[0][payment_method]",
+                  options_for_select([["Efectivo", "cash"], ["Transferencia", "transfer"], ["Cheque", "check"], ["Tarjeta", "card"]], "cash"),
+                  data: { "sale-note-payment-target": "tenderMethod",
+                          action: "change->sale-note-payment#recalc" },
+                  class: "flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm"
+              = text_field_tag "tenders[0][amount]", nil,
+                  placeholder: "0,00",
+                  data: { "sale-note-payment-target": "tenderAmount",
+                          controller: "currency-input",
+                          action: "blur->currency-input#format focus->currency-input#unformat input->sale-note-payment#recalc" },
+                  class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right"
+              %button{ type: "button",
+                       data: { action: "click->sale-note-payment#removeTender" },
+                       class: "text-slate-400 hover:text-red-500 text-lg px-1" } ×
+
+          %button{ type: "button",
+                   data: { action: "click->sale-note-payment#addTender" },
+                   class: "mt-3 w-full text-xs text-slate-600 hover:text-slate-900 border border-dashed border-slate-300 rounded-xl py-2" }
+            + Agregar método
+
+      -# RIGHT column — summary
+      .bg-white.border.border-slate-200.rounded-2xl.p-5.h-fit.lg:sticky.lg:top-6
+
+        %h3.text-sm.font-semibold.text-slate-900.mb-3 Resumen
+
+        .space-y-2.text-sm
+          .flex.justify-between.text-slate-600
+            %span Subtotal
+            %span= number_to_currency(@note.original_total_amount, unit: "$", separator: ",", delimiter: ".")
+          .flex.justify-between.text-slate-600
+            %span Descuento
+            %span{ data: { "sale-note-payment-target": "summaryDiscount" } } −$ 0,00
+          .border-t.border-slate-200.my-2
+          .flex.justify-between.font-semibold.text-slate-900
+            %span Total a cobrar
+            %span{ data: { "sale-note-payment-target": "summaryTotal" } }= number_to_currency(@note.original_total_amount, unit: "$", separator: ",", delimiter: ".")
+          .border-t.border-slate-200.my-2
+          .flex.justify-between.text-slate-600
+            %span Suma de pagos
+            %span{ data: { "sale-note-payment-target": "summaryPaid" } } $ 0,00
+          .flex.justify-between.font-medium
+            %span.text-slate-600 Por pagar
+            %span{ data: { "sale-note-payment-target": "summaryDiff" } }= number_to_currency(@note.original_total_amount, unit: "$", separator: ",", delimiter: ".")
+
+        = f.submit "Confirmar cobro",
+            data: { "sale-note-payment-target": "submitButton" },
+            class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+
+    -# Cancel button OUTSIDE the cobro form (it's a different POST)
+    = button_to "Cancelar nota",
+                cancel_web_sale_note_path(@note),
+                method: :post,
+                data: { turbo_confirm: "¿Cancelar la nota #{@note.paper_number}? Esta acción no se puede deshacer." },
+                class: "mt-3 w-full bg-white border border-slate-200 text-slate-600 hover:text-slate-900 py-2 rounded-xl text-sm"

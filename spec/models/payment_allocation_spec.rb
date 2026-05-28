@@ -23,7 +23,8 @@ RSpec.describe PaymentAllocation, type: :model do
       Sales::CreateOrder.call(
         customer: customer_a,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-        order_type: "credit"
+        order_type: "credit",
+        paper_number: "L-0001"
       ).record
     end
 
@@ -38,7 +39,8 @@ RSpec.describe PaymentAllocation, type: :model do
       order_b = Sales::CreateOrder.call(
         customer: customer_b,
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-        order_type: "credit"
+        order_type: "credit",
+        paper_number: "L-0002"
       ).record
 
       allocation = build(:payment_allocation, payment: payment_a, order: order_b, amount: 50)
@@ -55,7 +57,8 @@ RSpec.describe PaymentAllocation, type: :model do
       Sales::CreateOrder.call(
         customer: customer,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-        order_type: "credit"
+        order_type: "credit",
+        paper_number: "L-0003"
       ).record
     end
     let(:payment) { create(:payment, customer: customer, amount: 200) }

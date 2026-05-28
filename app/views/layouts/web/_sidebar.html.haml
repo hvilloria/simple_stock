@@ -19,7 +19,16 @@
     = link_to web_products_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'products' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
       %span.text-base 📦
       %span Productos
-    
+
+    - if current_user&.caja? || current_user&.admin?
+      - pending_notes_count = Order.immediate.pending.count
+      - sale_notes_active = controller_path.start_with?('web/sale_notes')
+      = link_to web_sale_notes_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{sale_notes_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+        %span.text-base 🧾
+        %span Notas de pedido
+        - if pending_notes_count > 0
+          %span.ml-auto.inline-flex.items-center.justify-center.w-5.h-5.rounded-full.bg-amber-100.text-amber-700.text-xs.font-bold= pending_notes_count
+
     -# Ventas (con submenu desplegable)
     - ventas_active = controller_path.start_with?('web/sales_ledger') || controller_name == 'orders'
     .nav-group{ data: { controller: "dropdown" } }

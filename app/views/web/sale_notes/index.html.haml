@@ -1,0 +1,25 @@
+- content_for :page_title, "Notas de pedido"
+
+.container.mx-auto.px-6.py-6
+
+  .flex.items-baseline.justify-between.mb-6
+    %h1.text-2xl.font-semibold.text-slate-900 Notas de pedido
+    %span.text-sm.text-slate-500 Pendientes de cobro
+
+  - if @notes.empty?
+    .bg-white.border.border-slate-200.rounded-2xl.p-12.text-center
+      %p.text-slate-600 No hay notas pendientes de cobro.
+  - else
+    .bg-white.border.border-slate-200.rounded-2xl.overflow-hidden
+      - @notes.each_with_index do |note, idx|
+        .flex.items-center.gap-6.px-5.py-4{ class: idx < @notes.size - 1 ? "border-b border-slate-100" : "" }
+          .w-32
+            %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Talonario
+            %p.text-xl.font-semibold.text-slate-900= note.paper_number
+          .flex-1.text-sm.text-slate-600
+            = pluralize(note.order_items.size, "ítem")
+          .w-32.text-right
+            %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Total
+            %p.text-lg.font-semibold.text-slate-900= number_to_currency(note.total_amount, unit: "$", separator: ",", delimiter: ".")
+          = link_to "Cobrar", new_web_sale_note_payment_path(note),
+                    class: "px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl"

@@ -1,23 +1,21 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "paymentSection", "paymentSectionTitle", "paymentSectionSubtitle", "paymentSectionBadge", "paymentRows", "paymentRow", "paymentMethod", "paymentAmount", "paymentDeclared", "paymentStatus", "paymentSummary", "summaryBreakdown", "summaryPaidNow", "summaryOutstanding", "discountSelect", "discountCard", "summaryDiscountRow", "summarySubtotal", "summaryDiscount", "summaryDiscountLabel"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio"]
   static values = { initialItems: Array }
 
   connect() {
     this.items = this.initialItemsValue.length > 0 ? this.initialItemsValue : []
     this.renderItems()
     this.updateSummary()
-    this.refreshDiscountBreakdown()
     this.applyCreditRadioState()
-    const initialOrderType = this.hasCreditRadioTarget && this.creditRadioTarget.checked ? "credit" : "immediate"
-    this.applyPaymentMode(initialOrderType)
   }
 
   customerChanged(event) {
     const select = event.target
     const selectedOption = select.options[select.selectedIndex]
     this.applyCreditRadioStateForOption(selectedOption)
+    this.updateSubmitButton()
   }
 
   applyCreditRadioState() {
@@ -48,7 +46,7 @@ export default class extends Controller {
     const product = event.detail.product
 
     const existingIndex = this.items.findIndex(item => item.product_id === product.id)
-    
+
     if (existingIndex >= 0) {
       this.items[existingIndex].quantity += 1
     } else {
@@ -58,7 +56,7 @@ export default class extends Controller {
         name: product.name,
         brand: product.brand,
         quantity: 1,
-        price_unit: product.price_unit || 0,  // Guardar precio del producto
+        price_unit: product.price_unit || 0,
         max_stock: product.current_stock,
         origin: product.origin,
         product_type: product.product_type
@@ -79,44 +77,12 @@ export default class extends Controller {
   updateQuantity(event) {
     const index = parseInt(event.currentTarget.dataset.index)
     const newQuantity = parseInt(event.currentTarget.value)
-    
+
     if (newQuantity > 0 && newQuantity <= this.items[index].max_stock) {
       this.items[index].quantity = newQuantity
       this.updateItemSubtotal(index)
       this.updateSummary()
     }
-  }
-
-  updatePrice(event) {
-    const index = parseInt(event.currentTarget.dataset.index)
-    const rawValue = event.currentTarget.value
-    // Limpiar formato argentino: 1.500,00 → 1500.00
-    const cleanValue = rawValue.replace(/\./g, '').replace(/,/g, '.')
-    const newPrice = parseFloat(cleanValue) || 0
-    
-    if (newPrice >= 0) {
-      this.items[index].price_unit = newPrice
-      this.updateItemSubtotal(index)
-      this.updateSummary()
-    }
-  }
-
-  formatPriceInput(event) {
-    const input = event.target
-    const rawValue = input.value.replace(/\./g, '').replace(/,/g, '.')
-    const numValue = parseFloat(rawValue)
-    
-    if (!isNaN(numValue) && numValue >= 0) {
-      input.value = new Intl.NumberFormat('es-AR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(numValue)
-    }
-  }
-
-  unformatPriceInput(event) {
-    const input = event.target
-    input.value = input.value.replace(/\./g, '')
   }
 
   formatInputValue(value) {
@@ -129,16 +95,14 @@ export default class extends Controller {
   updateItemSubtotal(index) {
     const item = this.items[index]
     const subtotal = item.price_unit * item.quantity
-    
-    // Buscar el elemento del item por su índice y actualizar solo el subtotal
+
     const itemElements = this.itemsTarget.querySelectorAll('[data-item-index]')
     if (itemElements[index]) {
       const subtotalElement = itemElements[index].querySelector('[data-subtotal]')
       if (subtotalElement) {
         subtotalElement.textContent = `$${this.formatCurrency(subtotal)}`
       }
-      
-      // Actualizar hidden inputs
+
       const quantityInput = itemElements[index].querySelector('input[name="purchase_items[][quantity]"]')
       const priceInput = itemElements[index].querySelector('input[name="purchase_items[][unit_price]"]')
       if (quantityInput) quantityInput.value = item.quantity
@@ -164,23 +128,10 @@ export default class extends Controller {
         `
       }
     }
-
-    this.applyPaymentMode(orderType)
-  }
-
-  discountPercent() {
-    if (!this.hasDiscountSelectTarget) return 0
-    return parseFloat(this.discountSelectTarget.value) || 0
-  }
-
-  calculateSubtotal() {
-    return this.items.reduce((sum, item) => sum + (item.price_unit * item.quantity), 0)
   }
 
   calculateTotal() {
-    const subtotal = this.calculateSubtotal()
-    const d = this.discountPercent()
-    return Math.round(subtotal * (1 - d / 100) * 100) / 100
+    return this.items.reduce((sum, item) => sum + (item.price_unit * item.quantity), 0)
   }
 
   renderItems() {
@@ -200,7 +151,7 @@ export default class extends Controller {
         <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">
           📦
         </div>
-        
+
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1">
             <span class="font-mono text-xs text-gray-500 font-semibold">${item.sku}</span>
@@ -213,12 +164,12 @@ export default class extends Controller {
           <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
           <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />
         </div>
-        
+
         <div class="flex items-center gap-3">
           <div class="text-right">
             <p class="text-xs text-gray-500">Cantidad</p>
-            <input 
-              type="number" 
+            <input
+              type="number"
               value="${item.quantity}"
               min="1"
               max="${item.max_stock}"
@@ -227,26 +178,18 @@ export default class extends Controller {
               class="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-center font-semibold"
             />
           </div>
-          
+
           <div class="text-right">
             <p class="text-xs text-gray-500">Precio Unit.</p>
-            <input 
-              type="text" 
-              value="${this.formatInputValue(item.price_unit)}"
-              data-index="${index}"
-              data-action="input->order-form#updatePrice blur->order-form#formatPriceInput focus->order-form#unformatPriceInput"
-              data-controller="currency-input"
-              class="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-right font-semibold"
-              placeholder="0,00"
-            />
+            <p class="w-28 px-2 py-1.5 text-right font-semibold text-gray-900">$${this.formatInputValue(item.price_unit)}</p>
           </div>
-          
+
           <div class="text-right min-w-[110px]">
             <p class="text-xs text-gray-500">Subtotal</p>
             <p class="text-lg font-bold text-gray-900" data-subtotal>$${this.formatCurrency(item.price_unit * item.quantity)}</p>
           </div>
-          
-          <button 
+
+          <button
             type="button"
             data-index="${index}"
             data-action="click->order-form#removeItem"
@@ -263,7 +206,6 @@ export default class extends Controller {
   }
 
   updateSummary() {
-    this.refreshDiscountBreakdown()
     const total = this.calculateTotal()
     const itemCount = this.items.length
     const totalQuantity = this.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -280,175 +222,19 @@ export default class extends Controller {
       this.totalQuantityTarget.textContent = `${totalQuantity} unidad${totalQuantity !== 1 ? 'es' : ''}`
     }
 
-    this.updatePaymentTotal()
+    this.updateSubmitButton()
   }
 
-  applyPaymentMode(orderType) {
-    if (!this.hasPaymentSectionTitleTarget) return
-
-    if (orderType === "credit") {
-      this.paymentSectionTitleTarget.textContent = "Cobro al Momento"
-      this.paymentSectionSubtitleTarget.textContent = "Opcional — si el cliente paga algo ahora"
-      this.paymentSectionBadgeTarget.textContent = "Opcional"
-      this.paymentSectionBadgeTarget.classList.remove("bg-red-50", "text-red-700")
-      this.paymentSectionBadgeTarget.classList.add("bg-gray-100", "text-gray-700")
-    } else {
-      this.paymentSectionTitleTarget.textContent = "Detalle de Pago"
-      this.paymentSectionSubtitleTarget.textContent = "La suma debe coincidir con el total de la venta"
-      this.paymentSectionBadgeTarget.textContent = "Requerido"
-      this.paymentSectionBadgeTarget.classList.remove("bg-gray-100", "text-gray-700")
-      this.paymentSectionBadgeTarget.classList.add("bg-red-50", "text-red-700")
-    }
-
-    if (this.hasSummaryBreakdownTarget) {
-      if (orderType === "credit") {
-        this.summaryBreakdownTarget.classList.remove("hidden")
-      } else {
-        this.summaryBreakdownTarget.classList.add("hidden")
-      }
-    }
-
-    this.updatePaymentTotal()
-
-    if (this.hasDiscountCardTarget) {
-      if (orderType === "credit") {
-        if (this.hasDiscountSelectTarget) this.discountSelectTarget.value = "0"
-        this.discountCardTarget.classList.add("hidden")
-      } else {
-        this.discountCardTarget.classList.remove("hidden")
-      }
-      this.refreshDiscountBreakdown()
-    }
-  }
-
-  discountChanged() {
-    this.refreshDiscountBreakdown()
-    this.updateSummary()
-  }
-
-  refreshDiscountBreakdown() {
-    if (!this.hasSummaryDiscountRowTarget) return
-
-    const subtotal = this.calculateSubtotal()
-    const d = this.discountPercent()
-    const discountAmount = Math.round(subtotal * d) / 100
-
-    if (d > 0) {
-      this.summaryDiscountRowTarget.classList.remove("hidden")
-      if (this.hasSummarySubtotalTarget) {
-        this.summarySubtotalTarget.textContent = `$${this.formatCurrency(subtotal)}`
-      }
-      if (this.hasSummaryDiscountLabelTarget) {
-        this.summaryDiscountLabelTarget.textContent = `Descuento −${d}%`
-      }
-      if (this.hasSummaryDiscountTarget) {
-        this.summaryDiscountTarget.textContent = `−$${this.formatCurrency(discountAmount)}`
-      }
-    } else {
-      this.summaryDiscountRowTarget.classList.add("hidden")
-    }
-  }
-
-  addPaymentRow() {
-    const existingRows = this.paymentRowTargets
-    const nextIndex = existingRows.length
-    const template = existingRows[0].cloneNode(true)
-
-    template.querySelectorAll("[name]").forEach(el => {
-      el.name = el.name.replace(/payments\[\d+\]/, `payments[${nextIndex}]`)
-      if (el.tagName === "INPUT" && el.type === "number") el.value = ""
-      if (el.tagName === "SELECT") el.selectedIndex = 0
-    })
-
-    this.paymentRowsTarget.appendChild(template)
-    this.updatePaymentTotal()
-  }
-
-  removePaymentRow(event) {
-    const row = event.target.closest("[data-order-form-target='paymentRow']")
-    if (!row) return
-    if (this.paymentRowTargets.length <= 1) {
-      // Don't remove the last row; just clear it
-      row.querySelector("input[type=number]").value = ""
-      row.querySelector("select").selectedIndex = 0
-    } else {
-      row.remove()
-      this.paymentRowTargets.forEach((r, i) => {
-        r.querySelectorAll("[name]").forEach(el => {
-          el.name = el.name.replace(/payments\[\d+\]/, `payments[${i}]`)
-        })
-      })
-    }
-    this.updatePaymentTotal()
-  }
-
-  updatePaymentTotal() {
-    const total = this.calculateTotal()
-    const declared = this.paymentAmountTargets.reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0)
-    const orderType = this.hasCreditRadioTarget && this.creditRadioTarget.checked ? "credit" : "immediate"
-
-    if (this.hasPaymentDeclaredTarget) {
-      this.paymentDeclaredTarget.textContent = `$${this.formatCurrency(declared)}`
-    }
-
-    let ok = true
-    let statusText = ""
-    let statusClass = "text-green-700"
-
-    if (orderType === "immediate") {
-      const matches = Math.abs(declared - total) < 0.01 && declared > 0
-      ok = matches
-      if (declared === 0) {
-        statusText = "Cargá los métodos de pago"
-        statusClass = "text-gray-500"
-      } else if (declared < total) {
-        statusText = `Faltan $${this.formatCurrency(total - declared)}`
-        statusClass = "text-red-600"
-      } else if (declared > total) {
-        statusText = `Excede el total por $${this.formatCurrency(declared - total)}`
-        statusClass = "text-red-600"
-      } else {
-        statusText = "✓ Coincide con el total"
-        statusClass = "text-green-700"
-      }
-    } else {
-      ok = declared <= total + 0.01
-      if (declared === 0) {
-        statusText = "Sin cobro al momento"
-        statusClass = "text-gray-500"
-      } else if (declared > total) {
-        statusText = `Excede el total por $${this.formatCurrency(declared - total)}`
-        statusClass = "text-red-600"
-      } else {
-        statusText = `Queda pendiente $${this.formatCurrency(total - declared)}`
-        statusClass = "text-gray-700"
-      }
-    }
-
-    if (this.hasPaymentStatusTarget) {
-      this.paymentStatusTarget.textContent = statusText
-      this.paymentStatusTarget.className = `font-semibold text-xs mt-1 ${statusClass}`
-    }
-
-    if (this.hasSummaryPaidNowTarget) {
-      this.summaryPaidNowTarget.textContent = `$${this.formatCurrency(declared)}`
-      this.summaryPaidNowTarget.classList.remove("text-green-700", "text-gray-500")
-      this.summaryPaidNowTarget.classList.add(declared > 0 ? "text-green-700" : "text-gray-500")
-    }
-
-    if (this.hasSummaryOutstandingTarget) {
-      const outstanding = Math.max(0, total - declared)
-      this.summaryOutstandingTarget.textContent = `$${this.formatCurrency(outstanding)}`
-      this.summaryOutstandingTarget.classList.remove("text-amber-700", "text-gray-500")
-      this.summaryOutstandingTarget.classList.add(outstanding > 0 ? "text-amber-700" : "text-gray-500")
-    }
-
-    this.updateSubmitButton(ok)
-  }
-
-  updateSubmitButton(paymentsOk) {
+  updateSubmitButton() {
     if (!this.hasSubmitButtonTarget) return
-    const disabled = this.items.length === 0 || !paymentsOk
+
+    const customerSelect = this.element.querySelector('select[name="order[customer_id]"]')
+    const customerValid = !!customerSelect && customerSelect.value !== ""
+
+    const paperNumberInput = this.element.querySelector('input[name="paper_number"]')
+    const paperNumberValid = !!paperNumberInput && paperNumberInput.value.trim() !== ""
+
+    const disabled = this.items.length === 0 || !customerValid || !paperNumberValid
     this.submitButtonTarget.disabled = disabled
     if (disabled) {
       this.submitButtonTarget.classList.add("opacity-50", "cursor-not-allowed")

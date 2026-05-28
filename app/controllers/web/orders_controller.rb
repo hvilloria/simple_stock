@@ -61,13 +61,12 @@ module Web
         channel: params.dig(:order, :channel),
         source: params[:source] || "live",
         sale_date: params[:sale_date],
-        paper_number: params[:paper_number],
-        payments: parse_payments,
-        discount_percent: params[:discount_percent].to_f
+        paper_number: params[:paper_number]
       )
 
       if result.success?
-        redirect_to web_orders_path, notice: "Venta registrada exitosamente"
+        redirect_to web_order_path(result.record),
+                    notice: "Nota #{result.record.paper_number} creada — pendiente de cobro"
       else
         flash.now[:alert] = result.errors.join(", ")
         @order = Order.new
@@ -76,14 +75,15 @@ module Web
     end
 
     def cancel
-      authorize @order, :cancel?
+      policy_method = @order.pending_status? ? :cancel_pending? : :cancel?
+      authorize @order, policy_method
       result = Sales::CancelOrder.call(
         order: @order,
         reason: params[:reason] || "Anulada desde interfaz"
       )
 
       if result.success?
-        redirect_to web_orders_path, notice: "Venta anulada y stock reintegrado"
+        redirect_to web_orders_path, notice: "Venta anulada"
       else
         redirect_to web_orders_path, alert: result.errors.join(", ")
       end
@@ -118,16 +118,6 @@ module Web
           unit_price: item[:unit_price].present? ? item[:unit_price].to_f : nil # Permitir nil
         }
       end.reject { |item| item[:quantity] <= 0 }
-    end
-
-    def parse_payments
-      return [] if params[:payments].blank?
-
-      params[:payments].to_unsafe_h.values.filter_map do |entry|
-        amount = entry[:amount].to_f
-        next if amount <= 0
-        { amount: amount, payment_method: entry[:payment_method].presence || "cash" }
-      end
     end
 
     def find_or_create_customer

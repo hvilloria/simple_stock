@@ -21,6 +21,10 @@ class OrderPolicy < ApplicationPolicy
     user.admin?  # Solo admin puede cancelar
   end
 
+  def cancel_pending?
+    record.pending_status? && (user.vendedor? || user.caja? || user.admin?)
+  end
+
   def update?
     false  # No se permite editar ventas
   end

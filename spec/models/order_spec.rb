@@ -7,8 +7,18 @@ RSpec.describe Order, type: :model do
   end
 
   describe 'enums' do
-    it { is_expected.to define_enum_for(:status).with_values(confirmed: 'confirmed', cancelled: 'cancelled').backed_by_column_of_type(:string).with_suffix }
+    it { is_expected.to define_enum_for(:status).with_values(pending: 'pending', confirmed: 'confirmed', cancelled: 'cancelled').backed_by_column_of_type(:string).with_suffix }
     it { is_expected.to define_enum_for(:order_type).with_values(immediate: 'immediate', credit: 'credit').backed_by_column_of_type(:string).with_suffix }
+  end
+
+  describe 'status enum' do
+    it 'includes pending' do
+      expect(Order.statuses.keys).to include('pending')
+    end
+
+    it 'exposes pending_status? predicate' do
+      expect(build(:order, status: 'pending').pending_status?).to be true
+    end
   end
 
   describe 'validations' do
@@ -118,9 +128,10 @@ RSpec.describe Order, type: :model do
         expect(order).to be_valid
       end
 
-      it 'does not require paper_number for live orders' do
+      it 'is required for live orders' do
         order = build(:order, source: 'live', paper_number: nil)
-        expect(order).to be_valid
+        expect(order).not_to be_valid
+        expect(order.errors[:paper_number]).to include("can't be blank")
       end
     end
 
@@ -220,83 +231,56 @@ RSpec.describe Order, type: :model do
     end
   end
 
-  describe "#outstanding_balance" do
-    let!(:stock_location) { create(:stock_location) }
+  describe "#outstanding_balance (factory-based)" do
+    it "is total_amount minus allocations for any non-cancelled order" do
+      order = create(:order, :pending, total_amount: 1000, original_total_amount: 1000)
+      expect(order.outstanding_balance).to eq(1000)
+    end
+
+    it "is zero for cancelled orders" do
+      order = create(:order, :pending, total_amount: 1000, original_total_amount: 1000)
+      order.update_column(:status, "cancelled")
+      expect(order.outstanding_balance).to eq(0)
+    end
+  end
+
+  describe "#refresh_status_from_balance!" do
+    it "promotes pending to confirmed when balance reaches 0" do
+      order = create(:order, :pending, total_amount: 1000, original_total_amount: 1000)
+      allow(order).to receive(:outstanding_balance).and_return(0)
+      order.refresh_status_from_balance!
+      expect(order.reload.status).to eq("confirmed")
+    end
+
+    it "keeps pending when balance > 0" do
+      order = create(:order, :pending, total_amount: 1000, original_total_amount: 1000)
+      allow(order).to receive(:outstanding_balance).and_return(500)
+      order.refresh_status_from_balance!
+      expect(order.reload.status).to eq("pending")
+    end
+
+    it "is a no-op for cancelled orders" do
+      order = create(:order, :pending, total_amount: 1000, original_total_amount: 1000)
+      order.update_column(:status, "cancelled")
+      order.refresh_status_from_balance!
+      expect(order.reload.status).to eq("cancelled")
+    end
+  end
+
+  describe "#outstanding_balance with allocations" do
     let(:customer) { create(:customer, :with_credit) }
-    let(:product) { create(:product, current_stock: 20, price_unit: 100) }
+    let(:order) { create(:order, :pending, :credit_order, customer: customer, total_amount: 200, original_total_amount: 200) }
 
-    context "when order is immediate" do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: Customer.mostrador,
-          items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-          order_type: "immediate",
-          payments: [ { amount: 100, payment_method: "cash" } ]
-        ).record
-      end
-
-      it "returns 0 regardless of allocations" do
-        expect(order.outstanding_balance).to eq(0)
-      end
+    it "returns total minus allocated amount on partial payment" do
+      payment = create(:payment, customer: customer, amount: 50)
+      create(:payment_allocation, payment: payment, order: order, amount: 50)
+      expect(order.outstanding_balance).to eq(150)
     end
 
-    context "when order is cancelled" do
-      let(:order) do
-        result = Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit"
-        )
-        result.record.tap { |o| Sales::CancelOrder.call(order: o) }
-      end
-
-      it "returns 0" do
-        expect(order.outstanding_balance).to eq(0)
-      end
-    end
-
-    context "when order is credit with no allocations" do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit"
-        ).record
-      end
-
-      it "returns the full total_amount" do
-        expect(order.outstanding_balance).to eq(200)
-      end
-    end
-
-    context "when order has a partial allocation" do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit",
-          payments: [ { amount: 50, payment_method: "cash" } ]
-        ).record
-      end
-
-      it "returns total minus allocated amount" do
-        expect(order.outstanding_balance).to eq(150)
-      end
-    end
-
-    context "when order is fully allocated" do
-      let(:order) do
-        Sales::CreateOrder.call(
-          customer: customer,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit",
-          payments: [ { amount: 200, payment_method: "cash" } ]
-        ).record
-      end
-
-      it "returns 0" do
-        expect(order.outstanding_balance).to eq(0)
-      end
+    it "returns 0 when fully allocated" do
+      payment = create(:payment, customer: customer, amount: 200)
+      create(:payment_allocation, payment: payment, order: order, amount: 200)
+      expect(order.outstanding_balance).to eq(0)
     end
   end
 
@@ -311,14 +295,14 @@ RSpec.describe Order, type: :model do
     end
 
     it "is invalid when original_total_amount < total_amount" do
-      order = Order.new(customer: customer, order_type: "immediate", source: "live",
+      order = Order.new(customer: customer, order_type: "immediate", source: "live", paper_number: "9001",
                         sale_date: Date.today, total_amount: 100, original_total_amount: 50, status: "confirmed")
       expect(order).not_to be_valid
       expect(order.errors[:original_total_amount]).to be_present
     end
 
     it "is valid when original_total_amount == total_amount" do
-      order = Order.new(customer: customer, order_type: "immediate", source: "live",
+      order = Order.new(customer: customer, order_type: "immediate", source: "live", paper_number: "9002",
                         sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
       expect(order).to be_valid
     end
@@ -328,13 +312,13 @@ RSpec.describe Order, type: :model do
     let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
 
     it "returns original_total_amount - total_amount" do
-      order = Order.create!(customer: customer, order_type: "immediate", source: "live",
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9003",
                             sale_date: Date.today, total_amount: 90, original_total_amount: 100, status: "confirmed")
       expect(order.discount_amount).to eq(10)
     end
 
     it "returns 0 when no discount was applied" do
-      order = Order.create!(customer: customer, order_type: "immediate", source: "live",
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9004",
                             sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
       expect(order.discount_amount).to eq(0)
     end
@@ -345,14 +329,14 @@ RSpec.describe Order, type: :model do
     let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
 
     it "returns the first item's discount_percent as an integer" do
-      order = Order.create!(customer: customer, order_type: "immediate", source: "live",
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9005",
                             sale_date: Date.today, total_amount: 90, original_total_amount: 100, status: "confirmed")
       order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 10)
       expect(order.discount_percent_display).to eq(10)
     end
 
     it "returns 0 when there are no items" do
-      order = Order.create!(customer: customer, order_type: "immediate", source: "live",
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9006",
                             sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
       expect(order.discount_percent_display).to eq(0)
     end

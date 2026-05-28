@@ -47,6 +47,10 @@ module Payments
           payments << payment
         end
 
+        @allocations.map { |row| row[:order_id] }.uniq.each do |oid|
+          Order.find(oid).refresh_status_from_balance!
+        end
+
         Result.new(success?: true, record: payments, errors: [])
       end
     rescue ValidationError => e
@@ -87,8 +91,8 @@ module Payments
           raise ValidationError, "La orden ##{order.id} no pertenece al cliente"
         end
 
-        unless order.credit_order_type? && order.confirmed_status?
-          raise ValidationError, "La orden ##{order.id} no es una venta a crédito confirmada"
+        unless order.credit_order_type? && !order.cancelled_status?
+          raise ValidationError, "La orden ##{order.id} no es una venta a crédito activa"
         end
       end
     end

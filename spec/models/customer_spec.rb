@@ -216,20 +216,15 @@ RSpec.describe Customer, type: :model do
     let(:no_credit) { create(:customer, has_credit_account: false) }
 
     before do
-      # debtor: orden de $200, sin pagos
-      Sales::CreateOrder.call(
-        customer: debtor,
-        items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-        order_type: 'credit'
-      )
+      # debtor: confirmed credit order of $200, no allocations
+      create(:order, :credit_order,
+             customer: debtor, total_amount: 200, original_total_amount: 200)
 
-      # paid_up: orden de $100, pagada completamente
-      Sales::CreateOrder.call(
-        customer: paid_up,
-        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-        order_type: 'credit',
-        payments: [ { amount: 100, payment_method: 'cash' } ]
-      )
+      # paid_up: confirmed credit order of $100, fully allocated
+      paid_order = create(:order, :credit_order,
+                          customer: paid_up, total_amount: 100, original_total_amount: 100)
+      payment = create(:payment, customer: paid_up, amount: 100, payment_method: 'cash')
+      create(:payment_allocation, payment: payment, order: paid_order, amount: 100)
     end
 
     it 'includes customers with outstanding balance' do
@@ -299,6 +294,52 @@ RSpec.describe Customer, type: :model do
       create(:payment_allocation, payment: credit_payment, order: credit_order, amount: 100)
 
       expect(Customer.with_outstanding_balance).not_to include(customer)
+    end
+  end
+
+  describe "#current_balance — pending credit orders" do
+    it "includes pending credit orders" do
+      customer = create(:customer, :with_credit)
+      create(:order, :credit_order, :pending,
+             customer: customer, total_amount: 500, original_total_amount: 500)
+      expect(customer.current_balance).to eq(500)
+    end
+
+    it "subtracts allocations on pending credit orders" do
+      customer = create(:customer, :with_credit)
+      order = create(:order, :credit_order, :pending,
+                     customer: customer, total_amount: 500, original_total_amount: 500)
+      payment = create(:payment, customer: customer, amount: 200)
+      create(:payment_allocation, payment: payment, order: order, amount: 200)
+      expect(customer.current_balance).to eq(300)
+    end
+
+    it "ignores immediate orders entirely" do
+      customer = create(:customer, :with_credit)
+      create(:order, :pending,
+             customer: customer, order_type: "immediate",
+             total_amount: 999, original_total_amount: 999)
+      expect(customer.current_balance).to eq(0)
+    end
+  end
+
+  describe ".with_outstanding_balance — pending credit orders" do
+    it "includes customers with pending credit orders that have no allocations" do
+      customer = create(:customer, :with_credit)
+      create(:order, :credit_order, :pending,
+             customer: customer, total_amount: 500, original_total_amount: 500)
+      expect(described_class.with_outstanding_balance).to include(customer)
+    end
+
+    it "excludes customers whose credit orders are fully allocated" do
+      customer = create(:customer, :with_credit)
+      order = create(:order, :credit_order, :pending,
+                     customer: customer, total_amount: 500, original_total_amount: 500)
+      payment = create(:payment, customer: customer, amount: 500)
+      create(:payment_allocation, payment: payment, order: order, amount: 500)
+      # Note: this test does not invoke refresh_status_from_balance!; the order stays pending
+      # but outstanding_balance == 0, so the SQL scope should still EXCLUDE this customer.
+      expect(described_class.with_outstanding_balance).not_to include(customer)
     end
   end
 

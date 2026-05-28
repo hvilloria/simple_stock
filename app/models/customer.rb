@@ -28,14 +28,14 @@ class Customer < ApplicationRecord
          FROM orders o
          WHERE o.customer_id = customers.id
            AND o.order_type = 'credit'
-           AND o.status = 'confirmed' )
+           AND o.status IN ('pending', 'confirmed') )
        >
        ( SELECT COALESCE(SUM(pa.amount), 0)
          FROM payment_allocations pa
          JOIN orders o ON pa.order_id = o.id
          WHERE o.customer_id = customers.id
            AND o.order_type = 'credit'
-           AND o.status = 'confirmed' )"
+           AND o.status IN ('pending', 'confirmed') )"
     )
   }
 
@@ -55,12 +55,12 @@ class Customer < ApplicationRecord
     return 0 unless has_credit_account?
 
     credit_owed = orders
-                    .where(order_type: "credit", status: "confirmed")
+                    .where(order_type: "credit", status: %w[pending confirmed])
                     .sum(:total_amount)
 
     credit_paid = PaymentAllocation
                     .joins(:order)
-                    .where(orders: { customer_id: id, order_type: "credit", status: "confirmed" })
+                    .where(orders: { customer_id: id, order_type: "credit", status: %w[pending confirmed] })
                     .sum(:amount)
 
     credit_owed - credit_paid

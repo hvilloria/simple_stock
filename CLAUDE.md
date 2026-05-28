@@ -4,8 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Always read first
 
-1. `AGENTS.md` — agent rules, roles, and source-of-truth priority
+1. `AGENTS.md` — **the single source of truth for agent rules**: source-of-truth priority, roles, scope control, backend/frontend rules
 2. `WORKING_CONTEXT.md` — current system behavior and active constraints
+
+All operating rules live in `AGENTS.md`. This file only adds what is specific to Claude Code: the commands and an architecture quick-reference.
 
 ## Commands
 
@@ -20,7 +22,7 @@ bundle exec rubocop                                  # check
 bundle exec rubocop -a                               # auto-fix
 ```
 
-## Architecture
+## Architecture quick-reference
 
 **Stack:** Rails 7.2, PostgreSQL, Hotwire, HAML, TailwindCSS, Devise (login only — registrations skipped), Pundit.
 
@@ -49,14 +51,6 @@ Inventory::AdjustStock → StockMovement row → product.recalculate_current_sto
 ```
 
 `product.update!(current_stock: x)` is forbidden.
-
-## Rules
-
-- Trust code over docs if they conflict
-- Do not assume unimplemented behavior
-- Keep changes minimal and incremental
-- Do not refactor unrelated code
-- Update `WORKING_CONTEXT.md` when meaningful behavior or constraints change
 
 ## Stable docs
 
