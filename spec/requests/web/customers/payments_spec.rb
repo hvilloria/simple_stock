@@ -21,7 +21,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-          order_type: "credit"
+          order_type: "credit",
+          paper_number: "L-0001"
         )
       end
 
@@ -58,7 +59,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
       Sales::CreateOrder.call(
         customer: customer,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-        order_type: "credit"
+        order_type: "credit",
+        paper_number: "L-0010"
       ).record
     end
 
@@ -66,7 +68,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
       Sales::CreateOrder.call(
         customer: customer,
         items: [ { product_id: product.id, quantity: 3, unit_price: 100 } ],
-        order_type: "credit"
+        order_type: "credit",
+        paper_number: "L-0011"
       ).record
     end
 
@@ -163,7 +166,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
           { product_id: product_a.id, quantity: 2, unit_price: 100 },
           { product_id: product_a.id, quantity: 1, unit_price: 100 }
         ],
-        order_type: "credit"
+        order_type: "credit",
+        paper_number: "L-0020"
       ).record
     end
     # Use admin since PaymentPolicy only permits caja and admin

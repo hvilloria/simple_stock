@@ -16,7 +16,7 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          payments: [ { amount: 500, payment_method: "cash" } ]
+          paper_number: 'L-2001'
         )
         result.record
       end
@@ -80,7 +80,8 @@ RSpec.describe Sales::CancelOrder do
         result = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
-          order_type: 'credit'
+          order_type: 'credit',
+          paper_number: 'L-2002'
         )
         result.record
       end
@@ -95,13 +96,17 @@ RSpec.describe Sales::CancelOrder do
       end
 
       it 'destroys the PaymentAllocations for the cancelled order' do
-        order_with_payment_result = Sales::CreateOrder.call(
+        order_with_payment = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          payments: [ { amount: 200, payment_method: 'cash' } ]
+          paper_number: 'L-2003'
+        ).record
+        Payments::AllocatePayment.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [ { order_id: order_with_payment.id, amount: 200, payment_method: 'cash' } ]
         )
-        order_with_payment = order_with_payment_result.record
         expect(order_with_payment.payment_allocations.count).to eq(1)
 
         described_class.call(order: order_with_payment)
@@ -110,13 +115,17 @@ RSpec.describe Sales::CancelOrder do
       end
 
       it 'keeps the Payment record alive (known limitation: orphaned payment)' do
-        order_with_payment_result = Sales::CreateOrder.call(
+        order_with_payment = Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          payments: [ { amount: 200, payment_method: 'cash' } ]
+          paper_number: 'L-2004'
+        ).record
+        Payments::AllocatePayment.call(
+          customer: customer,
+          payment_date: Date.today,
+          allocations: [ { order_id: order_with_payment.id, amount: 200, payment_method: 'cash' } ]
         )
-        order_with_payment = order_with_payment_result.record
         payment_id = order_with_payment.payment_allocations.first.payment_id
 
         described_class.call(order: order_with_payment)
@@ -135,7 +144,7 @@ RSpec.describe Sales::CancelOrder do
             { product_id: product2.id, quantity: 2, unit_price: 50 }
           ],
           order_type: 'immediate',
-          payments: [ { amount: 400, payment_method: "cash" } ]
+          paper_number: 'L-2005'
         )
         result.record
       end
@@ -167,7 +176,7 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          payments: [ { amount: 500, payment_method: "cash" } ]
+          paper_number: 'L-2006'
         )
         result.record
       end
@@ -207,7 +216,7 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          payments: [ { amount: 500, payment_method: "cash" } ]
+          paper_number: 'L-2007'
         )
         result.record
       end
@@ -231,7 +240,7 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          payments: [ { amount: 500, payment_method: "cash" } ]
+          paper_number: 'L-2008'
         )
         result.record
       end

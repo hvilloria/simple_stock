@@ -8,6 +8,11 @@ FactoryBot.define do
     channel { nil }
     source { "live" }
     sale_date { Date.today }
+    sequence(:paper_number) { |n| format("%04d", n) }
+
+    trait :pending do
+      status { "pending" }
+    end
 
     trait :credit_order do
       order_type { "credit" }

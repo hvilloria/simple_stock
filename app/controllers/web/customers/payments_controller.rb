@@ -9,7 +9,7 @@ module Web
         authorize Payment.new(customer: @customer), :new?
         @pending_orders = @customer.orders
                                     .credit
-                                    .where(status: "confirmed")
+                                    .where(status: %w[pending confirmed])
                                     .includes(:payment_allocations)
                                     .order(:created_at)
                                     .select { |o| o.outstanding_balance > 0 }
@@ -33,7 +33,7 @@ module Web
         else
           @pending_orders = @customer.orders
                                       .credit
-                                      .where(status: "confirmed")
+                                      .where(status: %w[pending confirmed])
                                       .includes(:payment_allocations)
                                       .order(:created_at)
                                       .select { |o| o.outstanding_balance > 0 }

@@ -8,7 +8,7 @@
       %span ←
       %span Volver a Ventas
     
-    - if @order.confirmed_status?
+    - unless @order.cancelled_status?
       = button_to cancel_web_order_path(@order), method: :post, data: { turbo_confirm: "¿Estás seguro de cancelar esta venta? Esta acción reintegrará el stock." }, class: "btn-danger" do
         %span ✕
         %span Cancelar Venta
@@ -42,7 +42,11 @@
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 ID Venta
               %span.text-2xl.font-bold.font-mono.text-gray-900= "##{@order.id}"
-            
+
+            .flex.flex-col
+              %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 N° Talonario
+              %span.text-base.font-medium.font-mono.text-gray-900= "##{@order.paper_number}"
+
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Cliente
               - if @order.customer && @order.customer.has_credit_account?
@@ -63,7 +67,11 @@
           .space-y-4
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Estado
-              - if @order.confirmed_status?
+              - if @order.pending_status?
+                %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-amber-100.text-amber-800.w-fit
+                  %span ⏳
+                  %span Pendiente
+              - elsif @order.confirmed_status?
                 %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-lg.text-sm.font-medium.bg-emerald-100.text-emerald-800.w-fit
                   %span ✓
                   %span Confirmada
@@ -321,7 +329,7 @@
 
         -# Botón de acción
         .border-t.border-gray-200.py-4
-          - if @order.confirmed_status?
+          - if !@order.cancelled_status?
             = button_to cancel_web_order_path(@order), method: :post, data: { turbo_confirm: "¿Estás seguro de cancelar esta venta?" }, class: "btn-danger w-full" do
               %span ✕
               %span Cancelar Venta

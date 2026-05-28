@@ -19,15 +19,22 @@ RSpec.describe 'Web::Customers', type: :request do
       Sales::CreateOrder.call(
         customer: debtor,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-        order_type: 'credit'
+        order_type: 'credit',
+        paper_number: 'L-0100'
       )
 
-      # paid_customer: fully paid order
-      Sales::CreateOrder.call(
+      # paid_customer: fully paid order — set up as credit order, then collect via AllocatePayment
+      paid_order = Sales::CreateOrder.call(
         customer: paid_customer,
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
         order_type: 'credit',
-        payments: [ { amount: 100, payment_method: 'cash' } ]
+        paper_number: 'L-0101'
+      ).record
+
+      Payments::AllocatePayment.call(
+        customer: paid_customer,
+        payment_date: Date.today,
+        allocations: [ { order_id: paid_order.id, amount: 100, payment_method: 'cash' } ]
       )
     end
 

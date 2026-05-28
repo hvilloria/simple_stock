@@ -9,7 +9,7 @@ module Web
       @invoices_this_month = calculate_invoices_this_month
 
       # Datos para secciones secundarias
-      @recent_orders = Order.confirmed_status
+      @recent_orders = Order.active
                             .order(created_at: :desc)
                             .limit(5)
                             .includes(:customer)
@@ -22,7 +22,7 @@ module Web
     private
 
     def calculate_sales_today
-      Order.confirmed_status
+      Order.active
            .where(created_at: Date.today.all_day)
            .sum(:total_amount)
     end
