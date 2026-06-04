@@ -91,7 +91,7 @@ class Product < ApplicationRecord
     return order(:name) if sort_column.blank?
 
     # Validar columnas permitidas para prevenir SQL injection
-    allowed_columns = %w[sku name brand category current_stock]
+    allowed_columns = %w[sku name brand category current_stock price_unit]
     column = allowed_columns.include?(sort_column.to_s) ? sort_column : "name"
 
     # Validar dirección

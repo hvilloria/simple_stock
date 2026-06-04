@@ -73,7 +73,7 @@ class Customer < ApplicationRecord
   def days_without_paying
     return nil if last_payment_date.nil?
 
-    (Date.today - last_payment_date).to_i
+    (Date.current - last_payment_date).to_i
   end
 
   private

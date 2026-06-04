@@ -33,7 +33,7 @@ module Sales
       @paper_number = paper_number.presence
       @channel      = channel
       @source       = source
-      @sale_date    = sale_date || Date.today
+      @sale_date    = sale_date || Date.current
     end
 
     def call

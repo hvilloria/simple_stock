@@ -18,7 +18,7 @@ module Purchasing
       @items = items # Array de { product_id:, quantity:, unit_cost: }
       @currency = currency
       @exchange_rate = exchange_rate
-      @purchase_date = purchase_date || Date.today
+      @purchase_date = purchase_date || Date.current
       @notes = notes
     end
 

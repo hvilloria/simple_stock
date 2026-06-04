@@ -21,7 +21,7 @@ RSpec.describe "Web::Orders", type: :request do
         purchase_items: [
           { product_id: product.id, quantity: "2", unit_price: "100" }
         ],
-        sale_date: Date.today.iso8601,
+        sale_date: Date.current.iso8601,
         paper_number: "0099"
       }
     end

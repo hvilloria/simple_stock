@@ -103,7 +103,7 @@ export default class extends Controller {
     const amountInput = row.querySelector("[data-role='amount-input']")
     const checkbox = row.querySelector("[data-role='include-checkbox']")
     if (checkbox.checked) {
-      amountInput.value = newSum.toFixed(2)
+      amountInput.value = this.formatAmount(newSum)
     }
   }
 
@@ -115,7 +115,7 @@ export default class extends Controller {
       const checkbox = row.querySelector("[data-role='include-checkbox']")
       const amountInput = row.querySelector("[data-role='amount-input']")
       if (checkbox.checked && amountInput.value) {
-        const v = parseFloat(amountInput.value) || 0
+        const v = this.parseAmount(amountInput.value)
         charging += v
         if (v > 0) selected += 1
       }
@@ -130,6 +130,18 @@ export default class extends Controller {
     if (this.hasSubmitButtonTarget) {
       this.submitButtonTarget.disabled = selected === 0
     }
+  }
+
+  parseAmount(value) {
+    if (!value) return 0
+    return parseFloat(value.replace(/\./g, "").replace(/,/g, ".")) || 0
+  }
+
+  formatAmount(value) {
+    return new Intl.NumberFormat("es-AR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value || 0)
   }
 
   formatMoney(value) {

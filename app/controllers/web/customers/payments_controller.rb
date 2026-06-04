@@ -20,7 +20,7 @@ module Web
 
         result = Payments::AllocatePayment.call(
           customer: @customer,
-          payment_date: params[:payment_date].presence || Date.today,
+          payment_date: params[:payment_date].presence || Date.current,
           notes: params[:notes],
           allocations: parsed_allocations
         )

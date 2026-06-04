@@ -104,7 +104,7 @@ RSpec.describe Sales::CancelOrder do
         ).record
         Payments::AllocatePayment.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order_with_payment.id, amount: 200, payment_method: 'cash' } ]
         )
         expect(order_with_payment.payment_allocations.count).to eq(1)
@@ -123,7 +123,7 @@ RSpec.describe Sales::CancelOrder do
         ).record
         Payments::AllocatePayment.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order_with_payment.id, amount: 200, payment_method: 'cash' } ]
         )
         payment_id = order_with_payment.payment_allocations.first.payment_id

@@ -23,7 +23,7 @@ module Web
 
     def calculate_sales_today
       Order.active
-           .where(created_at: Date.today.all_day)
+           .where(created_at: Date.current.all_day)
            .sum(:total_amount)
     end
 
@@ -35,7 +35,7 @@ module Web
       return 0 unless defined?(Invoice)
 
       Invoice.where(status: "confirmed")
-              .where(purchase_date: Date.today.beginning_of_month..Date.today.end_of_month)
+              .where(purchase_date: Date.current.beginning_of_month..Date.current.end_of_month)
               .sum(:total_cost)
     end
   end

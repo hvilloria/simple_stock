@@ -39,7 +39,7 @@ Only includes behavior that is important for implementing features safely.
 * `paper_number` es **obligatorio para toda nota** (live y from_paper).
 * El form `new` muestra solo Cliente · Tipo · N° Talonario · Productos (sin "Descuento" ni "Detalle de Pago"). Submit habilita con items + customer + paper_number.
 * Cancelled via `Sales::CancelOrder` (member cancel). `OrderPolicy#cancel_pending?` permite vendedor/caja/admin sobre notas `pending`; `#cancel?` solo admin sobre `confirmed`. El controller elige la policy method según el estado.
-* **Stock no se modifica al vender hoy** — `Sales::CreateOrder` solo valida disponibilidad; no crea `StockMovement`. `Sales::CancelOrder` sí restockea vía `Inventory::AdjustStock` (asimétrico — comportamiento pre-existente, no parte de este feature).
+* **Stock no se modifica al vender hoy** — `Sales::CreateOrder` no crea `StockMovement`. La validación de disponibilidad corre **solo en `source: 'live'`**; el form `web/orders/new` envía **`source: from_paper` por defecto**, así que en la práctica **no se valida stock al vender** (se pueden agregar productos sin stock y cantidades libres; ver Key constraints). `Sales::CancelOrder` sí restockea vía `Inventory::AdjustStock` (asimétrico — comportamiento pre-existente, no parte de este feature).
 * Descuento de inmediatas: caja lo aplica al cobrar vía `Payments::CollectSaleNote`. Cap `0 / 5 / 10` (global), distribuido a todos los `order_items`. **Regla:** solo permitido si la totalidad se paga en efectivo (validado en backend y enforced en Stimulus).
 * Descuento de credit: sin cambios respecto a feat_09 (per-item 0-20% en primer cobro vía `Payments::AllocatePayment`; congelado tras la primera allocation).
 
@@ -80,11 +80,12 @@ Only includes behavior that is important for implementing features safely.
 ## Key constraints
 
 * Do **not** bump **`products.current_stock`** ad hoc in controllers/views — keep stock changes through **`StockMovement`** + **`#recalculate_current_stock!`** as the code already does in services.
-* **Validate stock before selling** — enforced in **`Sales::CreateOrder`** against **`current_stock`**.
+* **Validate stock before selling (`live` source only)** — enforced in **`Sales::CreateOrder`** against **`current_stock`**; the UI flow defaults to `from_paper`, which skips this (see Order validation below).
 * **Un `Payment` representa un tender** con método único; su distribución sobre órdenes vive en `payment_allocations`. **`Customer#current_balance`** = sum(credit orders confirmadas `total_amount`) − sum(`payment_allocations` sobre esas credit orders). Los Payments asignados a ventas `immediate` no afectan el balance.
 * **`Customer` validation:** `retail` customers cannot have `has_credit_account: true` (`retail_cannot_have_credit_account`).
-* **`Order` validation:** `paper_number` is **required for every order** (unconditional `presence: true`, not unique). `Sales::CreateOrder` validates stock availability for `source: 'live'` only; it skips the check for `from_paper`.
+* **`Order` validation:** `paper_number` is **required for every order** (unconditional `presence: true`, not unique). `Sales::CreateOrder` validates stock availability for `source: 'live'` only; it skips the check for `from_paper`. **`web/orders/new` submits `source: from_paper` by default** (hidden field), so the UI sales flow does **not** validate stock at sale time — the vendor is trusted to know the product exists (no inventory system yet). The `live` branch and its stock validation remain in the service for future use.
 * Not every HTTP action uses a service: e.g. **pending invoice cancel** and **credit note** CRUD use **`update` / `save` / `destroy`** on models directly.
+* **Fechas/horas timezone-aware** — usar siempre **`Date.current` / `Time.current`**, nunca `Date.today` / `Time.now`. La app corre en **UTC** (no hay `config.time_zone`); `Date.today` toma la zona del SO y produce off-by-one cerca de medianoche (causó tests flaky en `Invoice`/`Customer`). Todo el código y los specs usan `Date.current`.
 
 ---
 

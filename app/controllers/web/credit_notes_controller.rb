@@ -32,7 +32,7 @@ module Web
     def new
       @credit_note = CreditNote.new(
         currency: "ARS",
-        issue_date: Date.today
+        issue_date: Date.current
       )
 
       # Pre-cargar factura si viene del parámetro

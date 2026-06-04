@@ -162,7 +162,7 @@ RSpec.describe Purchasing::CreatePurchase do
           exchange_rate: 1200
         )
 
-        expect(result.record.purchase_date).to eq(Date.today)
+        expect(result.record.purchase_date).to eq(Date.current)
       end
 
       it "saves notes" do

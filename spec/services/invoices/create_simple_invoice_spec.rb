@@ -12,7 +12,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now,
           notes: "Test invoice"
         )
@@ -30,7 +30,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -51,7 +51,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
             amount: 5000,
             currency: "USD",
             exchange_rate: 1200,
-            purchase_date: Date.today,
+            purchase_date: Date.current,
             due_date: 30.days.from_now
           )
         }.not_to change(InvoiceItem, :count)
@@ -65,7 +65,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
             amount: 5000,
             currency: "USD",
             exchange_rate: 1200,
-            purchase_date: Date.today,
+            purchase_date: Date.current,
             due_date: 30.days.from_now
           )
         }.not_to change(StockMovement, :count)
@@ -77,7 +77,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           invoice_number: "FAC-002",
           amount: 500_000,
           currency: "ARS",
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -95,7 +95,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -110,7 +110,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -125,7 +125,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 0,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -140,7 +140,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: -100,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -155,7 +155,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: nil,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -170,7 +170,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 0,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -185,7 +185,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "EUR",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 
@@ -215,7 +215,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: nil
         )
 
@@ -236,7 +236,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
         )
 
         expect(result.success?).to be true
-        expect(result.record.purchase_date).to eq(Date.today)
+        expect(result.record.purchase_date).to eq(Date.current)
       end
     end
 
@@ -248,7 +248,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now,
           early_payment_due_date: 15.days.from_now.to_date,
           early_payment_discount_percentage: 5
@@ -266,7 +266,7 @@ RSpec.describe Invoices::CreateSimpleInvoice do
           amount: 5000,
           currency: "USD",
           exchange_rate: 1200,
-          purchase_date: Date.today,
+          purchase_date: Date.current,
           due_date: 30.days.from_now
         )
 

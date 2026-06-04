@@ -38,7 +38,7 @@
         = link_to "← Volver al cliente", web_customer_path(@customer), class: "inline-flex items-center gap-2 mt-6 px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
 
   - else
-    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation", "payment-allocation-total-debt-value": total_debt.to_s } do
+    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation product-form", action: "turbo:submit-start->product-form#handleSubmit", "payment-allocation-total-debt-value": total_debt.to_s } do
 
       -# Summary card
       .bg-white.border.border-slate-200.rounded-xl.p-5.mb-4
@@ -115,11 +115,10 @@
                   %span.font-semibold.text-slate-900{ data: { "role": "summary-new" } }= currency_ar_int(order.total_amount)
                 .flex.items-center.gap-2
                   %label.text-slate-500 Cobrar
-                  = number_field_tag "allocations[#{idx}][amount]", nil,
-                      step: "0.01", min: "0",
+                  = text_field_tag "allocations[#{idx}][amount]", nil,
                       disabled: true,
                       class: "w-32 px-2 py-1 text-right text-sm font-semibold border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
-                      data: { "role": "amount-input", action: "input->payment-allocation#recalc" }
+                      data: { controller: "currency-input", "role": "amount-input", action: "input->payment-allocation#recalc blur->currency-input#format focus->currency-input#unformat" }
                   = select_tag "allocations[#{idx}][payment_method]",
                       options_for_select(payment_method_options, "cash"),
                       disabled: true,
@@ -133,7 +132,7 @@
       .bg-white.border.border-slate-200.rounded-xl.p-5.flex.items-end.gap-4
         %div
           %label.block.text-sm.text-slate-700.font-medium.mb-2 Fecha del cobro
-          = date_field_tag :payment_date, Date.today,
+          = date_field_tag :payment_date, Date.current,
               class: "border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500"
         .flex-1
           %label.block.text-sm.text-slate-700.font-medium.mb-2 Notas (opcional)

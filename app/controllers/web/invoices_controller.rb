@@ -80,7 +80,7 @@ module Web
     def new
       @invoice = Invoice.new(
         currency: "USD",
-        purchase_date: Date.today,
+        purchase_date: Date.current,
         due_date: 30.days.from_now.to_date
       )
       authorize @invoice
@@ -145,7 +145,7 @@ module Web
     def mark_as_paid
       authorize @invoice
 
-      payment_date = parse_date(params[:payment_date]) || Date.today
+      payment_date = parse_date(params[:payment_date]) || Date.current
       apply_discount = params[:apply_discount] == "true"
 
       # Validar descuento
@@ -230,10 +230,10 @@ module Web
     end
 
     def parse_date(date_string)
-      return Date.today if date_string.blank?
+      return Date.current if date_string.blank?
       Date.parse(date_string)
     rescue ArgumentError
-      Date.today
+      Date.current
     end
 
     def parse_optional_date(date_string)

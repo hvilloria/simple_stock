@@ -289,21 +289,21 @@ RSpec.describe Order, type: :model do
 
     it "is invalid without original_total_amount" do
       order = Order.new(customer: customer, order_type: "immediate", source: "live",
-                        sale_date: Date.today, total_amount: 100, status: "confirmed")
+                        sale_date: Date.current, total_amount: 100, status: "confirmed")
       expect(order).not_to be_valid
       expect(order.errors[:original_total_amount]).to be_present
     end
 
     it "is invalid when original_total_amount < total_amount" do
       order = Order.new(customer: customer, order_type: "immediate", source: "live", paper_number: "9001",
-                        sale_date: Date.today, total_amount: 100, original_total_amount: 50, status: "confirmed")
+                        sale_date: Date.current, total_amount: 100, original_total_amount: 50, status: "confirmed")
       expect(order).not_to be_valid
       expect(order.errors[:original_total_amount]).to be_present
     end
 
     it "is valid when original_total_amount == total_amount" do
       order = Order.new(customer: customer, order_type: "immediate", source: "live", paper_number: "9002",
-                        sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
+                        sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed")
       expect(order).to be_valid
     end
   end
@@ -313,13 +313,13 @@ RSpec.describe Order, type: :model do
 
     it "returns original_total_amount - total_amount" do
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9003",
-                            sale_date: Date.today, total_amount: 90, original_total_amount: 100, status: "confirmed")
+                            sale_date: Date.current, total_amount: 90, original_total_amount: 100, status: "confirmed")
       expect(order.discount_amount).to eq(10)
     end
 
     it "returns 0 when no discount was applied" do
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9004",
-                            sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
+                            sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed")
       expect(order.discount_amount).to eq(0)
     end
   end
@@ -330,14 +330,14 @@ RSpec.describe Order, type: :model do
 
     it "returns the first item's discount_percent as an integer" do
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9005",
-                            sale_date: Date.today, total_amount: 90, original_total_amount: 100, status: "confirmed")
+                            sale_date: Date.current, total_amount: 90, original_total_amount: 100, status: "confirmed")
       order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 10)
       expect(order.discount_percent_display).to eq(10)
     end
 
     it "returns 0 when there are no items" do
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9006",
-                            sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
+                            sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed")
       expect(order.discount_percent_display).to eq(0)
     end
   end

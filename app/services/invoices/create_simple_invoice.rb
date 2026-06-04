@@ -27,7 +27,7 @@ module Invoices
       @amount = amount
       @currency = currency
       @exchange_rate = exchange_rate
-      @purchase_date = purchase_date || Date.today
+      @purchase_date = purchase_date || Date.current
       @due_date = due_date
       @notes = notes
       @early_payment_due_date = early_payment_due_date

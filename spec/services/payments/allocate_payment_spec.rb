@@ -36,7 +36,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         retail = create(:customer, has_credit_account: false)
         result = described_class.call(
           customer: retail,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: 100, payment_method: "cash" } ]
         )
         expect(result.failure?).to be true
@@ -46,7 +46,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "fails when allocations is empty" do
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: []
         )
         expect(result.failure?).to be true
@@ -64,7 +64,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: foreign_order.id, amount: 50, payment_method: "cash" } ]
         )
         expect(result.failure?).to be true
@@ -81,7 +81,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: immediate.id, amount: 50, payment_method: "cash" } ]
         )
         expect(result.failure?).to be true
@@ -90,7 +90,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "fails when amount exceeds outstanding balance of an order" do
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: order_a.total_amount + 1, payment_method: "cash" } ]
         )
         expect(result.failure?).to be true
@@ -100,7 +100,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "fails when payment_method is invalid" do
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: 50, payment_method: "bitcoin" } ]
         )
         expect(result.failure?).to be true
@@ -113,7 +113,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect {
           described_class.call(
             customer: customer,
-            payment_date: Date.today,
+            payment_date: Date.current,
             allocations: [
               { order_id: order_a.id, amount: 100, payment_method: "cash" },
               { order_id: order_b.id, amount: 80, payment_method: "cash" }
@@ -131,7 +131,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "returns Result.success with the array of created Payments in record" do
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: 100, payment_method: "cash" } ]
         )
         expect(result.success?).to be true
@@ -146,7 +146,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect {
           described_class.call(
             customer: customer,
-            payment_date: Date.today,
+            payment_date: Date.current,
             allocations: [
               { order_id: order_a.id, amount: 100, payment_method: "cash" },
               { order_id: order_b.id, amount: 80, payment_method: "transfer" }
@@ -168,7 +168,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect {
           described_class.call(
             customer: customer,
-            payment_date: Date.today,
+            payment_date: Date.current,
             allocations: [
               { order_id: order_a.id, amount: 100, payment_method: "cash" },
               { order_id: order_b.id, amount: bad_amount, payment_method: "cash" }
@@ -183,7 +183,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "saves the notes on every created Payment" do
         described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           notes: "Pago semanal",
           allocations: [
             { order_id: order_a.id, amount: 100, payment_method: "cash" },
@@ -211,7 +211,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         items = multi_item_order.order_items.order(:id).to_a
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [
             {
               order_id: multi_item_order.id,
@@ -237,7 +237,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
         described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [
             {
               order_id: multi_item_order.id,
@@ -253,7 +253,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [
             {
               order_id: multi_item_order.id,
@@ -276,7 +276,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         items = multi_item_order.order_items.order(:id).to_a
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [
             {
               order_id: multi_item_order.id,
@@ -302,7 +302,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [
             {
               order_id: multi_item_order.id,
@@ -333,7 +333,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "accepts a pending credit order (no longer requires confirmed)" do
         result = described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 400, payment_method: "cash" } ]
         )
 
@@ -344,7 +344,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "promotes the order to confirmed when balance reaches 0" do
         described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 1000, payment_method: "cash" } ]
         )
 
@@ -354,14 +354,14 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "keeps pending after a partial then promotes on the final allocation" do
         described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 600, payment_method: "cash" } ]
         )
         expect(order.reload.status).to eq("pending")
 
         described_class.call(
           customer: customer,
-          payment_date: Date.today,
+          payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 400, payment_method: "cash" } ]
         )
         expect(order.reload.status).to eq("confirmed")

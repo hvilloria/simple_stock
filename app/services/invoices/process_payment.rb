@@ -11,7 +11,7 @@ module Invoices
   #       { credit_note_id: 1, invoice_id: 5, amount: 10_000 },
   #       { credit_note_id: 1, invoice_id: 6, amount: 20_000 },
   #     ],
-  #     payment_date:        Date.today
+  #     payment_date:        Date.current
   #   )
   class ProcessPayment
     def self.call(**params)
@@ -20,7 +20,7 @@ module Invoices
 
     # credit_applications: [{credit_note_id:, invoice_id:, amount:}] — pre-distributed (used by specs)
     # credit_note_ids:     [Integer]                                  — CN ids only (used by controller)
-    def initialize(invoices:, credit_applications: [], credit_note_ids: [], payment_date: Date.today)
+    def initialize(invoices:, credit_applications: [], credit_note_ids: [], payment_date: Date.current)
       @invoices       = Array(invoices)
       @payment_date   = payment_date
       @credit_applications = if credit_note_ids.any?

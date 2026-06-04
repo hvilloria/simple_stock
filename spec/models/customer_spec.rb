@@ -365,7 +365,7 @@ RSpec.describe Customer, type: :model do
     end
 
     it 'returns 0 when last payment is today' do
-      create(:payment, customer: customer, payment_date: Date.today)
+      create(:payment, customer: customer, payment_date: Date.current)
       expect(customer.days_without_paying).to eq(0)
     end
 

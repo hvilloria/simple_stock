@@ -102,13 +102,6 @@ export default class extends Controller {
 
   selectProduct(event) {
     const product = JSON.parse(event.currentTarget.dataset.product)
-    
-    // Solo validar stock si NO estamos en un formulario de compra
-    const isInvoiceForm = this.element.closest('[data-controller*="invoice-form"]')
-    if (!isInvoiceForm && product.current_stock <= 0) {
-      alert('Este producto no tiene stock disponible')
-      return
-    }
 
     const customEvent = new CustomEvent('product-selected', {
       detail: { product },
