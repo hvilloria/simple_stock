@@ -36,10 +36,14 @@
     %div{ data: { cart_target: "items" },
           class: "flex-1 overflow-y-auto px-5 py-3" }
 
-    .px-5.py-4.border-t.border-slate-100.flex.justify-end
-      = link_to "Crear venta", "#",
-        data: { cart_target: "createButton" },
-        class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors opacity-50 pointer-events-none"
+    .px-5.py-4.border-t.border-slate-100.space-y-3
+      .flex.items-center.justify-between
+        %span.text-sm.font-medium.text-slate-600 Total
+        %span.text-base.font-bold.text-slate-900{ data: { cart_target: "cartTotal" } } $0,00
+      .flex.justify-end
+        = link_to "Crear venta", "#",
+          data: { cart_target: "createButton" },
+          class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors opacity-50 pointer-events-none"
 
   -# Filtros
   = form_with url: web_products_path,
@@ -80,7 +84,7 @@
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               = sortable_column(:current_stock, "STOCK", params)
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-              ESTADO
+              = sortable_column(:price_unit, "PRECIO", params)
             %th.w-20.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase
               ACCIONES
 
@@ -134,12 +138,9 @@
                       %span.w-1.5.h-1.5.rounded-full.bg-red-500
                       = "0"
 
-                -# Estado
+                -# Precio
                 %td.px-4.py-3.whitespace-nowrap
-                  - if product.active?
-                    %span.badge-success Activo
-                  - else
-                    %span.badge-neutral Inactivo
+                  %span.text-sm.font-medium.text-slate-900= product.price_unit.present? ? currency_ar(product.price_unit) : "—"
 
                 -# Acciones
                 %td.px-4.py-3.text-right

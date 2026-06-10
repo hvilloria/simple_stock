@@ -21,6 +21,7 @@
 
   - initial_items = @order.order_items.select { |oi| oi.product.present? }.map { |oi| { product_id: oi.product_id, sku: oi.product.sku, name: oi.product.name, brand: oi.product.brand, quantity: oi.quantity, price_unit: oi.unit_price.to_f, max_stock: oi.product.current_stock, origin: oi.product.origin, product_type: oi.product.product_type } }
   = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form", order_form_initial_items_value: initial_items.to_json } do |f|
+    = hidden_field_tag :source, "from_paper"
 
     -# Campos de ventas-lite
     .bg-white.border.border-slate-200.rounded-lg.p-6.mb-6
@@ -30,7 +31,7 @@
         -# Campo de fecha de venta (editable, default hoy)
         %div
           = label_tag :sale_date, "Fecha de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
-          = date_field_tag :sale_date, Date.today, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+          = date_field_tag :sale_date, Date.current, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
         
         -# Campo de número de talonario
         %div
@@ -40,94 +41,98 @@
           = text_field_tag :paper_number, nil, placeholder: "Ej: 0045", required: true, data: { action: "input->order-form#updateSubmitButton" }, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
           %p.text-xs.text-gray-500.mt-1 Requerido — número del talonario físico
     
-    .grid.grid-cols-1.md:grid-cols-2.gap-6
+    .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-      -# ============ CARD 1 - Información del Cliente (izquierda, arriba) ============
-      .bg-white.border.border-slate-200.rounded-lg.p-6
-        %h3.text-lg.font-semibold.text-gray-900.mb-4 Información del Cliente
+      -# ============ Columna izquierda: Cliente + Productos ============
+      .lg:col-span-2.space-y-6
 
-        .space-y-4
-          -# Tipo de venta (radio buttons visuales)
-          %div
-            %label.block.text-sm.font-medium.text-gray-700.mb-3 Tipo de Venta
-            .grid.grid-cols-2.gap-4
-              %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
-                %span
-                  = f.radio_button :order_type, "immediate", checked: true, id: "order_type_immediate", data: { action: "change->order-form#updateOrderType", "order-form-target": "immediateRadio" }
-                %label.cursor-pointer.flex-1{ for: "order_type_immediate" }
-                  %p.font-medium.text-gray-900 💵 Contado
-                  %p.text-xs.text-gray-500 Pago inmediato
+        -# Card - Información del Cliente
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Información del Cliente
 
-              %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
-                %span
-                  = f.radio_button :order_type, "credit", id: "order_type_credit", data: { action: "change->order-form#updateOrderType", "order-form-target": "creditRadio" }
-                %label.cursor-pointer.flex-1{ for: "order_type_credit" }
-                  %p.font-medium.text-gray-900 📋 Cuenta Corriente
-                  %p.text-xs.text-gray-500 A crédito
-          
-          -# Selector de cliente
-          - customer_options = [["Cliente Mostrador", "mostrador", { "data-has-credit-account" => "false" }]]
-          - @customers.each do |c|
-            - customer_options << ["#{c.name}#{c.has_credit_account? ? ' (Cuenta Corriente)' : ''}", c.id, { "data-has-credit-account" => c.has_credit_account.to_s }]
-          %div
-            = f.label :customer_id, "Cliente", class: "block text-sm font-medium text-gray-700 mb-2"
-            = f.select :customer_id, options_for_select(customer_options, "mostrador"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all", data: { action: "change->order-form#customerChanged" }
-            %p.text-xs.text-gray-500.mt-1 Para ventas a crédito, selecciona un cliente con cuenta corriente
+          .space-y-4
+            -# Tipo de venta (radio buttons visuales)
+            %div
+              %label.block.text-sm.font-medium.text-gray-700.mb-3 Tipo de Venta
+              .grid.grid-cols-2.gap-4
+                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                  %span
+                    = f.radio_button :order_type, "immediate", checked: true, id: "order_type_immediate", data: { action: "change->order-form#updateOrderType", "order-form-target": "immediateRadio" }
+                  %label.cursor-pointer.flex-1{ for: "order_type_immediate" }
+                    %p.font-medium.text-gray-900 💵 Contado
+                    %p.text-xs.text-gray-500 Pago inmediato
 
-          -# Canal de venta
-          %div
-            = f.label :channel, "Canal de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
-            = f.select :channel, options_for_select([["🏪 Mostrador", "counter"], ["💬 WhatsApp", "whatsapp"], ["🛒 Mercado Libre", "mercadolibre"]], "counter"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                  %span
+                    = f.radio_button :order_type, "credit", id: "order_type_credit", data: { action: "change->order-form#updateOrderType", "order-form-target": "creditRadio" }
+                  %label.cursor-pointer.flex-1{ for: "order_type_credit" }
+                    %p.font-medium.text-gray-900 📋 Cuenta Corriente
+                    %p.text-xs.text-gray-500 A crédito
 
-      -# ============ CARD - Productos (izquierda) ============
-      .bg-white.border.border-slate-200.rounded-lg.p-6
-        %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
+            -# Selector de cliente
+            - customer_options = [["Cliente Mostrador", "mostrador", { "data-has-credit-account" => "false" }]]
+            - @customers.each do |c|
+              - customer_options << ["#{c.name}#{c.has_credit_account? ? ' (Cuenta Corriente)' : ''}", c.id, { "data-has-credit-account" => c.has_credit_account.to_s }]
+            %div
+              = f.label :customer_id, "Cliente", class: "block text-sm font-medium text-gray-700 mb-2"
+              = f.select :customer_id, options_for_select(customer_options, "mostrador"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all", data: { action: "change->order-form#customerChanged" }
+              %p.text-xs.text-gray-500.mt-1 Para ventas a crédito, selecciona un cliente con cuenta corriente
 
-        -# Search input con dropdown
-        %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
-          %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
-          %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
+            -# Canal de venta
+            %div
+              = f.label :channel, "Canal de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
+              = f.select :channel, options_for_select([["🏪 Mostrador", "counter"], ["💬 WhatsApp", "whatsapp"], ["🛒 Mercado Libre", "mercadolibre"]], "counter"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
-        -# Lista de productos agregados
-        .mt-6
-          #order-items{ data: { 'order-form-target': 'items' } }
-            .text-center.py-12.text-gray-400
-              %p.text-5xl.mb-3 📦
-              %p.text-gray-600.font-medium No hay productos agregados
-              %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba
+        -# Card - Productos
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
 
-      -# ============ CARD - Resumen de Venta (derecha, ocupando 4 filas) ============
-      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24.md:row-span-4
-        %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Venta
+          -# Search input con dropdown
+          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
+            %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
+            %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
 
-        -# Total principal (calculado dinámicamente)
-        .text-center.mb-6
-          %p.text-sm.text-gray-500.mb-2 Total
-          %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0
+          -# Lista de productos agregados
+          .mt-6
+            #order-items{ data: { 'order-form-target': 'items' } }
+              .text-center.py-12.text-gray-400
+                %p.text-5xl.mb-3 📦
+                %p.text-gray-600.font-medium No hay productos agregados
+                %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba
 
-        .border-t.border-gray-200.py-4.space-y-3
-          .flex.justify-between.text-sm
-            %span.text-gray-600 Items
-            %span.font-medium.text-gray-900{ data: { order_form_target: "itemCount" } } 0 productos
+      -# ============ Columna derecha: Resumen sticky ============
+      .lg:col-span-1
+        .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
+          %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Venta
 
-          .flex.justify-between.text-sm
-            %span.text-gray-600 Cantidad total
-            %span.font-medium.text-gray-900{ data: { order_form_target: "totalQuantity" } } 0 unidades
+          -# Total principal (calculado dinámicamente)
+          .text-center.mb-6
+            %p.text-sm.text-gray-500.mb-2 Total
+            %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0
 
-        .border-t.border-gray-200.py-4
-          %h4.text-sm.font-semibold.text-gray-900.mb-3 Información de Pago
-          
-          .space-y-2
-            .flex.items-center.gap-2.text-sm{ data: { order_form_target: "orderTypeInfo" } }
-              %span 💵
-              %span.text-gray-600 Contado - Pago inmediato
-            
-            .flex.items-center.gap-2.text-sm
-              %span 🏪
-              %span.text-gray-600 Mostrador
+          .border-t.border-gray-200.py-4.space-y-3
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Items
+              %span.font-medium.text-gray-900{ data: { order_form_target: "itemCount" } } 0 productos
 
-        .border-t.border-gray-200.pt-4
-          = f.submit "Crear nota de pedido", disabled: true, class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors opacity-50 cursor-not-allowed", data: { order_form_target: "submitButton" }
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Cantidad total
+              %span.font-medium.text-gray-900{ data: { order_form_target: "totalQuantity" } } 0 unidades
 
-        .mt-4.text-center
-          %p.text-xs.text-gray-500 La nota queda pendiente de cobro
+          .border-t.border-gray-200.py-4
+            %h4.text-sm.font-semibold.text-gray-900.mb-3 Información de Pago
+
+            .space-y-2
+              .flex.items-center.gap-2.text-sm{ data: { order_form_target: "orderTypeInfo" } }
+                %span 💵
+                %span.text-gray-600 Contado - Pago inmediato
+
+              .flex.items-center.gap-2.text-sm
+                %span 🏪
+                %span.text-gray-600 Mostrador
+
+          .border-t.border-gray-200.pt-4
+            = f.submit "Crear nota de pedido", disabled: true, class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors opacity-50 cursor-not-allowed", data: { order_form_target: "submitButton" }
+
+          .mt-4.text-center
+            %p.text-xs.text-gray-500 La nota queda pendiente de cobro

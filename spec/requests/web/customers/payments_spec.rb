@@ -77,7 +77,7 @@ RSpec.describe "Web::Customers::Payments", type: :request do
       it "creates one Payment and two Allocations, then redirects to customer show" do
         expect {
           post web_customer_payments_path(customer), params: {
-            payment_date: Date.today.iso8601,
+            payment_date: Date.current.iso8601,
             notes: "Pago semanal",
             allocations: {
               "0" => { order_id: order_a.id, include: "1", amount: "200", payment_method: "cash" },
@@ -178,7 +178,7 @@ RSpec.describe "Web::Customers::Payments", type: :request do
       items = credit_order.order_items.order(:id).to_a
 
       post web_customer_payments_path(credit_customer), params: {
-        payment_date: Date.today.iso8601,
+        payment_date: Date.current.iso8601,
         allocations: {
           "0" => {
             order_id: credit_order.id.to_s,

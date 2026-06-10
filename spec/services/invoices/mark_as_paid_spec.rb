@@ -10,7 +10,7 @@ RSpec.describe Invoices::MarkAsPaid do
       it "marks invoice as paid" do
         result = described_class.call(
           invoice: invoice,
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(result.success?).to be true
@@ -18,7 +18,7 @@ RSpec.describe Invoices::MarkAsPaid do
       end
 
       it "records payment date" do
-        payment_date = Date.today + 1.day
+        payment_date = Date.current + 1.day
         result = described_class.call(
           invoice: invoice,
           payment_date: payment_date
@@ -32,7 +32,7 @@ RSpec.describe Invoices::MarkAsPaid do
         result = described_class.call(invoice: invoice)
 
         expect(result.success?).to be true
-        expect(result.record.paid_at.to_date).to eq(Date.today)
+        expect(result.record.paid_at.to_date).to eq(Date.current)
       end
 
       it "returns the updated invoice record" do
@@ -45,7 +45,7 @@ RSpec.describe Invoices::MarkAsPaid do
       it "does not automatically apply associated credit notes" do
         credit_note = create(:credit_note, supplier: invoice.supplier, invoice: invoice, status: "active")
 
-        described_class.call(invoice: invoice, payment_date: Date.today)
+        described_class.call(invoice: invoice, payment_date: Date.current)
 
         expect(credit_note.reload.active_status?).to be true
       end
@@ -113,7 +113,7 @@ RSpec.describe Invoices::MarkAsPaid do
       it "marks invoice with discount applied when apply_discount is true" do
         result = described_class.call(
           invoice: invoice,
-          payment_date: Date.today,
+          payment_date: Date.current,
           apply_discount: true
         )
 
@@ -124,7 +124,7 @@ RSpec.describe Invoices::MarkAsPaid do
       it "marks invoice without discount when apply_discount is false" do
         result = described_class.call(
           invoice: invoice,
-          payment_date: Date.today,
+          payment_date: Date.current,
           apply_discount: false
         )
 
@@ -135,7 +135,7 @@ RSpec.describe Invoices::MarkAsPaid do
       it "defaults apply_discount to false" do
         result = described_class.call(
           invoice: invoice,
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(result.success?).to be true

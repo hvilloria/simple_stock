@@ -5,7 +5,7 @@ FactoryBot.define do
     amount { 1000.0 }
     currency { "ARS" }
     exchange_rate { nil }
-    issue_date { Date.today }
+    issue_date { Date.current }
     status { "active" }
     notes { nil }
 

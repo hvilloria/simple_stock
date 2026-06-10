@@ -7,7 +7,7 @@ RSpec.describe Invoices::ProcessPayment do
   describe ".call" do
     context "single invoice without credit applications" do
       it "marks the invoice as paid" do
-        result = described_class.call(invoices: [ invoice ], payment_date: Date.today)
+        result = described_class.call(invoices: [ invoice ], payment_date: Date.current)
 
         expect(result.success?).to be true
         expect(invoice.reload.paid_status?).to be true
@@ -37,7 +37,7 @@ RSpec.describe Invoices::ProcessPayment do
             credit_applications: [
               { credit_note_id: credit_note.id, invoice_id: invoice.id, amount: 10_000 }
             ],
-            payment_date: Date.today
+            payment_date: Date.current
           )
         }.to change(AppliedCredit, :count).by(1)
       end
@@ -48,7 +48,7 @@ RSpec.describe Invoices::ProcessPayment do
           credit_applications: [
             { credit_note_id: credit_note.id, invoice_id: invoice.id, amount: 10_000 }
           ],
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(invoice.reload.paid_status?).to be true
@@ -60,7 +60,7 @@ RSpec.describe Invoices::ProcessPayment do
           credit_applications: [
             { credit_note_id: credit_note.id, invoice_id: invoice.id, amount: 10_000 }
           ],
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(credit_note.reload.remaining_balance).to eq(40_000)
@@ -74,7 +74,7 @@ RSpec.describe Invoices::ProcessPayment do
           credit_applications: [
             { credit_note_id: credit_note.id, invoice_id: small_invoice.id, amount: 5_000 }
           ],
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(credit_note.reload.remaining_balance).to eq(45_000)
@@ -90,7 +90,7 @@ RSpec.describe Invoices::ProcessPayment do
             { credit_note_id: credit_note.id, invoice_id: invoice.id,  amount: 30_000 },
             { credit_note_id: credit_note.id, invoice_id: invoice2.id, amount: 20_000 }
           ],
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(credit_note.reload.remaining_balance).to eq(0)
@@ -111,7 +111,7 @@ RSpec.describe Invoices::ProcessPayment do
       it "marks paid_with_discount automatically when discount is still valid" do
         described_class.call(
           invoices: [ invoice_with_discount ],
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(invoice_with_discount.reload.paid_with_discount).to be true
@@ -125,7 +125,7 @@ RSpec.describe Invoices::ProcessPayment do
 
         result = described_class.call(
           invoices: [ expired_invoice ],
-          payment_date: Date.today
+          payment_date: Date.current
         )
 
         expect(result.success?).to be true

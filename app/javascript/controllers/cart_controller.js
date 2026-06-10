@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["panel", "items", "count", "createButton", "backdrop"]
+  static targets = ["panel", "items", "count", "createButton", "backdrop", "cartTotal"]
 
   connect() {
     this.cartItems = []
@@ -42,8 +42,8 @@ export default class extends Controller {
       return
     }
     this.cartItems[index].quantity = value
+    this.renderPanel()
     this.updateCount()
-    this.updateCreateButton()
   }
 
   togglePanel() {
@@ -70,6 +70,7 @@ export default class extends Controller {
         <p class="text-sm text-slate-500 text-center py-6">No hay productos en el carrito.</p>
       `
       this.updateCreateButton()
+      this.updateTotal()
       return
     }
 
@@ -78,6 +79,7 @@ export default class extends Controller {
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-slate-900 truncate">${item.name}</p>
           <p class="text-xs text-slate-500">${item.sku} · Stock: ${item.current_stock}</p>
+          <p class="text-xs text-slate-600 mt-0.5">${this.formatMoney(item.price_unit)} c/u</p>
         </div>
         <input
           type="number"
@@ -87,6 +89,7 @@ export default class extends Controller {
           data-action="change->cart#updateQuantity"
           data-cart-index="${index}"
         />
+        <span class="w-24 text-right text-sm font-semibold text-slate-900">${this.formatMoney(item.price_unit * item.quantity)}</span>
         <button
           type="button"
           class="text-slate-400 hover:text-red-500 transition-colors"
@@ -97,6 +100,7 @@ export default class extends Controller {
     `).join("")
 
     this.updateCreateButton()
+    this.updateTotal()
   }
 
   updateCount() {
@@ -112,6 +116,19 @@ export default class extends Controller {
       this.createButtonTarget.classList.remove("opacity-50", "pointer-events-none")
       this.createButtonTarget.href = this.buildUrl()
     }
+  }
+
+  updateTotal() {
+    if (!this.hasCartTotalTarget) return
+    const total = this.cartItems.reduce((sum, i) => sum + i.price_unit * i.quantity, 0)
+    this.cartTotalTarget.textContent = this.formatMoney(total)
+  }
+
+  formatMoney(value) {
+    return "$" + new Intl.NumberFormat("es-AR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value || 0)
   }
 
   buildUrl() {

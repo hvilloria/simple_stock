@@ -300,95 +300,64 @@ puts "\n✅ #{compras_exitosas}/20 compras creadas"
 puts "\n💰 Creando ventas (esto puede tardar un poco)..."
 
 ventas_exitosas = 0
-ventas_fallidas = 0
+sale_counter = 1
 
 # 45 ventas de mostrador
 45.times do
   fecha = rand(7).days.ago + rand(24).hours
-
-  productos_con_stock = productos.select { |p| p.reload.current_stock > 0 }
-  next if productos_con_stock.empty?
-
-  productos_venta = productos_con_stock.sample(rand(1..4))
+  productos_venta = productos.sample(rand(1..4))
 
   items = productos_venta.map do |producto|
-    producto.reload
-    cantidad = [ rand(1..5), producto.current_stock ].min
-    next if cantidad <= 0
+    { product_id: producto.id, quantity: rand(1..5), unit_price: producto.price_unit }
+  end
 
-    {
-      product_id: producto.id,
-      quantity: cantidad,
-      unit_price: producto.price_unit
-    }
-  end.compact
-
-  next if items.empty?
-
-  total = items.sum { |i| i[:quantity] * i[:unit_price] }
   result = Sales::CreateOrder.call(
     customer: mostrador,
     items: items,
     order_type: "immediate",
+    paper_number: "T-#{format('%04d', sale_counter)}",
     channel: [ 'counter', 'whatsapp', 'mercadolibre' ].sample,
-    payments: [ { amount: total, payment_method: %w[cash transfer card].sample } ]
+    source: "from_paper"
   )
 
   if result.success?
     result.record.update_column(:created_at, fecha)
     ventas_exitosas += 1
     print "."
-  else
-    ventas_fallidas += 1
   end
+
+  sale_counter += 1
 end
 
 # 5 ventas a crédito
 5.times do
   fecha = rand(7).days.ago + rand(24).hours
   cliente = clientes_con_credito.sample
-
-  productos_con_stock = productos.select { |p| p.reload.current_stock > 5 }
-  next if productos_con_stock.empty?
-
-  productos_venta = productos_con_stock.sample(rand(2..5))
+  productos_venta = productos.sample(rand(2..5))
 
   items = productos_venta.map do |producto|
-    producto.reload
-    cantidad = [ rand(2..8), producto.current_stock - 2 ].min
-    next if cantidad <= 0
-
-    {
-      product_id: producto.id,
-      quantity: cantidad,
-      unit_price: producto.price_unit
-    }
-  end.compact
-
-  next if items.empty?
-
-  total = items.sum { |i| i[:quantity] * i[:unit_price] }
-  partial = (total * rand(0.0..0.5)).round(2)
-  payments = partial.positive? ? [ { amount: partial, payment_method: %w[cash transfer].sample } ] : []
+    { product_id: producto.id, quantity: rand(2..8), unit_price: producto.price_unit }
+  end
 
   result = Sales::CreateOrder.call(
     customer: cliente,
     items: items,
     order_type: "credit",
+    paper_number: "T-#{format('%04d', sale_counter)}",
     channel: "counter",
-    payments: payments
+    source: "from_paper"
   )
 
   if result.success?
     result.record.update_column(:created_at, fecha)
     ventas_exitosas += 1
     print "."
-  else
-    ventas_fallidas += 1
   end
+
+  sale_counter += 1
 end
 
-puts "\n✅ #{ventas_exitosas} ventas creadas (#{ventas_fallidas} omitidas por stock)"
+puts "\n✅ #{ventas_exitosas} ventas creadas"
 
 # ============================================
 # 7. PAGOS (2-3 pagos parciales)
@@ -397,26 +366,41 @@ puts "\n💵 Registrando pagos..."
 
 pagos_creados = 0
 clientes_con_credito.each do |cliente|
-  saldo = cliente.current_balance
+  ordenes = Order.where(customer: cliente, order_type: "credit", status: "pending").to_a
+  next if ordenes.empty?
 
-  if saldo > 1000
-    monto = (saldo * rand(0.3..0.7)).round(0)
-    metodo = [ 'cash', 'transfer', 'check' ].sample
-    fecha_pago = rand(3).days.ago.to_date
+  saldo_total = ordenes.sum(&:outstanding_balance)
+  next unless saldo_total > 1000
 
-    result = Payments::RegisterPayment.call(
-      customer: cliente,
-      amount: monto,
-      payment_method: metodo,
-      payment_date: fecha_pago,
-      notes: "Pago parcial - #{metodo}"
-    )
+  metodo = [ 'cash', 'transfer', 'check' ].sample
+  monto_total = (saldo_total * rand(0.3..0.7)).round(2)
+  fecha_pago = rand(3).days.ago.to_date
 
-    if result.success?
-      result.record.update_column(:created_at, fecha_pago.to_time + rand(9..17).hours)
-      pagos_creados += 1
-      puts "  ✓ #{cliente.name}: $#{monto.to_i} | Saldo: $#{cliente.reload.current_balance.to_i}"
-    end
+  restante = monto_total
+  allocations = []
+  ordenes.each do |orden|
+    break if restante <= 0
+    saldo_orden = orden.outstanding_balance
+    next if saldo_orden <= 0
+    aplicar = [ saldo_orden, restante ].min.round(2)
+    allocations << { order_id: orden.id, amount: aplicar, payment_method: metodo }
+    restante = (restante - aplicar).round(2)
+  end
+
+  next if allocations.empty?
+
+  result = Payments::AllocatePayment.call(
+    customer: cliente,
+    payment_date: fecha_pago,
+    allocations: allocations,
+    notes: "Pago parcial - #{metodo}"
+  )
+
+  if result.success?
+    pagos_creados += 1
+    puts "  ✓ #{cliente.name}: $#{monto_total.to_i} | Saldo: $#{cliente.reload.current_balance.to_i}"
+  else
+    puts "  ✗ #{cliente.name}: #{result.errors.join(', ')}"
   end
 end
 

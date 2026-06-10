@@ -3,7 +3,7 @@ FactoryBot.define do
     association :supplier
     currency { "USD" }
     exchange_rate { 1200 }
-    purchase_date { Date.today }
+    purchase_date { Date.current }
     status { "confirmed" }
     total_cost { nil }
     notes { nil }

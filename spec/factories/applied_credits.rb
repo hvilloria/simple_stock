@@ -3,6 +3,6 @@ FactoryBot.define do
     association :credit_note
     association :invoice
     amount { 500.0 }
-    applied_at { Date.today }
+    applied_at { Date.current }
   end
 end

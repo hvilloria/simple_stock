@@ -13,7 +13,7 @@ module Payments
 
     def initialize(customer:, payment_date:, allocations:, notes: nil)
       @customer = customer
-      @payment_date = payment_date || Date.today
+      @payment_date = payment_date || Date.current
       @notes = notes
       @allocations = Array(allocations).map { |row| row.to_h.symbolize_keys }
     end

@@ -7,7 +7,7 @@ FactoryBot.define do
     original_total_amount { total_amount }
     channel { nil }
     source { "live" }
-    sale_date { Date.today }
+    sale_date { Date.current }
     sequence(:paper_number) { |n| format("%04d", n) }
 
     trait :pending do
@@ -39,12 +39,12 @@ FactoryBot.define do
       source { "from_paper" }
       paper_number { "0001" }
       total_amount { 0 }
-      sale_date { Date.today }
+      sale_date { Date.current }
     end
 
     trait :live do
       source { "live" }
-      sale_date { Date.today }
+      sale_date { Date.current }
     end
   end
 end

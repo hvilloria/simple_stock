@@ -2,7 +2,7 @@
 
 module Invoices
   class MarkAsPaid
-    def self.call(invoice:, payment_date: Date.today, apply_discount: false)
+    def self.call(invoice:, payment_date: Date.current, apply_discount: false)
       new(invoice: invoice, payment_date: payment_date, apply_discount: apply_discount).call
     end
 

@@ -5,7 +5,7 @@ FactoryBot.define do
     association :customer, factory: [ :customer, :with_credit ]
     amount { 10000.0 }
     payment_method { "cash" }
-    payment_date { Date.today }
+    payment_date { Date.current }
     notes { nil }
 
     trait :transfer do

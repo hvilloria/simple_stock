@@ -12,7 +12,7 @@ module Payments
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
-    def self.call(order:, tenders:, discount_percent: 0, payment_date: Date.today)
+    def self.call(order:, tenders:, discount_percent: 0, payment_date: Date.current)
       new(
         order: order,
         tenders: tenders,
@@ -25,7 +25,7 @@ module Payments
       @order            = order
       @tenders          = Array(tenders).map { |t| t.to_h.symbolize_keys }
       @discount_percent = discount_percent.to_i
-      @payment_date     = payment_date || Date.today
+      @payment_date     = payment_date || Date.current
     end
 
     def call

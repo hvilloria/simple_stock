@@ -78,7 +78,7 @@ export default class extends Controller {
     const index = parseInt(event.currentTarget.dataset.index)
     const newQuantity = parseInt(event.currentTarget.value)
 
-    if (newQuantity > 0 && newQuantity <= this.items[index].max_stock) {
+    if (newQuantity > 0) {
       this.items[index].quantity = newQuantity
       this.updateItemSubtotal(index)
       this.updateSummary()
@@ -172,7 +172,6 @@ export default class extends Controller {
               type="number"
               value="${item.quantity}"
               min="1"
-              max="${item.max_stock}"
               data-index="${index}"
               data-action="input->order-form#updateQuantity"
               class="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-center font-semibold"

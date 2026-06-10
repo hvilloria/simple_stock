@@ -21,7 +21,7 @@ RSpec.describe Payment, type: :model do
 
       it "is persisted successfully" do
         expect {
-          create(:payment, customer: retail, amount: 100, payment_method: "cash", payment_date: Date.today)
+          create(:payment, customer: retail, amount: 100, payment_method: "cash", payment_date: Date.current)
         }.to change(Payment, :count).by(1)
       end
     end
@@ -32,7 +32,7 @@ RSpec.describe Payment, type: :model do
     let(:customer2) { create(:customer, customer_type: "workshop", has_credit_account: true) }
     let!(:payment1) { create(:payment, customer: customer1, payment_date: 3.days.ago) }
     let!(:payment2) { create(:payment, customer: customer2, payment_date: 1.day.ago) }
-    let!(:payment3) { create(:payment, customer: customer1, payment_date: Date.today) }
+    let!(:payment3) { create(:payment, customer: customer1, payment_date: Date.current) }
 
     describe ".by_customer" do
       it "returns payments for specified customer" do

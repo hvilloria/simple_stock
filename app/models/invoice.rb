@@ -40,7 +40,7 @@ class Invoice < ApplicationRecord
   scope :full_mode, -> { where(has_items: true) }
   scope :pending_payment, -> { where(status: "pending") }
   scope :paid_invoices, -> { where(status: "paid") }
-  scope :overdue, -> { simple_mode.where(status: "pending").where("due_date < ?", Date.today) }
+  scope :overdue, -> { simple_mode.where(status: "pending").where("due_date < ?", Date.current) }
   scope :due_soon, -> { simple_mode.where(status: "pending").where("due_date <= ?", 7.days.from_now.to_date) }
   scope :by_due_date, -> { order(due_date: :asc) }
 
@@ -133,15 +133,15 @@ class Invoice < ApplicationRecord
   end
 
   def overdue?
-    pending_status? && due_date && due_date < Date.today
+    pending_status? && due_date && due_date < Date.current
   end
 
   def days_until_due
     return nil unless due_date
-    (due_date - Date.today).to_i
+    (due_date - Date.current).to_i
   end
 
-  def mark_as_paid!(payment_date = Date.today, paid_with_discount: false)
+  def mark_as_paid!(payment_date = Date.current, paid_with_discount: false)
     raise "Cannot mark as paid: not in simple mode" unless simple_mode?
     raise "Cannot mark as paid: already paid" if paid_status?
 

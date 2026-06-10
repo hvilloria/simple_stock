@@ -33,7 +33,7 @@ RSpec.describe 'Web::Customers', type: :request do
 
       Payments::AllocatePayment.call(
         customer: paid_customer,
-        payment_date: Date.today,
+        payment_date: Date.current,
         allocations: [ { order_id: paid_order.id, amount: 100, payment_method: 'cash' } ]
       )
     end

@@ -41,12 +41,12 @@ RSpec.describe OrderItem, type: :model do
 
     let(:immediate_order) do
       Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "L-0001",
-                    sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
+                    sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed")
     end
 
     let(:credit_order) do
       Order.create!(customer: credit_customer, order_type: "credit", source: "live", paper_number: "L-0002",
-                    sale_date: Date.today, total_amount: 100, original_total_amount: 100, status: "confirmed")
+                    sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed")
     end
 
     it "is invalid with discount_percent < 0" do

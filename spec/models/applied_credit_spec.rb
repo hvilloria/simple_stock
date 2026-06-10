@@ -30,21 +30,21 @@ RSpec.describe AppliedCredit, type: :model do
       end
 
       it "accounts for previously applied amounts" do
-        create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 40_000, applied_at: Date.today)
+        create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 40_000, applied_at: Date.current)
 
         second_application = build(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 20_000)
         expect(second_application).not_to be_valid
       end
 
       it "allows applying exactly the remaining balance" do
-        create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 30_000, applied_at: Date.today)
+        create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 30_000, applied_at: Date.current)
 
         second_application = build(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 20_000)
         expect(second_application).to be_valid
       end
 
       it "excludes self when updating (avoids false validation on update)" do
-        applied = create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 50_000, applied_at: Date.today)
+        applied = create(:applied_credit, credit_note: credit_note, invoice: invoice, amount: 50_000, applied_at: Date.current)
         applied.amount = 50_000
         expect(applied).to be_valid
       end
