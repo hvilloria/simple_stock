@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel"]
   static values = { initialItems: Array }
 
   connect() {
@@ -121,6 +121,11 @@ export default class extends Controller {
           <span>💵</span>
           <span class="text-gray-600">Contado - Pago inmediato</span>
         `
+      } else if (orderType === "on_account") {
+        infoTarget.innerHTML = `
+          <span>🤝</span>
+          <span class="text-gray-600">Pago a cuenta - Entrega parcial</span>
+        `
       } else {
         infoTarget.innerHTML = `
           <span>📋</span>
@@ -128,6 +133,23 @@ export default class extends Controller {
         `
       }
     }
+
+    if (this.hasContactSectionTarget) {
+      this.contactSectionTarget.classList.toggle("hidden", orderType !== "on_account")
+    }
+
+    this.toggleDeliveredLabels()
+  }
+
+  isOnAccount() {
+    return this.hasOnAccountRadioTarget && this.onAccountRadioTarget.checked
+  }
+
+  toggleDeliveredLabels() {
+    const show = this.isOnAccount()
+    this.deliveredLabelTargets.forEach((label) => {
+      label.style.display = show ? "" : "none"
+    })
   }
 
   calculateTotal() {
@@ -163,6 +185,10 @@ export default class extends Controller {
           <input type="hidden" name="purchase_items[][product_id]" value="${item.product_id}" />
           <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
           <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />
+          <label class="mt-2 inline-flex items-center gap-2 text-xs text-gray-600" data-order-form-target="deliveredLabel" style="${this.isOnAccount() ? '' : 'display:none'}">
+            <input type="checkbox" name="delivered_product_ids[]" value="${item.product_id}" class="rounded border-gray-300" />
+            <span>se lo lleva ahora</span>
+          </label>
         </div>
 
         <div class="flex items-center gap-3">

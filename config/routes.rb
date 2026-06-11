@@ -42,6 +42,14 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :payments_on_account, only: [ :index, :show ] do
+      resource :payment, only: [ :new, :create ],
+                         controller: "payments_on_account/payments"
+      member do
+        post :deliver
+      end
+    end
+
     resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do
       collection do
         get :debtors

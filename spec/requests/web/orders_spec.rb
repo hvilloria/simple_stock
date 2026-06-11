@@ -62,6 +62,28 @@ RSpec.describe "Web::Orders", type: :request do
       end
     end
 
+    context "on_account sale note" do
+      it "creates an on_account order with contact and initial delivery" do
+        retail = create(:customer, has_credit_account: false, name: "Walk-in")
+        params = base_params.deep_merge(
+          order: { customer_id: retail.id, order_type: "on_account" }
+        ).merge(
+          contact_name: "Juan Pérez",
+          contact_phone: "11 5555 1234",
+          delivered_product_ids: [ product.id ]
+        )
+
+        expect {
+          post "/web/orders", params: params
+        }.to change(Order.on_account, :count).by(1)
+
+        order = Order.on_account.order(:created_at).last
+        expect(order.contact_name).to eq("Juan Pérez")
+        expect(order.contact_phone).to eq("11 5555 1234")
+        expect(order.order_items.first.delivered_at).to be_present
+      end
+    end
+
     context "without paper_number" do
       it "fails and renders new" do
         params = base_params.merge(paper_number: nil)

@@ -15,8 +15,9 @@ class Order < ApplicationRecord
   }, suffix: true
 
   enum :order_type, {
-    immediate: "immediate",
-    credit:    "credit"
+    immediate:  "immediate",
+    credit:     "credit",
+    on_account: "on_account"
   }, suffix: true
 
   ALLOWED_CHANNELS = %w[counter whatsapp mercadolibre].freeze
@@ -29,11 +30,29 @@ class Order < ApplicationRecord
   validates :channel, inclusion: { in: ALLOWED_CHANNELS, allow_nil: true }
   validates :paper_number, presence: true
   validate :credit_order_requires_credit_account
+  validate :on_account_requires_contact
   validates :original_total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validate :original_total_at_least_current_total
 
   scope :immediate, -> { where(order_type: "immediate") }
   scope :credit,    -> { where(order_type: "credit") }
+  scope :on_account, -> { where(order_type: "on_account") }
+
+  scope :open_on_account, -> {
+    on_account.active
+      .left_joins(:order_items)
+      .group("orders.id")
+      .having(
+        "orders.total_amount - " \
+        "COALESCE((SELECT SUM(amount) FROM payment_allocations WHERE order_id = orders.id), 0) > 0 " \
+        "OR COUNT(*) FILTER (WHERE order_items.delivered_at IS NULL) > 0"
+      )
+  }
+
+  scope :search_contact, ->(q) {
+    next all if q.blank?
+    where("contact_name ILIKE :q OR contact_phone ILIKE :q", q: "%#{q.strip}%")
+  }
   scope :pending,   -> { where(status: "pending") }
   scope :confirmed, -> { where(status: "confirmed") }
   scope :active,    -> { where.not(status: "cancelled") }
@@ -67,6 +86,18 @@ class Order < ApplicationRecord
     order_items.first&.discount_percent.to_i
   end
 
+  def fully_delivered?
+    order_items.where(delivered_at: nil).none?
+  end
+
+  def settled?
+    outstanding_balance <= 0 && fully_delivered?
+  end
+
+  def delivered_items_count
+    order_items.where.not(delivered_at: nil).count
+  end
+
   def refresh_status_from_balance!
     return if cancelled_status?
     new_status = outstanding_balance <= 0 ? "confirmed" : "pending"
@@ -90,6 +121,12 @@ class Order < ApplicationRecord
     unless customer.has_credit_account?
       errors.add(:base, "Credit orders require a customer with credit account enabled")
     end
+  end
+
+  def on_account_requires_contact
+    return unless on_account_order_type?
+    errors.add(:contact_name, "es obligatorio para pagos a cuenta") if contact_name.blank?
+    errors.add(:contact_phone, "es obligatorio para pagos a cuenta") if contact_phone.blank?
   end
 
   def original_total_at_least_current_total
