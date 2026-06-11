@@ -1,0 +1,76 @@
+- content_for :page_title, "Operación a cuenta"
+
+.container.mx-auto.px-6.py-6
+  .flex.items-baseline.justify-between.mb-4
+    %div
+      %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500
+        = "Talonario #{@order.paper_number} · #{@order.contact_name} · #{@order.contact_phone}"
+      %h1.text-2xl.font-semibold.text-slate-900 Operación a cuenta
+    = link_to "← Volver al listado", web_payments_on_account_index_path, class: "text-sm text-slate-500 hover:text-slate-900"
+
+  .grid.gap-4{ style: "grid-template-columns: 1fr 300px;" }
+    .space-y-4
+      .bg-white.border.border-slate-200.rounded-2xl.p-5
+        %h3.text-sm.font-semibold.text-slate-900.mb-3 Productos y entrega
+        = form_with url: deliver_web_payments_on_account_path(@order), method: :post do |f|
+          %table.w-full.text-sm
+            %thead
+              %tr.text-slate-500.text-left
+                %th.py-1.5.font-medium.border-b.border-slate-100 Producto
+                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Subtotal
+                %th.py-1.5.font-medium.border-b.border-slate-100.text-center Entrega
+            %tbody
+              - @order.order_items.each do |item|
+                %tr
+                  %td.py-2.5= item.product.name
+                  %td.py-2.5.text-right= number_to_currency(item.quantity * item.unit_price, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.5.text-center
+                    - if item.delivered_at
+                      %span.inline-flex.items-center.gap-1.text-xs.text-emerald-700
+                        ✓ entregado
+                    - elsif @can_deliver
+                      %label.inline-flex.items-center.gap-1.5.text-xs.text-slate-800
+                        = check_box_tag "order_item_ids[]", item.id, false, class: "rounded border-slate-300"
+                        marcar entregado
+                    - else
+                      %span.text-xs.text-slate-400 pendiente
+          - if @can_deliver
+            .mt-3.flex.justify-end
+              = f.submit "Guardar entrega", class: "px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium cursor-pointer"
+
+      .bg-white.border.border-slate-200.rounded-2xl.p-5
+        %h3.text-sm.font-semibold.text-slate-900.mb-3 Historial de cobros
+        - if @order.payments.any?
+          %table.w-full.text-sm
+            %thead
+              %tr.text-slate-500.text-left
+                %th.py-1.5.font-medium.border-b.border-slate-100 Fecha
+                %th.py-1.5.font-medium.border-b.border-slate-100 Método
+                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Monto
+            %tbody
+              - @order.payments.sort_by(&:payment_date).each do |payment|
+                %tr
+                  %td.py-2.text-slate-600= l(payment.payment_date, format: :default)
+                  %td.py-2= payment_method_label(payment.payment_method)
+                  %td.py-2.text-right= number_to_currency(payment.amount, unit: "$", separator: ",", delimiter: ".")
+        - else
+          %p.text-sm.text-slate-500 Sin cobros todavía.
+
+    .bg-white.border.border-slate-200.rounded-2xl.p-5.h-fit
+      %h3.text-sm.font-semibold.text-slate-900.mb-3 Resumen
+      .space-y-1.5.text-sm
+        .flex.justify-between.text-slate-600
+          %span Total acordado
+          %span= number_to_currency(@order.total_amount, unit: "$", separator: ",", delimiter: ".")
+        .flex.justify-between.text-slate-600
+          %span Pagado
+          %span= number_to_currency(@order.total_amount - @order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+        .flex.justify-between.font-semibold
+          %span Saldo
+          %span= number_to_currency(@order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+        .border-t.border-slate-200.my-2
+        .flex.justify-between.text-slate-600
+          %span Entrega
+          %span= "#{@order.delivered_items_count} / #{@order.order_items.size} ítems"
+      - if @can_collect
+        = link_to "Cobrar →", new_web_payments_on_account_payment_path(@order), class: "mt-4 block text-center w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-medium"

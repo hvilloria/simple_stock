@@ -61,7 +61,10 @@ module Web
         channel: params.dig(:order, :channel),
         source: params[:source] || "live",
         sale_date: params[:sale_date],
-        paper_number: params[:paper_number]
+        paper_number: params[:paper_number],
+        contact_name: params[:contact_name],
+        contact_phone: params[:contact_phone],
+        delivered_product_ids: Array(params[:delivered_product_ids])
       )
 
       if result.success?

@@ -8,7 +8,7 @@ RSpec.describe Order, type: :model do
 
   describe 'enums' do
     it { is_expected.to define_enum_for(:status).with_values(pending: 'pending', confirmed: 'confirmed', cancelled: 'cancelled').backed_by_column_of_type(:string).with_suffix }
-    it { is_expected.to define_enum_for(:order_type).with_values(immediate: 'immediate', credit: 'credit').backed_by_column_of_type(:string).with_suffix }
+    it { is_expected.to define_enum_for(:order_type).with_values(immediate: 'immediate', credit: 'credit', on_account: 'on_account').backed_by_column_of_type(:string).with_suffix }
   end
 
   describe 'status enum' do
@@ -363,6 +363,104 @@ RSpec.describe Order, type: :model do
 
       expect(order1).not_to be_valid
       expect(order2).to be_valid
+    end
+  end
+
+  describe "on_account order type" do
+    it "is a valid order_type value" do
+      order = build(:order, :on_account)
+      expect(order).to be_valid
+      expect(order.on_account_order_type?).to be(true)
+    end
+
+    it "requires contact_name and contact_phone" do
+      order = build(:order, :on_account, contact_name: nil, contact_phone: nil)
+      expect(order).not_to be_valid
+      expect(order.errors[:contact_name]).to be_present
+      expect(order.errors[:contact_phone]).to be_present
+    end
+
+    it "does not require contact for immediate or credit orders" do
+      expect(build(:order, order_type: "immediate", contact_name: nil)).to be_valid
+    end
+  end
+
+  describe "#fully_delivered? and #settled?" do
+    let(:order) { create(:order, :on_account, total_amount: 1000, original_total_amount: 1000) }
+    let(:product) { create(:product) }
+
+    it "is not fully_delivered while an item has no delivered_at" do
+      create(:order_item, order: order, product: product, quantity: 1, unit_price: 1000)
+      expect(order.fully_delivered?).to be(false)
+    end
+
+    it "is fully_delivered when every item has delivered_at" do
+      create(:order_item, :delivered, order: order, product: product, quantity: 1, unit_price: 1000)
+      expect(order.fully_delivered?).to be(true)
+    end
+
+    it "is settled only when balance is zero AND fully delivered" do
+      item = create(:order_item, order: order, product: product, quantity: 1, unit_price: 1000)
+      payment = create(:payment, customer: order.customer, amount: 1000, payment_method: "cash")
+      create(:payment_allocation, payment: payment, order: order, amount: 1000)
+      expect(order.reload.settled?).to be(false)
+
+      item.update!(delivered_at: Time.current)
+      expect(order.reload.settled?).to be(true)
+    end
+  end
+
+  describe ".open_on_account" do
+    let(:product) { create(:product) }
+
+    it "includes an on_account order that still owes money" do
+      order = create(:order, :on_account, total_amount: 1000, original_total_amount: 1000)
+      create(:order_item, :delivered, order: order, product: product, quantity: 1, unit_price: 1000)
+      expect(Order.open_on_account).to include(order)
+    end
+
+    it "includes a fully paid order that still has undelivered items" do
+      order = create(:order, :on_account, total_amount: 1000, original_total_amount: 1000)
+      create(:order_item, order: order, product: product, quantity: 1, unit_price: 1000)
+      payment = create(:payment, customer: order.customer, amount: 1000, payment_method: "cash")
+      create(:payment_allocation, payment: payment, order: order, amount: 1000)
+      expect(Order.open_on_account).to include(order)
+    end
+
+    it "excludes a settled order (paid and fully delivered)" do
+      order = create(:order, :on_account, total_amount: 1000, original_total_amount: 1000)
+      create(:order_item, :delivered, order: order, product: product, quantity: 1, unit_price: 1000)
+      payment = create(:payment, customer: order.customer, amount: 1000, payment_method: "cash")
+      create(:payment_allocation, payment: payment, order: order, amount: 1000)
+      expect(Order.open_on_account).not_to include(order)
+    end
+
+    it "excludes cancelled orders" do
+      order = create(:order, :on_account, :cancelled, total_amount: 1000, original_total_amount: 1000)
+      create(:order_item, order: order, product: product, quantity: 1, unit_price: 1000)
+      expect(Order.open_on_account).not_to include(order)
+    end
+  end
+
+  describe ".search_contact" do
+    it "matches by name or phone, case-insensitive" do
+      a = create(:order, :on_account, contact_name: "Ana López", contact_phone: "11 1111 2222")
+      create(:order, :on_account, contact_name: "Otro", contact_phone: "11 9999 0000")
+      expect(Order.search_contact("ana")).to contain_exactly(a)
+      expect(Order.search_contact("1111")).to contain_exactly(a)
+    end
+
+    it "returns all when query is blank" do
+      expect(Order.search_contact("").count).to eq(Order.count)
+    end
+  end
+
+  describe "#current_balance exclusion" do
+    it "does not count on_account orders in a customer's credit balance" do
+      customer = create(:customer, :with_credit)
+      order = create(:order, :on_account, customer: customer, total_amount: 500, original_total_amount: 500)
+      create(:order_item, order: order, product: create(:product), quantity: 1, unit_price: 500)
+      expect(customer.current_balance).to eq(0)
     end
   end
 end

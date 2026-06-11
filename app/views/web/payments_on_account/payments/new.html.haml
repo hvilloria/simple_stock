@@ -1,0 +1,98 @@
+- content_for :page_title, "Cobrar pago a cuenta"
+
+.container.mx-auto.px-6.py-6{ data: { controller: "on-account-payment", "on-account-payment-balance-value": @order.outstanding_balance, "on-account-payment-pending-delivery-value": (!@order.fully_delivered?).to_s } }
+
+  .flex.items-baseline.justify-between.mb-6
+    %div
+      %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Talonario
+      %h1.text-3xl.font-semibold.text-slate-900= @order.paper_number
+    = link_to "← Volver al listado", web_payments_on_account_path(@order), class: "text-sm text-slate-500 hover:text-slate-900"
+
+  - if flash.now[:alert]
+    .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash.now[:alert]
+
+  = form_with url: web_payments_on_account_payment_path(@order), method: :post, data: { action: "submit->on-account-payment#confirmSettle" } do |f|
+
+    .grid.grid-cols-1.gap-5{ class: "lg:grid-cols-[1fr_360px]" }
+
+      -# LEFT column
+      .space-y-4
+
+        -# Productos read-only
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          .flex.items-baseline.justify-between.mb-3
+            %h3.text-sm.font-semibold.text-slate-900 Productos
+            %span.text-xs.text-slate-500
+              = pluralize(@order.order_items.size, "ítem")
+          %table.w-full.text-sm
+            %thead
+              %tr.text-slate-500.text-left
+                %th.py-2.font-medium.border-b.border-slate-100 Producto
+                %th.py-2.font-medium.border-b.border-slate-100.text-center Cant
+                %th.py-2.font-medium.border-b.border-slate-100.text-right Subtotal
+                %th.py-2.font-medium.border-b.border-slate-100.text-center Entrega
+            %tbody.text-slate-900
+              - @order.order_items.each do |oi|
+                %tr
+                  %td.py-2= oi.product.name
+                  %td.py-2.text-center= oi.quantity
+                  %td.py-2.text-right= number_to_currency(oi.quantity * oi.unit_price, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-center
+                    - if oi.delivered_at
+                      %span.text-xs.text-emerald-700 entregado
+                    - else
+                      %span.text-xs.text-slate-400 pendiente
+
+        -# Monto a cancelar
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          %h3.text-sm.font-semibold.text-slate-900.mb-1 Monto a cancelar de la cuenta
+          %p.text-xs.text-slate-500.mb-3 Cuánto de la deuda salda el cliente en esta visita
+          = text_field_tag :amount_to_settle, number_with_precision(@order.outstanding_balance, precision: 2, delimiter: ".", separator: ","),
+              placeholder: "0,00",
+              data: { "on-account-payment-target": "amount", controller: "currency-input", action: "blur->currency-input#format focus->currency-input#unformat input->on-account-payment#recalculate" },
+              class: "w-44 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right bg-white"
+
+        -# Forma de pago
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          %h3.text-sm.font-semibold.text-slate-900.mb-3 Forma de pago
+          = select_tag :payment_method,
+              options_for_select([["Efectivo", "cash"], ["Transferencia", "transfer"], ["Cheque", "check"], ["Tarjeta", "card"]], "cash"),
+              data: { "on-account-payment-target": "tenderMethod", action: "change->on-account-payment#recalculate" },
+              class: "w-full px-3 py-2 border border-slate-300 rounded-xl text-sm"
+
+        -# Descuento
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          %h3.text-sm.font-semibold.text-slate-900.mb-1 Descuento
+          %p.text-xs.text-slate-500.mb-3{ data: { "on-account-payment-target": "discountHelper" } }
+            Habilitado solo si el cobro es en efectivo
+          = select_tag :discount_percent,
+              options_for_select([["0%", 0], ["5%", 5], ["10%", 10]], 0),
+              data: { "on-account-payment-target": "discount", action: "change->on-account-payment#recalculate" },
+              class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+
+      -# RIGHT column — summary
+      .bg-white.border.border-slate-200.rounded-2xl.p-5.h-fit.lg:sticky.lg:top-6
+
+        %h3.text-sm.font-semibold.text-slate-900.mb-3 Resumen
+
+        .space-y-2.text-sm
+          .flex.justify-between.text-slate-600
+            %span Saldo actual
+            %span= number_to_currency(@order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+          .flex.justify-between.text-slate-600
+            %span Cancela de la cuenta
+            %span{ data: { "on-account-payment-target": "settleLine" } } $ 0,00
+          .flex.justify-between.text-slate-600
+            %span Descuento
+            %span{ data: { "on-account-payment-target": "discountLine" } } −$ 0,00
+          .border-t.border-slate-200.my-2
+          .flex.justify-between.font-semibold.text-slate-900
+            %span A cobrar
+            %span{ data: { "on-account-payment-target": "cashToCollect" } } $ 0,00
+          .border-t.border-slate-200.my-2
+          .flex.justify-between.font-medium
+            %span.text-slate-600 Saldo después
+            %span.text-slate-900{ data: { "on-account-payment-target": "balanceAfter" } } $ 0,00
+
+        = f.submit "Registrar cobro",
+            class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer"

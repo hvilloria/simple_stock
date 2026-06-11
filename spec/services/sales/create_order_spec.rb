@@ -401,4 +401,57 @@ RSpec.describe Sales::CreateOrder do
       end
     end
   end
+
+  describe "on_account orders" do
+    let(:product) { create(:product, current_stock: 10, price_unit: 100) }
+
+    it "creates a pending on_account order with contact and initial delivery" do
+      result = described_class.call(
+        customer: Customer.mostrador,
+        order_type: "on_account",
+        paper_number: "OA-001",
+        contact_name: "Juan Pérez",
+        contact_phone: "11 5555 1234",
+        items: [ { product_id: product.id, quantity: 2 } ],
+        delivered_product_ids: [ product.id ]
+      )
+
+      expect(result).to be_success
+      order = result.record
+      expect(order.on_account_order_type?).to be(true)
+      expect(order.status).to eq("pending")
+      expect(order.contact_name).to eq("Juan Pérez")
+      expect(order.contact_phone).to eq("11 5555 1234")
+      expect(order.order_items.first.delivered_at).to be_present
+    end
+
+    it "leaves items undelivered when not in delivered_product_ids" do
+      result = described_class.call(
+        customer: Customer.mostrador,
+        order_type: "on_account",
+        paper_number: "OA-002",
+        contact_name: "Ana",
+        contact_phone: "11 0000 0000",
+        items: [ { product_id: product.id, quantity: 1 } ],
+        delivered_product_ids: []
+      )
+
+      expect(result).to be_success
+      expect(result.record.order_items.first.delivered_at).to be_nil
+    end
+
+    it "fails when contact is missing" do
+      result = described_class.call(
+        customer: Customer.mostrador,
+        order_type: "on_account",
+        paper_number: "OA-003",
+        contact_name: nil,
+        contact_phone: nil,
+        items: [ { product_id: product.id, quantity: 1 } ]
+      )
+
+      expect(result).to be_failure
+      expect(result.errors).to include(a_string_matching(/contacto/i))
+    end
+  end
 end

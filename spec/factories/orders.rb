@@ -23,6 +23,13 @@ FactoryBot.define do
       status { "cancelled" }
     end
 
+    trait :on_account do
+      order_type { "on_account" }
+      status { "pending" }
+      contact_name { "Juan Pérez" }
+      contact_phone { "11 5555 1234" }
+    end
+
     trait :with_counter_channel do
       channel { "counter" }
     end

@@ -54,7 +54,7 @@
             -# Tipo de venta (radio buttons visuales)
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-3 Tipo de Venta
-              .grid.grid-cols-2.gap-4
+              .grid.grid-cols-1.md:grid-cols-3.gap-4
                 %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
                   %span
                     = f.radio_button :order_type, "immediate", checked: true, id: "order_type_immediate", data: { action: "change->order-form#updateOrderType", "order-form-target": "immediateRadio" }
@@ -68,6 +68,23 @@
                   %label.cursor-pointer.flex-1{ for: "order_type_credit" }
                     %p.font-medium.text-gray-900 📋 Cuenta Corriente
                     %p.text-xs.text-gray-500 A crédito
+
+                %div{ class: "relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-400 transition-all" }
+                  %span
+                    = f.radio_button :order_type, "on_account", id: "order_type_on_account", data: { action: "change->order-form#updateOrderType", "order-form-target": "onAccountRadio" }
+                  %label.cursor-pointer.flex-1{ for: "order_type_on_account" }
+                    %p.font-medium.text-gray-900 🤝 Pago a cuenta
+                    %p.text-xs.text-gray-500 Entrega parcial
+
+            -# Datos de contacto (solo para pago a cuenta)
+            %div.hidden{ data: { "order-form-target": "contactSection" } }
+              .grid.grid-cols-1.md:grid-cols-2.gap-4
+                %div
+                  = label_tag :contact_name, "Nombre de Contacto", class: "block text-sm font-medium text-gray-700 mb-2"
+                  = text_field_tag :contact_name, nil, placeholder: "Ej: Juan Pérez", class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+                %div
+                  = label_tag :contact_phone, "Teléfono de Contacto", class: "block text-sm font-medium text-gray-700 mb-2"
+                  = text_field_tag :contact_phone, nil, placeholder: "Ej: 11 5555 1234", class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
             -# Selector de cliente
             - customer_options = [["Cliente Mostrador", "mostrador", { "data-has-credit-account" => "false" }]]

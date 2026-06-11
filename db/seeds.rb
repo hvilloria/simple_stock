@@ -360,6 +360,81 @@ end
 puts "\n✅ #{ventas_exitosas} ventas creadas"
 
 # ============================================
+# 6.5 PAGOS A CUENTA (operaciones abiertas)
+# ============================================
+puts "\n🗂️  Creando pagos a cuenta..."
+
+contactos_pac = [
+  { name: "Ramón Gutiérrez", phone: "11-6123-4501" },
+  { name: "Laura Benítez",   phone: "11-6123-4502" },
+  { name: "Diego Sosa",      phone: "11-6123-4503" },
+  { name: "Marta Quiroga",   phone: "11-6123-4504" },
+  { name: "Esteban Ríos",    phone: "11-6123-4505" }
+]
+
+pac_creados = 0
+
+crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobrar_fraccion: nil|
+  fecha = rand(10).days.ago + rand(24).hours
+  productos_venta = productos.sample(cantidad_productos)
+  items = productos_venta.map do |producto|
+    { product_id: producto.id, quantity: rand(1..3), unit_price: producto.price_unit }
+  end
+
+  result = Sales::CreateOrder.call(
+    customer: mostrador,
+    items: items,
+    order_type: "on_account",
+    paper_number: "T-#{format('%04d', sale_counter)}",
+    channel: "counter",
+    source: "from_paper",
+    contact_name: contacto[:name],
+    contact_phone: contacto[:phone],
+    delivered_product_ids: entregados_idx.map { |i| productos_venta[i].id }
+  )
+  sale_counter += 1
+
+  unless result.success?
+    puts "  ✗ #{contacto[:name]}: #{result.errors.join(', ')}"
+    next
+  end
+
+  order = result.record
+  order.update_column(:created_at, fecha)
+
+  if cobrar_fraccion
+    monto = (order.outstanding_balance * cobrar_fraccion).round(2)
+    if monto.positive?
+      Payments::CollectOnAccount.call(
+        order: order,
+        amount_to_settle: monto,
+        discount_percent: 0,
+        tenders: [ { payment_method: "cash", amount: monto } ],
+        payment_date: fecha.to_date
+      )
+    end
+  end
+
+  pac_creados += 1
+  order.reload
+  puts "  ✓ #{contacto[:name]}: saldo $#{order.outstanding_balance.to_i} | " \
+       "entrega #{order.delivered_items_count}/#{order.order_items.size}"
+end
+
+# Seña pagada, nada entregado (espera el repuesto)
+crear_pac.(contacto: contactos_pac[0], cantidad_productos: 3, entregados_idx: [], cobrar_fraccion: 0.3)
+# Parcialmente entregado, con saldo pendiente
+crear_pac.(contacto: contactos_pac[1], cantidad_productos: 3, entregados_idx: [ 0, 1 ], cobrar_fraccion: 0.5)
+# Pagado por completo pero falta retirar un ítem (sigue abierta)
+crear_pac.(contacto: contactos_pac[2], cantidad_productos: 2, entregados_idx: [ 0 ], cobrar_fraccion: 1.0)
+# Recién creado: entrega inicial parcial, sin cobros
+crear_pac.(contacto: contactos_pac[3], cantidad_productos: 2, entregados_idx: [ 0 ], cobrar_fraccion: nil)
+# Recién creado: nada entregado, nada pagado
+crear_pac.(contacto: contactos_pac[4], cantidad_productos: 4, entregados_idx: [], cobrar_fraccion: nil)
+
+puts "✅ #{pac_creados} pagos a cuenta creados (abiertos: #{Order.open_on_account.length})"
+
+# ============================================
 # 7. PAGOS (2-3 pagos parciales)
 # ============================================
 puts "\n💵 Registrando pagos..."
@@ -632,6 +707,7 @@ puts "\n💰 Ventas:"
 puts "  Total: #{Order.where.not(status: 'cancelled').count}"
 puts "  Contado: #{Order.where(order_type: 'immediate').where.not(status: 'cancelled').count}"
 puts "  Crédito: #{Order.where(order_type: 'credit').where.not(status: 'cancelled').count}"
+puts "  Pago a cuenta: #{Order.where(order_type: 'on_account').where.not(status: 'cancelled').count} (abiertas: #{Order.open_on_account.length})"
 puts "  Items vendidos: #{OrderItem.sum(:quantity)}"
 puts "  Total facturado: $#{Order.where.not(status: 'cancelled').sum(:total_amount).to_i}"
 
