@@ -21,10 +21,27 @@ if User.count.zero?
     role: "admin"
   )
 
-  puts "✅ Usuario admin creado:"
-  puts "   Email: #{admin.email}"
-  puts "   Password: password123"
-  puts "   ⚠️  CAMBIAR PASSWORD EN PRODUCCIÓN"
+  vendedor = User.create!(
+    email: "vendedor@gentedelsol.com",
+    password: "vendedor",
+    password_confirmation: "vendedor",
+    name: "Vendedor",
+    role: "vendedor"
+  )
+
+  caja = User.create!(
+    email: "caja@gentedelsol.com",
+    password: "caja",
+    password_confirmation: "caja",
+    name: "Caja",
+    role: "caja"
+  )
+
+  puts "✅ Usuarios creados:"
+  puts "   #{admin.role}: #{admin.email} / admin"
+  puts "   #{vendedor.role}: #{vendedor.email} / vendedor"
+  puts "   #{caja.role}: #{caja.email} / caja"
+  puts "   ⚠️  CAMBIAR PASSWORDS EN PRODUCCIÓN"
 else
   puts "✅ Usuarios ya existen, saltando creación"
 end
