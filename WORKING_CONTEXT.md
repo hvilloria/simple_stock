@@ -23,6 +23,7 @@ Only includes behavior that is important for implementing features safely.
 * **Orders**: index/show/new/create; member **POST `cancel`** → `Sales::CancelOrder`. Create builds items from **`purchase_items`** params and resolves customer via **`Customer.mostrador`** when `customer_id` is blank or `"mostrador"`. El form `new` muestra solo Cliente · Tipo · N° Talonario · Productos (sin "Descuento" ni "Detalle de Pago"). Submit habilita con items + customer + paper_number.
 * **Customers**: index/show/new/create/edit/update; **`debtors`** collection → lista de clientes con balance > 0 ordenada por deuda; nested **`payments`** new/create → `Payments::AllocatePayment` (module `Web::Customers`). El form de cobro permite distribuir el pago entre una o varias órdenes pendientes con método de pago independiente por fila.
 * **Sale notes** (caja): index + cancel + nested payment new/create. `Web::SaleNotesController#index` lista `Order.immediate.pending`; `Web::SaleNotes::PaymentsController` cobra vía `Payments::CollectSaleNote` (descuento global 0/5/10, multi-tender, regla cash-only). Sidebar entry "Notas de pedido" visible para caja+admin con badge de pendientes.
+* **Payments on account** (pago a cuenta): `resources :payments_on_account` index/show + member **POST `deliver`** + nested payment new/create. `Web::PaymentsOnAccountController#index` lista `Order.open_on_account` (no liquidadas) con búsqueda por contacto (`search_contact`); `#show` es la vista del vendedor (marca entregas); `#deliver` → `Inventory::MarkDelivered`. `Web::PaymentsOnAccount::PaymentsController` cobra vía `Payments::CollectOnAccount`. Roles vía `PaymentOnAccountPolicy`: ver lista/detalle = vendedor+caja+admin, marcar entrega = vendedor+admin, cobrar = caja+admin (en `show` los controles se gatean con `@can_deliver` / `@can_collect`). Sidebar entry "Pagos a cuenta" visible para los tres roles con badge de operaciones abiertas.
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
 * **Credit notes**: full CRUD + **`supplier_invoices`** JSON for pending simple invoices by supplier — **direct ActiveRecord** in the controller (no dedicated service class).
@@ -34,7 +35,7 @@ Only includes behavior that is important for implementing features safely.
 
 ### Orders
 
-* `order_type` enum: `immediate` and `credit`. `status` enum: `pending`, `confirmed`, `cancelled` (default `pending`). Orders nacen `pending`; promueven a `confirmed` automáticamente cuando `outstanding_balance == 0` vía `Order#refresh_status_from_balance!` (llamado desde `Payments::AllocatePayment` y `Payments::CollectSaleNote` al final de la transacción).
+* `order_type` enum: `immediate`, `credit` y `on_account` (ver "Pagos a cuenta" abajo). `status` enum: `pending`, `confirmed`, `cancelled` (default `pending`). Orders nacen `pending`; promueven a `confirmed` automáticamente cuando `outstanding_balance == 0` vía `Order#refresh_status_from_balance!` (llamado desde `Payments::AllocatePayment`, `Payments::CollectSaleNote` y `Payments::CollectOnAccount` al final de la transacción).
 * Created via `Sales::CreateOrder` (from `Web::OrdersController#create`). Solo recibe `customer:, items:, order_type:, paper_number:, channel:, source:, sale_date:`. **No captura pagos ni descuento** — el vendedor genera una nota; caja la cobra después (immediate) o entra a cuentas por cobrar (credit).
 * `paper_number` es **obligatorio para toda nota** (live y from_paper).
 * El form `new` muestra solo Cliente · Tipo · N° Talonario · Productos (sin "Descuento" ni "Detalle de Pago"). Submit habilita con items + customer + paper_number.
@@ -42,6 +43,15 @@ Only includes behavior that is important for implementing features safely.
 * **Stock no se modifica al vender hoy** — `Sales::CreateOrder` no crea `StockMovement`. La validación de disponibilidad corre **solo en `source: 'live'`**; el form `web/orders/new` envía **`source: from_paper` por defecto**, así que en la práctica **no se valida stock al vender** (se pueden agregar productos sin stock y cantidades libres; ver Key constraints). `Sales::CancelOrder` sí restockea vía `Inventory::AdjustStock` (asimétrico — comportamiento pre-existente, no parte de este feature).
 * Descuento de inmediatas: caja lo aplica al cobrar vía `Payments::CollectSaleNote`. Cap `0 / 5 / 10` (global), distribuido a todos los `order_items`. **Regla:** solo permitido si la totalidad se paga en efectivo (validado en backend y enforced en Stimulus).
 * Descuento de credit: sin cambios respecto a feat_09 (per-item 0-20% en primer cobro vía `Payments::AllocatePayment`; congelado tras la primera allocation).
+
+### Pagos a cuenta (`on_account`)
+
+* Tercer `order_type`: **`on_account`** — venta de mostrador que se paga en cuotas y se entrega progresivamente. Nace `pending`; promueve a `confirmed` cuando `outstanding_balance == 0`.
+* **Contacto obligatorio** (solo este tipo): columnas `contact_name` / `contact_phone` en `orders`, validadas en `Order#on_account_requires_contact` y en `Sales::CreateOrder`. El cliente asociado queda como Mostrador; **no** entra en `Customer#current_balance` (la fórmula solo cuenta `credit`).
+* **Entrega por ítem**: columna `order_items.delivered_at` (nullable). La marca el **vendedor**, no caja: al crear (`Sales::CreateOrder` con `delivered_product_ids`) y después desde el detalle vía `Inventory::MarkDelivered` (member `POST deliver`). **No genera `StockMovement`** todavía.
+* **Liquidada** (sale de la lista de abiertas) solo con `outstanding_balance == 0` **y** todos los ítems con `delivered_at` (`Order#settled?` / `#fully_delivered?`). Scope `Order.open_on_account` (Postgres `HAVING`: saldo > 0 **OR** ítems sin entregar). Búsqueda por contacto: `Order.search_contact`.
+* **Cobro parcial repetible** vía `Payments::CollectOnAccount` (hermano de `CollectSaleNote`). Recibe `order:, amount_to_settle:, discount_percent:, tenders:`. `amount_to_settle` = cuánto del saldo cancela esta visita (guard duro `≤ outstanding_balance`). Descuento por evento `0/5/10`, **solo efectivo**, que **baja `total_amount`** por `amount_to_settle × desc/100` (el local lo absorbe; `original_total_amount` intacto). La `PaymentAllocation` registra el **efectivo real** (`amount_to_settle × (1 − desc)`). Llama `refresh_status_from_balance!` al final.
+* Pantalla de cobro: el form envía `amount_to_settle` (precargado con el saldo) + `payment_method` (medio único, sin monto) + `discount_percent`; el controller deriva el efectivo y arma el tender. **"A cobrar" (efectivo) es el único monto que cobra caja**; "Cancela de la cuenta" es informativo. Entrega visible **solo lectura** en esta pantalla.
 
 ### Stock
 
@@ -65,7 +75,7 @@ Only includes behavior that is important for implementing features safely.
 * **`Payments::AllocatePayment`** servicio del cobro de credit. Recibe `customer:, payment_date:, notes:, allocations: [{order_id:, amount:, payment_method:, item_discounts: {oi_id => percent}}]`. Acepta órdenes `pending` o `confirmed` (rechaza solo `cancelled`). Agrupa por `payment_method`, crea un `Payment` por grupo + sus `PaymentAllocation`s, y llama `refresh_status_from_balance!` en cada orden tocada al final de la transacción.
 * **`Sales::CancelOrder`** destruye las `PaymentAllocation` de la orden cancelada (`@order.payment_allocations.destroy_all`); los `Payment` **quedan vivos** (known limitation — pueden quedar huérfanos sin asignación, el `current_balance` del cliente los sigue descontando como crédito a favor).
 * `Order#outstanding_balance` = `total_amount − payment_allocations.sum(:amount)` para órdenes no canceladas (cualquier tipo). Promoción automática a `confirmed` cuando llega a 0 vía `Order#refresh_status_from_balance!`, invocado desde `Payments::AllocatePayment` y `Payments::CollectSaleNote` al final de la transacción.
-* `Customer#current_balance` = `SUM(credit_orders.total_amount) − SUM(payment_allocations on credit orders)` filtrando `status IN ('pending', 'confirmed')`. `Customer.with_outstanding_balance` usa la misma fórmula.
+* `Customer#current_balance` = `SUM(credit_orders.total_amount) − SUM(payment_allocations on credit orders)` filtrando `status IN ('pending', 'confirmed')`. `Customer.with_outstanding_balance` usa la misma fórmula. Las órdenes `on_account` (pago a cuenta) **no** entran: la fórmula solo cuenta `order_type: 'credit'`.
 * **`Customer#last_payment_date`** / **`#days_without_paying`** — helpers para la vista de deudores.
 * **`Customer.with_outstanding_balance`** scope — clientes cuyas ventas a crédito confirmadas superan el total de sus pagos.
 * **`Web::Customers::PaymentsController#new`** muestra una tabla con todas las órdenes pendientes; cada fila tiene checkbox de inclusión, monto editable, y método de pago propio. El submit POST recibe `params[:allocations]` indexado (`allocations[N][order_id|include|amount|payment_method]`) y delega en `Payments::AllocatePayment`. Stimulus controller (`payment_allocation_controller.js`) recalcula resumen en vivo y deshabilita submit si no hay órdenes tildadas.
@@ -92,9 +102,9 @@ Only includes behavior that is important for implementing features safely.
 ## Active services (called from app code paths)
 
 * **Sales:** `Sales::CreateOrder`, `Sales::CancelOrder`
-* **Inventory:** `Inventory::AdjustStock`
+* **Inventory:** `Inventory::AdjustStock`, `Inventory::MarkDelivered`
 * **Invoices:** `Invoices::CreateSimpleInvoice`, `Invoices::MarkAsPaid`, `Invoices::ProcessPayment`
-* **Payments:** `Payments::AllocatePayment`, `Payments::CollectSaleNote`
+* **Payments:** `Payments::AllocatePayment`, `Payments::CollectSaleNote`, `Payments::CollectOnAccount`
 * **Sales ledger:** `SalesLedger::ImportCsv`; report query objects under **`SalesLedger::Reports::`** (from `Web::SalesLedger::ReportsController`)
 
 **Present in codebase but not wired to `Web::` controllers:** `Purchasing::CreatePurchase`, `Purchasing::CancelPurchase`, **`Inventory::SyncFromCsv`** (invoked from **`lib/tasks/inventory.rake`**, not from HTTP).
