@@ -137,6 +137,63 @@ RSpec.describe Sales::CreateOrder do
       end
     end
 
+    context 'with manual pricing rules' do
+      let(:product) { create(:product, current_stock: 50, price_unit: 100) }
+
+      it 'rejects an item with zero unit_price' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
+          order_type: 'immediate',
+          paper_number: '0001'
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include('El precio debe ser mayor a cero')
+      end
+
+      it 'rejects an item with nil unit_price' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: nil } ],
+          order_type: 'immediate',
+          paper_number: '0001'
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include('El precio debe ser mayor a cero')
+      end
+
+      it 'writes the entered price back to the product price_unit' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 175 } ],
+          order_type: 'immediate',
+          paper_number: '0001'
+        )
+
+        expect(result.success?).to be true
+        expect(product.reload.price_unit).to eq(175)
+      end
+
+      it 'updates each product price_unit independently for multiple items' do
+        product2 = create(:product, current_stock: 50, price_unit: 100)
+
+        described_class.call(
+          customer: customer_without_credit,
+          items: [
+            { product_id: product.id, quantity: 1, unit_price: 250 },
+            { product_id: product2.id, quantity: 1, unit_price: 60 }
+          ],
+          order_type: 'immediate',
+          paper_number: '0001'
+        )
+
+        expect(product.reload.price_unit).to eq(250)
+        expect(product2.reload.price_unit).to eq(60)
+      end
+    end
+
     context 'with insufficient stock' do
       let(:product) { create(:product, current_stock: 50, price_unit: 100) }
 
@@ -268,7 +325,7 @@ RSpec.describe Sales::CreateOrder do
       it 'creates order with source from_paper' do
         result = described_class.call(
           customer: customer_without_credit,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
           source: 'from_paper',
           paper_number: '0045'
@@ -279,20 +336,7 @@ RSpec.describe Sales::CreateOrder do
         expect(result.record.paper_number).to eq('0045')
       end
 
-      it 'allows total_amount = 0' do
-        result = described_class.call(
-          customer: customer_without_credit,
-          items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
-          order_type: 'immediate',
-          source: 'from_paper',
-          paper_number: '0001'
-        )
-
-        expect(result.success?).to be true
-        expect(result.record.total_amount).to eq(0)
-      end
-
-      it 'allows nil unit_price (uses product price or 0)' do
+      it 'rejects nil unit_price even with from_paper source' do
         result = described_class.call(
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: nil } ],
@@ -301,8 +345,8 @@ RSpec.describe Sales::CreateOrder do
           paper_number: '0001'
         )
 
-        expect(result.success?).to be true
-        expect(result.record.order_items.first.unit_price).to eq(product.price_unit)
+        expect(result.success?).to be false
+        expect(result.errors).to include('El precio debe ser mayor a cero')
       end
 
       it 'sets sale_date correctly' do
@@ -325,7 +369,7 @@ RSpec.describe Sales::CreateOrder do
 
         result = described_class.call(
           customer: customer_without_credit,
-          items: [ { product_id: zero_stock_product.id, quantity: 10, unit_price: 0 } ],
+          items: [ { product_id: zero_stock_product.id, quantity: 10, unit_price: 100 } ],
           order_type: 'immediate',
           source: 'from_paper',
           paper_number: '0001'
@@ -365,7 +409,7 @@ RSpec.describe Sales::CreateOrder do
           customer: customer,
           order_type: "credit",
           paper_number: "0001",
-          items: [ { product_id: product.id, quantity: 2 } ]
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ]
         )
 
         expect(result).to be_success
@@ -385,7 +429,7 @@ RSpec.describe Sales::CreateOrder do
           customer: customer,
           order_type: "credit",
           paper_number: nil,
-          items: [ { product_id: product.id, quantity: 1 } ]
+          items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ]
         )
 
         expect(result).to be_failure
@@ -412,7 +456,7 @@ RSpec.describe Sales::CreateOrder do
         paper_number: "OA-001",
         contact_name: "Juan Pérez",
         contact_phone: "11 5555 1234",
-        items: [ { product_id: product.id, quantity: 2 } ],
+        items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
         delivered_product_ids: [ product.id ]
       )
 
@@ -432,7 +476,7 @@ RSpec.describe Sales::CreateOrder do
         paper_number: "OA-002",
         contact_name: "Ana",
         contact_phone: "11 0000 0000",
-        items: [ { product_id: product.id, quantity: 1 } ],
+        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
         delivered_product_ids: []
       )
 
@@ -447,7 +491,7 @@ RSpec.describe Sales::CreateOrder do
         paper_number: "OA-003",
         contact_name: nil,
         contact_phone: nil,
-        items: [ { product_id: product.id, quantity: 1 } ]
+        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ]
       )
 
       expect(result).to be_failure

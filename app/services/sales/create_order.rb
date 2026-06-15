@@ -6,9 +6,11 @@ module Sales
   # at sale time today).
   #
   # Modes:
-  #   - LIVE (default): prices from DB, validates stock availability
-  #   - FROM_PAPER:     unit_price may be nil, total may be 0,
-  #                     requires paper_number, no stock validation
+  #   - LIVE (default): validates stock availability
+  #   - FROM_PAPER:     requires paper_number, skips stock validation
+  #
+  # unit_price must be > 0 in all modes. The entered price is written
+  # back to product.price_unit inside the transaction.
   class CreateOrder
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
@@ -85,6 +87,7 @@ module Sales
       @items.each do |item|
         raise ValidationError, "Product ID is required" unless item.product_id
         raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
+        raise ValidationError, "El precio debe ser mayor a cero" unless item.unit_price.to_f > 0
       end
 
       return if @source == "from_paper"
@@ -115,17 +118,13 @@ module Sales
     end
 
     def calculate_total
-      @calculate_total ||= @items.sum do |item|
-        product    = Product.find(item.product_id)
-        unit_price = item.unit_price || product.price_unit || 0
-        item.quantity * unit_price
-      end
+      @calculate_total ||= @items.sum { |item| item.quantity * item.unit_price }
     end
 
     def create_order_items
       @items.each do |item|
         product     = Product.find(item.product_id)
-        final_price = item.unit_price || product.price_unit || 0
+        final_price = item.unit_price
 
         OrderItem.create!(
           order:            @order,
@@ -135,6 +134,8 @@ module Sales
           discount_percent: 0,
           delivered_at:     (@delivered_product_ids.include?(product.id) ? Time.current : nil)
         )
+
+        product.update!(price_unit: final_price)
       end
     end
   end

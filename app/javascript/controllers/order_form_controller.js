@@ -85,8 +85,24 @@ export default class extends Controller {
     }
   }
 
-  formatInputValue(value) {
-    return new Intl.NumberFormat('es-AR', {
+  updatePrice(event) {
+    const index = parseInt(event.currentTarget.dataset.index)
+
+    this.items[index].price_unit = this.parseAmount(event.currentTarget.value)
+    this.updateItemSubtotal(index)
+    this.updateSummary()
+  }
+
+  // AR currency format to number: "200.000,67" -> 200000.67
+  parseAmount(value) {
+    if (!value) return 0
+    return parseFloat(value.replace(/\./g, "").replace(/,/g, ".")) || 0
+  }
+
+  // Number to AR currency format, matching currency-input#format so the
+  // initial value round-trips: 200000.67 -> "200.000,67"
+  formatAmount(value) {
+    return new Intl.NumberFormat("es-AR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(value || 0)
@@ -100,7 +116,7 @@ export default class extends Controller {
     if (itemElements[index]) {
       const subtotalElement = itemElements[index].querySelector('[data-subtotal]')
       if (subtotalElement) {
-        subtotalElement.textContent = `$${this.formatCurrency(subtotal)}`
+        subtotalElement.textContent = `$${this.formatAmount(subtotal)}`
       }
 
       const quantityInput = itemElements[index].querySelector('input[name="purchase_items[][quantity]"]')
@@ -206,12 +222,19 @@ export default class extends Controller {
 
           <div class="text-right">
             <p class="text-xs text-gray-500">Precio Unit.</p>
-            <p class="w-28 px-2 py-1.5 text-right font-semibold text-gray-900">$${this.formatInputValue(item.price_unit)}</p>
+            <input
+              type="text"
+              value="${this.formatAmount(item.price_unit)}"
+              data-index="${index}"
+              data-controller="currency-input"
+              data-action="input->order-form#updatePrice blur->currency-input#format focus->currency-input#unformat"
+              class="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-right font-semibold"
+            />
           </div>
 
           <div class="text-right min-w-[110px]">
             <p class="text-xs text-gray-500">Subtotal</p>
-            <p class="text-lg font-bold text-gray-900" data-subtotal>$${this.formatCurrency(item.price_unit * item.quantity)}</p>
+            <p class="text-lg font-bold text-gray-900" data-subtotal>$${this.formatAmount(item.price_unit * item.quantity)}</p>
           </div>
 
           <button
@@ -236,7 +259,7 @@ export default class extends Controller {
     const totalQuantity = this.items.reduce((sum, item) => sum + item.quantity, 0)
 
     if (this.hasTotalTarget) {
-      this.totalTarget.textContent = `$${this.formatCurrency(total)}`
+      this.totalTarget.textContent = `$${this.formatAmount(total)}`
     }
 
     if (this.hasItemCountTarget) {
@@ -259,19 +282,14 @@ export default class extends Controller {
     const paperNumberInput = this.element.querySelector('input[name="paper_number"]')
     const paperNumberValid = !!paperNumberInput && paperNumberInput.value.trim() !== ""
 
-    const disabled = this.items.length === 0 || !customerValid || !paperNumberValid
+    const allPricesValid = this.items.every(item => item.price_unit > 0)
+
+    const disabled = this.items.length === 0 || !customerValid || !paperNumberValid || !allPricesValid
     this.submitButtonTarget.disabled = disabled
     if (disabled) {
       this.submitButtonTarget.classList.add("opacity-50", "cursor-not-allowed")
     } else {
       this.submitButtonTarget.classList.remove("opacity-50", "cursor-not-allowed")
     }
-  }
-
-  formatCurrency(amount) {
-    return new Intl.NumberFormat('es-AR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
   }
 }
