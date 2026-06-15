@@ -22,7 +22,7 @@ module Web
                                 .for_supplier(@selected_supplier)
                                 .search_invoice(params[:invoice_search])
 
-      @invoices = invoices_scope.priority_order.limit(50)
+      @pagy, @invoices = pagy(invoices_scope.priority_order)
 
       # Métricas calculadas desde el modelo (filtradas si aplica)
       metrics_scope = Invoice.simple_mode

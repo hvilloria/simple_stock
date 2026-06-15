@@ -1,4 +1,5 @@
 module ApplicationHelper
+  include Pagy::Frontend
   PRODUCT_SOURCE_BADGE_CLASSES = {
     "local"     => "bg-emerald-100 text-emerald-800",
     "importado" => "bg-blue-100 text-blue-800"

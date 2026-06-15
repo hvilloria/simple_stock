@@ -135,7 +135,9 @@
   .px-3.py-4.border-t.border-slate-200
     .flex.items-center.gap-3.px-3.py-2
       .w-8.h-8.rounded-full.bg-slate-200.flex.items-center.justify-center.text-slate-700.text-sm.font-semibold
-        A
+        = current_user.name.first.upcase
       .flex-1.min-w-0
-        %p.text-sm.font-medium.text-slate-900.truncate Alfredo
-        %p.text-xs.text-slate-500 Admin
+        %p.text-sm.font-medium.text-slate-900.truncate 
+          = current_user.name
+        %p.text-xs.text-slate-500 
+          = current_user.role.titleize
