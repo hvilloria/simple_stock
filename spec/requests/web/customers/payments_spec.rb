@@ -5,6 +5,7 @@ require "rails_helper"
 RSpec.describe "Web::Customers::Payments", type: :request do
   let!(:stock_location) { create(:stock_location) }
   let(:admin) { create(:user, role: "admin") }
+  let(:user) { create(:user) }
   let(:customer) { create(:customer, :with_credit) }
   let(:product) do
     p = create(:product, current_stock: 0, price_unit: 100)
@@ -22,7 +23,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
           customer: customer,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: "credit",
-          paper_number: "L-0001"
+          paper_number: "L-0001",
+          user: user
         )
       end
 
@@ -60,7 +62,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         customer: customer,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
         order_type: "credit",
-        paper_number: "L-0010"
+        paper_number: "L-0010",
+        user: user
       ).record
     end
 
@@ -69,7 +72,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         customer: customer,
         items: [ { product_id: product.id, quantity: 3, unit_price: 100 } ],
         order_type: "credit",
-        paper_number: "L-0011"
+        paper_number: "L-0011",
+        user: user
       ).record
     end
 
@@ -167,7 +171,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
           { product_id: product_a.id, quantity: 1, unit_price: 100 }
         ],
         order_type: "credit",
-        paper_number: "L-0020"
+        paper_number: "L-0020",
+        user: user
       ).record
     end
     # Use admin since PaymentPolicy only permits caja and admin
