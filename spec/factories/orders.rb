@@ -1,5 +1,6 @@
 FactoryBot.define do
   factory :order do
+    association :user
     customer { Customer.mostrador }
     status { "confirmed" }
     order_type { "immediate" }

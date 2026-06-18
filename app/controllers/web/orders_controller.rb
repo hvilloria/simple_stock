@@ -64,7 +64,8 @@ module Web
         paper_number: params[:paper_number],
         contact_name: params[:contact_name],
         contact_phone: params[:contact_phone],
-        delivered_product_ids: Array(params[:delivered_product_ids])
+        delivered_product_ids: Array(params[:delivered_product_ids]),
+        user: current_user
       )
 
       if result.success?

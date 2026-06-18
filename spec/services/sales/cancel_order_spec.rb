@@ -1,6 +1,7 @@
 require 'rails_helper'
 
 RSpec.describe Sales::CancelOrder do
+  let(:user) { create(:user) }
   let(:customer) { create(:customer, customer_type: "workshop", has_credit_account: true) }
   let(:product) { create(:product, current_stock: 50, price_unit: 100) }
   let(:stock_location) { create(:stock_location) }
@@ -16,7 +17,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: 'L-2001'
+          paper_number: 'L-2001',
+          user: user
         )
         result.record
       end
@@ -81,7 +83,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          paper_number: 'L-2002'
+          paper_number: 'L-2002',
+          user: user
         )
         result.record
       end
@@ -100,7 +103,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          paper_number: 'L-2003'
+          paper_number: 'L-2003',
+          user: user
         ).record
         Payments::AllocatePayment.call(
           customer: customer,
@@ -119,7 +123,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'credit',
-          paper_number: 'L-2004'
+          paper_number: 'L-2004',
+          user: user
         ).record
         Payments::AllocatePayment.call(
           customer: customer,
@@ -144,7 +149,8 @@ RSpec.describe Sales::CancelOrder do
             { product_id: product2.id, quantity: 2, unit_price: 50 }
           ],
           order_type: 'immediate',
-          paper_number: 'L-2005'
+          paper_number: 'L-2005',
+          user: user
         )
         result.record
       end
@@ -176,7 +182,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: 'L-2006'
+          paper_number: 'L-2006',
+          user: user
         )
         result.record
       end
@@ -216,7 +223,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: 'L-2007'
+          paper_number: 'L-2007',
+          user: user
         )
         result.record
       end
@@ -240,7 +248,8 @@ RSpec.describe Sales::CancelOrder do
           customer: customer,
           items: [ { product_id: product.id, quantity: 5, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: 'L-2008'
+          paper_number: 'L-2008',
+          user: user
         )
         result.record
       end

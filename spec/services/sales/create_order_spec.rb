@@ -2,6 +2,7 @@ require 'rails_helper'
 
 RSpec.describe Sales::CreateOrder do
   let!(:stock_location) { create(:stock_location) }
+  let(:user) { create(:user) }
   let(:customer_with_credit) { create(:customer, customer_type: "workshop", has_credit_account: true) }
   let(:customer_without_credit) { create(:customer, has_credit_account: false) }
 
@@ -14,7 +15,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -29,10 +31,24 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.record.total_amount).to eq(200)
+      end
+
+      it 'assigns the user to the order' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          order_type: 'immediate',
+          paper_number: '0001',
+          user: user
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.user).to eq(user)
       end
 
       it 'creates order items' do
@@ -40,7 +56,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.record.order_items.count).to eq(1)
@@ -55,7 +72,8 @@ RSpec.describe Sales::CreateOrder do
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
           channel: 'whatsapp',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -67,7 +85,8 @@ RSpec.describe Sales::CreateOrder do
           customer: Customer.mostrador,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -83,7 +102,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'credit',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -96,7 +116,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'credit',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -109,7 +130,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'credit',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(customer_with_credit.current_balance).to eq(200)
@@ -128,7 +150,8 @@ RSpec.describe Sales::CreateOrder do
             { product_id: product2.id, quantity: 3, unit_price: 50 }
           ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -145,7 +168,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 0 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -157,7 +181,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: nil } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -169,7 +194,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_without_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 175 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -186,7 +212,8 @@ RSpec.describe Sales::CreateOrder do
             { product_id: product2.id, quantity: 1, unit_price: 60 }
           ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(product.reload.price_unit).to eq(250)
@@ -202,7 +229,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -216,7 +244,8 @@ RSpec.describe Sales::CreateOrder do
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
             order_type: 'immediate',
-            paper_number: '0001'
+            paper_number: '0001',
+            user: user
           )
         }.not_to change(Order, :count)
       end
@@ -227,7 +256,8 @@ RSpec.describe Sales::CreateOrder do
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
             order_type: 'immediate',
-            paper_number: '0001'
+            paper_number: '0001',
+            user: user
           )
         }.not_to change(OrderItem, :count)
       end
@@ -238,7 +268,8 @@ RSpec.describe Sales::CreateOrder do
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
             order_type: 'immediate',
-            paper_number: '0001'
+            paper_number: '0001',
+            user: user
           )
         }.not_to change(StockMovement, :count)
       end
@@ -249,7 +280,8 @@ RSpec.describe Sales::CreateOrder do
             customer: customer_with_credit,
             items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
             order_type: 'immediate',
-            paper_number: '0001'
+            paper_number: '0001',
+            user: user
           )
         }.not_to change { product.reload.current_stock }
       end
@@ -263,7 +295,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'invalid',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -275,7 +308,8 @@ RSpec.describe Sales::CreateOrder do
           customer: nil,
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -287,7 +321,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -299,7 +334,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: 0, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -311,7 +347,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product.id, quantity: -5, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -328,7 +365,8 @@ RSpec.describe Sales::CreateOrder do
           items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
           source: 'from_paper',
-          paper_number: '0045'
+          paper_number: '0045',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -342,7 +380,8 @@ RSpec.describe Sales::CreateOrder do
           items: [ { product_id: product.id, quantity: 2, unit_price: nil } ],
           order_type: 'immediate',
           source: 'from_paper',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be false
@@ -357,7 +396,8 @@ RSpec.describe Sales::CreateOrder do
           order_type: 'immediate',
           source: 'from_paper',
           paper_number: '0001',
-          sale_date: sale_date
+          sale_date: sale_date,
+          user: user
         )
 
         expect(result.success?).to be true
@@ -372,7 +412,8 @@ RSpec.describe Sales::CreateOrder do
           items: [ { product_id: zero_stock_product.id, quantity: 10, unit_price: 100 } ],
           order_type: 'immediate',
           source: 'from_paper',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(result.success?).to be true
@@ -391,7 +432,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer_with_credit,
           items: [ { product_id: product_with_low_stock.id, quantity: 10, unit_price: 100 } ],
           order_type: 'immediate',
-          paper_number: '0001'
+          paper_number: '0001',
+          user: user
         )
 
         expect(Order.count).to eq(initial_order_count)
@@ -409,7 +451,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer,
           order_type: "credit",
           paper_number: "0001",
-          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ]
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+          user: user
         )
 
         expect(result).to be_success
@@ -429,7 +472,8 @@ RSpec.describe Sales::CreateOrder do
           customer: customer,
           order_type: "credit",
           paper_number: nil,
-          items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ]
+          items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+          user: user
         )
 
         expect(result).to be_failure
@@ -457,7 +501,8 @@ RSpec.describe Sales::CreateOrder do
         contact_name: "Juan Pérez",
         contact_phone: "11 5555 1234",
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
-        delivered_product_ids: [ product.id ]
+        delivered_product_ids: [ product.id ],
+        user: user
       )
 
       expect(result).to be_success
@@ -477,7 +522,8 @@ RSpec.describe Sales::CreateOrder do
         contact_name: "Ana",
         contact_phone: "11 0000 0000",
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
-        delivered_product_ids: []
+        delivered_product_ids: [],
+        user: user
       )
 
       expect(result).to be_success
@@ -491,7 +537,8 @@ RSpec.describe Sales::CreateOrder do
         paper_number: "OA-003",
         contact_name: nil,
         contact_phone: nil,
-        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ]
+        items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
+        user: user
       )
 
       expect(result).to be_failure

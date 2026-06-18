@@ -3,6 +3,8 @@
 require "rails_helper"
 
 RSpec.describe PaymentAllocation, type: :model do
+  let(:user) { create(:user) }
+
   describe "associations" do
     it { should belong_to(:payment) }
     it { should belong_to(:order) }
@@ -24,7 +26,8 @@ RSpec.describe PaymentAllocation, type: :model do
         customer: customer_a,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
         order_type: "credit",
-        paper_number: "L-0001"
+        paper_number: "L-0001",
+        user: user
       ).record
     end
 
@@ -40,7 +43,8 @@ RSpec.describe PaymentAllocation, type: :model do
         customer: customer_b,
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
         order_type: "credit",
-        paper_number: "L-0002"
+        paper_number: "L-0002",
+        user: user
       ).record
 
       allocation = build(:payment_allocation, payment: payment_a, order: order_b, amount: 50)
@@ -58,7 +62,8 @@ RSpec.describe PaymentAllocation, type: :model do
         customer: customer,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
         order_type: "credit",
-        paper_number: "L-0003"
+        paper_number: "L-0003",
+        user: user
       ).record
     end
     let(:payment) { create(:payment, customer: customer, amount: 200) }

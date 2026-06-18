@@ -5,6 +5,7 @@ require 'rails_helper'
 RSpec.describe 'Web::Customers', type: :request do
   let!(:stock_location) { create(:stock_location) }
   let(:admin) { create(:user, role: 'admin') }
+  let(:user) { create(:user) }
   let(:product) { create(:product, current_stock: 50, price_unit: 100) }
 
   before { sign_in admin }
@@ -20,7 +21,8 @@ RSpec.describe 'Web::Customers', type: :request do
         customer: debtor,
         items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
         order_type: 'credit',
-        paper_number: 'L-0100'
+        paper_number: 'L-0100',
+        user: user
       )
 
       # paid_customer: fully paid order — set up as credit order, then collect via AllocatePayment
@@ -28,7 +30,8 @@ RSpec.describe 'Web::Customers', type: :request do
         customer: paid_customer,
         items: [ { product_id: product.id, quantity: 1, unit_price: 100 } ],
         order_type: 'credit',
-        paper_number: 'L-0101'
+        paper_number: 'L-0101',
+        user: user
       ).record
 
       Payments::AllocatePayment.call(

@@ -14,14 +14,16 @@ module Sales
   class CreateOrder
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
-    def self.call(customer:, items:, order_type:, paper_number:, channel: nil,
-                  source: "live", sale_date: nil, contact_name: nil,
-                  contact_phone: nil, delivered_product_ids: [])
+    def self.call(customer:, items:, order_type:, paper_number:, user:,
+                  channel: nil, source: "live", sale_date: nil,
+                  contact_name: nil, contact_phone: nil,
+                  delivered_product_ids: [])
       new(
         customer: customer,
         items: items,
         order_type: order_type,
         paper_number: paper_number,
+        user: user,
         channel: channel,
         source: source,
         sale_date: sale_date,
@@ -31,13 +33,15 @@ module Sales
       ).call
     end
 
-    def initialize(customer:, items:, order_type:, paper_number:, channel: nil,
-                   source: "live", sale_date: nil, contact_name: nil,
-                   contact_phone: nil, delivered_product_ids: [])
+    def initialize(customer:, items:, order_type:, paper_number:, user:,
+                   channel: nil, source: "live", sale_date: nil,
+                   contact_name: nil, contact_phone: nil,
+                   delivered_product_ids: [])
       @customer              = customer
       @items                 = items.map { |i| i.is_a?(Item) ? i : Item.new(i) }
       @order_type            = order_type
       @paper_number          = paper_number.presence
+      @user                  = user
       @channel               = channel
       @source                = source
       @sale_date             = sale_date || Date.current
@@ -104,6 +108,7 @@ module Sales
       total = calculate_total
       @order = Order.create!(
         customer:              @customer,
+        user:                  @user,
         order_type:            @order_type,
         channel:               @channel,
         source:                @source,

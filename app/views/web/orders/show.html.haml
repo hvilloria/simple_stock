@@ -114,7 +114,7 @@
 
         .flex.flex-col
           %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Registrado por
-          %span.text-sm.text-gray-700 Sistema
+          %span.text-sm.text-gray-700= @order.user.name
 
       -# CARD 2 - Productos Vendidos
       .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
