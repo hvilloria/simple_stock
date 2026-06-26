@@ -103,7 +103,7 @@ RSpec.describe "Web::Customers::Payments", type: :request do
           post web_customer_payments_path(customer), params: {
             allocations: {
               "0" => { order_id: order_a.id, include: "1", amount: "200", payment_method: "cash" },
-              "1" => { order_id: order_b.id, include: "1", amount: "150", payment_method: "transfer" }
+              "1" => { order_id: order_b.id, include: "1", amount: "150", payment_method: "bank_transfer" }
             }
           }
         }.to change(Payment, :count).by(2)

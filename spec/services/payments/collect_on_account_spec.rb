@@ -47,7 +47,7 @@ RSpec.describe Payments::CollectOnAccount do
     it "rejects a discount when any tender is not cash" do
       result = described_class.call(
         order: order, amount_to_settle: 500,
-        discount_percent: 10, tenders: [ { payment_method: "transfer", amount: 450 } ]
+        discount_percent: 10, tenders: [ { payment_method: "bank_transfer", amount: 450 } ]
       )
       expect(result).to be_failure
     end

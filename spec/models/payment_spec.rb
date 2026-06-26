@@ -52,19 +52,53 @@ RSpec.describe Payment, type: :model do
       expect(create(:payment)).to be_valid
     end
 
-    it "has a :transfer trait" do
-      payment = create(:payment, :transfer)
-      expect(payment.payment_method).to eq("transfer")
+    it "has a :bank_qr trait" do
+      expect(create(:payment, :bank_qr).payment_method).to eq("bank_qr")
     end
 
-    it "has a :check trait" do
-      payment = create(:payment, :check)
-      expect(payment.payment_method).to eq("check")
+    it "has a :bank_card trait" do
+      expect(create(:payment, :bank_card).payment_method).to eq("bank_card")
     end
 
-    it "has a :card trait" do
-      payment = create(:payment, :card)
-      expect(payment.payment_method).to eq("card")
+    it "has a :bank_transfer trait" do
+      expect(create(:payment, :bank_transfer).payment_method).to eq("bank_transfer")
+    end
+
+    it "has a :mercado_pago trait" do
+      expect(create(:payment, :mercado_pago).payment_method).to eq("mercado_pago")
+    end
+  end
+
+  describe "payment method catalog" do
+    it "defines exactly the five official methods" do
+      expect(Payment::PAYMENT_METHODS).to eq(%w[cash bank_qr bank_card bank_transfer mercado_pago])
+    end
+
+    it "keeps 'cash' as the discount anchor key" do
+      expect(Payment::PAYMENT_METHODS).to include("cash")
+    end
+
+    describe ".method_label" do
+      it "returns the human label for a known key" do
+        expect(Payment.method_label("bank_card")).to eq("Banco Tarjeta")
+        expect(Payment.method_label("mercado_pago")).to eq("Mercado Pago")
+      end
+
+      it "humanizes an unknown key as a fallback" do
+        expect(Payment.method_label("foo_bar")).to eq("Foo bar")
+      end
+    end
+
+    describe ".method_options" do
+      it "returns [label, key] pairs in catalog order for selects" do
+        expect(Payment.method_options).to eq([
+          [ "Efectivo", "cash" ],
+          [ "Banco QR", "bank_qr" ],
+          [ "Banco Tarjeta", "bank_card" ],
+          [ "Banco Transferencia", "bank_transfer" ],
+          [ "Mercado Pago", "mercado_pago" ]
+        ])
+      end
     end
   end
 end

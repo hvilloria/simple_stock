@@ -44,7 +44,7 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
         discount_percent: "5",
         tenders: {
           "0" => { payment_method: "cash", amount: "100,00" },
-          "1" => { payment_method: "transfer", amount: "90,00" }
+          "1" => { payment_method: "bank_transfer", amount: "90,00" }
         }
       }
       expect(response).to have_http_status(:unprocessable_entity)

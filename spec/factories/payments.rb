@@ -8,19 +8,24 @@ FactoryBot.define do
     payment_date { Date.current }
     notes { nil }
 
-    trait :transfer do
-      payment_method { "transfer" }
-      notes { "Transfer reference #123456" }
+    trait :bank_qr do
+      payment_method { "bank_qr" }
+      notes { "Banco QR" }
     end
 
-    trait :check do
-      payment_method { "check" }
-      notes { "Check #789" }
+    trait :bank_card do
+      payment_method { "bank_card" }
+      notes { "Banco Tarjeta" }
     end
 
-    trait :card do
-      payment_method { "card" }
-      notes { "Card payment" }
+    trait :bank_transfer do
+      payment_method { "bank_transfer" }
+      notes { "Banco Transferencia" }
+    end
+
+    trait :mercado_pago do
+      payment_method { "mercado_pago" }
+      notes { "Mercado Pago" }
     end
   end
 end

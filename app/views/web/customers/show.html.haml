@@ -1,7 +1,6 @@
 - content_for :page_title, @customer.name
 
 - customer_type_labels = { "retail" => "Minorista", "workshop" => "Taller", "mechanic" => "Mecánico", "store" => "Tienda" }
-- payment_method_labels = { "cash" => "Efectivo", "transfer" => "Transferencia", "check" => "Cheque", "card" => "Tarjeta" }
 
 .container.mx-auto.px-6.py-6
 
@@ -143,7 +142,8 @@
                     %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-emerald-700
                       = currency_ar_int(payment.amount)
                     %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
-                      = payment_method_labels[payment.payment_method] || payment.payment_method
+                      %span.inline-flex.items-center.rounded-full.text-xs.font-medium{ class: [ "px-2.5 py-1", payment_method_badge_class(h(payment.payment_method)) ] }
+                        = payment_method_label(payment.payment_method)
                     %td.px-3.py-2.text-sm.text-slate-600
                       - if payment.notes.present?
                         = payment.notes
