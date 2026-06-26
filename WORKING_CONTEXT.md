@@ -67,6 +67,7 @@ Only includes behavior that is important for implementing features safely.
   * **`Invoices::MarkAsPaid`** — single simple invoice.
   * **`Invoices::ProcessPayment`** — batch for one supplier; can create **`AppliedCredit`** rows from **`CreditNote`** then mark invoices paid.
 * **Canceling** a pending simple invoice (`Web::InvoicesController#cancel`) sets **`status: cancelled`** only — **still no stock** (consistent with simple invoices not touching inventory).
+* **Credit-note availability** = `CreditNote#available?` (`active_status? && !exhausted?`), **not** the `available`/`where(status: "active")` scope. The `status` enum is only `active`/`cancelled`; a fully-applied note stays `active` but is **exhausted** (`remaining_balance <= 0`). For *count* metrics use `.count(&:available?)` so exhausted notes are excluded (they already contribute 0 to amount sums via `remaining_balance`). Applies to invoices index (`@credit_notes_count`), credit-notes index, and `Supplier#credit_notes_count`.
 
 ### Customer account payments (`Payment` + `PaymentAllocation` models)
 

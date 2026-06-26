@@ -21,7 +21,8 @@ module Web
                                 .limit(50)
 
       @total_credit_amount = @credit_notes.where(status: "active").sum { |cn| cn.remaining_balance }
-      @credit_notes_count = @credit_notes.where(status: "active").count
+      # Contar solo las notas con saldo disponible (excluye las ya aplicadas/agotadas)
+      @credit_notes_count = @credit_notes.count(&:available?)
       @selected_status = params[:status]
     end
 

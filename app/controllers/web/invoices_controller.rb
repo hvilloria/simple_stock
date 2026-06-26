@@ -38,7 +38,8 @@ module Web
                                       .available
 
       @total_credit_amount = credit_notes_scope.sum { |cn| cn.remaining_balance_ars }
-      @credit_notes_count = credit_notes_scope.count
+      # Contar solo las notas con saldo disponible (excluye las ya aplicadas/agotadas)
+      @credit_notes_count = credit_notes_scope.count(&:available?)
 
       # Balance neto
       @net_balance = @total_pending_amount - @total_credit_amount
