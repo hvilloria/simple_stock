@@ -52,7 +52,7 @@ RSpec.describe Payments::CollectSaleNote do
         discount_percent: 5,
         tenders: [
           { payment_method: "cash", amount: 500 },
-          { payment_method: "transfer", amount: 450 }
+          { payment_method: "bank_transfer", amount: 450 }
         ]
       )
 
@@ -123,14 +123,14 @@ RSpec.describe Payments::CollectSaleNote do
         discount_percent: 0,
         tenders: [
           { payment_method: "cash", amount: 600 },
-          { payment_method: "transfer", amount: 400 }
+          { payment_method: "bank_transfer", amount: 400 }
         ]
       )
 
       expect(result).to be_success
       payments = order.payment_allocations.map(&:payment).uniq
       expect(payments.size).to eq(2)
-      expect(payments.map(&:payment_method)).to contain_exactly("cash", "transfer")
+      expect(payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
     end
   end
 end

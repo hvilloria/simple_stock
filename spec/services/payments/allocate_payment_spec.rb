@@ -154,14 +154,14 @@ RSpec.describe Payments::AllocatePayment, type: :service do
             payment_date: Date.current,
             allocations: [
               { order_id: order_a.id, amount: 100, payment_method: "cash" },
-              { order_id: order_b.id, amount: 80, payment_method: "transfer" }
+              { order_id: order_b.id, amount: 80, payment_method: "bank_transfer" }
             ]
           )
         }.to change(Payment, :count).by(2)
          .and change(PaymentAllocation, :count).by(2)
 
         cash_payment = Payment.find_by(payment_method: "cash")
-        transfer_payment = Payment.find_by(payment_method: "transfer")
+        transfer_payment = Payment.find_by(payment_method: "bank_transfer")
         expect(cash_payment.amount).to eq(100)
         expect(transfer_payment.amount).to eq(80)
       end
@@ -192,7 +192,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
           notes: "Pago semanal",
           allocations: [
             { order_id: order_a.id, amount: 100, payment_method: "cash" },
-            { order_id: order_b.id, amount: 80, payment_method: "transfer" }
+            { order_id: order_b.id, amount: 80, payment_method: "bank_transfer" }
           ]
         )
         expect(Payment.pluck(:notes).uniq).to eq([ "Pago semanal" ])

@@ -11,16 +11,17 @@ module ApplicationHelper
   }.freeze
 
   PAYMENT_METHOD_BADGE_CLASSES = {
-    "cash"         => "bg-green-100 text-green-800",
-    "bank"         => "bg-blue-100 text-blue-800",
-    "mercado_pago" => "bg-cyan-100 text-cyan-800"
+    "cash"          => "bg-green-900 text-white",  # verde oscuro
+    "bank_qr"       => "bg-blue-900 text-white",   # azul oscuro
+    "bank_card"     => "bg-blue-900 text-white",
+    "bank_transfer" => "bg-blue-900 text-white",
+    "bank"          => "bg-blue-900 text-white",   # ledger (cash/bank/mercado_pago)
+    "mercado_pago"  => "bg-sky-400 text-white"     # azul claro
   }.freeze
 
-  PAYMENT_METHOD_LABELS = {
-    "cash"         => "Efectivo",
-    "bank"         => "Banco",
-    "mercado_pago" => "Mercado Pago"
-  }.freeze
+  # Delega al catálogo del modelo Payment y agrega "bank" para las vistas del
+  # Sales Ledger (subsistema con su propio set de métodos).
+  PAYMENT_METHOD_LABELS = Payment::PAYMENT_METHOD_LABELS.merge("bank" => "Banco").freeze
 
   def product_source_badge_class(source)
     PRODUCT_SOURCE_BADGE_CLASSES.fetch(source.to_s, "bg-slate-100 text-slate-700").html_safe

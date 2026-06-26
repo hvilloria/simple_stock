@@ -62,7 +62,7 @@
           .space-y-2{ data: { "sale-note-payment-target": "tenderRows" } }
             .flex.gap-2.items-center{ data: { "sale-note-payment-target": "tenderRow" } }
               = select_tag "tenders[0][payment_method]",
-                  options_for_select([["Efectivo", "cash"], ["Transferencia", "transfer"], ["Cheque", "check"], ["Tarjeta", "card"]], "cash"),
+                  options_for_select(Payment.method_options, "cash"),
                   data: { "sale-note-payment-target": "tenderMethod",
                           action: "change->sale-note-payment#recalc" },
                   class: "flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm"

@@ -1,6 +1,5 @@
 - content_for :page_title, "Registrar Cobro"
 
-- payment_method_options = [ [ "Efectivo", "cash" ], [ "Transferencia", "transfer" ], [ "Cheque", "check" ], [ "Tarjeta", "card" ] ]
 - total_debt = @customer.current_balance
 
 .container.mx-auto.px-6.py-6
@@ -120,7 +119,7 @@
                       class: "w-32 px-2 py-1 text-right text-sm font-semibold border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
                       data: { controller: "currency-input", "role": "amount-input", action: "input->payment-allocation#recalc blur->currency-input#format focus->currency-input#unformat" }
                   = select_tag "allocations[#{idx}][payment_method]",
-                      options_for_select(payment_method_options, "cash"),
+                      options_for_select(Payment.method_options, "cash"),
                       disabled: true,
                       class: "px-2 py-1 text-sm border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
                       data: { "role": "method-select" }
