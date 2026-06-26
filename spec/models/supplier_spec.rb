@@ -126,6 +126,23 @@ RSpec.describe Supplier, type: :model do
 
       expect(supplier.credit_notes_count).to eq(2)
     end
+
+    it "excludes fully applied (exhausted) credit notes" do
+      create(:credit_note, supplier: supplier, amount: 1000)
+      exhausted = create(:credit_note, supplier: supplier, amount: 1000)
+      invoice = create(:invoice, :simple_mode, supplier: supplier, amount: 1000, currency: "ARS", status: "pending")
+      create(:applied_credit, credit_note: exhausted, invoice: invoice, amount: 1000)
+
+      # Solo cuenta la nota con saldo disponible, no la agotada
+      expect(supplier.credit_notes_count).to eq(1)
+    end
+
+    it "excludes cancelled credit notes" do
+      create(:credit_note, supplier: supplier)
+      create(:credit_note, :cancelled, supplier: supplier)
+
+      expect(supplier.credit_notes_count).to eq(1)
+    end
   end
 
   describe "#current_balance" do

@@ -48,7 +48,8 @@ class Supplier < ApplicationRecord
   end
 
   def credit_notes_count
-    credit_notes.where(status: "active").count
+    # Solo las notas con saldo disponible (excluye las ya aplicadas/agotadas)
+    credit_notes.count(&:available?)
   end
 
   def current_balance
