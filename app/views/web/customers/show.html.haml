@@ -142,7 +142,7 @@
                     %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-emerald-700
                       = currency_ar_int(payment.amount)
                     %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
-                      %span.inline-flex.items-center.rounded-full.text-xs.font-medium{ class: "px-2.5 py-1 #{payment_method_badge_class(payment.payment_method)}" }
+                      %span.inline-flex.items-center.rounded-full.text-xs.font-medium{ class: [ "px-2.5 py-1", payment_method_badge_class(h(payment.payment_method)) ] }
                         = payment_method_label(payment.payment_method)
                     %td.px-3.py-2.text-sm.text-slate-600
                       - if payment.notes.present?
