@@ -167,6 +167,17 @@ When updating it:
 
 ---
 
+## Commit Conventions
+
+These rules apply to **every** commit message and to who runs the commit:
+
+1. **Write commit messages in English.**
+2. **Use Conventional Commit prefixes:** `feat`, `fix`, `ref`, `test`, `chore`, etc. (e.g. `feat: ...`, `fix: ...`, `ref: ...`).
+3. **Do NOT add `Co-Authored-By` / "Generated with Claude" / any Anthropic attribution lines.**
+4. **The agent does NOT run commits.** The user commits. Only run `git commit` when the user explicitly asks for it in that message (see also: never commit without explicit permission).
+
+---
+
 ## Final Rule
 
 When in doubt:
