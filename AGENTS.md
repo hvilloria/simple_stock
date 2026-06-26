@@ -125,6 +125,40 @@ Never:
 
 ---
 
+## Testing Rules
+
+Defines which test layer a change belongs to. The goal is a regression net cheap to maintain for a solo developer: integration (request) specs are the base; browser (system) specs are a thin layer reserved for JS behavior.
+
+### Layers
+
+| Layer | Specs | When |
+|-------|-------|------|
+| Unit | `spec/models`, `spec/services` | Pure Ruby, no HTTP — isolated business logic, validations, calculations |
+| Integration | `spec/requests` | Base regression net — "given these params, the system does X" + rejection of hostile input |
+| E2E | `spec/system` | Only when correctness depends on Stimulus JS behavior |
+
+### Decision tree (default + reason — not a blind mandate)
+
+1. Pure model/service logic, no HTTP? → **unit**.
+2. Crosses route → controller → service → DB? → **request**. If it touches money/amounts, include at least one **hostile-input** case (AR format `1.500.000,50`, negative, non-numeric, blank).
+3. Correctness depends on Stimulus JS (disabled submit, live recalculation, cash-only rule, modals)? → **system** (minimal), in addition to the request spec.
+4. When in doubt: **request over system** — cheaper and more robust.
+
+A change may need more than one layer.
+
+### Definition of Done
+
+Every new flow enters at least through a request spec; it rises to a system spec only if its correctness depends on Stimulus JS; money flows include a hostile-input case. What counts as a "money flow": see `docs/TESTING_GUIDE.md`.
+
+### Responsibilities
+
+These map to the roles in "Role Definitions" above. The responsibility belongs to whoever performs the role, named agent or not.
+
+- **Builder** (the `rails-builder` agent, or whoever implements the change — including the main session): applies the decision tree; writes tests alongside the feature; when the feature introduces a **new money flow** (a service or action that creates, persists, or computes amounts/discounts/balances/prices), adds it to the catalog in `docs/TESTING_GUIDE.md` under the right list (write-money / read-money); declares the choice in its output as a one-line **Test strategy** (layer + why; trivial changes = "unit, sin riesgo"); **flags** criticality for the user — does not decide it.
+- **Reviewer** (the `code-reviewer` agent, or whoever reviews the change): verifies the chosen layer matches the tree; for money flows, confirms a request spec with a hostile-input case exists.
+
+---
+
 ## Decision Making
 
 When multiple approaches exist:
