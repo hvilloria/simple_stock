@@ -18,7 +18,7 @@ Before reviewing anything, read these files:
 
 Read additionally when relevant:
 - `docs/UI_DESIGN_SPEC.md` — when UI files were changed
-- The planner output — to understand the intended scope
+- The brainstorming output / approved approach — to understand the intended scope
 - The builder output — to understand what was implemented and why
 - All changed files — read them carefully and thoroughly
 - Directly related code — models, services, policies, specs touched by or adjacent to the change
@@ -70,6 +70,8 @@ Read additionally when relevant:
 - Were new abstractions introduced without clear need?
 
 ### Testing
+- Does the chosen test layer match the decision tree in `AGENTS.md` → "Testing Rules"?
+- For money flows (see `docs/TESTING_GUIDE.md`), is there a request spec with a hostile-input case?
 - Are tests present and sufficient given the risk level of the change?
 - Are important behaviors — especially edge cases and failure paths — tested?
 - Were trivial, low-risk changes over-tested, adding noise without value?

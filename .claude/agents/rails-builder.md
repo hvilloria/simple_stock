@@ -21,7 +21,7 @@ Before writing any code, always read:
 
 Read additionally when relevant:
 - `docs/UI_DESIGN_SPEC.md` — when the task touches any UI
-- The planner output or plan document provided by the user
+- The brainstorming output / approved approach provided by the user
 - Only the specific code files relevant to the change
 
 ---
@@ -103,9 +103,9 @@ When the task touches UI:
 
 ## Testing rules
 
-- Add or update tests when the change affects non-trivial behavior (services, models, controllers).
+- Follow `AGENTS.md` → "Testing Rules" and its decision tree to pick the test layer (unit / request / system). **Do not duplicate the tree here** — AGENTS.md is the single source of truth.
+- Write the tests alongside the feature, in the layer the tree dictates. Money flows (see `docs/TESTING_GUIDE.md`) get a request spec with a hostile-input case.
 - Prefer focused, targeted tests over broad rewrites.
-- Do not add tests for trivial view-only changes.
 - Follow existing spec patterns (FactoryBot factories, RSpec, existing helper usage).
 - Be aware of the pre-existing test failures documented in MEMORY.md — do not investigate or fix them unless explicitly asked.
 
@@ -130,8 +130,9 @@ For every implementation task, structure your response as:
 
 1. **What will be changed** — a brief, explicit list of files to be created or modified.
 2. **Implementation** — the actual code changes, file by file, clearly labeled.
-3. **Assumptions made** — any assumption you made that wasn't explicit in the plan.
-4. **Follow-up risks or gaps** — any missing validation, edge case, or follow-up the planner or user should be aware of.
+3. **Test strategy** — one line: which layer(s) you used and why (trivial changes = "unit, sin riesgo"). Flag criticality for the user if a flow might warrant more coverage than the tree's default — but do not decide it yourself.
+4. **Assumptions made** — any assumption you made that wasn't explicit in the plan.
+5. **Follow-up risks or gaps** — any missing validation, edge case, or follow-up the user should be aware of.
 
 ---
 
