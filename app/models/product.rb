@@ -46,9 +46,16 @@ class Product < ApplicationRecord
   LOCATION_FORMAT = /\A[1-9][ID][0-9][0-9]\z/
 
   # Validations
-  # SKU es el código OEM, puede repetirse entre variantes
-  # La unicidad se garantiza por la combinación: sku + product_type + brand + origin
-  validates :sku, presence: true, uniqueness: { scope: [ :product_type, :brand, :origin ] }
+  # SKU es el código OEM, puede repetirse entre variantes.
+  # La identidad de una variante es: sku + product_type + origin + brand.
+  # La unicidad se enforça SOLO cuando hay `origin` presente, para permitir la
+  # carga progresiva (primero el origen, la marca se afina después) y que los
+  # importadores creen productos con origin/brand en nil sin chocar.
+  # El índice DB (index_products_on_variant_uniqueness) queda lenient
+  # (NULLS DISTINCT): es backstop para filas completas; el modelo es el enforcer real.
+  validates :sku, presence: true
+  validates :sku, uniqueness: { scope: [ :product_type, :origin, :brand ] },
+                  if: -> { origin.present? }
   validates :name, presence: true
   validates :price_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true

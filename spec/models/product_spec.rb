@@ -9,8 +9,53 @@ RSpec.describe Product, type: :model do
     subject { build(:product) }
 
     it { is_expected.to validate_presence_of(:sku) }
-    it { is_expected.to validate_uniqueness_of(:sku).scoped_to(:product_type, :brand, :origin) }
     it { is_expected.to validate_presence_of(:name) }
+
+    describe 'sku uniqueness (condicional a origin)' do
+      it 'permite duplicar sku+type cuando origin es nil (no valida)' do
+        create(:product, sku: 'OEM-1', product_type: 'oem', origin: nil, brand: nil)
+        dup = build(:product, sku: 'OEM-1', product_type: 'oem', origin: nil, brand: nil)
+
+        expect(dup).to be_valid
+      end
+
+      it 'bloquea el duplicado exacto cuando hay origin (brand nil)' do
+        create(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: nil)
+        dup = build(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: nil)
+
+        expect(dup).not_to be_valid
+        expect(dup.errors[:sku]).to be_present
+      end
+
+      it 'permite mismo sku+type con distinto origin' do
+        create(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: nil)
+        other = build(:product, sku: 'OEM-1', product_type: 'oem', origin: 'china', brand: nil)
+
+        expect(other).to be_valid
+      end
+
+      it 'permite mismo sku+type+origin con distinta marca' do
+        create(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: nil)
+        other = build(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: 'Honda')
+
+        expect(other).to be_valid
+      end
+
+      it 'permite mismo sku+type+origin con distinta marca (ambas presentes)' do
+        create(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: 'Honda')
+        other = build(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: 'Yamaha')
+
+        expect(other).to be_valid
+      end
+
+      it 'bloquea el duplicado exacto con la clave completa (origin + marca)' do
+        create(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: 'Honda')
+        dup = build(:product, sku: 'OEM-1', product_type: 'oem', origin: 'japan', brand: 'Honda')
+
+        expect(dup).not_to be_valid
+        expect(dup.errors[:sku]).to be_present
+      end
+    end
 
     describe 'numericality validations' do
       it { is_expected.to validate_numericality_of(:price_unit).is_greater_than_or_equal_to(0).allow_nil }
