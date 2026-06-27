@@ -8,7 +8,7 @@ module Web
       authorize Order
       @orders = Order
         .includes(:customer, order_items: :product)
-        .order(created_at: :desc)
+        .order(sale_date: :desc)
         .limit(50)
     end
 

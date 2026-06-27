@@ -30,7 +30,7 @@
             = link_to web_order_path(order), class: "font-mono text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline" do
               = "#{order.order_items.sum(&:quantity)} (##{order.paper_number})"
           %td.px-6.py-4.whitespace-nowrap
-            %span.text-sm.text-gray-900= l(order.created_at, format: :short)
+            %span.text-sm.text-gray-900= l(order.sale_date, format: :friendly)
           %td.px-6.py-4
             - if order.customer
               %span.text-sm.text-gray-900= order.customer.name
