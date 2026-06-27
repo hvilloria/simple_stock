@@ -18,7 +18,7 @@ class ProductPolicy < ApplicationPolicy
   end
 
   def update?
-    user.admin?  # Solo admin edita productos
+    user.admin? || user.vendedor?  # Admin y vendedor editan productos; caja no
   end
 
   def edit?
