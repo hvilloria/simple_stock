@@ -10,11 +10,11 @@ class ProductPolicy < ApplicationPolicy
   end
 
   def create?
-    user.admin?  # Solo admin crea productos
+    user.admin? || user.vendedor?
   end
 
   def new?
-    create?
+    create? 
   end
 
   def update?
