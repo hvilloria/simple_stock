@@ -20,8 +20,12 @@ RSpec.describe ProductPolicy do
       expect(subject.create?).to be false
     end
 
-    it 'forbids update' do
-      expect(subject.update?).to be false
+    it 'permits update' do
+      expect(subject.update?).to be true
+    end
+
+    it 'permits edit' do
+      expect(subject.edit?).to be true
     end
 
     it 'forbids destroy' do
@@ -62,6 +66,22 @@ RSpec.describe ProductPolicy do
 
     it 'permits adjust_stock' do
       expect(subject.adjust_stock?).to be true
+    end
+  end
+
+  context 'for a caja' do
+    let(:user) { build(:user, role: "caja") }
+
+    it 'forbids update' do
+      expect(subject.update?).to be false
+    end
+
+    it 'forbids edit' do
+      expect(subject.edit?).to be false
+    end
+
+    it 'forbids create' do
+      expect(subject.create?).to be false
     end
   end
 end
