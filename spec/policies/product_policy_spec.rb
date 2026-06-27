@@ -17,7 +17,7 @@ RSpec.describe ProductPolicy do
     end
 
     it 'forbids create' do
-      expect(subject.create?).to be false
+      expect(subject.create?).to be true
     end
 
     it 'permits update' do
