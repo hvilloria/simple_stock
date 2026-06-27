@@ -18,7 +18,16 @@ RSpec.describe "import_sales:run", type: :task do
   let(:data)     { JSON.parse(File.read(Rails.root.join("sales_to_import.json"))) }
   let(:tickets)  { data.group_by { |r| r["ticket_number"] } }
   let(:expected_orders)   { tickets.size }
-  let(:expected_products) { data.map { |r| r["oem_code"] }.uniq.size }
+  # A product is a variant: sku (without the IMP/IM suffix) + product_type.
+  let(:expected_products) { data.map { |r| variant_key(r["oem_code"]) }.uniq.size }
+
+  # Mirrors the task's classification: IMP/IM suffix -> aftermarket (sku stripped),
+  # anything else -> oem (sku unchanged).
+  def variant_key(code)
+    aftermarket = %w[IMP IM].include?(code.split(%r{[-/]}).last.upcase)
+    sku  = aftermarket ? code.sub(%r{[-/](IMP|IM)\z}i, "") : code
+    [ sku, aftermarket ? "aftermarket" : "oem" ]
+  end
 
   before do
     create(:user, name: "Ariel",   last_name: "Almaraz",  email: "ariel.almaraz@gentedelsol.com")
@@ -39,9 +48,22 @@ RSpec.describe "import_sales:run", type: :task do
   describe "import result" do
     before { run_import }
 
-    it "creates one order per ticket and one product per oem_code" do
+    it "creates one order per ticket and one product per variant (sku + type)" do
       expect(Order.count).to eq(expected_orders)
       expect(Product.count).to eq(expected_products)
+    end
+
+    it "stores skus without the IMP/IM suffix and sets product_type accordingly" do
+      Product.find_each do |product|
+        expect(product.sku).not_to match(%r{[-/](IMP|IM)\z}i)
+        expect(%w[oem aftermarket]).to include(product.product_type)
+      end
+    end
+
+    it "creates an aftermarket variant for an -IMP code with the sku stripped" do
+      product = Product.find_by(sku: "31180-RNA-A01", product_type: "aftermarket")
+      expect(product).to be_present
+      expect(product.name).to eq("Polea de tensor")
     end
 
     it "records one payment (allocation) for each order" do
