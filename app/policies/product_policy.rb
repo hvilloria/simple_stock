@@ -14,7 +14,7 @@ class ProductPolicy < ApplicationPolicy
   end
 
   def new?
-    create?
+    create? 
   end
 
   def update?
