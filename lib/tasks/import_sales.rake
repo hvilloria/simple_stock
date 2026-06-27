@@ -64,7 +64,7 @@ namespace :import_sales do
     end
   end
 
-  # Mapa oem_code => { name:, price: } usando la PRIMERA aparición en el archivo.
+  # Mapa oem_code => { name:, price:, product_type: } usando la PRIMERA aparición.
   # Registra conflictos (mismo código con más de un nombre).
   def build_product_specs(rows)
     specs     = {}
@@ -76,10 +76,24 @@ namespace :import_sales do
       if specs.key?(code)
         conflicts[code] << name unless specs[code][:name] == name || conflicts[code].include?(name)
       else
-        specs[code] = { name: name, price: price }
+        specs[code] = { sku: sku_for(code), name: name, price: price, product_type: product_type_for(code) }
       end
     end
     [ specs, conflicts ]
+  end
+
+  # Clasificación por sufijo del código:
+  #   termina en IMP / IM -> repuesto alternativo (aftermarket)
+  #   cualquier otro       -> original (oem)
+  def product_type_for(code)
+    last = code.to_s.split(%r{[-/]}).last.to_s.upcase
+    %w[IMP IM].include?(last) ? "aftermarket" : "oem"
+  end
+
+  # El sufijo IMP/IM es solo un delimitador (alternativo); el SKU real es el
+  # código SIN ese sufijo. "31180-RNA-A01-IMP" -> "31180-RNA-A01".
+  def sku_for(code)
+    code.to_s.sub(%r{[-/](IMP|IM)\z}i, "")
   end
 
   # ---------- 1) solo vendedores ----------
@@ -143,10 +157,12 @@ namespace :import_sales do
     errors << "Filas con quantity<=0: #{bad_qty}"   if bad_qty.positive?
     errors << "Filas con unit_price<=0: #{bad_price}" if bad_price.positive?
 
-    # --- productos ---
+    # --- productos (variantes por sku-sin-sufijo + product_type) ---
     specs, conflicts = build_product_specs(rows)
-    existing = Product.where(sku: specs.keys).distinct.pluck(:sku)
-    to_create = specs.keys - existing
+    variants          = specs.values.map { |s| [ s[:sku], s[:product_type] ] }.uniq
+    existing_variants = variants.count { |sku, type| Product.exists?(sku: sku, product_type: type) }
+    to_create_count   = variants.size - existing_variants
+    type_breakdown    = variants.group_by(&:last).transform_values(&:size)
 
     # --- idempotencia ---
     already = Order.where(paper_number: tickets.map { |t| t[:number] }).pluck(:paper_number).uniq
@@ -155,9 +171,9 @@ namespace :import_sales do
     puts "== Resumen =="
     puts "  Tickets (órdenes a crear)        : #{tickets.size}"
     puts "  Ya importados (paper_number existe): #{already.size}#{already.any? ? " -> se saltearán" : ""}"
-    puts "  Productos únicos (oem_code)      : #{specs.size}"
-    puts "    - ya existen en BD             : #{existing.size}"
-    puts "    - se crearán                   : #{to_create.size}"
+    puts "  Variantes de producto            : #{variants.size}  (#{type_breakdown.inspect})"
+    puts "    - ya existen en BD             : #{existing_variants}"
+    puts "    - se crearán                   : #{to_create_count}"
     puts "  Métodos de pago en uso           : #{raw_methods.sort.inspect} -> #{raw_methods.map { |m| PAYMENT_MAP[m] }.compact.uniq.inspect}"
     puts "  Vendedores                       : #{seller_names.sort.inspect}"
     if conflicts.any?
@@ -207,15 +223,21 @@ namespace :import_sales do
       ActiveRecord::Base.transaction do
         mostrador = Customer.mostrador
 
-        # --- productos ---
-        product_by_code = {}
+        # --- productos (sku sin sufijo IMP/IM + product_type por variante) ---
+        product_by_code    = {}   # código completo del archivo -> Product
+        product_by_variant = {}   # [sku, product_type] -> Product (dedup de variantes)
         specs.each do |code, spec|
-          product = Product.find_by(sku: code)
-          if product
-            stats[:products_existing] += 1
-          else
-            product = Product.create!(sku: code, name: spec[:name], price_unit: spec[:price])
-            stats[:products_created] += 1
+          vkey = [ spec[:sku], spec[:product_type] ]
+          product = product_by_variant[vkey] ||= begin
+            existing = Product.find_by(sku: spec[:sku], product_type: spec[:product_type])
+            if existing
+              stats[:products_existing] += 1
+              existing
+            else
+              stats[:products_created] += 1
+              Product.create!(sku: spec[:sku], name: spec[:name],
+                              price_unit: spec[:price], product_type: spec[:product_type])
+            end
           end
           product_by_code[code] = product
         end

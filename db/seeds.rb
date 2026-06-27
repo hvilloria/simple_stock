@@ -46,6 +46,9 @@ else
   puts "✅ Usuarios ya existen, saltando creación"
 end
 
+# Usuario asociado a las órdenes de seed (feat_14: Order#user es obligatorio)
+seller_user = User.find_by(role: "vendedor") || User.first!
+
 # ============================================
 # 1. STOCK LOCATION
 # ============================================
@@ -330,6 +333,7 @@ sale_counter = 1
 
   result = Sales::CreateOrder.call(
     customer: mostrador,
+    user: seller_user,
     items: items,
     order_type: "immediate",
     paper_number: "T-#{format('%04d', sale_counter)}",
@@ -358,6 +362,7 @@ end
 
   result = Sales::CreateOrder.call(
     customer: cliente,
+    user: seller_user,
     items: items,
     order_type: "credit",
     paper_number: "T-#{format('%04d', sale_counter)}",
@@ -400,6 +405,7 @@ crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobra
 
   result = Sales::CreateOrder.call(
     customer: mostrador,
+    user: seller_user,
     items: items,
     order_type: "on_account",
     paper_number: "T-#{format('%04d', sale_counter)}",
@@ -464,7 +470,7 @@ clientes_con_credito.each do |cliente|
   saldo_total = ordenes.sum(&:outstanding_balance)
   next unless saldo_total > 1000
 
-  metodo = [ 'cash', 'transfer', 'check' ].sample
+  metodo = %w[cash bank_transfer bank_card].sample
   monto_total = (saldo_total * rand(0.3..0.7)).round(2)
   fecha_pago = rand(3).days.ago.to_date
 
