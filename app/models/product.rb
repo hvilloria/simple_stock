@@ -70,6 +70,12 @@ class Product < ApplicationRecord
     allow_blank: true
   }
 
+  # Normalización
+  # El SKU (código OEM) se guarda SIEMPRE en mayúscula, venga del form, del
+  # import o de la consola. Va en before_validation para que la unicidad y
+  # demás validaciones corran sobre el valor ya normalizado.
+  before_validation :normalize_sku
+
   # Scopes
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
@@ -204,5 +210,11 @@ class Product < ApplicationRecord
 
   def aftermarket?
     product_type == "aftermarket"
+  end
+
+  private
+
+  def normalize_sku
+    self.sku = sku.strip.upcase if sku.present?
   end
 end

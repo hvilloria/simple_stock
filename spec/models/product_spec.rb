@@ -445,6 +445,31 @@ RSpec.describe Product, type: :model do
     end
   end
 
+  describe 'sku normalization' do
+    it 'upcases the sku before validation' do
+      product = build(:product, sku: 'lub-mot-8100-0w20-4l')
+      product.valid?
+      expect(product.sku).to eq('LUB-MOT-8100-0W20-4L')
+    end
+
+    it 'strips surrounding whitespace' do
+      product = build(:product, sku: '  71508-tj5-k00  ')
+      product.valid?
+      expect(product.sku).to eq('71508-TJ5-K00')
+    end
+
+    it 'persists the sku in uppercase' do
+      product = create(:product, sku: 'abc-123')
+      expect(product.reload.sku).to eq('ABC-123')
+    end
+
+    it 'leaves a blank sku untouched' do
+      product = build(:product, sku: nil)
+      expect { product.valid? }.not_to raise_error
+      expect(product.sku).to be_nil
+    end
+  end
+
   describe '#recalculate_current_stock!' do
     it 'recalculates stock from stock_movements' do
       product = create(:product, current_stock: 0)

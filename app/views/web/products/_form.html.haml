@@ -25,7 +25,7 @@
           %div
             = f.label :sku, "SKU", class: "block text-sm font-medium text-slate-700 mb-2"
             = f.text_field :sku,
-                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all #{product.errors[:sku].any? ? 'border-red-300' : ''} #{'bg-slate-100 text-slate-500 cursor-not-allowed' if product.persisted?}",
+                          class: "w-full px-4 py-3 border border-slate-300 rounded-lg uppercase placeholder:normal-case focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all #{product.errors[:sku].any? ? 'border-red-300' : ''} #{'bg-slate-100 text-slate-500 cursor-not-allowed' if product.persisted?}",
                           placeholder: "Ej: HDC001",
                           autofocus: !product.persisted?,
                           required: true,
@@ -103,14 +103,14 @@
                 %span
                   = f.radio_button :product_type, "oem", checked: product.product_type == 'oem', id: "product_type_oem"
                 %label.cursor-pointer.flex-1{for: "product_type_oem"}
-                  %p.font-medium.text-slate-900 OEM
+                  %p.font-medium.text-slate-900 Original
                   %p.text-xs.text-slate-500 Repuesto original de fábrica
               
               %div{class: "relative flex items-center gap-3 p-4 border-2 border-slate-200 rounded-lg cursor-pointer hover:border-slate-500 transition-all"}
                 %span
                   = f.radio_button :product_type, "aftermarket", checked: product.product_type == 'aftermarket', id: "product_type_aftermarket"
                 %label.cursor-pointer.flex-1{for: "product_type_aftermarket"}
-                  %p.font-medium.text-slate-900 Aftermarket
+                  %p.font-medium.text-slate-900 Alternativo
                   %p.text-xs.text-slate-500 Repuesto compatible
           
           %div

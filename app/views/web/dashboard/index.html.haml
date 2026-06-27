@@ -3,7 +3,7 @@
 -# Header con saludo y acción principal
 .flex.items-center.justify-between.mb-6
   %div
-    %h2.text-2xl.font-bold.text-slate-900 ¡Hola, Alfredo!
+    %h2.text-2xl.font-bold.text-slate-900= current_user.name.capitalize
     %p.text-sm.text-slate-600.mt-1 Resumen de hoy
 
   = link_to new_web_order_path, class: "btn-primary" do
