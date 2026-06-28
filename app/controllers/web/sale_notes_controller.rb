@@ -4,7 +4,7 @@ module Web
       authorize Order, :index?, policy_class: SaleNotePolicy
       @pagy, @notes = pagy(
         Order.immediate.pending
-             .includes(:customer, order_items: :product)
+             .includes(:customer, :user, order_items: :product)
              .order(created_at: :desc)
       )
     end

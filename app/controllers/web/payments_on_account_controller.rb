@@ -3,13 +3,13 @@ module Web
     def index
       authorize Order, :index?, policy_class: PaymentOnAccountPolicy
       @operations = Order.open_on_account
-                         .includes(:customer, order_items: :product)
+                         .includes(:customer, :user, order_items: :product)
                          .search_contact(params[:q])
                          .order(created_at: :desc)
     end
 
     def show
-      @order = Order.on_account.includes(order_items: :product).find(params[:id])
+      @order = Order.on_account.includes(:user, order_items: :product).find(params[:id])
       authorize @order, :show?, policy_class: PaymentOnAccountPolicy
 
       policy = PaymentOnAccountPolicy.new(current_user, @order)

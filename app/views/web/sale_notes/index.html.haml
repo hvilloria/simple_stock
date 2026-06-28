@@ -18,6 +18,9 @@
             %p.text-xl.font-semibold.text-slate-900= note.paper_number
           .flex-1.text-sm.text-slate-600
             = pluralize(note.order_items.size, "ítem")
+          .w-40
+            %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Vendedor
+            %p.text-sm.text-slate-900= note.user.name
           .w-32.text-right
             %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Total
             %p.text-lg.font-semibold.text-slate-900= number_to_currency(note.total_amount, unit: "$", separator: ",", delimiter: ".")

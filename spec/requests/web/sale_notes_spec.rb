@@ -14,7 +14,9 @@ RSpec.describe "Web::SaleNotes", type: :request do
   describe "GET /web/sale_notes" do
     it "renders pending immediate orders for cashier" do
       sign_in cashier
+      seller = create(:user, role: "vendedor", name: "Vendedor Registró")
       note = create(:order, :pending,
+                    user: seller,
                     order_type: "immediate",
                     paper_number: "F-1000",
                     total_amount: 100,
@@ -24,6 +26,7 @@ RSpec.describe "Web::SaleNotes", type: :request do
       get "/web/sale_notes"
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("F-1000")
+      expect(response.body).to include("Vendedor Registró")
     end
 
     it "lists newest notes first and paginates at 20 per page" do

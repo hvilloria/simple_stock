@@ -7,7 +7,7 @@ module Web
     def index
       authorize Order
       @orders = Order
-        .includes(:customer, order_items: :product)
+        .includes(:customer, :user, order_items: :product)
         .order(sale_date: :desc, created_at: :desc)
         .limit(50)
     end
