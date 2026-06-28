@@ -8,6 +8,36 @@ RSpec.describe "Web::Products edit/update", type: :request do
   let(:caja)     { create(:user, role: "caja") }
   let(:product)  { create(:product, name: "Disco viejo", brand: "Generic Brand", price_unit: 100) }
 
+  describe "GET /web/products" do
+    before { sign_in vendedor }
+
+    it "paginates active products at 20 per page" do
+      21.times { |i| create(:product, name: format("Producto %02d", i + 1)) }
+
+      get web_products_path
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Producto 01")
+      expect(response.body).not_to include("Producto 21")
+
+      get web_products_path, params: { page: 2 }
+      expect(response.body).to include("Producto 21")
+    end
+
+    it "composes search filter with pagination" do
+      25.times { |i| create(:product, name: format("Filtro %02d", i + 1), brand: "FRAM") }
+      create(:product, name: "Pastilla unica", brand: "Brembo")
+
+      get web_products_path, params: { q: "FRAM" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("Pastilla unica")
+      expect(response.body).to include("Filtro 01")
+      expect(response.body).not_to include("Filtro 25")
+
+      get web_products_path, params: { q: "FRAM", page: 2 }
+      expect(response.body).to include("Filtro 25")
+    end
+  end
+
   describe "GET /web/products/:id/edit" do
     it "permite a un vendedor abrir la edición" do
       sign_in vendedor
