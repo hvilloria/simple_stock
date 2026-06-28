@@ -25,8 +25,10 @@ export default class extends Controller {
     }
 
     const discount = parseInt(this.discountTarget.value, 10) || 0
-    const discountValue = Math.round(amount * discount) / 100
-    const cash = amount - discountValue
+    const cashRaw = amount - Math.round(amount * discount) / 100
+    // Discounted cash collections round UP to the next hundred (matches backend).
+    const cash = (discount > 0 && isCash) ? Math.ceil(cashRaw / 100) * 100 : cashRaw
+    const discountValue = amount - cash
 
     this.settleLineTarget.textContent = this.format(amount)
     this.discountLineTarget.textContent = `−${this.format(discountValue)}`

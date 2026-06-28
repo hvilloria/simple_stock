@@ -16,7 +16,9 @@
           Fecha
         %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
           Cliente
-        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
+        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider
+          Vendedor
+        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider
           Estado
         %th.px-6.py-4.text-right.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
           Total
@@ -36,6 +38,8 @@
               %span.text-sm.text-gray-900= order.customer.name
             - else
               %span.text-sm.text-gray-500 -
+          %td.px-6.py-4.whitespace-nowrap
+            %span.text-sm.text-gray-900= order.user.name
           %td.px-6.py-4.whitespace-nowrap
             - if order.pending_status?
               %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-full.text-xs.font-medium.bg-amber-100.text-amber-800

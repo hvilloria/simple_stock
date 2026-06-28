@@ -4,7 +4,7 @@
   .flex.items-baseline.justify-between.mb-4
     %div
       %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500
-        = "Talonario #{@order.paper_number} · #{@order.contact_name} · #{@order.contact_phone}"
+        = "Talonario #{@order.paper_number} · #{@order.contact_name} · #{format_contact_phone(@order.contact_phone)}"
       %h1.text-2xl.font-semibold.text-slate-900 Operación a cuenta
     = link_to "← Volver al listado", web_payments_on_account_index_path, class: "text-sm text-slate-500 hover:text-slate-900"
 
@@ -72,5 +72,8 @@
         .flex.justify-between.text-slate-600
           %span Entrega
           %span= "#{@order.delivered_items_count} / #{@order.order_items.size} ítems"
+        .flex.justify-between.text-slate-600
+          %span Vendedor
+          %span= @order.user.name
       - if @can_collect
         = link_to "Cobrar →", new_web_payments_on_account_payment_path(@order), class: "mt-4 block text-center w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-medium"

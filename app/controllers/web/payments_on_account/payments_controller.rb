@@ -12,7 +12,10 @@ module Web
 
         amount   = parse_amount(params[:amount_to_settle]).to_d
         discount = params[:discount_percent].to_i
-        cash     = amount - (amount * discount / 100).round(2)
+        cash_raw = amount - (amount * discount / 100).round(2)
+        # Discounted cash collections round UP to the next hundred (must match
+        # Payments::CollectOnAccount#cash_to_collect so validation passes).
+        cash     = discount.positive? ? (cash_raw / 100.0).ceil * 100 : cash_raw
 
         result = ::Payments::CollectOnAccount.call(
           order:            @order,

@@ -46,11 +46,11 @@
           
           -# Badge de tipo
           - if @product.oem?
-            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
-              OEM
+            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-blue-100.text-blue-800
+              Original
           - elsif @product.aftermarket?
-            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-blue-100.text-blue-700
-              Aftermarket
+            %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-purple-100.text-purple-800
+              Alternativo
           
           -# Badge de origen
           - if @product.origin.present?
@@ -83,7 +83,7 @@
           .div
             %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Tipo
             - if @product.product_type.present?
-              %p.text-sm.text-slate-900= @product.product_type == 'oem' ? 'OEM' : 'Aftermarket'
+              %p.text-sm.text-slate-900= @product.product_type == 'oem' ? 'Original' : 'Alternativo'
             - else
               %p.text-sm.text-slate-900 Sin especificar
         

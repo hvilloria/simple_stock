@@ -33,17 +33,40 @@ RSpec.describe Payments::CollectSaleNote do
       expect(order.payment_allocations.first.payment.payment_method).to eq("cash")
     end
 
-    it "applies global discount and recalculates total when 100% cash and exact" do
+    # Canonical money case: 710.775 × 0,90 = 639.697,5 → ceil-to-100 = 639.700.
+    it "rounds the discounted cash total UP to the next hundred (ceil-to-100)" do
+      big = create(:order, :pending, customer: customer, order_type: "immediate",
+                   paper_number: "CSN-100", total_amount: 710_775, original_total_amount: 710_775)
+      create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)
+
       result = described_class.call(
-        order: order,
-        discount_percent: 5,
-        tenders: [ { payment_method: "cash", amount: 950 } ]
+        order: big,
+        discount_percent: 10,
+        tenders: [ { payment_method: "cash", amount: 639_700 } ]
       )
 
       expect(result).to be_success
-      expect(order.reload.total_amount).to eq(950)
-      expect(order.original_total_amount).to eq(1000)
-      order.order_items.each { |oi| expect(oi.discount_percent).to eq(5) }
+      expect(big.reload.total_amount).to eq(639_700)
+      expect(big.original_total_amount).to eq(710_775)
+      expect(big.payment_allocations.sum(:amount)).to eq(639_700)
+      expect(big.outstanding_balance).to eq(0)
+      expect(big.status).to eq("confirmed")
+      big.order_items.each { |oi| expect(oi.discount_percent).to eq(10) }
+    end
+
+    it "rejects the unrounded discounted total (cashier must collect the ceil-to-100 cash)" do
+      big = create(:order, :pending, customer: customer, order_type: "immediate",
+                   paper_number: "CSN-101", total_amount: 710_775, original_total_amount: 710_775)
+      create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)
+
+      result = described_class.call(
+        order: big,
+        discount_percent: 10,
+        tenders: [ { payment_method: "cash", amount: 639_697.5 } ]
+      )
+
+      expect(result).to be_failure
+      expect(big.reload.status).to eq("pending")
     end
 
     it "rejects discount when any tender is non-cash" do

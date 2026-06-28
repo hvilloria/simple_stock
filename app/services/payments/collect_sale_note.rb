@@ -9,6 +9,8 @@ module Payments
   #   - Tenders sum to effective total (original_total * (1 - discount/100)).
   #   - If discount > 0, every tender must be `cash` AND cover full total.
   class CollectSaleNote
+    include Payments::CashRounding
+
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
@@ -85,22 +87,22 @@ module Payments
     end
 
     def effective_total
-      @effective_total ||= (@order.original_total_amount.to_d * (1 - @discount_percent.to_d / 100)).round(2)
+      @effective_total ||= begin
+        raw = (@order.original_total_amount.to_d * (1 - @discount_percent.to_d / 100)).round(2)
+        @discount_percent.positive? ? round_up_to_hundred(raw) : raw
+      end
     end
 
     def apply_discount!
       return if @discount_percent.zero?
 
+      # order_item.discount_percent stays as display metadata; the canonical
+      # charged total is the rounded effective_total (cash ceil-to-hundred).
       @order.order_items.each do |item|
         item.update!(discount_percent: @discount_percent)
       end
 
-      new_total = @order.order_items.reload.sum do |oi|
-        unit            = (oi.unit_price || 0).to_d
-        discount_factor = 1 - oi.discount_percent.to_d / 100
-        (unit * oi.quantity * discount_factor).round(2)
-      end
-      @order.update!(total_amount: new_total)
+      @order.update!(total_amount: effective_total)
     end
 
     def create_payments_and_allocations!

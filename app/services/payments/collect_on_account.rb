@@ -10,6 +10,8 @@ module Payments
   #   - Tenders sum to amount_to_settle * (1 - discount/100).
   #   - The discount lowers total_amount (absorbed by the shop), not the debt.
   class CollectOnAccount
+    include Payments::CashRounding
+
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
@@ -99,12 +101,18 @@ module Payments
     end
 
     def cash_to_collect
-      @cash_to_collect ||= (@amount_to_settle - discount_value).round(2)
+      @cash_to_collect ||= begin
+        raw = (@amount_to_settle - discount_value).round(2)
+        @discount_percent.positive? ? round_up_to_hundred(raw) : raw
+      end
     end
 
     def apply_discount!
-      return if discount_value.zero?
-      @order.update!(total_amount: @order.total_amount - discount_value)
+      # Lower total_amount by the EFFECTIVE discount (settle − rounded cash) so the
+      # balance closes exactly against the ceil-to-hundred allocation.
+      effective_discount = @amount_to_settle - cash_to_collect
+      return if effective_discount.zero?
+      @order.update!(total_amount: @order.total_amount - effective_discount)
     end
 
     def create_payments_and_allocations!

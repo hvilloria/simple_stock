@@ -29,7 +29,7 @@ export default class extends Controller {
     // Auto-fill a single tender with the discounted total so the cashier
     // doesn't have to retype the amount after picking a discount.
     if (discount > 0 && this.tenderRowTargets.length === 1) {
-      const finalTotal = +(this.originalTotalValue * (1 - discount / 100)).toFixed(2)
+      const finalTotal = this._finalTotal(discount)
       this.tenderRowTargets[0].querySelector("input").value = this._fmtPlain(finalTotal)
     }
 
@@ -48,7 +48,7 @@ export default class extends Controller {
     }
     this.discountHelperTarget.classList.toggle("text-red-600", hasNonCash)
 
-    const finalTotal = +(this.originalTotalValue * (1 - discount / 100)).toFixed(2)
+    const finalTotal = this._finalTotal(discount)
     const paidSum    = tenders.reduce((s, t) => s + t.amount, 0)
     const diff       = +(finalTotal - paidSum).toFixed(2)
 
@@ -79,6 +79,13 @@ export default class extends Controller {
     if (this.tenderRowTargets.length <= 1) return
     event.currentTarget.closest("[data-sale-note-payment-target='tenderRow']").remove()
     this.recalc()
+  }
+
+  // Discounted cash totals round UP to the next hundred (matches backend).
+  // No discount: the exact two-decimal total.
+  _finalTotal(discount) {
+    const raw = this.originalTotalValue * (1 - discount / 100)
+    return discount > 0 ? Math.ceil(raw / 100) * 100 : +raw.toFixed(2)
   }
 
   _readTenders() {

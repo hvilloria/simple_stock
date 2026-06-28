@@ -111,6 +111,17 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect(result.failure?).to be true
         expect(result.errors.join).to match(/método de pago/i)
       end
+
+      it "rejects an Argentine-formatted amount string instead of silently truncating it (backstop)" do
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [ { order_id: order_a.id, amount: "80.000,00", payment_method: "cash" } ]
+        )
+        expect(result.failure?).to be true
+        expect(result.errors.join).to match(/formato inválido/i)
+        expect(Payment.count).to eq(0)
+      end
     end
 
     context "with valid input — single method" do

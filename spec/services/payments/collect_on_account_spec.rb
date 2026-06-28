@@ -23,17 +23,54 @@ RSpec.describe Payments::CollectOnAccount do
       expect(order.payment_allocations.sum(:amount)).to eq(400)
     end
 
-    it "applies a per-event cash discount, lowering total_amount and balance" do
+    # Big order to exercise realistic discounts (≥ 100) without the ceil
+    # overshooting above the original total.
+    let(:big_order) do
+      o = create(:order, :on_account, customer: customer,
+                 total_amount: 710_775, original_total_amount: 710_775)
+      create(:order_item, order: o, product: product, quantity: 1, unit_price: 710_775)
+      o
+    end
+
+    # Canonical: 710.775 × 0,90 = 639.697,5 → ceil-to-100 = 639.700.
+    it "rounds the discounted cash UP to the next hundred and settles the account" do
       result = described_class.call(
-        order: order, amount_to_settle: 500,
-        discount_percent: 10, tenders: [ { payment_method: "cash", amount: 450 } ]
+        order: big_order, amount_to_settle: 710_775,
+        discount_percent: 10, tenders: [ { payment_method: "cash", amount: 639_700 } ]
       )
 
       expect(result).to be_success
-      expect(order.reload.total_amount).to eq(950)
-      expect(order.original_total_amount).to eq(1000)
-      expect(order.payment_allocations.sum(:amount)).to eq(450)
-      expect(order.outstanding_balance).to eq(500)
+      expect(big_order.reload.total_amount).to eq(639_700)
+      expect(big_order.original_total_amount).to eq(710_775)
+      expect(big_order.payment_allocations.sum(:amount)).to eq(639_700)
+      expect(big_order.outstanding_balance).to eq(0)
+      expect(big_order.status).to eq("confirmed")
+    end
+
+    # cash_raw already a multiple of 100: 300.000 × 0,90 = 270.000 → stays 270.000.
+    it "applies a partial cash discount when the cash is already a multiple of 100" do
+      result = described_class.call(
+        order: big_order, amount_to_settle: 300_000,
+        discount_percent: 10, tenders: [ { payment_method: "cash", amount: 270_000 } ]
+      )
+
+      expect(result).to be_success
+      expect(big_order.reload.total_amount).to eq(680_775)         # 710.775 − 30.000 effective discount
+      expect(big_order.payment_allocations.sum(:amount)).to eq(270_000)
+      expect(big_order.outstanding_balance).to eq(410_775)
+    end
+
+    # cash_raw NOT a multiple: 250.001 × 0,90 = 225.000,9 → ceil-to-100 = 225.100.
+    it "rounds a non-multiple partial cash UP to the next hundred" do
+      result = described_class.call(
+        order: big_order, amount_to_settle: 250_001,
+        discount_percent: 10, tenders: [ { payment_method: "cash", amount: 225_100 } ]
+      )
+
+      expect(result).to be_success
+      expect(big_order.reload.total_amount).to eq(685_874)         # 710.775 − 24.901 effective discount
+      expect(big_order.payment_allocations.sum(:amount)).to eq(225_100)
+      expect(big_order.outstanding_balance).to eq(460_774)
     end
 
     it "rejects amount_to_settle greater than the outstanding balance" do

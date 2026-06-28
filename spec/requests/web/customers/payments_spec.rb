@@ -205,4 +205,50 @@ RSpec.describe "Web::Customers::Payments", type: :request do
       expect(credit_customer.current_balance.to_f).to eq(0.0)
     end
   end
+
+  describe "POST with Argentine-formatted amount (pendiente #4)" do
+    let(:credit_customer) { create(:customer, :with_credit) }
+    let(:big_product) do
+      p = create(:product, current_stock: 0, price_unit: 100_000)
+      create(:stock_movement, product: p, stock_location: stock_location, quantity: 10, movement_type: "purchase")
+      p.recalculate_current_stock!
+      p
+    end
+    let(:credit_order) do
+      Sales::CreateOrder.call(
+        customer: credit_customer,
+        items: [ { product_id: big_product.id, quantity: 1, unit_price: 100_000 } ],
+        order_type: "credit",
+        paper_number: "L-0040",
+        user: user
+      ).record
+    end
+
+    it "registers the full amount (not $80) when the form posts '80.000,00'" do
+      item = credit_order.order_items.first
+
+      post web_customer_payments_path(credit_customer), params: {
+        payment_date: Date.current.iso8601,
+        allocations: {
+          "0" => {
+            order_id: credit_order.id.to_s,
+            include: "1",
+            amount: "80.000,00",
+            payment_method: "cash",
+            discounts: { item.id.to_s => "20" }
+          }
+        }
+      }
+
+      expect(response).to redirect_to(web_customer_path(credit_customer))
+
+      credit_order.reload
+      expect(credit_order.original_total_amount.to_f).to eq(100_000.0)
+      expect(credit_order.total_amount.to_f).to eq(80_000.0)
+      expect(credit_order.outstanding_balance.to_f).to eq(0.0)
+
+      payment = Payment.last
+      expect(payment.amount.to_f).to eq(80_000.0)
+    end
+  end
 end

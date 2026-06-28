@@ -67,6 +67,16 @@ module Payments
 
     class ValidationError < StandardError; end
 
+    # Backstop: callers must pass numeric (already-cleaned) amounts. A String
+    # still carrying Argentine formatting (decimal comma / thousands separator)
+    # would be silently truncated by #to_f (e.g. "80.000,00".to_f == 80.0), so
+    # we fail loudly instead of registering an absurdly small payment.
+    def reject_unparsed_amount_format!(raw)
+      return unless raw.is_a?(String) && raw.include?(",")
+
+      raise ValidationError, "Monto con formato inválido (debe venir numérico)"
+    end
+
     def validate_params
       raise ValidationError, "Customer is required" if @customer.nil?
 
@@ -77,6 +87,8 @@ module Payments
       raise ValidationError, "Debe incluir al menos una orden" if @allocations.empty?
 
       @allocations.each do |row|
+        reject_unparsed_amount_format!(row[:amount])
+
         amount = row[:amount].to_f
         raise ValidationError, "El monto debe ser mayor a cero" if amount <= 0
 

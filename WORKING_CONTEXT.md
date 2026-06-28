@@ -27,8 +27,6 @@ Only includes behavior that is important for implementing features safely.
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
 * **Credit notes**: full CRUD + **`supplier_invoices`** JSON for pending simple invoices by supplier — **direct ActiveRecord** in the controller (no dedicated service class).
-* **Sales ledger**: **`imports`** index/create/show → `SalesLedger::ImportCsv`; **`reports#index`** → `SalesLedger::Reports::{SummaryQuery,SalesByDateQuery,TopProductsQuery}`. All three queries accept an optional **`product_source`** filter (`local` / `importado`), validated in the controller against `Entry::PRODUCT_SOURCES` before use. `TopProductsQuery` ranks by **frequency** (`COUNT(DISTINCT ticket_number)`) not quantity, returns top 15, and exposes `product_source` via `MIN(product_source)` in the SELECT.
-
 ---
 
 ## Core flows
@@ -51,7 +49,7 @@ Only includes behavior that is important for implementing features safely.
   3. **Cambio de origen** (ej. importado USA agotado → recompra local/china): **mejor caso**, se crea un **producto nuevo** con ese `origin` (variante por `sku + product_type + origin + brand`); **peor caso**, el próximo precio de venta simplemente pisa el `price_unit` del producto existente vía write-back.
 * **Limitación honesta asumida:** el `cost_unit` sigue siendo un promedio que mezcla compras locales e importadas, así que el margen por origen no es exacto. No empeora respecto de hoy.
 * **Stock no se modifica al vender hoy** — `Sales::CreateOrder` no crea `StockMovement`. La validación de disponibilidad corre **solo en `source: 'live'`**; el form `web/orders/new` envía **`source: from_paper` por defecto**, así que en la práctica **no se valida stock al vender** (se pueden agregar productos sin stock y cantidades libres; ver Key constraints). `Sales::CancelOrder` sí restockea vía `Inventory::AdjustStock` (asimétrico — comportamiento pre-existente, no parte de este feature).
-* Descuento de inmediatas: caja lo aplica al cobrar vía `Payments::CollectSaleNote`. Cap `0 / 5 / 10` (global), distribuido a todos los `order_items`. **Regla:** solo permitido si la totalidad se paga en efectivo (validado en backend y enforced en Stimulus).
+* Descuento de inmediatas: caja lo aplica al cobrar vía `Payments::CollectSaleNote`. Cap `0 / 5 / 10` (global), distribuido a todos los `order_items`. **Regla:** solo permitido si la totalidad se paga en efectivo (validado en backend y enforced en Stimulus). **Redondeo ceil-a-100 (efectivo con descuento):** cuando hay descuento (>0), el efectivo a cobrar = `original_total × (1 − desc/100)` redondeado **hacia arriba al múltiplo de 100** vía `Payments::CashRounding#round_up_to_hundred` (ej. `710.775 × 0,90 = 639.697,5 → 639.700`). `apply_discount!` setea `total_amount = effective_total` (el valor redondeado canónico); `order_item.discount_percent` queda como metadato de display. Sin descuento: exacto, sin redondeo. El front (`sale_note_payment_controller`) usa el mismo `Math.ceil(raw/100)*100`.
 * Descuento de credit: sin cambios respecto a feat_09 (per-item 0-20% en primer cobro vía `Payments::AllocatePayment`; congelado tras la primera allocation).
 
 ### Pagos a cuenta (`on_account`)
@@ -60,7 +58,7 @@ Only includes behavior that is important for implementing features safely.
 * **Contacto obligatorio** (solo este tipo): columnas `contact_name` / `contact_phone` en `orders`, validadas en `Order#on_account_requires_contact` y en `Sales::CreateOrder`. El cliente asociado queda como Mostrador; **no** entra en `Customer#current_balance` (la fórmula solo cuenta `credit`).
 * **Entrega por ítem**: columna `order_items.delivered_at` (nullable). La marca el **vendedor**, no caja: al crear (`Sales::CreateOrder` con `delivered_product_ids`) y después desde el detalle vía `Inventory::MarkDelivered` (member `POST deliver`). **No genera `StockMovement`** todavía.
 * **Liquidada** (sale de la lista de abiertas) solo con `outstanding_balance == 0` **y** todos los ítems con `delivered_at` (`Order#settled?` / `#fully_delivered?`). Scope `Order.open_on_account` (Postgres `HAVING`: saldo > 0 **OR** ítems sin entregar). Búsqueda por contacto: `Order.search_contact`.
-* **Cobro parcial repetible** vía `Payments::CollectOnAccount` (hermano de `CollectSaleNote`). Recibe `order:, amount_to_settle:, discount_percent:, tenders:`. `amount_to_settle` = cuánto del saldo cancela esta visita (guard duro `≤ outstanding_balance`). Descuento por evento `0/5/10`, **solo efectivo**, que **baja `total_amount`** por `amount_to_settle × desc/100` (el local lo absorbe; `original_total_amount` intacto). La `PaymentAllocation` registra el **efectivo real** (`amount_to_settle × (1 − desc)`). Llama `refresh_status_from_balance!` al final.
+* **Cobro parcial repetible** vía `Payments::CollectOnAccount` (hermano de `CollectSaleNote`). Recibe `order:, amount_to_settle:, discount_percent:, tenders:`. `amount_to_settle` = cuánto del saldo cancela esta visita (guard duro `≤ outstanding_balance`). Descuento por evento `0/5/10`, **solo efectivo**. **Redondeo ceil-a-100 (efectivo con descuento):** el efectivo a cobrar (`cash_to_collect`) = `amount_to_settle × (1 − desc/100)` redondeado **hacia arriba al múltiplo de 100** (`Payments::CashRounding#round_up_to_hundred`); sin descuento, exacto. `apply_discount!` **baja `total_amount`** por el **descuento efectivo** = `amount_to_settle − cash_to_collect` (NO por el descuento nominal), así el saldo cierra exacto contra la allocation redondeada (`original_total_amount` intacto). La `PaymentAllocation` registra el efectivo redondeado. El controller (`Web::PaymentsOnAccount::PaymentsController`) arma el tender con el **mismo** valor redondeado (`(cash_raw / 100.0).ceil * 100` cuando `discount > 0`). Llama `refresh_status_from_balance!` al final. **Para montos de spec usar descuento nominal ≥ 100** (evita que el ceil trepe `cash_to_collect` por encima de `amount_to_settle`).
 * Pantalla de cobro: el form envía `amount_to_settle` (precargado con el saldo) + `payment_method` (medio único, sin monto) + `discount_percent`; el controller deriva el efectivo y arma el tender. **"A cobrar" (efectivo) es el único monto que cobra caja**; "Cancela de la cuenta" es informativo. Entrega visible **solo lectura** en esta pantalla.
 
 ### Stock
@@ -83,7 +81,7 @@ Only includes behavior that is important for implementing features safely.
 * **`Payment`** representa un *tender* (entrega física de dinero con un método único). Pertenece al `customer`; **ya no tiene `order_id`**. Validaciones: `amount > 0`, `payment_method ∈ Payment::PAYMENT_METHODS` (fuente única: `PAYMENT_METHOD_LABELS` en `app/models/payment.rb` → `cash bank_qr bank_card bank_transfer mercado_pago`; etiquetas vía `Payment.method_label` / opciones de UI vía `Payment.method_options`), `payment_date presente`. **Ya no exige `has_credit_account?`** — los Payments pueden pertenecer a clientes retail (mostrador).
 * **`PaymentAllocation`** (join `payment_allocations(payment_id, order_id, amount)`) distribuye el monto de un Payment sobre una o varias órdenes. Validaciones: `amount > 0`, `order_belongs_to_payment_customer`, `amount_within_order_outstanding_balance` (con `where.not(id: id)` para excluir la allocation actual). Índice único `(payment_id, order_id)`.
 * **Invariante:** `payment.amount == SUM(payment.allocations.amount)` — garantizada por el servicio, no por una validación de modelo.
-* **`Payments::AllocatePayment`** servicio del cobro de credit. Recibe `customer:, payment_date:, notes:, allocations: [{order_id:, amount:, payment_method:, item_discounts: {oi_id => percent}}]`. Acepta órdenes `pending` o `confirmed` (rechaza solo `cancelled`). Agrupa por `payment_method`, crea un `Payment` por grupo + sus `PaymentAllocation`s, y llama `refresh_status_from_balance!` en cada orden tocada al final de la transacción.
+* **`Payments::AllocatePayment`** servicio del cobro de credit. Recibe `customer:, payment_date:, notes:, allocations: [{order_id:, amount:, payment_method:, item_discounts: {oi_id => percent}}]`. Acepta órdenes `pending` o `confirmed` (rechaza solo `cancelled`). Agrupa por `payment_method`, crea un `Payment` por grupo + sus `PaymentAllocation`s, y llama `refresh_status_from_balance!` en cada orden tocada al final de la transacción. **El redondeo ceil-a-100 en efectivo con descuento es SOLO front** (`payment_allocation_controller#recomputeCard` precarga el monto a cobrar redondeado cuando el método es `cash` y hay descuento): el backend **no** lo enforça, porque los pagos parciales de crédito deben poder ser de monto libre (decisión del usuario).
 * **`Sales::CancelOrder`** destruye las `PaymentAllocation` de la orden cancelada (`@order.payment_allocations.destroy_all`); los `Payment` **quedan vivos** (known limitation — pueden quedar huérfanos sin asignación, el `current_balance` del cliente los sigue descontando como crédito a favor).
 * `Order#outstanding_balance` = `total_amount − payment_allocations.sum(:amount)` para órdenes no canceladas (cualquier tipo). Promoción automática a `confirmed` cuando llega a 0 vía `Order#refresh_status_from_balance!`, invocado desde `Payments::AllocatePayment` y `Payments::CollectSaleNote` al final de la transacción.
 * `Customer#current_balance` = `SUM(credit_orders.total_amount) − SUM(payment_allocations on credit orders)` filtrando `status IN ('pending', 'confirmed')`. `Customer.with_outstanding_balance` usa la misma fórmula. Las órdenes `on_account` (pago a cuenta) **no** entran: la fórmula solo cuenta `order_type: 'credit'`.
@@ -91,10 +89,6 @@ Only includes behavior that is important for implementing features safely.
 * **`Customer.with_outstanding_balance`** scope — clientes cuyas ventas a crédito confirmadas superan el total de sus pagos.
 * **`Web::Customers::PaymentsController#new`** muestra una tabla con todas las órdenes pendientes; cada fila tiene checkbox de inclusión, monto editable, y método de pago propio. El submit POST recibe `params[:allocations]` indexado (`allocations[N][order_id|include|amount|payment_method]`) y delega en `Payments::AllocatePayment`. Stimulus controller (`payment_allocation_controller.js`) recalcula resumen en vivo y deshabilita submit si no hay órdenes tildadas.
 * **`payments` table** ya no tiene la columna `order_id` — la relación vive en `payment_allocations`.
-
-### Sales ledger
-
-* **`SalesLedger::ImportCsv`** writes import batches + ledger entries; it **does not** create **`Order`**, **`StockMovement`**, or **`Payment`** (see comments in the service).
 
 ---
 
@@ -118,8 +112,6 @@ Only includes behavior that is important for implementing features safely.
 * **Inventory:** `Inventory::AdjustStock`, `Inventory::MarkDelivered`
 * **Invoices:** `Invoices::CreateSimpleInvoice`, `Invoices::MarkAsPaid`, `Invoices::ProcessPayment`
 * **Payments:** `Payments::AllocatePayment`, `Payments::CollectSaleNote`, `Payments::CollectOnAccount`
-* **Sales ledger:** `SalesLedger::ImportCsv`; report query objects under **`SalesLedger::Reports::`** (from `Web::SalesLedger::ReportsController`)
-
 **Present in codebase but not wired to `Web::` controllers:** `Purchasing::CreatePurchase`, `Purchasing::CancelPurchase`, **`Inventory::SyncFromCsv`** (invoked from **`lib/tasks/inventory.rake`**, not from HTTP).
 
 ---
@@ -134,4 +126,4 @@ Only includes behavior that is important for implementing features safely.
 
 ## Notes
 
-* For behavior, **read the service (or controller action) in question** — “thin controller” is the norm for orders and ledger imports, but invoices/credit notes mix services and direct updates.
+* For behavior, **read the service (or controller action) in question** — “thin controller” is the norm for orders, but invoices/credit notes mix services and direct updates.

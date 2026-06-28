@@ -10,6 +10,24 @@ RSpec.describe "Web::Orders", type: :request do
 
   before { sign_in vendedor }
 
+  describe "GET /web/orders" do
+    it "orders same-day notes by created_at desc (tie-break)" do
+      same_date = Date.current
+      create(:order, :pending, order_type: "immediate",
+             paper_number: "AAA", sale_date: same_date,
+             total_amount: 100, original_total_amount: 100,
+             created_at: 2.hours.ago)
+      create(:order, :pending, order_type: "immediate",
+             paper_number: "BBB", sale_date: same_date,
+             total_amount: 100, original_total_amount: 100,
+             created_at: 1.hour.ago)
+
+      get "/web/orders"
+      expect(response).to have_http_status(:ok)
+      expect(response.body.index("#BBB")).to be < response.body.index("#AAA")
+    end
+  end
+
   describe "POST /web/orders" do
     let(:base_params) do
       {
@@ -79,7 +97,8 @@ RSpec.describe "Web::Orders", type: :request do
 
         order = Order.on_account.order(:created_at).last
         expect(order.contact_name).to eq("Juan Pérez")
-        expect(order.contact_phone).to eq("11 5555 1234")
+        # contact_phone se normaliza a solo dígitos en Order#normalize_contact_phone (pendiente #12)
+        expect(order.contact_phone).to eq("1155551234")
         expect(order.order_items.first.delivered_at).to be_present
       end
     end

@@ -3,12 +3,13 @@ module Web
     include CurrencyParser
 
     def index
-    authorize Product
-    @products = Product.search(params[:q])
-                       .by_category(params[:category])
-                       .by_status(params[:status])
-                       .sorted_by(params[:sort], params[:direction])
-  end
+      authorize Product
+      products_scope = Product.search(params[:q])
+                              .by_category(params[:category])
+                              .by_status(params[:status])
+                              .sorted_by(params[:sort], params[:direction])
+      @pagy, @products = pagy(products_scope)
+    end
 
     def show
       @product = Product.find(params[:id])
