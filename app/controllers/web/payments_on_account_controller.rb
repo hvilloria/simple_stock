@@ -5,7 +5,7 @@ module Web
       @operations = Order.open_on_account
                          .includes(:customer, order_items: :product)
                          .search_contact(params[:q])
-                         .order(created_at: :asc)
+                         .order(created_at: :desc)
     end
 
     def show
