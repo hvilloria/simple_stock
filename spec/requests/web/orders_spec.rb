@@ -97,7 +97,8 @@ RSpec.describe "Web::Orders", type: :request do
 
         order = Order.on_account.order(:created_at).last
         expect(order.contact_name).to eq("Juan Pérez")
-        expect(order.contact_phone).to eq("11 5555 1234")
+        # contact_phone se normaliza a solo dígitos en Order#normalize_contact_phone (pendiente #12)
+        expect(order.contact_phone).to eq("1155551234")
         expect(order.order_items.first.delivered_at).to be_present
       end
     end
