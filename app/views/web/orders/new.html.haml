@@ -84,7 +84,7 @@
                   = text_field_tag :contact_name, nil, placeholder: "Ej: Juan Pérez", class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
                 %div
                   = label_tag :contact_phone, "Teléfono de Contacto", class: "block text-sm font-medium text-gray-700 mb-2"
-                  = text_field_tag :contact_phone, nil, placeholder: "Ej: 11 5555 1234", class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+                  = text_field_tag :contact_phone, nil, placeholder: "Ej: 11 5555 1234", inputmode: "numeric", data: { controller: "phone-input", action: "input->phone-input#format" }, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
             -# Selector de cliente
             - customer_options = [["Cliente Mostrador", "mostrador", { "data-has-credit-account" => "false" }]]

@@ -28,7 +28,7 @@
             - paid = op.total_amount - op.outstanding_balance
             %tr.hover:bg-slate-50
               %td.px-4.py-3.font-medium= op.contact_name
-              %td.px-4.py-3.text-slate-600= op.contact_phone
+              %td.px-4.py-3.text-slate-600= format_contact_phone(op.contact_phone)
               %td.px-4.py-3.text-slate-600= op.paper_number
               %td.px-4.py-3.text-slate-600= op.user.name
               %td.px-4.py-3.text-right= number_to_currency(op.total_amount, unit: "$", separator: ",", delimiter: ".")

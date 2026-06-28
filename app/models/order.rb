@@ -35,6 +35,8 @@ class Order < ApplicationRecord
   validates :original_total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validate :original_total_at_least_current_total
 
+  before_validation :normalize_contact_phone
+
   scope :immediate, -> { where(order_type: "immediate") }
   scope :credit,    -> { where(order_type: "credit") }
   scope :on_account, -> { where(order_type: "on_account") }
@@ -115,6 +117,11 @@ class Order < ApplicationRecord
   end
 
   private
+
+  def normalize_contact_phone
+    return if contact_phone.blank?
+    self.contact_phone = contact_phone.gsub(/\D/, "")
+  end
 
   def credit_order_requires_credit_account
     return unless credit_order_type?

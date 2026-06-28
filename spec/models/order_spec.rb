@@ -390,6 +390,12 @@ RSpec.describe Order, type: :model do
     it "does not require contact for immediate or credit orders" do
       expect(build(:order, order_type: "immediate", contact_name: nil)).to be_valid
     end
+
+    it "normalizes contact_phone to digits-only on save" do
+      order = create(:order, :on_account, contact_phone: "11 5555-1234",
+                     total_amount: 1000, original_total_amount: 1000)
+      expect(order.reload.contact_phone).to eq("1155551234")
+    end
   end
 
   describe "#fully_delivered? and #settled?" do

@@ -32,4 +32,16 @@ module CurrencyHelper
   def quantity_ar(value)
     number_ar(value, precision: 0)
   end
+
+  # Formatea un teléfono de contacto para mostrar, a partir de los dígitos.
+  # 10 dígitos -> "11 5555-1234"; 8 dígitos -> "5555-1234".
+  # Otros largos: devuelve los dígitos, o el valor original como fallback.
+  def format_contact_phone(raw)
+    digits = raw.to_s.gsub(/\D/, "")
+    case digits.length
+    when 10 then "#{digits[0, 2]} #{digits[2, 4]}-#{digits[6, 4]}"
+    when 8  then "#{digits[0, 4]}-#{digits[4, 4]}"
+    else digits.presence || raw.to_s
+    end
+  end
 end
