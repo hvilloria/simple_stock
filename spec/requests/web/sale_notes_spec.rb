@@ -26,6 +26,27 @@ RSpec.describe "Web::SaleNotes", type: :request do
       expect(response.body).to include("F-1000")
     end
 
+    it "lists newest notes first and paginates at 20 per page" do
+      sign_in cashier
+      21.times do |i|
+        create(:order, :pending, order_type: "immediate",
+               paper_number: "F-#{2000 + i}",
+               total_amount: 100, original_total_amount: 100,
+               created_at: i.hours.ago)
+      end
+      newest = Order.immediate.pending.order(created_at: :desc).first
+      oldest = Order.immediate.pending.order(created_at: :asc).first
+
+      get "/web/sale_notes"
+      expect(response).to have_http_status(:ok)
+      # Newest note is on page 1; oldest is pushed to page 2
+      expect(response.body).to include(newest.paper_number)
+      expect(response.body).not_to include(oldest.paper_number)
+
+      get "/web/sale_notes", params: { page: 2 }
+      expect(response.body).to include(oldest.paper_number)
+    end
+
     it "forbids vendor access" do
       sign_in vendor
       get "/web/sale_notes"

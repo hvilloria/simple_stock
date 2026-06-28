@@ -2,9 +2,11 @@ module Web
   class SaleNotesController < ApplicationController
     def index
       authorize Order, :index?, policy_class: SaleNotePolicy
-      @notes = Order.immediate.pending
-                    .includes(:customer, order_items: :product)
-                    .order(created_at: :asc)
+      @pagy, @notes = pagy(
+        Order.immediate.pending
+             .includes(:customer, order_items: :product)
+             .order(created_at: :desc)
+      )
     end
 
     def cancel
