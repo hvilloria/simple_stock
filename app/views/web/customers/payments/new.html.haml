@@ -122,7 +122,7 @@
                       options_for_select(Payment.method_options, "cash"),
                       disabled: true,
                       class: "px-2 py-1 text-sm border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
-                      data: { "role": "method-select" }
+                      data: { "role": "method-select", action: "change->payment-allocation#methodChanged" }
 
         %p.text-xs.text-slate-400.italic.mt-3
           Tildá una orden para incluirla en el cobro. Los descuentos se aplican una sola vez por orden y quedan fijos al primer cobro.

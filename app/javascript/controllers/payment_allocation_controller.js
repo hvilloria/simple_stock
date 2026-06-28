@@ -35,6 +35,12 @@ export default class extends Controller {
     this.updateSummary()
   }
 
+  methodChanged(event) {
+    const row = event.target.closest("[data-payment-allocation-target='row']")
+    this.recomputeCard(row)
+    this.updateSummary()
+  }
+
   recalc() {
     this.updateSummary()
   }
@@ -102,10 +108,18 @@ export default class extends Controller {
     row.dataset.pending = newSum.toFixed(2)
     // Discount forgiven on this order (debt the customer no longer owes once charged).
     row.dataset.discountForgiven = (originalSum - newSum).toFixed(2)
+    // Front-only prefill rule: when paying a discounted order in cash, round the
+    // charged amount UP to the next hundred. Backend does NOT enforce this for
+    // credit (AllocatePayment) — partial payments must stay free-form.
+    const methodSelect = row.querySelector("[data-role='method-select']")
+    const isCash = methodSelect && methodSelect.value === "cash"
+    const hasDiscount = Math.abs(originalSum - newSum) > 0.001
+    const chargeable = (isCash && hasDiscount) ? Math.ceil(newSum / 100) * 100 : newSum
+
     const amountInput = row.querySelector("[data-role='amount-input']")
     const checkbox = row.querySelector("[data-role='include-checkbox']")
     if (checkbox.checked) {
-      amountInput.value = this.formatAmount(newSum)
+      amountInput.value = this.formatAmount(chargeable)
     }
   }
 
