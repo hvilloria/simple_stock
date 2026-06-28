@@ -27,8 +27,6 @@ Only includes behavior that is important for implementing features safely.
 * **Suppliers**: full `resources` (includes destroy).
 * **Invoices**: simple-mode UI only (see below): index/new/create/show/edit/update; **`pending`** list; **`mark_supplier_paid`**; member **`mark_as_paid`**, **`cancel`** (pending invoice → `cancelled` via controller `update`, no service).
 * **Credit notes**: full CRUD + **`supplier_invoices`** JSON for pending simple invoices by supplier — **direct ActiveRecord** in the controller (no dedicated service class).
-* **Sales ledger**: **`imports`** index/create/show → `SalesLedger::ImportCsv`; **`reports#index`** → `SalesLedger::Reports::{SummaryQuery,SalesByDateQuery,TopProductsQuery}`. All three queries accept an optional **`product_source`** filter (`local` / `importado`), validated in the controller against `Entry::PRODUCT_SOURCES` before use. `TopProductsQuery` ranks by **frequency** (`COUNT(DISTINCT ticket_number)`) not quantity, returns top 15, and exposes `product_source` via `MIN(product_source)` in the SELECT.
-
 ---
 
 ## Core flows
@@ -92,10 +90,6 @@ Only includes behavior that is important for implementing features safely.
 * **`Web::Customers::PaymentsController#new`** muestra una tabla con todas las órdenes pendientes; cada fila tiene checkbox de inclusión, monto editable, y método de pago propio. El submit POST recibe `params[:allocations]` indexado (`allocations[N][order_id|include|amount|payment_method]`) y delega en `Payments::AllocatePayment`. Stimulus controller (`payment_allocation_controller.js`) recalcula resumen en vivo y deshabilita submit si no hay órdenes tildadas.
 * **`payments` table** ya no tiene la columna `order_id` — la relación vive en `payment_allocations`.
 
-### Sales ledger
-
-* **`SalesLedger::ImportCsv`** writes import batches + ledger entries; it **does not** create **`Order`**, **`StockMovement`**, or **`Payment`** (see comments in the service).
-
 ---
 
 ## Key constraints
@@ -118,8 +112,6 @@ Only includes behavior that is important for implementing features safely.
 * **Inventory:** `Inventory::AdjustStock`, `Inventory::MarkDelivered`
 * **Invoices:** `Invoices::CreateSimpleInvoice`, `Invoices::MarkAsPaid`, `Invoices::ProcessPayment`
 * **Payments:** `Payments::AllocatePayment`, `Payments::CollectSaleNote`, `Payments::CollectOnAccount`
-* **Sales ledger:** `SalesLedger::ImportCsv`; report query objects under **`SalesLedger::Reports::`** (from `Web::SalesLedger::ReportsController`)
-
 **Present in codebase but not wired to `Web::` controllers:** `Purchasing::CreatePurchase`, `Purchasing::CancelPurchase`, **`Inventory::SyncFromCsv`** (invoked from **`lib/tasks/inventory.rake`**, not from HTTP).
 
 ---
@@ -134,4 +126,4 @@ Only includes behavior that is important for implementing features safely.
 
 ## Notes
 
-* For behavior, **read the service (or controller action) in question** — “thin controller” is the norm for orders and ledger imports, but invoices/credit notes mix services and direct updates.
+* For behavior, **read the service (or controller action) in question** — “thin controller” is the norm for orders, but invoices/credit notes mix services and direct updates.
