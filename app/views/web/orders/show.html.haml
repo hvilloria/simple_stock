@@ -58,10 +58,10 @@
             
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Fecha
-              %span.text-base.font-medium.text-gray-900= l(@order.created_at, format: :long)
+              %span.text-base.font-medium.text-gray-900= l(@order.sale_date, format: :long)
               %span.text-sm.text-gray-500.mt-1
                 Hace
-                = time_ago_in_words(@order.created_at)
+                = time_ago_in_words(@order.sale_date)
 
           -# Columna 2
           .space-y-4
