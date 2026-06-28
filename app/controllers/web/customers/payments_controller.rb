@@ -54,7 +54,9 @@ module Web
 
         rows.to_unsafe_h.values.filter_map do |row|
           next if row[:include] != "1"
-          next if row[:amount].blank? || row[:amount].to_f <= 0
+
+          amount = parse_amount(row[:amount])
+          next if row[:amount].blank? || amount <= 0
 
           discounts_hash =
             if row[:discounts].respond_to?(:to_unsafe_h)
@@ -65,11 +67,17 @@ module Web
 
           {
             order_id: row[:order_id],
-            amount: row[:amount].to_f,
+            amount: amount,
             payment_method: row[:payment_method],
             item_discounts: discounts_hash.transform_values { |v| v.to_f }
           }
         end
+      end
+
+      # Parses an Argentine-formatted amount (e.g. "80.000,00") into a Float.
+      # Mirrors Web::PaymentsOnAccount::PaymentsController#parse_amount.
+      def parse_amount(raw)
+        raw.to_s.gsub(".", "").tr(",", ".").to_f
       end
     end
   end
