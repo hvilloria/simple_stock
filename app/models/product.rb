@@ -37,7 +37,7 @@ class Product < ApplicationRecord
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
-  ORIGINS = %w[japan china taiwan usa germany korea brazil india].freeze
+  ORIGINS = %w[japan china taiwan usa germany korea brazil india thailand canada].freeze
   PRODUCT_TYPES = %w[oem aftermarket].freeze
 
   # Physical location format in the warehouse
