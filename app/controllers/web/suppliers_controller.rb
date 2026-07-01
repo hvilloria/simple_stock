@@ -38,7 +38,7 @@ module Web
     def update
       authorize @supplier
 
-      # No permitir cambiar el nombre
+      # Do not allow changing the name
       update_params = supplier_params.except(:name)
 
       if @supplier.update(update_params)

@@ -2,7 +2,7 @@
 
 class PaymentPolicy < ApplicationPolicy
   def index?
-    user.caja? || user.admin?  # Caja y admin ven pagos
+    user.caja? || user.admin?  # Caja and admin view payments
   end
 
   def show?
@@ -10,7 +10,7 @@ class PaymentPolicy < ApplicationPolicy
   end
 
   def create?
-    user.caja? || user.admin?  # Caja y admin registran pagos
+    user.caja? || user.admin?  # Caja and admin register payments
   end
 
   def new?
@@ -18,10 +18,10 @@ class PaymentPolicy < ApplicationPolicy
   end
 
   def update?
-    false  # No se editan pagos
+    false  # Payments are not edited
   end
 
   def destroy?
-    false  # No se eliminan pagos
+    false  # Payments are not deleted
   end
 end

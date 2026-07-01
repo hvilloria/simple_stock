@@ -2,7 +2,7 @@
 
 .container.mx-auto.px-6.py-6
 
-  -# Header con navegación
+  -# Header with navigation
   .flex.items-center.justify-between.mb-6
     = link_to web_orders_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
       %span ←
@@ -10,7 +10,7 @@
     
     %h1.text-3xl.font-bold.text-gray-900 Nueva Venta
 
-  -# Mostrar errores si existen
+  -# Show errors if any
   - if flash[:alert]
     .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -23,17 +23,17 @@
   = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form", order_form_initial_items_value: initial_items.to_json } do |f|
     = hidden_field_tag :source, "from_paper"
 
-    -# Campos de ventas-lite
+    -# Sales-lite fields
     .bg-white.border.border-slate-200.rounded-lg.p-6.mb-6
       %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Venta
       
       .grid.grid-cols-1.md:grid-cols-2.gap-4
-        -# Campo de fecha de venta (editable, default hoy)
+        -# Sale date field (editable, default today)
         %div
           = label_tag :sale_date, "Fecha de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
           = date_field_tag :sale_date, Date.current, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
         
-        -# Campo de número de talonario
+        -# Receipt book number field
         %div
           = label_tag :paper_number, class: "block text-sm font-medium text-gray-700 mb-2" do
             N° Talonario
@@ -43,15 +43,15 @@
     
     .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-      -# ============ Columna izquierda: Cliente + Productos ============
+      -# ============ Left column: Customer + Products ============
       .lg:col-span-2.space-y-6
 
-        -# Card - Información del Cliente
+        -# Customer info card
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 Información del Cliente
 
           .space-y-4
-            -# Tipo de venta (radio buttons visuales)
+            -# Sale type (visual radio buttons)
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-3 Tipo de Venta
               .grid.grid-cols-1.md:grid-cols-3.gap-4
@@ -76,7 +76,7 @@
                     %p.font-medium.text-gray-900 🤝 Pago a cuenta
                     %p.text-xs.text-gray-500 Entrega parcial
 
-            -# Datos de contacto (solo para pago a cuenta)
+            -# Contact data (only for on-account payment)
             %div.hidden{ data: { "order-form-target": "contactSection" } }
               .grid.grid-cols-1.md:grid-cols-2.gap-4
                 %div
@@ -86,7 +86,7 @@
                   = label_tag :contact_phone, "Teléfono de Contacto", class: "block text-sm font-medium text-gray-700 mb-2"
                   = text_field_tag :contact_phone, nil, placeholder: "Ej: 11 5555 1234", inputmode: "numeric", data: { controller: "phone-input", action: "input->phone-input#format" }, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
-            -# Selector de cliente
+            -# Customer selector
             - customer_options = [["Cliente Mostrador", "mostrador", { "data-has-credit-account" => "false" }]]
             - @customers.each do |c|
               - customer_options << ["#{c.name}#{c.has_credit_account? ? ' (Cuenta Corriente)' : ''}", c.id, { "data-has-credit-account" => c.has_credit_account.to_s }]
@@ -95,21 +95,21 @@
               = f.select :customer_id, options_for_select(customer_options, "mostrador"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all", data: { action: "change->order-form#customerChanged" }
               %p.text-xs.text-gray-500.mt-1 Para ventas a crédito, selecciona un cliente con cuenta corriente
 
-            -# Canal de venta
+            -# Sales channel
             %div
               = f.label :channel, "Canal de Venta", class: "block text-sm font-medium text-gray-700 mb-2"
               = f.select :channel, options_for_select([["🏪 Mostrador", "counter"], ["💬 WhatsApp", "whatsapp"], ["🛒 Mercado Libre", "mercadolibre"]], "counter"), {}, class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
-        -# Card - Productos
+        -# Products card
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
 
-          -# Search input con dropdown
+          -# Search input with dropdown
           %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
             %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
             %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
 
-          -# Lista de productos agregados
+          -# List of added products
           .mt-6
             #order-items{ data: { 'order-form-target': 'items' } }
               .text-center.py-12.text-gray-400
@@ -117,12 +117,12 @@
                 %p.text-gray-600.font-medium No hay productos agregados
                 %p.text-sm.text-gray-500.mt-1 Buscá y seleccioná productos usando el campo de arriba
 
-      -# ============ Columna derecha: Resumen sticky ============
+      -# ============ Right column: Sticky summary ============
       .lg:col-span-1
         .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
           %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen de Venta
 
-          -# Total principal (calculado dinámicamente)
+          -# Main total (calculated dynamically)
           .text-center.mb-6
             %p.text-sm.text-gray-500.mb-2 Total
             %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0

@@ -118,9 +118,9 @@ RSpec.describe Product, type: :model do
       end
 
       it 'allows blank origin for aftermarket products (relaxed for CSV import)' do
-        # La validación de origin para aftermarket está deshabilitada intencionalmente
-        # para permitir que el importador de ventas cree productos sin origin conocido.
-        # Ver: app/models/product.rb — validación comentada con nota explicativa.
+        # The origin validation for aftermarket is intentionally disabled
+        # to allow the sales importer to create products without a known origin.
+        # See: app/models/product.rb — validation commented out with an explanatory note.
         product = build(:product, product_type: 'aftermarket', origin: nil)
         expect(product).to be_valid
       end
@@ -544,7 +544,7 @@ RSpec.describe Product, type: :model do
 
         product.recalculate_average_cost!
 
-        # Solo cuenta purchase1
+        # Only counts purchase1
         expect(product.reload.cost_unit).to eq(10.0)
       end
     end

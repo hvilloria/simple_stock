@@ -9,7 +9,7 @@ FactoryBot.define do
     notes { nil }
     has_items { true }
 
-    # Por defecto crea en full mode para compatibilidad con tests existentes
+    # By default creates in full mode for compatibility with existing tests
     after(:build) do |invoice, evaluator|
       if invoice.has_items? && invoice.invoice_items.empty?
         invoice.invoice_items.build(
@@ -37,7 +37,7 @@ FactoryBot.define do
       has_items { false }
 
       after(:build) do |invoice|
-        # Limpiar invoice_items para simple mode
+        # Clear invoice_items for simple mode
         invoice.invoice_items.clear
       end
     end

@@ -39,8 +39,8 @@ class Customer < ApplicationRecord
     )
   }
 
-  # Retorna el cliente genérico para ventas de mostrador (contado)
-  # Según FLUJOS.md sección 1: cliente genérico para consumidores finales
+  # Returns the generic customer for counter sales (cash)
+  # Per FLUJOS.md section 1: generic customer for end consumers
   def self.mostrador
     find_or_create_by!(name: "Cliente Mostrador") do |c|
       c.customer_type = "retail"

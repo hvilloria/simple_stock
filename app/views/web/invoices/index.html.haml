@@ -2,7 +2,7 @@
 
 .container.mx-auto.px-6.py-6
 
-  -# Header con navegación
+  -# Header with navigation
   .flex.items-center.justify-between.mb-6
     %h1.text-3xl.font-bold.text-gray-900 Facturas de Proveedores
     
@@ -10,33 +10,33 @@
       %span +
       %span Nueva Factura
 
-  -# Card de Filtros
+  -# Filters card
   .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
     = form_with url: web_invoices_path, method: :get, data: { controller: "filter-form", turbo_frame: "invoices_content" }, class: "flex flex-col md:flex-row items-stretch md:items-center gap-4" do |f|
       
-      -# Búsqueda por número de factura
+      -# Search by invoice number
       .flex-1
         = text_field_tag :invoice_search, params[:invoice_search], 
                          placeholder: "🔍 Buscar por N° de factura (ej: 001)...", 
                          class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
                          data: { action: "input->filter-form#submitWithDebounce" }
       
-      -# Dropdown de proveedores
+      -# Suppliers dropdown
       .flex-1
         = select_tag :supplier_id, options_for_select([["🔍 Filtrar por proveedor...", ""]] + @suppliers.map { |s| [s.name, s.id] }, @selected_supplier&.id), class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { action: "change->filter-form#submit" }
       
-      -# Botón limpiar (visible solo si hay filtros activos)
+      -# Clear button (visible only if there are active filters)
       - if @selected_supplier || params[:invoice_search].present?
         .flex.items-center.gap-2
           = link_to web_invoices_path, class: "inline-flex items-center justify-center px-3 py-2 text-slate-600 text-sm font-medium hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" do
             %span ✕
             %span Limpiar
 
-  -# Turbo Frame para recargar solo el contenido (no el formulario)
+  -# Turbo Frame to reload only the content (not the form)
   = turbo_frame_tag "invoices_content" do
     -# Metric Cards
     %div.grid.grid-cols-1.md:grid-cols-2.lg:grid-cols-3.gap-6.mb-6
-      -# Card 1: Deuda Total Pendiente
+      -# Card 1: Total pending debt
       %div{ class: "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all p-6" }
         .flex.items-start.justify-between.mb-4
           .flex-1
@@ -52,7 +52,7 @@
             = Invoice.simple_mode.pending_payment.for_supplier(@selected_supplier).search_invoice(params[:invoice_search]).count
           %span facturas pendientes
 
-      -# Card 2: Crédito a Favor
+      -# Card 2: Credit balance
       %div{ class: "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all p-6" }
         .flex.items-start.justify-between.mb-4
           .flex-1
@@ -69,7 +69,7 @@
             = @credit_notes_count
           %span notas de crédito
 
-      -# Card 3: Balance Neto
+      -# Card 3: Net balance
       %div{ class: "bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all p-6" }
         .flex.items-start.justify-between.mb-4
           .flex-1
@@ -83,7 +83,7 @@
         .text-sm.text-gray-500
           %span Deuda - Crédito
 
-    -# Mostrar mensaje de éxito si existe
+    -# Show success message if any
     - if flash[:notice]
       .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
         .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -92,7 +92,7 @@
           %h4.font-semibold.text-green-800.mb-1 Éxito
           %p.text-sm.text-green-700= flash[:notice]
 
-    -# Mostrar alerta si existe
+    -# Show alert if any
     - if flash[:alert]
       .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
         .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -101,7 +101,7 @@
           %h4.font-semibold.text-red-800.mb-1 Error
           %p.text-sm.text-red-700= flash[:alert]
 
-    -# Lista de facturas
+    -# Invoice list
     - if @invoices.any?
       .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
         %table.min-w-full.divide-y.divide-slate-200
@@ -195,17 +195,17 @@
           %span +
           %span Nueva Factura
 
-    -# Paginación
+    -# Pagination
     - if @pagy.pages > 1
       .flex.items-center.justify-center.gap-1.mt-6.pb-2
-        -# Anterior
+        -# Previous
         - if @pagy.prev
           = link_to pagy_url_for(@pagy, @pagy.prev), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" do
             ← Anterior
         - else
           %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed ← Anterior
 
-        -# Páginas numeradas
+        -# Numbered pages
         - @pagy.series.each do |item|
           - if item.is_a?(Integer)
             = link_to item, pagy_url_for(@pagy, item), class: "inline-flex items-center justify-center w-9 h-9 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
@@ -214,7 +214,7 @@
           - elsif item == :gap
             %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.text-slate-400 …
 
-        -# Siguiente
+        -# Next
         - if @pagy.next
           = link_to pagy_url_for(@pagy, @pagy.next), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" do
             Siguiente →

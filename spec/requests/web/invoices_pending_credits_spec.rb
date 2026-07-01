@@ -34,7 +34,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Scenario 1: factura $100k, NC $50k — NC se aplica completamente
+  # Scenario 1: invoice $100k, NC $50k — NC is applied in full
   # ─────────────────────────────────────────────────────────────────
   describe "Scenario 1: invoice $100k, single NC $50k" do
     let!(:invoice) { invoice_this_week(amount: 100_000, number: "FAC-SC1") }
@@ -68,7 +68,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Scenario 2: factura $100k, 2 NCs de $50k — ambas seleccionadas
+  # Scenario 2: invoice $100k, 2 NCs of $50k — both selected
   # ─────────────────────────────────────────────────────────────────
   describe "Scenario 2: invoice $100k, two NCs of $50k each" do
     let!(:invoice) { invoice_this_week(amount: 100_000, number: "FAC-SC2") }
@@ -94,8 +94,8 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Scenario 3: factura $100k, NC $150k — NC capea al monto de la factura
-  # La NC queda con $50k de saldo disponible
+  # Scenario 3: invoice $100k, NC $150k — NC caps at the invoice amount
+  # The NC is left with $50k of available balance
   # ─────────────────────────────────────────────────────────────────
   describe "Scenario 3: invoice $100k, NC $150k (service caps to invoice amount)" do
     let!(:invoice) { invoice_this_week(amount: 100_000, number: "FAC-SC3") }
@@ -118,8 +118,8 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Scenario 4: factura $100k, 2 NCs de $100k — solo se selecciona la primera
-  # La segunda NC debe quedar intacta
+  # Scenario 4: invoice $100k, 2 NCs of $100k — only the first is selected
+  # The second NC must remain untouched
   # ─────────────────────────────────────────────────────────────────
   describe "Scenario 4: invoice $100k, two NCs of $100k (only first selected)" do
     let!(:invoice) { invoice_this_week(amount: 100_000, number: "FAC-SC4") }
@@ -144,10 +144,10 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Scenario 5: 2 facturas ($60k + $40k), NC $80k — distribución automática
-  # ProcessPayment distribuye internamente:
-  #   FAC-A: aplica min(80k, 60k) = 60k → NC restante = 20k
-  #   FAC-B: aplica min(20k, 40k) = 20k → NC restante = 0
+  # Scenario 5: 2 invoices ($60k + $40k), NC $80k — automatic distribution
+  # ProcessPayment distributes internally:
+  #   FAC-A: applies min(80k, 60k) = 60k → remaining NC = 20k
+  #   FAC-B: applies min(20k, 40k) = 20k → remaining NC = 0
   # ─────────────────────────────────────────────────────────────────
   describe "Scenario 5: two invoices ($60k + $40k), NC $80k distributed automatically" do
     let!(:invoice1) { invoice_this_week(amount: 60_000, number: "FAC-A") }
@@ -179,7 +179,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Escenario de rechazo: NC de otro proveedor
+  # Rejection scenario: NC from another supplier
   # ─────────────────────────────────────────────────────────────────
   describe "Rejection: NC from a different supplier" do
     let(:other_supplier) { create(:supplier) }
@@ -207,7 +207,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Sin credit_note_ids — pago directo sin créditos
+  # Without credit_note_ids — direct payment without credits
   # ─────────────────────────────────────────────────────────────────
   describe "No credit_note_ids param (direct payment)" do
     let!(:invoice) { invoice_this_week(amount: 50_000, number: "FAC-DIR") }

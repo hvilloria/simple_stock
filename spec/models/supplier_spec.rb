@@ -133,7 +133,7 @@ RSpec.describe Supplier, type: :model do
       invoice = create(:invoice, :simple_mode, supplier: supplier, amount: 1000, currency: "ARS", status: "pending")
       create(:applied_credit, credit_note: exhausted, invoice: invoice, amount: 1000)
 
-      # Solo cuenta la nota con saldo disponible, no la agotada
+      # Only counts the note with available balance, not the exhausted one
       expect(supplier.credit_notes_count).to eq(1)
     end
 

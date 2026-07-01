@@ -1,14 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Formatea en vivo un input de teléfono argentino mientras se tipea.
-// Optimizado para números de 10 dígitos (código de área de 2 + local de 8):
+// Live-formats an Argentine phone input as it is typed.
+// Optimized for 10-digit numbers (2-digit area code + 8-digit local):
 //   1155551234 → "11 5555-1234"
-// El backend normaliza a solo dígitos al guardar (Order#normalize_contact_phone),
-// así que el formato visual no afecta el valor persistido.
-// Uso: data-controller="phone-input" data-action="input->phone-input#format"
+// The backend normalizes to digits only when saving (Order#normalize_contact_phone),
+// so the visual format does not affect the persisted value.
+// Usage: data-controller="phone-input" data-action="input->phone-input#format"
 export default class extends Controller {
   connect() {
-    // Formatea cualquier valor pre-cargado (ej. al re-renderizar tras un error).
+    // Formats any pre-loaded value (e.g. when re-rendering after an error).
     this.format()
   }
 
@@ -21,7 +21,7 @@ export default class extends Controller {
     if (d.length <= 2) return d
     if (d.length <= 6) return `${d.slice(0, 2)} ${d.slice(2)}`
     if (d.length <= 10) return `${d.slice(0, 2)} ${d.slice(2, 6)}-${d.slice(6)}`
-    // Más de 10 dígitos: patrón de 10 + el resto al final.
+    // More than 10 digits: 10-digit pattern + the rest at the end.
     return `${d.slice(0, 2)} ${d.slice(2, 6)}-${d.slice(6, 10)} ${d.slice(10)}`
   }
 }

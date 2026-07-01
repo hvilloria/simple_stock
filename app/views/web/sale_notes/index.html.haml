@@ -27,17 +27,17 @@
           = link_to "Cobrar", new_web_sale_note_payment_path(note),
                     class: "px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl"
 
-    -# Paginación
+    -# Pagination
     - if @pagy.pages > 1
       .flex.items-center.justify-center.gap-1.mt-6.pb-2
-        -# Anterior
+        -# Previous
         - if @pagy.prev
           = link_to pagy_url_for(@pagy, @pagy.prev), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" do
             ← Anterior
         - else
           %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed ← Anterior
 
-        -# Páginas numeradas
+        -# Numbered pages
         - @pagy.series.each do |item|
           - if item.is_a?(Integer)
             = link_to item, pagy_url_for(@pagy, item), class: "inline-flex items-center justify-center w-9 h-9 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
@@ -46,7 +46,7 @@
           - elsif item == :gap
             %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.text-slate-400 …
 
-        -# Siguiente
+        -# Next
         - if @pagy.next
           = link_to pagy_url_for(@pagy, @pagy.next), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" do
             Siguiente →

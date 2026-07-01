@@ -18,7 +18,7 @@
       -# LEFT column
       .space-y-4
 
-        -# Productos read-only
+        -# Read-only products
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           .flex.items-baseline.justify-between.mb-3
             %h3.text-sm.font-semibold.text-slate-900 Productos
@@ -43,7 +43,7 @@
                     - else
                       %span.text-xs.text-slate-400 pendiente
 
-        -# Monto a cancelar
+        -# Amount to settle
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           %h3.text-sm.font-semibold.text-slate-900.mb-1 Monto a cancelar de la cuenta
           %p.text-xs.text-slate-500.mb-3 Cuánto de la deuda salda el cliente en esta visita
@@ -52,7 +52,7 @@
               data: { "on-account-payment-target": "amount", controller: "currency-input", action: "blur->currency-input#format focus->currency-input#unformat input->on-account-payment#recalculate" },
               class: "w-44 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right bg-white"
 
-        -# Forma de pago
+        -# Payment method
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           %h3.text-sm.font-semibold.text-slate-900.mb-3 Forma de pago
           = select_tag :payment_method,
@@ -60,7 +60,7 @@
               data: { "on-account-payment-target": "tenderMethod", action: "change->on-account-payment#recalculate" },
               class: "w-full px-3 py-2 border border-slate-300 rounded-xl text-sm"
 
-        -# Descuento
+        -# Discount
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           %h3.text-sm.font-semibold.text-slate-900.mb-1 Descuento
           %p.text-xs.text-slate-500.mb-3{ data: { "on-account-payment-target": "discountHelper" } }

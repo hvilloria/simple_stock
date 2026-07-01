@@ -2,7 +2,7 @@
 
 class ProductPolicy < ApplicationPolicy
   def index?
-    true  # Todos pueden ver productos
+    true  # Everyone can view products
   end
 
   def show?
@@ -18,7 +18,7 @@ class ProductPolicy < ApplicationPolicy
   end
 
   def update?
-    user.admin? || user.vendedor?  # Admin y vendedor editan productos; caja no
+    user.admin? || user.vendedor?  # Admin and vendedor edit products; caja does not
   end
 
   def edit?
@@ -26,14 +26,14 @@ class ProductPolicy < ApplicationPolicy
   end
 
   def destroy?
-    user.admin?  # Solo admin elimina productos
+    user.admin?  # Only admin deletes products
   end
 
   def adjust_stock?
-    user.admin?  # Solo admin ajusta stock manualmente
+    user.admin?  # Only admin adjusts stock manually
   end
 
   def search?
-    true  # Todos pueden buscar productos
+    true  # Everyone can search products
   end
 end

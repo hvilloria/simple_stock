@@ -1,5 +1,5 @@
 class User < ApplicationRecord
-  # Devise modules (solo authenticatable y trackable)
+  # Devise modules (only authenticatable and trackable)
   devise :database_authenticatable, :trackable
 
   # Enums

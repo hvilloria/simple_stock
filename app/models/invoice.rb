@@ -7,29 +7,29 @@ class Invoice < ApplicationRecord
   has_many :credit_notes, dependent: :restrict_with_error
   has_many :applied_credits, dependent: :destroy
 
-  # Enums - Expandir estados
+  # Enums - Expand states
   enum :status, {
-    pending: "pending",     # Factura pendiente de pago (modo simple)
-    paid: "paid",          # Factura pagada (modo simple)
-    confirmed: "confirmed", # Compra confirmada (modo completo)
-    cancelled: "cancelled"  # Cancelada
+    pending: "pending",     # Invoice pending payment (simple mode)
+    paid: "paid",          # Invoice paid (simple mode)
+    confirmed: "confirmed", # Purchase confirmed (full mode)
+    cancelled: "cancelled"  # Cancelled
   }, suffix: true
 
-  # === VALIDACIONES COMUNES ===
+  # === COMMON VALIDATIONS ===
   validates :currency, inclusion: { in: %w[USD ARS] }
   validates :exchange_rate, presence: true, if: :usd_currency?
   validates :exchange_rate, numericality: { greater_than: 0 }, allow_nil: true
   validates :purchase_date, presence: true
   validates :supplier_id, presence: true
 
-  # === VALIDACIONES MODO SIMPLE (has_items: false) ===
+  # === SIMPLE MODE VALIDATIONS (has_items: false) ===
   validates :invoice_number, presence: true, unless: :has_items?
   validates :due_date, presence: true, unless: :has_items?
   validates :amount, presence: true, unless: :has_items?
   validates :amount, numericality: { greater_than: 0 }, if: -> { !has_items? && amount.present? }
 
-  # === VALIDACIONES MODO COMPLETO (has_items: true) ===
-  # Validar invoice_items solo después de crear el invoice (no durante create)
+  # === FULL MODE VALIDATIONS (has_items: true) ===
+  # Validate invoice_items only after creating the invoice (not during create)
   validates :invoice_items, presence: true, if: -> { has_items? && !new_record? }, on: :update
 
   # === CALLBACKS ===
@@ -44,7 +44,7 @@ class Invoice < ApplicationRecord
   scope :due_soon, -> { simple_mode.where(status: "pending").where("due_date <= ?", 7.days.from_now.to_date) }
   scope :by_due_date, -> { order(due_date: :asc) }
 
-  # Nuevos scopes para métricas
+  # New scopes for metrics
   scope :due_today, -> { simple_mode.where(status: "pending").where(due_date: Date.current) }
   scope :due_this_week, -> {
     start_of_week = Date.current.beginning_of_week(:monday)
@@ -70,7 +70,7 @@ class Invoice < ApplicationRecord
     with_early_payment.where("early_payment_due_date >= ?", Date.current)
   }
 
-  # Facturas pendientes cuyo due_date O early_payment_due_date cae dentro del período
+  # Pending invoices whose due_date OR early_payment_due_date falls within the period
   scope :due_or_discount_in_period, ->(start_date, end_date) {
     base = simple_mode.where(status: "pending")
     base.where(due_date: start_date..end_date)
@@ -78,13 +78,13 @@ class Invoice < ApplicationRecord
                 .where("early_payment_due_date >= ?", Date.current))
   }
 
-  # Filtro por proveedor (acepta nil para "todos")
+  # Filter by supplier (accepts nil for "all")
   scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
 
-  # Búsqueda por número de factura (case-insensitive, partial match)
+  # Search by invoice number (case-insensitive, partial match)
   scope :search_invoice, ->(query) { where("invoice_number ILIKE ?", "%#{query}%") if query.present? }
 
-  # Ordenado por prioridad: 1) pending primero, 2) vencimiento más cercano
+  # Ordered by priority: 1) pending first, 2) nearest due date
   scope :priority_order, -> {
     order(
       Arel.sql("CASE WHEN status = 'pending' THEN 0 ELSE 1 END"),
@@ -93,18 +93,18 @@ class Invoice < ApplicationRecord
     )
   }
 
-  # === MÉTODOS DE CLASE (para métricas) ===
+  # === CLASS METHODS (for metrics) ===
 
-  # Calcula el total pendiente en ARS, opcionalmente filtrado por proveedor
-  # @param supplier [Supplier, nil] Proveedor para filtrar, o nil para todos
-  # @return [Float] Total en ARS
+  # Calculates the total pending amount in ARS, optionally filtered by supplier
+  # @param supplier [Supplier, nil] Supplier to filter by, or nil for all
+  # @return [Float] Total in ARS
   def self.total_pending_amount_ars(supplier: nil)
     scope = simple_mode.pending_payment
     scope = scope.for_supplier(supplier) if supplier
     scope.sum { |i| i.total_amount_ars }
   end
 
-  # === MÉTODOS MODO SIMPLE ===
+  # === SIMPLE MODE METHODS ===
 
   def simple_mode?
     !has_items?
@@ -114,16 +114,16 @@ class Invoice < ApplicationRecord
     has_items?
   end
 
-  # Total unificado (funciona para ambos modos)
+  # Unified total (works for both modes)
   def total_amount
     if has_items?
-      calculate_total  # Suma de items
+      calculate_total  # Sum of items
     else
-      amount  # Monto directo
+      amount  # Direct amount
     end
   end
 
-  # Total en ARS (funciona para ambos modos)
+  # Total in ARS (works for both modes)
   def total_amount_ars(include_discount: false)
     if currency == "USD"
       total_amount * (exchange_rate || 0)
@@ -162,13 +162,13 @@ class Invoice < ApplicationRecord
 
   # === EARLY PAYMENT METHODS ===
 
-  # Monto con descuento aplicado
+  # Amount with discount applied
   def amount_with_discount
     return amount unless early_payment_discount_percentage.present?
     amount * (1 - (early_payment_discount_percentage / 100.0))
   end
 
-  # Monto en ARS con descuento
+  # Amount in ARS with discount
   def amount_with_discount_ars
     if currency == "USD"
       amount_with_discount * (exchange_rate || 0)
@@ -177,13 +177,13 @@ class Invoice < ApplicationRecord
     end
   end
 
-  # ¿Es elegible para descuento en esta fecha?
+  # Is it eligible for a discount on this date?
   def eligible_for_discount?(payment_date = Date.current)
     return false unless early_payment_due_date.present?
     payment_date <= early_payment_due_date
   end
 
-  # Ahorro potencial si pago con descuento
+  # Potential savings if paid with discount
   def potential_savings
     return 0 unless early_payment_due_date.present?
     amount - amount_with_discount
@@ -197,13 +197,13 @@ class Invoice < ApplicationRecord
     end
   end
 
-  # Días hasta que expira el descuento
+  # Days until the discount expires
   def days_until_discount_expires
     return nil unless early_payment_due_date.present?
     (early_payment_due_date - Date.current).to_i
   end
 
-  # === MÉTODOS MODO COMPLETO (existentes) ===
+  # === FULL MODE METHODS (existing) ===
 
   # Calculate total cost from invoice items
   def calculate_total

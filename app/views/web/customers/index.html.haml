@@ -13,7 +13,7 @@
         %span +
         %span Nuevo Cliente
 
-  -# Mensajes
+  -# Messages
   - if flash[:notice]
     .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -30,7 +30,7 @@
         %h4.font-semibold.text-red-800.mb-1 Error
         %p.text-sm.text-red-700= flash[:alert]
 
-  -# Lista de clientes en tabla
+  -# Customer list in table
   - if @customers.any?
     .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
       %table.min-w-full.divide-y.divide-slate-200
@@ -54,7 +54,7 @@
         %tbody.divide-y.divide-slate-100.bg-white
           - @customers.each do |customer|
             %tr.hover:bg-slate-50.transition-colors
-              -# Nombre
+              -# Name
               %td.px-4.py-3.whitespace-nowrap
                 .flex.items-center.gap-3
                   .w-10.h-10.rounded-lg.bg-slate-100.flex.items-center.justify-center.text-xl.flex-shrink-0
@@ -62,26 +62,26 @@
                   %div
                     %p.text-sm.font-semibold.text-slate-900= customer.name
 
-              -# Tipo
+              -# Type
               %td.px-4.py-3.whitespace-nowrap
                 %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
                   = customer_type_labels[customer.customer_type] || customer.customer_type
 
-              -# Teléfono
+              -# Phone
               %td.px-4.py-3.whitespace-nowrap
                 - if customer.phone.present?
                   %span.text-sm.text-slate-700= customer.phone
                 - else
                   %span.text-xs.text-slate-400.italic -
 
-              -# Documento
+              -# Document
               %td.px-4.py-3.whitespace-nowrap
                 - if customer.document.present?
                   %span.text-sm.font-mono.text-slate-700= customer.document
                 - else
                   %span.text-xs.text-slate-400.italic -
 
-              -# Cuenta corriente
+              -# Current account
               %td.px-4.py-3.whitespace-nowrap.text-center
                 - if customer.has_credit_account?
                   %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-emerald-100.text-emerald-800
@@ -90,7 +90,7 @@
                   %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
                     No
 
-              -# Saldo
+              -# Balance
               %td.px-4.py-3.whitespace-nowrap.text-right
                 - if customer.has_credit_account?
                   - balance = customer.current_balance
@@ -103,7 +103,7 @@
                 - else
                   %span.text-xs.text-slate-400 —
 
-              -# Acciones
+              -# Actions
               %td.px-4.py-3.whitespace-nowrap.text-center
                 .flex.items-center.justify-center.gap-2
                   = link_to web_customer_path(customer), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Ver detalle" do

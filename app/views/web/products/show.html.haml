@@ -2,7 +2,7 @@
 
 .max-w-7xl.mx-auto
 
-  -# Header con navegación
+  -# Header with navigation
   .flex.items-center.justify-between.mb-6
     = link_to web_products_path, class: "inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors" do
       %span ←
@@ -14,28 +14,28 @@
         = link_to edit_web_product_path(@product), class: "btn-primary" do
           %span Editar Producto
 
-  -# Alert si producto inactivo
+  -# Alert if product inactive
   - unless @product.active?
     .mb-6.rounded-xl.border-l-4.border-amber-500.bg-amber-50.p-4
       .flex.gap-3.items-center
         .text-2xl ⚠
         %p.text-sm.font-medium.text-amber-800 Este producto está inactivo
 
-  -# Grid principal
+  -# Main grid
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     
-    -# COLUMNA IZQUIERDA
+    -# LEFT COLUMN
     .lg:col-span-2.space-y-6
       
-      -# Card 1 - Información Principal
+      -# Card 1 - Main info
       .bg-white.border.border-slate-200.rounded-lg.p-6
-        -# SKU y Nombre
+        -# SKU and name
         %h1.font-mono.text-2xl.font-bold.text-slate-900.mb-2= @product.sku
         %p.text-xl.text-slate-600.mb-4= @product.name
         
         -# Badges
         .flex.flex-wrap.gap-2.mb-6
-          -# Badge de estado
+          -# Status badge
           - if @product.active?
             %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-emerald-100.text-emerald-800
               ✓
@@ -44,7 +44,7 @@
             %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
               Inactivo
           
-          -# Badge de tipo
+          -# Type badge
           - if @product.oem?
             %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-blue-100.text-blue-800
               Original
@@ -52,21 +52,21 @@
             %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-purple-100.text-purple-800
               Alternativo
           
-          -# Badge de origen
+          -# Origin badge
           - if @product.origin.present?
             %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
               🌍
               = @product.origin.titleize
           
-          -# Badge de categoría
+          -# Category badge
           - if @product.category.present?
             %span.inline-flex.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
               = @product.category.titleize
         
-        -# Separador
+        -# Separator
         .border-t.border-slate-200.my-6
         
-        -# Grid de información
+        -# Info grid
         .grid.grid-cols-2.gap-4.mb-6
           .div
             %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Marca
@@ -87,10 +87,10 @@
             - else
               %p.text-sm.text-slate-900 Sin especificar
         
-        -# Separador
+        -# Separator
         .border-t.border-slate-200.my-6
         
-        -# Información Financiera
+        -# Financial info
         .div
           %h3.text-base.font-semibold.text-slate-900.mb-4 Información Financiera
           
@@ -120,7 +120,7 @@
             
             %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
       
-      -# Card 2 - Movimientos Recientes
+      -# Card 2 - Recent movements
       .bg-white.border.border-slate-200.rounded-lg
         .px-6.py-4.border-b.border-slate-200
           %h3.text-base.font-semibold.text-slate-900 Movimientos de Stock Recientes
@@ -132,7 +132,7 @@
                 .flex.items-center.justify-between
                   .flex-1
                     .flex.items-center.gap-3.mb-1
-                      -# Badge de tipo
+                      -# Type badge
                       - case movement.movement_type
                       - when 'sale'
                         %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-red-100.text-red-700
@@ -144,11 +144,11 @@
                         %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-amber-100.text-amber-700
                           Ajuste
                       
-                      -# Fecha y hora
+                      -# Date and time
                       %span.text-xs.text-slate-500
                         = l(movement.created_at, format: :short)
                     
-                    -# Referencia
+                    -# Reference
                     - if movement.reference.present?
                       %p.text-sm.text-slate-600
                         - if movement.reference_type == 'Order'
@@ -160,7 +160,7 @@
                     - elsif movement.note.present?
                       %p.text-sm.text-slate-600= movement.note
                   
-                  -# Cantidad
+                  -# Quantity
                   .text-right
                     %p.text-base.font-bold{class: movement.quantity >= 0 ? 'text-emerald-600' : 'text-red-600'}
                       = movement.quantity >= 0 ? "+#{movement.quantity}" : movement.quantity
@@ -172,17 +172,17 @@
             .text-4xl.mb-3 📦
             %p.text-sm.text-slate-500 Sin movimientos de stock aún
     
-    -# COLUMNA DERECHA
+    -# RIGHT COLUMN
     .lg:col-span-1
       .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
         %h3.text-base.font-semibold.text-slate-900.mb-6 Stock Actual
         
-        -# Número de stock grande
+        -# Large stock number
         .text-center.mb-6
           %p.text-5xl.font-bold.mb-3{class: @product.current_stock > 10 ? 'text-emerald-600' : (@product.current_stock > 0 ? 'text-amber-600' : 'text-red-600')}
             = @product.current_stock || 0
           
-          -# Badge de estado
+          -# Status badge
           - if @product.current_stock > 10
             %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-emerald-100.text-emerald-800
               ✓
@@ -196,10 +196,10 @@
               ✕
               Sin Stock
         
-        -# Separador
+        -# Separator
         .border-t.border-slate-200.my-6
         
-        -# Ubicación física
+        -# Physical location
         .mb-6
           %p.text-xs.font-medium.text-slate-500.uppercase.mb-2 Ubicación en Depósito
           - if @product.location_code.present?
@@ -211,10 +211,10 @@
               %p.text-sm.text-amber-700.text-center.font-medium
                 ⚠️ Sin ubicación asignada
         
-        -# Separador
+        -# Separator
         .border-t.border-slate-200.my-6
         
-        -# Info adicional
+        -# Additional info
         .space-y-3.text-sm
           .div
             %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Creado
