@@ -16,7 +16,7 @@ module Web
       result = Sales::CancelOrder.call(order: @note, reason: "Cancelada desde caja")
 
       if result.success?
-        redirect_to web_sale_notes_path, notice: "Nota ##{@note.id} cancelada"
+        redirect_to web_sale_notes_path, notice: "Nota #{@note.paper_number} cancelada"
       else
         redirect_to web_sale_notes_path, alert: result.errors.join(", ")
       end
