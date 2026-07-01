@@ -2,7 +2,7 @@
 
 .container.mx-auto.px-6.py-6
 
-  -# Header con botón volver y acción
+  -# Header with back button and action
   .flex.items-center.justify-between.mb-6
     = link_to web_orders_path, class: "inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors" do
       %span ←
@@ -13,7 +13,7 @@
         %span ✕
         %span Cancelar Venta
 
-  -# Banner de alerta si está cancelada
+  -# Alert banner if cancelled
   - if @order.cancelled_status?
     .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -24,20 +24,20 @@
           Esta venta fue cancelada el
           = l(@order.updated_at, format: :long)
 
-  -# Grid principal de 2 columnas
+  -# Main 2-column grid
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-    -# ============ COLUMNA IZQUIERDA (2/3) ============
+    -# ============ LEFT COLUMN (2/3) ============
     .lg:col-span-2.space-y-6
 
-      -# CARD 1 - Información Principal
+      -# CARD 1 - Main info
       .bg-white.rounded-2xl.shadow-soft.p-6{ class: @order.cancelled_status? ? 'opacity-75' : '' }
         .flex.items-center.justify-between.mb-6
           %h3.text-lg.font-semibold.text-gray-900 Información de la Venta
 
         .grid.grid-cols-1.md:grid-cols-2.gap-6
 
-          -# Columna 1
+          -# Column 1
           .space-y-4
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 ID Venta
@@ -63,7 +63,7 @@
                 Hace
                 = time_ago_in_words(@order.sale_date)
 
-          -# Columna 2
+          -# Column 2
           .space-y-4
             .flex.flex-col
               %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Estado
@@ -116,7 +116,7 @@
           %label.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Registrado por
           %span.text-sm.text-gray-700= @order.user.name
 
-      -# CARD 2 - Productos Vendidos
+      -# CARD 2 - Sold products
       .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
         .px-6.py-4.border-b.border-gray-100
           %h3.text-lg.font-semibold.text-gray-900
@@ -178,7 +178,7 @@
                 %td.px-6.py-4.text-right
                   %span.text-xl.font-bold.text-gray-900= currency_ar(@order.total_amount)
 
-      -# CARD - Resumen de Pagos
+      -# CARD - Payments summary
       .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
         .px-6.py-4.border-b.border-gray-100
           %h3.text-lg.font-semibold.text-gray-900 Resumen de Pagos
@@ -227,7 +227,7 @@
                 %p.text-xs.font-medium.text-gray-500.uppercase.tracking-wider.mb-1 Pendiente
                 %p.text-2xl.font-bold.text-amber-600= currency_ar(@order.outstanding_balance)
 
-      -# CARD 3 - Movimientos de Stock
+      -# CARD 3 - Stock movements
       .bg-white.rounded-2xl.shadow-soft.overflow-hidden{ class: @order.cancelled_status? ? 'opacity-75' : '' }
         .px-6.py-4.border-b.border-gray-100
           %h3.text-lg.font-semibold.text-gray-900 Movimientos de Stock Relacionados
@@ -275,12 +275,12 @@
               📦
             %p.text-sm.text-gray-500 Sin movimientos de stock registrados
 
-    -# ============ COLUMNA DERECHA (1/3) ============
+    -# ============ RIGHT COLUMN (1/3) ============
     .lg:col-span-1
       .bg-white.rounded-2xl.shadow-soft.p-6.sticky.top-24{ class: @order.cancelled_status? ? 'opacity-75' : '' }
         %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen
 
-        -# Total principal
+        -# Main total
         .text-center.mb-6
           %p.text-sm.text-gray-500.mb-2 Total de la Venta
           %p.text-4xl.font-bold.text-gray-900= currency_ar(@order.total_amount)
@@ -311,7 +311,7 @@
               %span.text-gray-600 Subtotal
               %span.font-medium.text-gray-900= currency_ar(@order.total_amount)
 
-        -# Análisis de Costos
+        -# Cost analysis
         .border-t.border-gray-200.py-4
           %h4.text-sm.font-semibold.text-gray-900.mb-3 Análisis de Costos
 
@@ -339,7 +339,7 @@
             
             %p.text-xs.text-gray-500.italic.mt-2 Basado en costos promedio
 
-        -# Info del cliente (solo si es venta a crédito)
+        -# Customer info (only if credit sale)
         - if @order.credit_order_type? && @order.customer
           .border-t.border-gray-200.py-4
             %h4.text-sm.font-semibold.text-gray-900.mb-3 Info del Cliente
@@ -358,7 +358,7 @@
               %span.inline-flex.items-center.gap-1.px-2.py-1.rounded.text-xs.font-medium.bg-yellow-100.text-yellow-800.mt-2
                 ⚠ Revisar saldo
 
-        -# Botón de acción
+        -# Action button
         .border-t.border-gray-200.py-4
           - if !@order.cancelled_status?
             = button_to cancel_web_order_path(@order), method: :post, data: { turbo_confirm: "¿Estás seguro de cancelar esta venta?" }, class: "btn-danger w-full" do
@@ -368,7 +368,7 @@
             .text-center
               %span.inline-flex.px-4.py-2.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800 Cancelada
 
-        -# Metadatos
+        -# Metadata
         .border-t.border-gray-200.pt-4.space-y-2
           .text-xs.text-gray-500
             %span.font-medium Creado:

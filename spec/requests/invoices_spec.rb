@@ -18,7 +18,7 @@ RSpec.describe "Invoices", type: :request do
           invoice_number: "FAC-ARS-001",
           amount: "5000",
           currency: "ARS",
-          exchange_rate: "", # Campo vacío cuando es ARS
+          exchange_rate: "", # Empty field when it is ARS
           purchase_date: Date.current.to_s,
           due_date: 30.days.from_now.to_date.to_s,
           notes: "Test invoice in ARS"
@@ -50,9 +50,9 @@ RSpec.describe "Invoices", type: :request do
         {
           supplier_id: supplier.id,
           invoice_number: "FAC-USD-001",
-          amount: "1000.00", # Formato limpio que envía JS (ya convertido de argentino)
+          amount: "1000.00", # Clean format sent by JS (already converted from Argentine)
           currency: "USD",
-          exchange_rate: "1200.50", # Formato limpio que envía JS
+          exchange_rate: "1200.50", # Clean format sent by JS
           purchase_date: Date.current.to_s,
           due_date: 30.days.from_now.to_date.to_s,
           notes: "Test invoice in USD"
@@ -86,7 +86,7 @@ RSpec.describe "Invoices", type: :request do
           invoice_number: "FAC-USD-002",
           amount: "1000",
           currency: "USD",
-          exchange_rate: "", # Falta exchange_rate para USD
+          exchange_rate: "", # Missing exchange_rate for USD
           purchase_date: Date.current.to_s,
           due_date: 30.days.from_now.to_date.to_s
         }
@@ -129,7 +129,7 @@ RSpec.describe "Invoices", type: :request do
         params = {
           supplier_id: supplier.id,
           invoice_number: "FAC-FORMAT-001",
-          amount: "154400.80", # JavaScript ya convirtió de "154.400,80" a "154400.80"
+          amount: "154400.80", # JavaScript already converted from "154.400,80" to "154400.80"
           currency: "ARS",
           purchase_date: Date.current.to_s,
           due_date: 30.days.from_now.to_date.to_s
@@ -147,7 +147,7 @@ RSpec.describe "Invoices", type: :request do
         params = {
           supplier_id: supplier.id,
           invoice_number: "FAC-FORMAT-002",
-          amount: "1500000.50", # JavaScript ya convirtió de "1.500.000,50" a "1500000.50"
+          amount: "1500000.50", # JavaScript already converted from "1.500.000,50" to "1500000.50"
           currency: "ARS",
           purchase_date: Date.current.to_s,
           due_date: 30.days.from_now.to_date.to_s
@@ -165,7 +165,7 @@ RSpec.describe "Invoices", type: :request do
         params = {
           supplier_id: supplier.id,
           invoice_number: "FAC-FORMAT-003",
-          amount: "999.99", # JavaScript ya convirtió de "999,99" a "999.99"
+          amount: "999.99", # JavaScript already converted from "999,99" to "999.99"
           currency: "ARS",
           purchase_date: Date.current.to_s,
           due_date: 30.days.from_now.to_date.to_s

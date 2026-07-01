@@ -10,7 +10,7 @@
       %h1.text-3xl.font-bold.text-gray-900 Cuentas por Cobrar
       %p.text-sm.text-slate-500.mt-1 Clientes con saldo pendiente, ordenados por deuda
 
-  -# Mensajes
+  -# Messages
   - if flash[:notice]
     .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -41,31 +41,31 @@
             - days = customer.days_without_paying
             - last_date = customer.last_payment_date
             %tr.hover:bg-slate-50.transition-colors
-              -# Cliente
+              -# Customer
               %td.px-4.py-3.whitespace-nowrap
                 .flex.items-center.gap-3
                   .w-9.h-9.rounded-lg.bg-slate-100.flex.items-center.justify-center.text-lg.flex-shrink-0
                     👤
                   = link_to customer.name, web_customer_path(customer), class: "text-sm font-semibold text-slate-900 hover:text-slate-600 hover:underline"
 
-              -# Tipo
+              -# Type
               %td.px-4.py-3.whitespace-nowrap
                 %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
                   = customer_type_labels[customer.customer_type] || customer.customer_type
 
-              -# Saldo
+              -# Balance
               %td.px-4.py-3.whitespace-nowrap.text-right
                 %span.text-base.font-bold.text-amber-600
                   = currency_ar_int(customer.current_balance)
 
-              -# Último pago
+              -# Last payment
               %td.px-4.py-3.whitespace-nowrap.text-center
                 - if last_date
                   %span.text-sm.text-slate-600= l(last_date, format: :default)
                 - else
                   %span.text-xs.text-slate-400.italic Sin pagos
 
-              -# Días sin pagar
+              -# Days without paying
               %td.px-4.py-3.whitespace-nowrap.text-center
                 - if days.nil?
                   %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-red-100.text-red-700
@@ -80,7 +80,7 @@
                   %span.inline-flex.items-center.px-2.py-0.5.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
                     = days == 0 ? 'Hoy' : "#{days} días"
 
-              -# Acciones
+              -# Actions
               %td.px-4.py-3.whitespace-nowrap.text-center
                 .flex.items-center.justify-center.gap-2
                   = link_to web_customer_path(customer), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Ver detalle" do

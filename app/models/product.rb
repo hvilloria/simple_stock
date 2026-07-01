@@ -2,57 +2,57 @@ class Product < ApplicationRecord
   # Associations
   has_many :stock_movements, dependent: :destroy
 
-  # === SKU Y VARIANTES ===
-  # sku representa el CÓDIGO OEM del repuesto (ej: código original Honda)
-  # PUEDE REPETIRSE entre múltiples variantes del mismo repuesto
+  # === SKU AND VARIANTS ===
+  # sku represents the OEM CODE of the part (e.g.: original Honda code)
+  # IT MAY REPEAT across multiple variants of the same part
   #
-  # Las VARIANTES se diferencian por la combinación única de:
-  #   - sku (código OEM común)
-  #   - product_type ('oem' o 'aftermarket')
-  #   - brand (marca del fabricante)
-  #   - origin (país de fabricación)
+  # VARIANTS are distinguished by the unique combination of:
+  #   - sku (common OEM code)
+  #   - product_type ('oem' or 'aftermarket')
+  #   - brand (manufacturer brand)
+  #   - origin (country of manufacture)
   #
-  # Ejemplo: Un mismo OEM "12345-111-111" puede tener:
-  #   - Variante 1: OEM Honda de Japón
-  #   - Variante 2: Aftermarket Marca1 de China
-  #   - Variante 3: Aftermarket Marca2 de China
-  #   - Variante 4: Aftermarket Marca3 de India
+  # Example: The same OEM "12345-111-111" may have:
+  #   - Variant 1: OEM Honda from Japan
+  #   - Variant 2: Aftermarket Marca1 from China
+  #   - Variant 3: Aftermarket Marca2 from China
+  #   - Variant 4: Aftermarket Marca3 from India
   #
-  # Cada variante es un registro separado con su propio:
-  #   - product_id (único)
-  #   - current_stock (independiente)
-  #   - cost_unit (costo promedio independiente)
-  #   - price_unit (precio de venta independiente)
+  # Each variant is a separate record with its own:
+  #   - product_id (unique)
+  #   - current_stock (independent)
+  #   - cost_unit (independent average cost)
+  #   - price_unit (independent sale price)
   #
-  # === STOCK Y COSTOS ===
-  # current_stock es un campo cacheado que se actualiza automáticamente
-  # vía callbacks en StockMovement. NO actualizar manualmente.
+  # === STOCK AND COSTS ===
+  # current_stock is a cached field that updates automatically
+  # via callbacks in StockMovement. DO NOT update manually.
   #
-  # cost_unit representa el COSTO PROMEDIO PONDERADO del inventario
-  # Se recalcula automáticamente al confirmar cada compra
-  # NO es el "último costo" sino el promedio de todas las compras
-  # cost_currency: moneda del costo promedio (típicamente 'USD')
-  # Se actualiza automáticamente vía recalculate_average_cost!
-  # NO actualizar manualmente desde controllers/vistas
+  # cost_unit represents the WEIGHTED AVERAGE COST of the inventory
+  # It is recalculated automatically when each purchase is confirmed
+  # It is NOT the "last cost" but the average of all purchases
+  # cost_currency: currency of the average cost (typically 'USD')
+  # It is updated automatically via recalculate_average_cost!
+  # DO NOT update manually from controllers/views
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
   ORIGINS = %w[japan china taiwan usa germany korea brazil india].freeze
   PRODUCT_TYPES = %w[oem aftermarket].freeze
 
-  # Formato de ubicación física en el depósito
-  # [pasillo: 1-9][lado: I/D][posición: 0-9][nivel: 0-9]
-  # Ejemplo: "2D31" = Pasillo 2, Derecho, posición 3, nivel 1
+  # Physical location format in the warehouse
+  # [aisle: 1-9][side: I/D][position: 0-9][level: 0-9]
+  # Example: "2D31" = Aisle 2, Right, position 3, level 1
   LOCATION_FORMAT = /\A[1-9][ID][0-9][0-9]\z/
 
   # Validations
-  # SKU es el código OEM, puede repetirse entre variantes.
-  # La identidad de una variante es: sku + product_type + origin + brand.
-  # La unicidad se enforça SOLO cuando hay `origin` presente, para permitir la
-  # carga progresiva (primero el origen, la marca se afina después) y que los
-  # importadores creen productos con origin/brand en nil sin chocar.
-  # El índice DB (index_products_on_variant_uniqueness) queda lenient
-  # (NULLS DISTINCT): es backstop para filas completas; el modelo es el enforcer real.
+  # SKU is the OEM code, it may repeat across variants.
+  # A variant's identity is: sku + product_type + origin + brand.
+  # Uniqueness is enforced ONLY when `origin` is present, to allow
+  # progressive loading (origin first, brand refined later) and so that
+  # importers can create products with origin/brand as nil without colliding.
+  # The DB index (index_products_on_variant_uniqueness) stays lenient
+  # (NULLS DISTINCT): it is a backstop for complete rows; the model is the real enforcer.
   validates :sku, presence: true
   validates :sku, uniqueness: { scope: [ :product_type, :origin, :brand ] },
                   if: -> { origin.present? }
@@ -61,7 +61,7 @@ class Product < ApplicationRecord
   validates :cost_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_currency, inclusion: { in: %w[USD ARS] }
   validates :origin, inclusion: { in: ORIGINS, allow_blank: true }
-  # validates :origin, presence: true, if: :aftermarket? - Relajado para permitir imports de excel con tickets
+  # validates :origin, presence: true, if: :aftermarket? - Relaxed to allow excel imports with tickets
   validates :product_type, inclusion: { in: PRODUCT_TYPES, allow_blank: true }
   validates :category, inclusion: { in: CATEGORIES, allow_blank: true }
   validates :location_code, format: {
@@ -70,10 +70,10 @@ class Product < ApplicationRecord
     allow_blank: true
   }
 
-  # Normalización
-  # El SKU (código OEM) se guarda SIEMPRE en mayúscula, venga del form, del
-  # import o de la consola. Va en before_validation para que la unicidad y
-  # demás validaciones corran sobre el valor ya normalizado.
+  # Normalization
+  # The SKU (OEM code) is ALWAYS stored in uppercase, whether it comes from the form,
+  # the import, or the console. It goes in before_validation so that uniqueness and
+  # the other validations run on the already-normalized value.
   before_validation :normalize_sku
 
   # Scopes
@@ -100,39 +100,39 @@ class Product < ApplicationRecord
   }
   scope :at_location, ->(code) { where(location_code: code) if code.present? }
   scope :sorted_by, lambda { |sort_column, direction|
-    # Ordenamiento por defecto
+    # Default ordering
     return order(:name) if sort_column.blank?
 
-    # Validar columnas permitidas para prevenir SQL injection
+    # Validate allowed columns to prevent SQL injection
     allowed_columns = %w[sku name brand category current_stock price_unit]
     column = allowed_columns.include?(sort_column.to_s) ? sort_column : "name"
 
-    # Validar dirección
+    # Validate direction
     dir = %w[asc desc].include?(direction.to_s.downcase) ? direction.downcase : "asc"
 
     order("#{column} #{dir}")
   }
 
-  # Stock cacheado: current_stock es una columna en products
-  # SOLO se debe modificar desde services de inventario usando recalculate_current_stock!
-  # NUNCA editar directamente desde controllers o vistas
+  # Cached stock: current_stock is a column in products
+  # It must ONLY be modified from inventory services using recalculate_current_stock!
+  # NEVER edit directly from controllers or views
   def recalculate_current_stock!
     update!(current_stock: stock_movements.sum(:quantity))
   end
 
-  # Recalcula el costo promedio ponderado basado en TODAS las compras confirmadas
-  # Convierte todo a USD para uniformidad en el cálculo
-  # Se llama automáticamente desde Purchasing::CreateInvoice y Purchasing::CancelInvoice
+  # Recalculates the weighted average cost based on ALL confirmed purchases
+  # Converts everything to USD for uniformity in the calculation
+  # It is called automatically from Purchasing::CreateInvoice and Purchasing::CancelInvoice
   def recalculate_average_cost!
-    # Obtener TODAS las compras confirmadas de este producto
+    # Get ALL confirmed purchases of this product
     invoice_items = InvoiceItem.joins(:invoice)
                                 .where(product: self)
                                 .where(invoices: { status: "confirmed" })
 
     return if invoice_items.empty?
 
-    # Calcular costo promedio ponderado en USD
-    # (convertir todo a USD para uniformidad)
+    # Calculate weighted average cost in USD
+    # (convert everything to USD for uniformity)
     total_cost_usd = 0.0
     total_quantity = 0
 
@@ -140,8 +140,8 @@ class Product < ApplicationRecord
       if item.invoice.currency == "USD"
         total_cost_usd += item.unit_cost * item.quantity
       else
-        # Si es ARS, convertir a USD usando el exchange_rate inverso
-        # (esto es aproximado, en producción se podría mejorar)
+        # If it is ARS, convert to USD using the inverse exchange_rate
+        # (this is approximate, in production it could be improved)
         cost_in_usd = item.unit_cost / (item.invoice.exchange_rate || 1200)
         total_cost_usd += cost_in_usd * item.quantity
       end
@@ -158,41 +158,41 @@ class Product < ApplicationRecord
     end
   end
 
-  # Alias para claridad semántica
-  # cost_unit representa el COSTO PROMEDIO PONDERADO del inventario
-  # Se recalcula automáticamente al confirmar cada compra
-  # NO es el "último costo" sino el promedio de todas las compras
+  # Alias for semantic clarity
+  # cost_unit represents the WEIGHTED AVERAGE COST of the inventory
+  # It is recalculated automatically when each purchase is confirmed
+  # It is NOT the "last cost" but the average of all purchases
   alias_attribute :average_cost, :cost_unit
 
   def low_stock?
     current_stock.to_i < 5
   end
 
-  # Convierte el costo promedio ponderado a ARS usando el tipo de cambio actual
-  # Si cost_currency ya es ARS, retorna cost_unit directamente
+  # Converts the weighted average cost to ARS using the current exchange rate
+  # If cost_currency is already ARS, returns cost_unit directly
   def cost_in_ars(exchange_rate = nil)
     return 0 if cost_unit.nil?
     return cost_unit if cost_currency == "ARS"
 
-    rate = exchange_rate || 1000  # TODO: usar ExchangeRate.current cuando exista
+    rate = exchange_rate || 1000  # TODO: use ExchangeRate.current when it exists
     cost_unit * rate
   end
 
-  # Calcula el margen de ganancia en ARS usando el costo promedio ponderado
+  # Calculates the profit margin in ARS using the weighted average cost
   def margin(exchange_rate = nil)
     return 0 if price_unit.nil?
     price_unit - cost_in_ars(exchange_rate)
   end
 
-  # Calcula el porcentaje de margen basado en el costo promedio ponderado
+  # Calculates the margin percentage based on the weighted average cost
   def margin_percentage(exchange_rate = nil)
     cost = cost_in_ars(exchange_rate)
     return 0 if cost.zero? || price_unit.nil?
     ((price_unit - cost) / cost * 100).round(2)
   end
 
-  # Convierte el código de ubicación a formato legible
-  # Ejemplo: "2D31" → "Pasillo 2, lado derecho, posición 3, nivel 1"
+  # Converts the location code to a readable format
+  # Example: "2D31" → "Pasillo 2, lado derecho, posición 3, nivel 1"
   def location_human
     return "Sin ubicación asignada" if location_code.blank?
 

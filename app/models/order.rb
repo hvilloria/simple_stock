@@ -80,14 +80,14 @@ class Order < ApplicationRecord
     update!(total_amount: order_items.sum("quantity * unit_price"))
   end
 
-  # Descuento NOMINAL real (suma de los descuentos por ítem). NO incluye el
-  # redondeo ceil-a-100 que sufre el total a pagar — ese va en #rounding_amount.
+  # Real NOMINAL discount (sum of the per-item discounts). It does NOT include the
+  # ceil-to-100 rounding applied to the total to pay — that goes in #rounding_amount.
   def discount_amount
     order_items.sum { |i| (i.quantity * i.unit_price) * (i.discount_percent.to_d / 100) }.round(2)
   end
 
-  # Cargo por redondeo ceil-a-100 horneado en total_amount (cobro en efectivo
-  # con descuento). 0 cuando no hubo redondeo (ej. descuentos por ítem de crédito).
+  # Ceil-to-100 rounding charge baked into total_amount (cash collection
+  # with discount). 0 when there was no rounding (e.g. per-item credit discounts).
   def rounding_amount
     return 0 if total_amount.nil? || original_total_amount.nil?
     total_amount - (original_total_amount - discount_amount)

@@ -45,7 +45,7 @@ FactoryBot.define do
       origin { "china" }
     end
 
-    # Traits por categoría
+    # Traits by category
     trait :frenos do
       category { "frenos" }
     end
@@ -78,7 +78,7 @@ FactoryBot.define do
       category { "lubricantes" }
     end
 
-    # Traits por origen aftermarket
+    # Traits by aftermarket origin
     trait :aftermarket_germany do
       product_type { "aftermarket" }
       origin { "germany" }
@@ -121,7 +121,7 @@ FactoryBot.define do
       brand { "Honda" }
     end
 
-    # Trait para productos Honda realistas
+    # Trait for realistic Honda products
     trait :honda_part do
       brand { "Honda" }
       cost_currency { "USD" }

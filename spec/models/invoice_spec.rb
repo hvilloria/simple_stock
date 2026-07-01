@@ -37,7 +37,7 @@ RSpec.describe Invoice, type: :model do
   describe "#calculate_total" do
     it "calculates total from invoice items" do
       invoice = create(:invoice)
-      # Limpiar items por defecto
+      # Clear default items
       invoice.invoice_items.destroy_all
       create(:invoice_item, invoice: invoice, quantity: 5, unit_cost: 10)
       create(:invoice_item, invoice: invoice, quantity: 3, unit_cost: 20)
@@ -77,7 +77,7 @@ RSpec.describe Invoice, type: :model do
     end
   end
 
-  # === TESTS PARA MODO SIMPLE ===
+  # === TESTS FOR SIMPLE MODE ===
 
   describe "validations for simple mode" do
     subject { build(:invoice, :simple_mode) }
@@ -322,7 +322,7 @@ RSpec.describe Invoice, type: :model do
       end
 
       it "returns all invoices when supplier is not present" do
-        # Simular supplier vacío pero no nil
+        # Simulate an empty supplier but not nil
         result = Invoice.all.for_supplier(nil)
 
         expect(result).to include(invoice_a1, invoice_a2, invoice_b1)
@@ -428,7 +428,7 @@ RSpec.describe Invoice, type: :model do
         ids = [ pending, paid, cancelled ].map(&:id)
         result = Invoice.where(id: ids).priority_order.pluck(:id)
 
-        # pending primero, luego los demás ordenados por due_date (cancelled tiene fecha más cercana)
+        # pending first, then the rest ordered by due_date (cancelled has the closest date)
         expect(result[0]).to eq(pending.id)
         expect(result[1]).to eq(cancelled.id)
         expect(result[2]).to eq(paid.id)
@@ -459,13 +459,13 @@ RSpec.describe Invoice, type: :model do
       create(:invoice, :simple_mode, supplier: supplier_a, status: "pending", amount: 2000, currency: "ARS")
       create(:invoice, :simple_mode, supplier: supplier_b, status: "pending", amount: 5000, currency: "ARS")
 
-      # Invoice pagada (no debe contar)
+      # Paid invoice (must not count)
       create(:invoice, :simple_mode, supplier: supplier_a, status: "paid", amount: 999, currency: "ARS")
 
-      # Invoice en USD
+      # Invoice in USD
       create(:invoice, :simple_mode, supplier: supplier_a, status: "pending", amount: 100, currency: "USD", exchange_rate: 1200)
 
-      # Invoice en modo completo (no debe contar en simple_mode)
+      # Invoice in full mode (must not count in simple_mode)
       create(:invoice, :full_mode, supplier: supplier_a, status: "confirmed", amount: 888)
     end
 
@@ -505,10 +505,10 @@ RSpec.describe Invoice, type: :model do
     end
 
     it "no incluye facturas pagadas" do
-      # Ya creamos una pagada en el before, verificamos que no se cuenta
+      # We already created a paid one in the before block, we verify it is not counted
       total = Invoice.total_pending_amount_ars(supplier: supplier_a)
 
-      # No debe incluir los 999 de la factura pagada
+      # Must not include the 999 of the paid invoice
       expect(total).to eq(123_000) # No 123_999
     end
   end
@@ -721,8 +721,8 @@ RSpec.describe Invoice, type: :model do
     end
 
     it "includes invoices with early_payment_due_date in the period and still valid" do
-      # Usamos Date.current para garantizar que cae dentro de start_date..end_date
-      # independientemente del día en que corra el test (evita fallos en domingo).
+      # We use Date.current to guarantee it falls within start_date..end_date
+      # regardless of the day the test runs (avoids failures on Sunday).
       invoice = create(:invoice, :simple_mode,
                        supplier: supplier,
                        status: "pending",

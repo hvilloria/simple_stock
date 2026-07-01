@@ -15,7 +15,7 @@ module Purchasing
 
     def initialize(supplier:, items:, currency:, exchange_rate: nil, purchase_date: nil, notes: nil)
       @supplier = supplier
-      @items = items # Array de { product_id:, quantity:, unit_cost: }
+      @items = items # Array of { product_id:, quantity:, unit_cost: }
       @currency = currency
       @exchange_rate = exchange_rate
       @purchase_date = purchase_date || Date.current
@@ -46,20 +46,20 @@ module Purchasing
     class ValidationError < StandardError; end
 
     def validate_params
-      # Validar currency
+      # Validate currency
       unless %w[USD ARS].include?(@currency)
         raise ValidationError, "Invalid currency. Must be USD or ARS"
       end
 
-      # Si es USD, exchange_rate es obligatorio
+      # If it is USD, exchange_rate is required
       if @currency == "USD" && (@exchange_rate.nil? || @exchange_rate <= 0)
         raise ValidationError, "Exchange rate required for USD invoices"
       end
 
-      # Validar supplier
+      # Validate supplier
       raise ValidationError, "Supplier is required" if @supplier.nil?
 
-      # Validar items
+      # Validate items
       raise ValidationError, "At least one product is required" if @items.blank?
 
       @items.each do |item|
@@ -68,7 +68,7 @@ module Purchasing
         raise ValidationError, "Unit cost must be greater than or equal to zero" unless item[:unit_cost].to_f >= 0
       end
 
-      # Validar que productos existan
+      # Validate that products exist
       product_ids = @items.map { |i| i[:product_id] }
       found_ids = Product.where(id: product_ids).pluck(:id)
       missing_ids = product_ids - found_ids
@@ -116,8 +116,8 @@ module Purchasing
           product: invoice_item.product,
           stock_location: stock_location,
           movement_type: "purchase",
-          quantity: invoice_item.quantity, # POSITIVO (entrada)
-          reference: @invoice, # Polimórfico
+          quantity: invoice_item.quantity, # POSITIVE (inflow)
+          reference: @invoice, # Polymorphic
           note: "Invoice ##{@invoice.id}"
         )
 

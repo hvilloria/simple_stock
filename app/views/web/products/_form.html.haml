@@ -1,6 +1,6 @@
 = form_with model: product, url: (product.persisted? ? web_product_path(product) : web_products_path), local: true, data: { controller: "product-form", action: "turbo:submit-start->product-form#handleSubmit" } do |f|
   
-  -# Mostrar errores si los hay
+  -# Show errors if any
   - if product.errors.any?
     .mb-6.rounded-xl.border-l-4.border-red-500.bg-red-50.p-4.shadow-sm
       .flex.gap-3.items-start
@@ -14,10 +14,10 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     
-    -# Columna izquierda: Formulario
+    -# Left column: Form
     .lg:col-span-2.space-y-6
       
-      -# Card 1 - Información Básica
+      -# Card 1 - Basic info
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-base.font-semibold.text-slate-900.mb-4 Información Básica
         
@@ -50,7 +50,7 @@
                           class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
                           placeholder: "Ej: Honda, TRW, Bosch"
       
-      -# Card 2 - Precio y Costo
+      -# Card 2 - Price and cost
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-base.font-semibold.text-slate-900.mb-4 Precio y Costo
         
@@ -91,7 +91,7 @@
                   %p.font-medium.text-slate-900 ARS
                   %p.text-xs.text-slate-500 Peso argentino
       
-      -# Card 3 - Clasificación
+      -# Card 3 - Classification
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-base.font-semibold.text-slate-900.mb-4 Clasificación
         
@@ -120,12 +120,12 @@
                       {},
                       class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
       
-      -# Botones
+      -# Buttons
       .flex.gap-3.justify-end
         = link_to "Cancelar", web_products_path, class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-slate-700 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
         = f.submit "Guardar Producto", class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
     
-    -# Columna derecha: Preview
+    -# Right column: Preview
     .lg:col-span-1
       .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
         %h3.text-base.font-semibold.text-slate-900.mb-4 Vista Previa

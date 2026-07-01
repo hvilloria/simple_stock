@@ -72,8 +72,8 @@ RSpec.describe Order, type: :model do
 
         it 'allows nil customer (validation is skipped)' do
           order = build(:order, order_type: 'credit', customer: nil)
-          # El error vendrá de la validación de numericality de total_amount o de belongs_to
-          # pero no de credit_order_requires_credit_account
+          # The error will come from the numericality validation of total_amount or from belongs_to
+          # but not from credit_order_requires_credit_account
           order.valid?
           expect(order.errors[:base]).not_to include("Credit orders require a customer with credit account enabled")
         end
@@ -316,8 +316,8 @@ RSpec.describe Order, type: :model do
     let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
 
     it "returns the NOMINAL per-item discount, ignoring cash ceil-rounding" do
-      # 24.500 con 10% => descuento nominal 2.450; el total guardado (22.100)
-      # ya tiene el ceil-a-100, pero el descuento NO debe verse afectado.
+      # 24,500 with 10% => nominal discount 2,450; the stored total (22,100)
+      # already has the ceil-to-100, but the discount must NOT be affected.
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9003",
                             sale_date: Date.current, total_amount: 22_100, original_total_amount: 24_500,
                             status: "confirmed", user: create(:user))

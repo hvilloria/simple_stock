@@ -22,7 +22,7 @@ module Web
       @order = Order.new
       authorize @order
 
-      # Contexto: viene desde product show con producto pre-seleccionado
+      # Context: comes from product show with a pre-selected product
       if params[:product_id].present?
         @preloaded_product = Product.active.find_by(id: params[:product_id])
         if @preloaded_product
@@ -36,7 +36,7 @@ module Web
           @order.order_items.build
         end
       elsif params[:purchase_items].present?
-        # Contexto: viene desde el carrito del listado de productos
+        # Context: comes from the cart in the products listing
         params[:purchase_items].each do |item|
           product = Product.active.find_by(id: item[:product_id])
           next unless product
@@ -47,7 +47,7 @@ module Web
           )
         end
       else
-        # Contexto: venta desde cero (búsqueda manual por ahora)
+        # Context: sale from scratch (manual search for now)
         @order.order_items.build
       end
     end
@@ -96,9 +96,9 @@ module Web
     private
 
     def load_products
-      # Solo cargar productos si NO viene product_id ni purchase_items (para evitar
-      # cargar miles de productos innecesariamente cuando el formulario se pre-llena).
-      # En Fase 2, esto se reemplazará por búsqueda AJAX
+      # Only load products if neither product_id nor purchase_items is present (to avoid
+      # loading thousands of products unnecessarily when the form is pre-filled).
+      # In Phase 2, this will be replaced by AJAX search
       skip_load = params[:product_id].present? || params[:purchase_items].present?
       @products = skip_load ? [] : Product.active.order(:name).limit(50)
     end
@@ -112,7 +112,7 @@ module Web
     end
 
     def parse_items
-      # Parsear items desde purchase_items params
+      # Parse items from purchase_items params
       return [] unless params[:purchase_items]
 
       params[:purchase_items].map do |item|

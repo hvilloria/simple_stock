@@ -2,7 +2,7 @@
 
 class CustomerPolicy < ApplicationPolicy
   def index?
-    true  # Todos ven clientes
+    true  # Everyone views customers
   end
 
   def debtors?
@@ -30,6 +30,6 @@ class CustomerPolicy < ApplicationPolicy
   end
 
   def destroy?
-    false  # No se eliminan clientes
+    false  # Customers are not deleted
   end
 end

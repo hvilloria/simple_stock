@@ -7,10 +7,10 @@ class Payment < ApplicationRecord
   has_many :orders, through: :allocations
 
   # Constants
-  # Métodos de pago oficiales — fuente única de verdad (etiquetas + opciones de UI).
-  # Ver docs/decisiones/2026-06-26-metodos-de-pago.md.
-  # `cash` se conserva como clave: la regla "descuento solo efectivo"
-  # (Payments::CollectSaleNote / CollectOnAccount) compara contra "cash".
+  # Official payment methods — single source of truth (labels + UI options).
+  # See docs/decisiones/2026-06-26-metodos-de-pago.md.
+  # `cash` is kept as the key: the "discount cash only" rule
+  # (Payments::CollectSaleNote / CollectOnAccount) compares against "cash".
   PAYMENT_METHOD_LABELS = {
     "cash"          => "Efectivo",
     "bank_qr"       => "Banco QR",

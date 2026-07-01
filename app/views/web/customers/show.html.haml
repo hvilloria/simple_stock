@@ -20,7 +20,7 @@
           %span +
           %span Registrar Pago
 
-  -# Mensajes
+  -# Messages
   - if flash[:notice]
     .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -39,10 +39,10 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-    -# Columna Izquierda (2/3)
+    -# Left column (2/3)
     .lg:col-span-2.space-y-6
 
-      -# Card Información
+      -# Info card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Información
 
@@ -74,7 +74,7 @@
               %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-600
                 No habilitada
 
-      -# Card Ventas a Crédito
+      -# Credit sales card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4
           Ventas a Crédito
@@ -117,7 +117,7 @@
         - else
           %p.text-sm.text-slate-500.italic No hay ventas a crédito registradas.
 
-      -# Card Pagos
+      -# Payments card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4
           Pagos
@@ -152,7 +152,7 @@
         - else
           %p.text-sm.text-slate-500.italic No hay pagos registrados.
 
-    -# Columna Derecha (1/3)
+    -# Right column (1/3)
     .lg:col-span-1
       - if @customer.has_credit_account?
         .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24

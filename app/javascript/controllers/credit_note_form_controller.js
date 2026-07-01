@@ -13,7 +13,7 @@ export default class extends Controller {
     this.onCurrencyChange()
   }
 
-  // Formatear al perder foco (blur) - Formato argentino: 1.500.000,50
+  // Format on blur (losing focus) - Argentine format: 1.500.000,50
   formatAmount(event) {
     const input = event.target
     const rawValue = this.cleanAmountValue(input.value)
@@ -27,30 +27,30 @@ export default class extends Controller {
     }
   }
 
-  // Limpiar formato al hacer focus para facilitar edición
+  // Clear formatting on focus to ease editing
   unformatAmount(event) {
     const input = event.target
-    // Remover separadores de miles (puntos), mantener coma decimal
+    // Remove thousands separators (dots), keep decimal comma
     // 1.500.000,50 → 1500000,50
     input.value = input.value.replace(/\./g, '')
   }
 
-  // Limpiar valor para enviar al servidor: 1.500.000,50 → 1500000.50
+  // Clean value to send to the server: 1.500.000,50 → 1500000.50
   cleanAmountValue(value) {
     if (!value) return ''
-    // Remover puntos (separador miles) y cambiar coma por punto (decimal)
+    // Remove dots (thousands separator) and change comma to dot (decimal)
     return value.replace(/\./g, '').replace(/,/g, '.')
   }
 
-  // CRÍTICO: Limpiar antes de enviar el formulario
+  // CRITICAL: Clean before submitting the form
   handleFormSubmit(event) {
-    // Limpiar campo de monto
+    // Clean amount field
     if (this.hasAmountInputTarget && this.amountInputTarget.value) {
       const cleanValue = this.cleanAmountValue(this.amountInputTarget.value)
       this.amountInputTarget.value = cleanValue
     }
     
-    // Limpiar campo de tipo de cambio
+    // Clean exchange rate field
     if (this.hasExchangeRateInputTarget && this.exchangeRateInputTarget.value) {
       const cleanValue = this.cleanAmountValue(this.exchangeRateInputTarget.value)
       this.exchangeRateInputTarget.value = cleanValue
@@ -77,7 +77,7 @@ export default class extends Controller {
       return
     }
 
-    // Cargar facturas del proveedor vía AJAX
+    // Load supplier invoices via AJAX
     try {
       const response = await fetch(`/web/credit_notes/supplier_invoices?supplier_id=${supplierId}`, {
         headers: {
@@ -105,8 +105,8 @@ export default class extends Controller {
       return
     }
 
-    // Aquí podríamos hacer un fetch para obtener currency y exchange_rate de la factura
-    // y actualizarlos en el formulario automáticamente
+    // Here we could do a fetch to get the invoice's currency and exchange_rate
+    // and update them in the form automatically
     console.log("Invoice changed to:", invoiceId)
   }
 
@@ -121,10 +121,10 @@ export default class extends Controller {
       return
     }
 
-    // Limpiar el select
+    // Clear the select
     this.invoiceSelectTarget.innerHTML = '<option value="">Sin factura asociada</option>'
 
-    // Agregar las facturas
+    // Add the invoices
     invoices.forEach(invoice => {
       const option = document.createElement('option')
       option.value = invoice.id

@@ -1,13 +1,13 @@
 Rails.application.routes.draw do
-  # Devise routes (solo sessions, sin registro)
+  # Devise routes (sessions only, no registration)
   devise_for :users, skip: [ :registrations ]
 
-  # Root depende de si el usuario está logueado
+  # Root depends on whether the user is logged in
   authenticated :user do
     root to: "web/dashboard#index", as: :authenticated_root
   end
 
-  # Usuarios no autenticados van al login
+  # Unauthenticated users go to the login
   devise_scope :user do
     root to: "devise/sessions#new"
   end

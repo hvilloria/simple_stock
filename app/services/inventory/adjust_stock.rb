@@ -76,7 +76,7 @@ module Inventory
     end
 
     def update_product_stock
-      # Recalcular stock desde stock_movements en lugar de editar manualmente
+      # Recalculate stock from stock_movements instead of editing manually
       @product.recalculate_current_stock!
     end
   end

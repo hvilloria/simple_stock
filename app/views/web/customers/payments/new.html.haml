@@ -11,7 +11,7 @@
     %h1.text-3xl.font-bold.text-slate-900 Registrar Cobro
   %p.text-sm.text-slate-500.mb-6.ml-9= "#{@customer.name} · Cuenta corriente"
 
-  -# Errores
+  -# Errors
   - if flash[:alert]
     .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6
       %p.text-sm.text-red-700= flash[:alert]

@@ -2,7 +2,7 @@
 
 %div{ data: { controller: "cart" } }
 
-  -# Header con botón de acción principal
+  -# Header with primary action button
   .flex.items-center.justify-between.mb-6
     %div
       %h2.text-2xl.font-bold.text-slate-900 Productos
@@ -20,11 +20,11 @@
         %span +
         %span Nuevo Producto
 
-  -# Backdrop del carrito
+  -# Cart backdrop
   %div{ data: { cart_target: "backdrop", action: "click->cart#hidePanel" },
         class: "hidden fixed inset-0 bg-black/40 z-40" }
 
-  -# Modal del carrito
+  -# Cart modal
   %div{ data: { cart_target: "panel" },
         class: "hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-white rounded-xl shadow-2xl flex flex-col max-h-[80vh]" }
     .flex.items-center.justify-between.px-5.py-4.border-b.border-slate-100
@@ -45,25 +45,25 @@
           data: { cart_target: "createButton" },
           class: "inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors opacity-50 pointer-events-none"
 
-  -# Filtros
+  -# Filters
   = form_with url: web_products_path,
     method: :get,
     data: { controller: "products-search", action: "input->products-search#submitWithDebounce change->products-search#submitWithDebounce", turbo_frame: "products_list" },
     class: "bg-white border border-slate-200 rounded-lg p-4 mb-6" do |f|
 
     .flex.flex-col.md:flex-row.gap-3
-      -# Búsqueda
+      -# Search
       .flex-1
         = f.text_field :q, value: params[:q], name: "q", placeholder: "Buscar por código OEM, nombre o marca...", class: "w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent"
 
-      -# Filtro categoría
+      -# Category filter
       = f.select :category, options_for_select([["Todas las categorías", ""]] + Product::CATEGORIES.map { |c| [c.titleize, c] }, params[:category]), {}, class: "px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
 
-      -# Filtro estado
+      -# Status filter
       = f.select :status, options_for_select([["Todos los estados", ""], ["Activo", "active"], ["Inactivo", "inactive"]], params[:status]), {}, class: "px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
 
 
-  -# Tabla
+  -# Table
   .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
     = turbo_frame_tag "products_list" do
       %table.min-w-full.divide-y.divide-slate-200
@@ -92,19 +92,19 @@
           - if @products.any?
             - @products.each do |product|
               %tr.hover:bg-slate-50.transition-colors
-                -# Código
+                -# Code
                 %td.px-4.py-3.whitespace-nowrap
                   = link_to product.sku, web_product_path(product), data: { turbo_frame: "_top" }, class: "font-mono text-sm font-semibold text-slate-900 hover:text-slate-700 hover:underline"
 
-                -# Nombre
+                -# Name
                 %td.px-4.py-3
                   = link_to product.name, web_product_path(product), data: { turbo_frame: "_top" }, class: "text-sm text-slate-900 hover:text-slate-700 font-medium hover:underline"
 
-                -# Marca
+                -# Brand
                 %td.px-4.py-3.whitespace-nowrap
                   %span.text-sm.text-slate-600= product.brand || "-"
 
-                -# Tipo
+                -# Type
                 %td.px-4.py-3.whitespace-nowrap
                   - if product.oem?
                     %span.inline-flex.px-2.py-1.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
@@ -119,7 +119,7 @@
                 %td.px-4.py-3.whitespace-nowrap
                   %span.text-sm.text-slate-600= product.origin&.capitalize || "-"
 
-                -# Categoría
+                -# Category
                 %td.px-4.py-3.whitespace-nowrap
                   %span.text-sm.text-slate-600= product.category&.titleize || "-"
 
@@ -138,11 +138,11 @@
                       %span.w-1.5.h-1.5.rounded-full.bg-red-500
                       = "0"
 
-                -# Precio
+                -# Price
                 %td.px-4.py-3.whitespace-nowrap
                   %span.text-sm.font-medium.text-slate-900= product.price_unit.present? ? currency_ar(product.price_unit) : "—"
 
-                -# Acciones
+                -# Actions
                 %td.px-4.py-3.text-right
                   .flex.items-center.justify-end.gap-1
                     %button{ type: "button",
@@ -155,17 +155,17 @@
             %tr
               %td.px-6.py-8.text-center.text-slate-500{colspan: 9} No hay productos cargados todavía.
 
-      -# Paginación
+      -# Pagination
       - if @pagy.pages > 1
         .flex.items-center.justify-center.gap-1.px-4.py-3.border-t.border-slate-200
-          -# Anterior
+          -# Previous
           - if @pagy.prev
             = link_to pagy_url_for(@pagy, @pagy.prev), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" do
               ← Anterior
           - else
             %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed ← Anterior
 
-          -# Páginas numeradas
+          -# Numbered pages
           - @pagy.series.each do |item|
             - if item.is_a?(Integer)
               = link_to item, pagy_url_for(@pagy, item), class: "inline-flex items-center justify-center w-9 h-9 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
@@ -174,7 +174,7 @@
             - elsif item == :gap
               %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.text-slate-400 …
 
-          -# Siguiente
+          -# Next
           - if @pagy.next
             = link_to pagy_url_for(@pagy, @pagy.next), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" do
               Siguiente →

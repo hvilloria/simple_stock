@@ -11,26 +11,26 @@ export default class extends Controller {
   }
 
   disconnect() {
-    // Limpiar el timeout si el controller se desconecta
+    // Clear the timeout if the controller disconnects
     if (this.timeout) {
       clearTimeout(this.timeout)
     }
   }
 
   submitWithDebounce(event) {
-    // Limpiar el timeout anterior si existe (evita múltiples requests)
+    // Clear the previous timeout if it exists (avoids multiple requests)
     if (this.timeout) {
       clearTimeout(this.timeout)
     }
 
-    // Crear nuevo timeout que enviará el form después del delay
+    // Create a new timeout that will submit the form after the delay
     this.timeout = setTimeout(() => {
       this.submitForm()
     }, this.delayValue)
   }
 
   submitForm() {
-    // Obtener el form y enviarlo
+    // Get the form and submit it
     this.element.requestSubmit()
   }
 }

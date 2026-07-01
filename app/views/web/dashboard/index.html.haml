@@ -1,6 +1,6 @@
 - content_for :page_title, "Dashboard"
 
--# Header con saludo y acción principal
+-# Header with greeting and primary action
 .flex.items-center.justify-between.mb-6
   %div
     %h2.text-2xl.font-bold.text-slate-900= current_user.name.capitalize
@@ -10,10 +10,10 @@
     %span +
     %span Nueva Venta
 
--# Grid de métricas (estilo Stampede - minimalista)
+-# Metrics grid (Stampede style - minimalist)
 .grid.grid-cols-1.md:grid-cols-2.lg:grid-cols-4.gap-6.mb-6
   
-  -# Ventas de Hoy
+  -# Today's sales
   - if current_user.caja? || current_user.admin?
     .bg-white.border.border-slate-200.rounded-lg.p-6
       .flex.items-start.justify-between.mb-4
@@ -25,7 +25,7 @@
       .flex.items-center.gap-2.text-sm
         %span.text-slate-500 Solo confirmadas
   
-  -# Stock Bajo
+  -# Low stock
   .bg-white.border.border-slate-200.rounded-lg.p-6
     .flex.items-start.justify-between.mb-4
       .flex-1
@@ -41,7 +41,7 @@
         %span.text-emerald-600 ✓
         %span.text-emerald-600.font-medium Todo bien
   
-  -# Cuentas por Cobrar
+  -# Accounts receivable
   = link_to debtors_web_customers_path, class: "block bg-white border border-slate-200 rounded-lg p-6 hover:border-slate-300 hover:shadow-sm transition-all" do
     .flex.items-start.justify-between.mb-4
       .flex-1
@@ -56,7 +56,7 @@
       - else
         %span.text-emerald-600.font-medium Todos al día
   
-  -# Compras del Mes
+  -# Month's purchases
   .bg-white.border.border-slate-200.rounded-lg.p-6
     .flex.items-start.justify-between.mb-4
       .flex-1
@@ -67,10 +67,10 @@
     .flex.items-center.gap-2.text-sm
       %span.text-slate-500 Mes actual
 
--# Grid de contenido secundario
+-# Secondary content grid
 -if current_user.caja? || current_user.admin?
   .grid.grid-cols-1.lg:grid-cols-2.gap-6
-    -# Ventas recientes
+    -# Recent sales
     .bg-white.border.border-slate-200.rounded-lg
       .px-6.py-4.border-b.border-slate-200
         .flex.items-center.justify-between
@@ -96,7 +96,7 @@
           .px-6.py-8.text-center
             %p.text-sm.text-slate-500 No hay ventas recientes
     
-  -# Productos con stock crítico
+  -# Products with critical stock
   .bg-white.border.border-slate-200.rounded-lg
     .px-6.py-4.border-b.border-slate-200
       .flex.items-center.justify-between

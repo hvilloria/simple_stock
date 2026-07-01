@@ -15,7 +15,7 @@ class Supplier < ApplicationRecord
   # Scopes
   scope :alphabetical, -> { order(:name) }
 
-  # Métodos helper
+  # Helper methods
   def bank_info_present?
     bank_alias.present? || bank_account.present?
   end
@@ -48,7 +48,7 @@ class Supplier < ApplicationRecord
   end
 
   def credit_notes_count
-    # Solo las notas con saldo disponible (excluye las ya aplicadas/agotadas)
+    # Only notes with available balance (excludes those already applied/exhausted)
     credit_notes.count(&:available?)
   end
 

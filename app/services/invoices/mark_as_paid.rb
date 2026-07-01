@@ -42,7 +42,7 @@ module Invoices
         raise ValidationError, "Payment date cannot be before invoice date"
       end
 
-      # Validar descuento si se intenta aplicar
+      # Validate discount if an attempt is made to apply it
       if @apply_discount && !@invoice.eligible_for_discount?(@payment_date)
         raise ValidationError, "Discount has expired or is not available for this invoice"
       end

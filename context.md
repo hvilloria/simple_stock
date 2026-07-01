@@ -1,45 +1,45 @@
-# GENTE DEL SOL - CONTEXTO COMPLETO DEL PROYECTO
+# GENTE DEL SOL - COMPLETE PROJECT CONTEXT
 
-> **Para Claude Code CLI:** Usar `@CONTEXT.md` al inicio de cada sesión para cargar todo el contexto del proyecto.
+> **For Claude Code CLI:** Use `@CONTEXT.md` at the start of each session to load the full project context.
 
 ---
 
-## 📋 INFORMACIÓN GENERAL
+## 📋 GENERAL INFORMATION
 
-**Proyecto:** Sistema de Gestión Gente del Sol  
-**Tipo:** Sistema interno para negocio de repuestos Honda en CABA, Argentina  
+**Project:** Gente del Sol Management System  
+**Type:** Internal system for a Honda spare parts business in CABA, Argentina  
 **Stack:** Ruby on Rails 8, PostgreSQL, Hotwire (Turbo + Stimulus), HAML, TailwindCSS, Devise, Pundit
 
 ---
 
-## 🔥 CONVENCIONES CRÍTICAS - NUNCA VIOLAR
+## 🔥 CRITICAL CONVENTIONS - NEVER VIOLATE
 
-1. **Código en inglés** (modelos, controllers, métodos, variables)
-2. **UI en español** (vistas, textos para usuarios, mensajes)
-3. **Services con Result pattern** para lógica de negocio compleja
-4. **HAML únicamente** para vistas (nunca ERB)
-5. **TailwindCSS únicamente** según docs/UI_DESIGN_SPEC.md (no CSS custom)
-6. **Controllers delgados** - lógica en Services o Modelos
-7. **Pundit** para toda autorización (`authorize` en cada acción)
-
----
-
-## 📚 ARCHIVOS DE DOCUMENTACIÓN DE REFERENCIA
-
-Si necesitás más detalle sobre algo específico, consultar:
-
-- **docs/FLUJOS.md** → Reglas de negocio detalladas, flujos operativos
-- **docs/DEVELOPMENT_GUIDE.md** → Arquitectura del sistema, patterns establecidos
-- **docs/CODE_PATTERNS.md** → Convenciones de código, estilo
-- **docs/UI_DESIGN_SPEC.md** → Sistema de diseño UI/UX, componentes visuales
+1. **Code in English** (models, controllers, methods, variables)
+2. **UI in Spanish** (views, user-facing text, messages)
+3. **Services with the Result pattern** for complex business logic
+4. **HAML only** for views (never ERB)
+5. **TailwindCSS only** according to docs/UI_DESIGN_SPEC.md (no custom CSS)
+6. **Thin controllers** - logic in Services or Models
+7. **Pundit** for all authorization (`authorize` in every action)
 
 ---
 
-## 🏗️ ARQUITECTURA Y PATTERNS ESTABLECIDOS
+## 📚 REFERENCE DOCUMENTATION FILES
+
+If you need more detail on something specific, consult:
+
+- **docs/FLUJOS.md** → Detailed business rules, operational flows
+- **docs/DEVELOPMENT_GUIDE.md** → System architecture, established patterns
+- **docs/CODE_PATTERNS.md** → Code conventions, style
+- **docs/UI_DESIGN_SPEC.md** → UI/UX design system, visual components
+
+---
+
+## 🏗️ ARCHITECTURE AND ESTABLISHED PATTERNS
 
 ### Services (Result Pattern)
 
-**Ubicación:** `app/services/[namespace]/[action].rb`
+**Location:** `app/services/[namespace]/[action].rb`
 
 **Template:**
 ```ruby
@@ -125,7 +125,7 @@ end
 ### Controllers (Thin Controllers)
 
 **Namespace:** `Web::`  
-**Ubicación:** `app/controllers/web/[resource]_controller.rb`
+**Location:** `app/controllers/web/[resource]_controller.rb`
 
 **Template:**
 ```ruby
@@ -299,7 +299,7 @@ class Invoice < ApplicationRecord
         paid_with_discount: apply_discount
       )
       
-      # Marcar notas de crédito asociadas como aplicadas
+      # Mark associated credit notes as applied
       credit_notes.pending_status.update_all(
         status: "applied",
         applied_at: payment_date
@@ -353,7 +353,7 @@ end
 
 ### Policies (Pundit)
 
-**Ubicación:** `app/policies/[resource]_policy.rb`
+**Location:** `app/policies/[resource]_policy.rb`
 
 **Template:**
 ```ruby
@@ -386,11 +386,11 @@ end
 
 ### Views (HAML + TailwindCSS)
 
-**Convenciones:**
-- Usar HAML únicamente
-- TailwindCSS según UI_DESIGN_SPEC.md
-- Colores: slate como base, emerald para success, amber para warning, red para error
-- NO usar rojo corporativo (#DC3545) en botones (solo en logo)
+**Conventions:**
+- Use HAML only
+- TailwindCSS according to UI_DESIGN_SPEC.md
+- Colors: slate as the base, emerald for success, amber for warning, red for error
+- DO NOT use corporate red (#DC3545) on buttons (only on the logo)
 
 **Metric Card:**
 ```haml
@@ -437,26 +437,26 @@ end
 
 ---
 
-## 🗂️ MÓDULOS PRINCIPALES DEL SISTEMA
+## 🗂️ MAIN SYSTEM MODULES
 
-### 1. Invoices (Facturas de Proveedores)
+### 1. Invoices (Supplier Invoices)
 
-**Modelo:** `Invoice`  
+**Model:** `Invoice`  
 **Controller:** `Web::InvoicesController`  
 **Services:** `Invoices::CreateSimpleInvoice`, `Invoices::MarkAsPaid`  
-**Rutas:** `/web/invoices`, `/web/invoices/:id`, `/web/invoices/pending`
+**Routes:** `/web/invoices`, `/web/invoices/:id`, `/web/invoices/pending`
 
-**Estados:**
-- `pending`: Pendiente de pago
-- `paid`: Pagada
-- `confirmed`: Confirmada (modo completo - futuro)
-- `cancelled`: Cancelada
+**Statuses:**
+- `pending`: Pending payment
+- `paid`: Paid
+- `confirmed`: Confirmed (full mode - future)
+- `cancelled`: Cancelled
 
-**Modos:**
-- **Simple** (actual): Solo monto total, sin detalle de productos (`has_items: false`)
-- **Full** (futuro): Con productos detallados (`has_items: true`)
+**Modes:**
+- **Simple** (current): Total amount only, without product detail (`has_items: false`)
+- **Full** (future): With detailed products (`has_items: true`)
 
-**Campos principales:**
+**Main fields:**
 ```ruby
 # Básicos
 supplier_id, invoice_number, amount, currency, exchange_rate
@@ -469,7 +469,7 @@ early_payment_due_date, early_payment_discount_percentage, paid_with_discount
 has_items  # false = simple, true = full
 ```
 
-**Scopes importantes:**
+**Important scopes:**
 ```ruby
 Invoice.simple_mode              # Facturas sin detalle
 Invoice.pending_payment          # Pendientes de pago
@@ -479,119 +479,119 @@ Invoice.overdue                 # Vencidas
 Invoice.for_supplier(supplier)  # De un proveedor específico
 ```
 
-**Métodos clave:**
+**Key methods:**
 ```ruby
-invoice.total_amount_ars                    # Monto en ARS (convierte si es USD)
-invoice.amount_with_discount                # Monto con descuento aplicado
-invoice.eligible_for_discount?(date)        # ¿Puede usar descuento en esta fecha?
+invoice.total_amount_ars                    # Amount in ARS (converts if USD)
+invoice.amount_with_discount                # Amount with discount applied
+invoice.eligible_for_discount?(date)        # Can it use a discount on this date?
 invoice.mark_as_paid!(date, apply_discount: bool)
 ```
 
-### 2. Credit Notes (Notas de Crédito)
+### 2. Credit Notes (Credit Notes)
 
-**Modelo:** `CreditNote`  
+**Model:** `CreditNote`  
 **Controller:** `Web::CreditNotesController`  
-**Rutas:** `/web/credit_notes`, `/web/credit_notes/:id`
+**Routes:** `/web/credit_notes`, `/web/credit_notes/:id`
 
-**Propósito:** Registrar créditos a favor que dan los proveedores (por devoluciones, errores, etc.)
+**Purpose:** Record credits in the business's favor granted by suppliers (for returns, errors, etc.)
 
-**Estados:**
-- `pending`: Disponible para usar (crédito activo)
-- `applied`: Ya consumida/aplicada
-- `cancelled`: Anulada
+**Statuses:**
+- `pending`: Available to use (active credit)
+- `applied`: Already consumed/applied
+- `cancelled`: Voided
 
-**Campos principales:**
+**Main fields:**
 ```ruby
 supplier_id, invoice_id (opcional), credit_note_number
 amount, currency, exchange_rate, issue_date
 status, applied_at, notes
 ```
 
-**Flujos:**
+**Flows:**
 
-**Caso A - NC asociada a factura:**
-1. Usuario crea NC vinculada a Invoice específica
-2. NC hereda moneda/tipo de cambio de la factura
-3. NC queda en status `pending`
-4. Al marcar factura como pagada → NC automáticamente a `applied`
+**Case A - Credit note linked to an invoice:**
+1. The user creates a credit note linked to a specific Invoice
+2. The credit note inherits the currency/exchange rate from the invoice
+3. The credit note stays in status `pending`
+4. When the invoice is marked as paid → the credit note automatically goes to `applied`
 
-**Caso B - NC huérfana (sin factura):**
-1. Usuario crea NC sin factura asociada (crédito general)
+**Case B - Orphan credit note (without an invoice):**
+1. The user creates a credit note without an associated invoice (general credit)
 2. Default: ARS
-3. NC queda en status `pending`
-4. Usuario entra a Show de NC → botón "Marcar como Aplicada" (con modal de confirmación)
-5. NC cambia a `applied` manualmente
+3. The credit note stays in status `pending`
+4. The user enters the credit note's Show page → "Marcar como Aplicada" button (with a confirmation modal)
+5. The credit note changes to `applied` manually
 
-**Scopes importantes:**
+**Important scopes:**
 ```ruby
 CreditNote.available           # Solo pending (crédito disponible)
 CreditNote.for_supplier(s)     # De un proveedor específico
 ```
 
-### 3. Suppliers (Proveedores)
+### 3. Suppliers (Suppliers)
 
-**Modelo:** `Supplier`  
+**Model:** `Supplier`  
 **Controller:** `Web::SuppliersController`
 
-**Campos principales:**
+**Main fields:**
 ```ruby
 # Básicos
 name, email, phone, cuit, bank_alias, bank_account
 
-# Plazos de pago
-payment_term_days              # Plazo normal (ej: 30)
-early_payment_days             # Días para pago anticipado (ej: 15)
-early_payment_discount_percentage  # % descuento (ej: 5.0)
+# Payment terms
+payment_term_days              # Normal term (e.g. 30)
+early_payment_days             # Days for early payment (e.g. 15)
+early_payment_discount_percentage  # % discount (e.g. 5.0)
 ```
 
-**Relaciones:**
+**Relationships:**
 ```ruby
 has_many :invoices
 has_many :credit_notes
 ```
 
-**Métodos:**
+**Methods:**
 ```ruby
-supplier.has_early_payment_discount?  # ¿Tiene descuento configurado?
-supplier.total_pending_amount         # Deuda total pendiente
+supplier.has_early_payment_discount?  # Has a discount configured?
+supplier.total_pending_amount         # Total pending debt
 supplier.total_credit_notes_amount    # Crédito total disponible
 supplier.current_balance              # Balance neto (deuda - crédito)
 ```
 
-**Proveedores principales (seeds):**
-- IPC (30 días plazo)
-- Yokomitsu (15 días)
-- Goicochea (30 días normal, 5% descuento si paga en 15 días)
-- Lorraine (10 días)
-- Taiwan Auto Supply (45 días)
+**Main suppliers (seeds):**
+- IPC (30-day term)
+- Yokomitsu (15 days)
+- Goicochea (30 days normal, 5% discount if paid within 15 days)
+- Lorraine (10 days)
+- Taiwan Auto Supply (45 days)
 
-### 4. Products (Productos)
+### 4. Products (Products)
 
-**Modelo:** `Product`  
-**Campos:** SKU, name, price, stock, origin (OEM Japan, OEM USA, Aftermarket)  
-**Cantidad:** ~1600 productos Honda cargados desde Excel
+**Model:** `Product`  
+**Fields:** SKU, name, price, stock, origin (OEM Japan, OEM USA, Aftermarket)  
+**Quantity:** ~1600 Honda products loaded from Excel
 
-### 5. Orders (Ventas)
+### 5. Orders (Sales)
 
-**Modelo:** `Order`  
-**Modo actual:** "from_paper" (desde talonarios)  
-**Relaciones:** belongs_to :customer
+**Model:** `Order`  
+**Current mode:** "from_paper" (from receipt books)  
+**Relationships:** belongs_to :customer
 
-### 6. Customers (Clientes)
+### 6. Customers (Customers)
 
-**Modelo:** `Customer`  
-**Estado:** Index básico, asociados a ventas
+**Model:** `Customer`  
+**Status:** Basic index, associated with sales
 
 ---
 
-## 🎯 FEATURE EN DESARROLLO ACTIVO: PAGOS ANTICIPADOS CON DESCUENTO
+## 🎯 FEATURE IN ACTIVE DEVELOPMENT: EARLY PAYMENTS WITH DISCOUNT
 
-### Problema a Resolver
+### Problem to Solve
 
-Algunos proveedores ofrecen descuentos por pago anticipado:
-- Ejemplo: "30 días plazo normal, pero 5% descuento si pagás en 15 días"
+Some suppliers offer discounts for early payment:
+- Example: "30-day normal term, but 5% discount if you pay within 15 days"
 
-**Escenario concreto:**
+**Concrete scenario:**
 ```
 Factura de Goicochea emitida 12/01:
 - Vencimiento normal: 11/02 (30 días) → monto: ARS 500.000
@@ -608,9 +608,9 @@ Solución:
 - Ahorro: ARS 25.000
 ```
 
-### Implementación
+### Implementation
 
-**Campos nuevos:**
+**New fields:**
 
 Suppliers:
 - `early_payment_days` (integer)
@@ -621,11 +621,11 @@ Invoices:
 - `early_payment_discount_percentage` (decimal 5,2)
 - `paid_with_discount` (boolean)
 
-**Herencia automática:**
-- Al crear Invoice → hereda `early_payment_days` y `early_payment_discount_percentage` del Supplier
-- Pero son editables manualmente en el formulario
+**Automatic inheritance:**
+- When creating an Invoice → it inherits `early_payment_days` and `early_payment_discount_percentage` from the Supplier
+- But they are manually editable in the form
 
-**Lógica de "adelanto":**
+**"Advance" logic:**
 ```ruby
 def should_advance_payment?
   return false unless early_payment_due_date.present?
@@ -636,27 +636,27 @@ def should_advance_payment?
 end
 ```
 
-**Vista "Pagos Pendientes":**
-Separa en dos secciones:
-1. **Pagos Anticipados** (fondo verde/emerald) → Facturas con descuento que "adelantamos"
-2. **Pagos Regulares** → Facturas que vencen esta semana normalmente
+**"Pending Payments" view:**
+Splits into two sections:
+1. **Early Payments** (green/emerald background) → Invoices with discount that we "advance"
+2. **Regular Payments** → Invoices that fall due this week normally
 
-**Modal de pago:**
-Al marcar como pagada, pregunta:
-- ○ Pagar monto completo (ARS 500.000)
-- ● Pagar con descuento (ARS 475.000) ⭐ - Ahorro: ARS 25.000
+**Payment modal:**
+When marking as paid, it asks:
+- ○ Pay full amount (ARS 500.000)
+- ● Pay with discount (ARS 475.000) ⭐ - Savings: ARS 25.000
 
-Validación: Si `payment_date > early_payment_due_date` → no permite descuento
+Validation: If `payment_date > early_payment_due_date` → discount is not allowed
 
 ---
 
-## 🛠️ HELPERS Y CONCERNS DISPONIBLES
+## 🛠️ AVAILABLE HELPERS AND CONCERNS
 
 ### CurrencyParser (Concern)
 
-**Ubicación:** `app/controllers/concerns/currency_parser.rb`
+**Location:** `app/controllers/concerns/currency_parser.rb`
 
-**Uso:**
+**Usage:**
 ```ruby
 include CurrencyParser
 
@@ -664,7 +664,7 @@ parse_amount("1.500.000,50")  # → 1500000.50
 parse_amount("1500.00")       # → 1500.0
 ```
 
-**Función:** Convierte formato argentino (punto = miles, coma = decimales) a float
+**Function:** Converts Argentine format (dot = thousands, comma = decimals) to float
 
 ### View Helpers
 
@@ -680,7 +680,7 @@ currency_ar_int(1500000)
 
 ---
 
-## 📋 SIDEBAR NAVIGATION (Estructura Actual)
+## 📋 SIDEBAR NAVIGATION (Current Structure)
 
 ```
 📊 Dashboard
@@ -696,26 +696,26 @@ currency_ar_int(1500000)
 
 ---
 
-## 🎨 DISEÑO UI - REGLAS DE ORO
+## 🎨 UI DESIGN - GOLDEN RULES
 
-### Colores (TailwindCSS)
+### Colors (TailwindCSS)
 
-**Paleta base:**
-- `slate-700` → Botones primarios
+**Base palette:**
+- `slate-700` → Primary buttons
 - `slate-50/100/200` → Backgrounds, borders
-- `white` → Cards, fondos principales
+- `white` → Cards, main backgrounds
 
-**Colores semánticos:**
-- `emerald-100/emerald-800` → Success, disponible, crédito
-- `amber-100/amber-800` → Warning, pendiente
-- `red-100/red-800` → Error, cancelado
-- `slate-100/slate-700` → Neutral, aplicado
+**Semantic colors:**
+- `emerald-100/emerald-800` → Success, available, credit
+- `amber-100/amber-800` → Warning, pending
+- `red-100/red-800` → Error, cancelled
+- `slate-100/slate-700` → Neutral, applied
 
-**NUNCA USAR:**
-- Rojo (#DC3545) para botones → Solo para logo
-- Gradientes en cards grandes → Solo en iconos pequeños
+**NEVER USE:**
+- Red (#DC3545) for buttons → Only for the logo
+- Gradients on large cards → Only on small icons
 
-### Componentes Comunes
+### Common Components
 
 **Card:**
 ```css
@@ -739,12 +739,12 @@ currency_ar_int(1500000)
 
 ### Spacing
 
-- Usar múltiplos de 4: `p-4`, `p-6`, `gap-4`, `gap-6`
+- Use multiples of 4: `p-4`, `p-6`, `gap-4`, `gap-6`
 - Border radius: `rounded-lg` (8px), `rounded-xl` (12px), `rounded-2xl` (16px)
 
 ---
 
-## ⚙️ COMANDOS ÚTILES
+## ⚙️ USEFUL COMMANDS
 
 ```bash
 # Database
@@ -759,54 +759,54 @@ rails c
 rspec
 rspec spec/models/invoice_spec.rb
 
-# Sync inventory desde Excel
+# Sync inventory from Excel
 rails inventory:sync_from_excel['path/to/file.xlsx']
 ```
 
 ---
 
-## 📖 GLOSARIO DE TÉRMINOS
+## 📖 GLOSSARY OF TERMS
 
-- **Invoice:** Factura de proveedor (antes se llamaba "Purchase")
-- **Credit Note (NC):** Nota de crédito a favor
-- **Order:** Venta a cliente
-- **Supplier:** Proveedor
-- **Customer:** Cliente
-- **Simple Mode:** Factura sin detalle de productos
-- **Full Mode:** Factura con productos (futuro)
-- **Early Payment:** Pago anticipado con descuento
-- **Applied:** Estado de NC ya consumida
-- **Pending:** Pendiente (facturas a pagar, créditos disponibles)
-
----
-
-## 🔥 REGLAS DE ORO - NUNCA VIOLAR
-
-1. **SIEMPRE** consultar docs/FLUJOS.md antes de implementar lógica de negocio
-2. **SIEMPRE** seguir patterns establecidos (Services, Result, etc)
-3. **SIEMPRE** código en inglés, UI en español
-4. **SIEMPRE** HAML para vistas (nunca ERB)
-5. **SIEMPRE** TailwindCSS según UI_DESIGN_SPEC.md (no CSS custom)
-6. **SIEMPRE** Services para lógica compleja
-7. **SIEMPRE** Pundit para autorización
-8. **SIEMPRE** validaciones en modelos (no en controllers)
-9. **NUNCA** usar rojo en botones (solo slate-700)
-10. **NUNCA** inventar nuevos patterns - usar los establecidos
+- **Invoice:** Supplier invoice (previously called "Purchase")
+- **Credit Note (NC):** Credit note in the business's favor
+- **Order:** Sale to a customer
+- **Supplier:** Supplier
+- **Customer:** Customer
+- **Simple Mode:** Invoice without product detail
+- **Full Mode:** Invoice with products (future)
+- **Early Payment:** Early payment with discount
+- **Applied:** Status of a credit note already consumed
+- **Pending:** Pending (invoices to pay, credits available)
 
 ---
 
-## 🎯 AL RECIBIR UNA TAREA
+## 🔥 GOLDEN RULES - NEVER VIOLATE
+
+1. **ALWAYS** consult docs/FLUJOS.md before implementing business logic
+2. **ALWAYS** follow established patterns (Services, Result, etc.)
+3. **ALWAYS** code in English, UI in Spanish
+4. **ALWAYS** HAML for views (never ERB)
+5. **ALWAYS** TailwindCSS according to UI_DESIGN_SPEC.md (no custom CSS)
+6. **ALWAYS** Services for complex logic
+7. **ALWAYS** Pundit for authorization
+8. **ALWAYS** validations in models (not in controllers)
+9. **NEVER** use red on buttons (only slate-700)
+10. **NEVER** invent new patterns - use the established ones
+
+---
+
+## 🎯 WHEN RECEIVING A TASK
 
 **Checklist:**
-1. ✅ Leer el doc relevante si hace falta más detalle (FLUJOS.md, UI_DESIGN_SPEC.md, etc)
-2. ✅ Seguir patterns establecidos (Services, Controllers, Models)
-3. ✅ Mantener diseño consistente (TailwindCSS según spec)
-4. ✅ Código en inglés, UI en español
-5. ✅ Services para lógica compleja
-6. ✅ Pundit para autorización
-7. ✅ HAML para vistas
+1. ✅ Read the relevant doc if more detail is needed (FLUJOS.md, UI_DESIGN_SPEC.md, etc.)
+2. ✅ Follow established patterns (Services, Controllers, Models)
+3. ✅ Keep the design consistent (TailwindCSS according to spec)
+4. ✅ Code in English, UI in Spanish
+5. ✅ Services for complex logic
+6. ✅ Pundit for authorization
+7. ✅ HAML for views
 
 ---
 
-**Versión del contexto:** 2.0  
-**Última actualización:** 2026-01-19
+**Context version:** 2.0  
+**Last updated:** 2026-01-19

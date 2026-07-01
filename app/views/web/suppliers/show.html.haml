@@ -20,10 +20,10 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-    -# Columna Izquierda (2/3)
+    -# Left column (2/3)
     .lg:col-span-2.space-y-6
 
-      -# Card Información
+      -# Info card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Información
 
@@ -73,7 +73,7 @@
               %span.text-gray-900
                 %strong= "#{@supplier.early_payment_days} días"
 
-      -# Card Facturas Pendientes
+      -# Pending invoices card
       - if @pending_invoices.any?
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 
@@ -105,7 +105,7 @@
                       = invoice.currency
                       = number_ar(invoice.amount)
 
-      -# Card Facturas Pagadas
+      -# Paid invoices card
       - if @paid_invoices.any?
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 
@@ -126,7 +126,7 @@
                     = invoice.currency
                     = number_ar(invoice.amount)
 
-    -# Columna Derecha (1/3)
+    -# Right column (1/3)
     .lg:col-span-1
       .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Resumen

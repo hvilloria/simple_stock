@@ -3,19 +3,19 @@
 require "csv"
 
 module Inventory
-  # Sincroniza productos y stock desde archivo CSV
+  # Synchronizes products and stock from a CSV file
   #
-  # Procesa un archivo CSV fila por fila:
-  # - Para productos nuevos: crea el producto y su stock inicial vía StockMovement
-  # - Para productos existentes: actualiza precio y ajusta stock vía StockMovement
+  # Processes a CSV file row by row:
+  # - For new products: creates the product and its initial stock via StockMovement
+  # - For existing products: updates price and adjusts stock via StockMovement
   #
-  # Reglas de negocio:
-  # - Todos los SKUs en CSV terminan en -IMP, se guardan sin ese sufijo
-  # - Todos los productos son aftermarket
-  # - Stock nunca puede ser negativo
-  # - Precio de venta debe ser >= 0
+  # Business rules:
+  # - All SKUs in the CSV end in -IMP, they are stored without that suffix
+  # - All products are aftermarket
+  # - Stock can never be negative
+  # - Sale price must be >= 0
   #
-  # Uso:
+  # Usage:
   #   result = Inventory::SyncFromCsv.call(file_path: '/path/to/file.csv')
   #   if result.success?
   #     puts "Procesados: #{result.record[:stats][:created]} creados, #{result.record[:stats][:updated]} actualizados"
@@ -123,7 +123,7 @@ module Inventory
       origin = map_origin(origen_code)
 
       # Find or create product
-      # Buscar por SKU + product_type aftermarket (ya que todos son aftermarket)
+      # Find by SKU + product_type aftermarket (since all are aftermarket)
       product = Product.find_by(sku: sku, product_type: "aftermarket")
 
       if product
