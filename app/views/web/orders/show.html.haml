@@ -168,6 +168,10 @@
                 %tr
                   %td.px-6.py-2.text-right.text-sm.text-amber-700{colspan: "5"}= "Descuento −#{@order.discount_percent_display}%"
                   %td.px-6.py-2.text-right.text-sm.text-amber-700.font-semibold= "−#{currency_ar(@order.discount_amount)}"
+                - if @order.rounding_amount.positive?
+                  %tr
+                    %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Redondeo
+                    %td.px-6.py-2.text-right.text-sm.text-gray-500= "+#{currency_ar(@order.rounding_amount)}"
               %tr
                 %td.px-6.py-4{colspan: "5"}
                   %span.text-base.font-bold.text-gray-900 Total:
@@ -298,6 +302,10 @@
             .flex.justify-between.text-sm
               %span.text-amber-700= "Descuento −#{@order.discount_percent_display}%"
               %span.font-semibold.text-amber-700= "−#{currency_ar(@order.discount_amount)}"
+            - if @order.rounding_amount.positive?
+              .flex.justify-between.text-sm
+                %span.text-gray-600 Redondeo
+                %span.font-medium.text-gray-900= "+#{currency_ar(@order.rounding_amount)}"
           - else
             .flex.justify-between.text-sm
               %span.text-gray-600 Subtotal

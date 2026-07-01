@@ -313,19 +313,65 @@ RSpec.describe Order, type: :model do
 
   describe "#discount_amount" do
     let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
+    let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
 
-    it "returns original_total_amount - total_amount" do
+    it "returns the NOMINAL per-item discount, ignoring cash ceil-rounding" do
+      # 24.500 con 10% => descuento nominal 2.450; el total guardado (22.100)
+      # ya tiene el ceil-a-100, pero el descuento NO debe verse afectado.
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9003",
-                            sale_date: Date.current, total_amount: 90, original_total_amount: 100, status: "confirmed",
-                            user: create(:user))
-      expect(order.discount_amount).to eq(10)
+                            sale_date: Date.current, total_amount: 22_100, original_total_amount: 24_500,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
+      expect(order.discount_amount).to eq(2_450)
+    end
+
+    it "sums per-item discounts (credit orders with mixed percents)" do
+      credit_customer = create(:customer, customer_type: "workshop", has_credit_account: true)
+      order = Order.create!(customer: credit_customer, order_type: "credit", source: "live", paper_number: "9007",
+                            sale_date: Date.current, total_amount: 170, original_total_amount: 200,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 10) # 10
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 20) # 20
+      expect(order.discount_amount).to eq(30)
     end
 
     it "returns 0 when no discount was applied" do
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9004",
                             sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed",
                             user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 0)
       expect(order.discount_amount).to eq(0)
+    end
+  end
+
+  describe "#rounding_amount" do
+    let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
+    let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
+
+    it "returns the cash ceil-to-hundred surcharge baked into total_amount" do
+      # neto nominal 24.500 - 2.450 = 22.050; total guardado 22.100 => redondeo +50
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9008",
+                            sale_date: Date.current, total_amount: 22_100, original_total_amount: 24_500,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
+      expect(order.rounding_amount).to eq(50)
+    end
+
+    it "returns 0 when there was no rounding (credit per-item discount)" do
+      credit_customer = create(:customer, customer_type: "workshop", has_credit_account: true)
+      order = Order.create!(customer: credit_customer, order_type: "credit", source: "live", paper_number: "9009",
+                            sale_date: Date.current, total_amount: 90, original_total_amount: 100,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 10)
+      expect(order.rounding_amount).to eq(0)
+    end
+
+    it "returns 0 when no discount was applied" do
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9010",
+                            sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed",
+                            user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 0)
+      expect(order.rounding_amount).to eq(0)
     end
   end
 
