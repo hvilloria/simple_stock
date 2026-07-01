@@ -1,7 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
+import { roundToNearestHundred } from "helpers/cash_rounding"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal"]
   static values = { initialItems: Array }
 
   connect() {
@@ -9,6 +10,7 @@ export default class extends Controller {
     this.renderItems()
     this.updateSummary()
     this.applyCreditRadioState()
+    this.applyDiscountSectionVisibility(this.currentOrderType())
   }
 
   customerChanged(event) {
@@ -155,6 +157,7 @@ export default class extends Controller {
     }
 
     this.toggleDeliveredLabels()
+    this.applyDiscountSectionVisibility(orderType)
   }
 
   isOnAccount() {
@@ -271,6 +274,34 @@ export default class extends Controller {
     }
 
     this.updateSubmitButton()
+    this.updateSuggestedTotal()
+  }
+
+  currentOrderType() {
+    const checked = this.element.querySelector('input[name="order[order_type]"]:checked')
+    return checked ? checked.value : "immediate"
+  }
+
+  applyDiscountSectionVisibility(orderType) {
+    if (!this.hasDiscountSectionTarget) return
+    const isImmediate = orderType === "immediate"
+    this.discountSectionTarget.classList.toggle("hidden", !isImmediate)
+    if (!isImmediate && this.hasDiscountSelectTarget) {
+      this.discountSelectTarget.value = "0"
+    }
+    this.updateSuggestedTotal()
+  }
+
+  updateDiscountSuggestion() {
+    this.updateSuggestedTotal()
+  }
+
+  updateSuggestedTotal() {
+    if (!this.hasSuggestedTotalTarget) return
+    const total = this.calculateTotal()
+    const discount = this.hasDiscountSelectTarget ? parseInt(this.discountSelectTarget.value) || 0 : 0
+    const suggested = discount > 0 ? roundToNearestHundred(total * (1 - discount / 100)) : total
+    this.suggestedTotalTarget.textContent = `$${this.formatAmount(suggested)}`
   }
 
   updateSubmitButton() {

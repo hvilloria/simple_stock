@@ -103,13 +103,13 @@ module Payments
     def cash_to_collect
       @cash_to_collect ||= begin
         raw = (@amount_to_settle - discount_value).round(2)
-        @discount_percent.positive? ? round_up_to_hundred(raw) : raw
+        @discount_percent.positive? ? round_to_nearest_hundred(raw) : raw
       end
     end
 
     def apply_discount!
       # Lower total_amount by the EFFECTIVE discount (settle − rounded cash) so the
-      # balance closes exactly against the ceil-to-hundred allocation.
+      # balance closes exactly against the nearest-hundred allocation.
       effective_discount = @amount_to_settle - cash_to_collect
       return if effective_discount.zero?
       @order.update!(total_amount: @order.total_amount - effective_discount)
