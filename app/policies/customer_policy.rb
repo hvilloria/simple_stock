@@ -14,7 +14,7 @@ class CustomerPolicy < ApplicationPolicy
   end
 
   def create?
-    user.admin?  # Solo admin crea clientes
+    user.admin?  || user.vendedor?
   end
 
   def new?
