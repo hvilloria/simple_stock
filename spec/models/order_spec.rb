@@ -348,13 +348,22 @@ RSpec.describe Order, type: :model do
     let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
     let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
 
-    it "returns the cash ceil-to-hundred surcharge baked into total_amount" do
+    it "returns the cash nearest-hundred surcharge baked into total_amount" do
       # neto nominal 24.500 - 2.450 = 22.050; total guardado 22.100 => redondeo +50
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9008",
                             sale_date: Date.current, total_amount: 22_100, original_total_amount: 24_500,
                             status: "confirmed", user: create(:user))
       order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
       expect(order.rounding_amount).to eq(50)
+    end
+
+    it "returns a NEGATIVE surcharge when nearest-100 rounded the total down" do
+      # neto nominal 24.500 − 2.450 = 22.050; nearest-100 total 22.000 => redondeo −50
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9011",
+                            sale_date: Date.current, total_amount: 22_000, original_total_amount: 24_500,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
+      expect(order.rounding_amount).to eq(-50)
     end
 
     it "returns 0 when there was no rounding (credit per-item discount)" do

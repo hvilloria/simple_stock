@@ -32,8 +32,8 @@ RSpec.describe Payments::CollectOnAccount do
       o
     end
 
-    # Canonical: 710.775 × 0,90 = 639.697,5 → ceil-to-100 = 639.700.
-    it "rounds the discounted cash UP to the next hundred and settles the account" do
+    # Canonical: 710.775 × 0,90 = 639.697,5 → nearest-100 = 639.700.
+    it "rounds the discounted cash to the nearest hundred and settles the account" do
       result = described_class.call(
         order: big_order, amount_to_settle: 710_775,
         discount_percent: 10, tenders: [ { payment_method: "cash", amount: 639_700 } ]
@@ -60,16 +60,16 @@ RSpec.describe Payments::CollectOnAccount do
       expect(big_order.outstanding_balance).to eq(410_775)
     end
 
-    # cash_raw NOT a multiple: 250.001 × 0,90 = 225.000,9 → ceil-to-100 = 225.100.
-    it "rounds a non-multiple partial cash UP to the next hundred" do
+    # cash_raw NOT a multiple: 250.001 × 0,90 = 225.000,9 → nearest-100 = 225.000.
+    it "rounds a non-multiple partial cash to the nearest hundred" do
       result = described_class.call(
         order: big_order, amount_to_settle: 250_001,
-        discount_percent: 10, tenders: [ { payment_method: "cash", amount: 225_100 } ]
+        discount_percent: 10, tenders: [ { payment_method: "cash", amount: 225_000 } ]
       )
 
       expect(result).to be_success
-      expect(big_order.reload.total_amount).to eq(685_874)         # 710.775 − 24.901 effective discount
-      expect(big_order.payment_allocations.sum(:amount)).to eq(225_100)
+      expect(big_order.reload.total_amount).to eq(685_774)         # 710.775 − 25.001 effective discount
+      expect(big_order.payment_allocations.sum(:amount)).to eq(225_000)
       expect(big_order.outstanding_balance).to eq(460_774)
     end
 

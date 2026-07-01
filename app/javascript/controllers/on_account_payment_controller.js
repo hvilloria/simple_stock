@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { roundToNearestHundred } from "helpers/cash_rounding"
 
 // Drives the on_account collect form: amount-to-settle + per-event cash-only
 // discount, computing the cash to collect and enabling/disabling the discount.
@@ -26,9 +27,11 @@ export default class extends Controller {
 
     const discount = parseInt(this.discountTarget.value, 10) || 0
     const cashRaw = amount - Math.round(amount * discount) / 100
-    // Discounted cash collections round UP to the next hundred (matches backend).
-    const cash = (discount > 0 && isCash) ? Math.ceil(cashRaw / 100) * 100 : cashRaw
-    const discountValue = amount - cash
+    // Discounted cash collections round to the nearest hundred (matches backend).
+    const cash = (discount > 0 && isCash) ? roundToNearestHundred(cashRaw) : cashRaw
+    // The discount shown is always the exact nominal percentage — never rounded.
+    // Only the cash to collect (the total/result) gets the hundred rounding.
+    const discountValue = discount > 0 ? amount * discount / 100 : 0
 
     this.settleLineTarget.textContent = this.format(amount)
     this.discountLineTarget.textContent = `−${this.format(discountValue)}`

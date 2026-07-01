@@ -127,6 +127,19 @@
             %p.text-sm.text-gray-500.mb-2 Total
             %p.text-4xl.font-bold.text-gray-900{ data: { order_form_target: "total" } } $0
 
+          -# Cash-discount quote (Contado only). Salesperson suggestion — NOT
+          -# submitted; caja applies the real discount at collection.
+          .border-t.border-gray-200.py-4.hidden{ data: { order_form_target: "discountSection" } }
+            %label.block.text-sm.font-medium.text-gray-700.mb-2{ for: "suggested_discount" } Descuento sugerido (contado)
+            %select#suggested_discount{ data: { order_form_target: "discountSelect", action: "change->order-form#updateDiscountSuggestion" }, class: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all" }
+              %option{ value: "0" } Sin descuento
+              %option{ value: "5" } 5%
+              %option{ value: "10" } 10%
+            .flex.justify-between.items-center.mt-3
+              %span.text-sm.text-gray-600 Total con descuento
+              %span.text-xl.font-bold.text-gray-900{ data: { order_form_target: "suggestedTotal" } } $0
+            %p.text-xs.text-gray-500.mt-1 El descuento final lo aplica caja al cobrar.
+
           .border-t.border-gray-200.py-4.space-y-3
             .flex.justify-between.text-sm
               %span.text-gray-600 Items

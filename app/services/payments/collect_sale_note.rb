@@ -89,7 +89,7 @@ module Payments
     def effective_total
       @effective_total ||= begin
         raw = (@order.original_total_amount.to_d * (1 - @discount_percent.to_d / 100)).round(2)
-        @discount_percent.positive? ? round_up_to_hundred(raw) : raw
+        @discount_percent.positive? ? round_to_nearest_hundred(raw) : raw
       end
     end
 
@@ -97,7 +97,7 @@ module Payments
       return if @discount_percent.zero?
 
       # order_item.discount_percent stays as display metadata; the canonical
-      # charged total is the rounded effective_total (cash ceil-to-hundred).
+      # charged total is the rounded effective_total (cash nearest-hundred).
       @order.order_items.each do |item|
         item.update!(discount_percent: @discount_percent)
       end

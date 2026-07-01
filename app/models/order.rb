@@ -81,13 +81,14 @@ class Order < ApplicationRecord
   end
 
   # Real NOMINAL discount (sum of the per-item discounts). It does NOT include the
-  # ceil-to-100 rounding applied to the total to pay — that goes in #rounding_amount.
+  # nearest-100 rounding applied to the total to pay — that goes in #rounding_amount.
   def discount_amount
     order_items.sum { |i| (i.quantity * i.unit_price) * (i.discount_percent.to_d / 100) }.round(2)
   end
 
-  # Ceil-to-100 rounding charge baked into total_amount (cash collection
-  # with discount). 0 when there was no rounding (e.g. per-item credit discounts).
+  # Nearest-100 rounding adjustment baked into total_amount (cash collection
+  # with discount). Signed: positive when rounded up, negative when rounded down,
+  # 0 when there was no rounding (e.g. per-item credit discounts).
   def rounding_amount
     return 0 if total_amount.nil? || original_total_amount.nil?
     total_amount - (original_total_amount - discount_amount)

@@ -33,8 +33,8 @@ RSpec.describe Payments::CollectSaleNote do
       expect(order.payment_allocations.first.payment.payment_method).to eq("cash")
     end
 
-    # Canonical money case: 710.775 × 0,90 = 639.697,5 → ceil-to-100 = 639.700.
-    it "rounds the discounted cash total UP to the next hundred (ceil-to-100)" do
+    # Canonical money case: 710.775 × 0,90 = 639.697,5 → nearest-100 = 639.700.
+    it "rounds the discounted cash total to the nearest hundred (639.700)" do
       big = create(:order, :pending, customer: customer, order_type: "immediate",
                    paper_number: "CSN-100", total_amount: 710_775, original_total_amount: 710_775)
       create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)

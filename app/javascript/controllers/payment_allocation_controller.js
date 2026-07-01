@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { roundToNearestHundred } from "helpers/cash_rounding"
 
 // Manages the multi-order payment form with per-product discounts.
 // - Each card represents one credit order.
@@ -109,12 +110,12 @@ export default class extends Controller {
     // Discount forgiven on this order (debt the customer no longer owes once charged).
     row.dataset.discountForgiven = (originalSum - newSum).toFixed(2)
     // Front-only prefill rule: when paying a discounted order in cash, round the
-    // charged amount UP to the next hundred. Backend does NOT enforce this for
+    // charged amount to the nearest hundred. Backend does NOT enforce this for
     // credit (AllocatePayment) — partial payments must stay free-form.
     const methodSelect = row.querySelector("[data-role='method-select']")
     const isCash = methodSelect && methodSelect.value === "cash"
     const hasDiscount = Math.abs(originalSum - newSum) > 0.001
-    const chargeable = (isCash && hasDiscount) ? Math.ceil(newSum / 100) * 100 : newSum
+    const chargeable = (isCash && hasDiscount) ? roundToNearestHundred(newSum) : newSum
 
     const amountInput = row.querySelector("[data-role='amount-input']")
     const checkbox = row.querySelector("[data-role='include-checkbox']")
