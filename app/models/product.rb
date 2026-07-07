@@ -1,6 +1,8 @@
 class Product < ApplicationRecord
+  acts_as_paranoid
+
   # Associations
-  has_many :stock_movements, dependent: :destroy
+  has_many :stock_movements
 
   # === SKU AND VARIANTS ===
   # sku represents the OEM CODE of the part (e.g.: original Honda code)
@@ -54,7 +56,8 @@ class Product < ApplicationRecord
   # The DB index (index_products_on_variant_uniqueness) stays lenient
   # (NULLS DISTINCT): it is a backstop for complete rows; the model is the real enforcer.
   validates :sku, presence: true
-  validates :sku, uniqueness: { scope: [ :product_type, :origin, :brand ] },
+  validates :sku, uniqueness: { scope: [ :product_type, :origin, :brand ],
+                                conditions: -> { where(deleted_at: nil) } },
                   if: -> { origin.present? }
   validates :name, presence: true
   validates :price_unit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true

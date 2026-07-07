@@ -136,4 +136,20 @@ RSpec.describe "Web::Orders", type: :request do
       end
     end
   end
+
+  describe "GET /web/orders/:id" do
+    it "renders the order show page after its product is soft-deleted" do
+      admin = create(:user, role: "admin")
+      historical_product = create(:product, name: "Pieza histórica")
+      order = create(:order, status: "confirmed")
+      create(:order_item, order: order, product: historical_product, quantity: 1, unit_price: 100)
+      historical_product.destroy # soft delete
+      sign_in admin
+
+      get web_order_path(order)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Pieza histórica")
+    end
+  end
 end

@@ -23,7 +23,7 @@ Rails.application.routes.draw do
   namespace :web do
     get "dashboard", to: "dashboard#index"
 
-    resources :products, only: [ :index, :show, :new, :create, :edit, :update ] do
+    resources :products, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
       collection do
         get :search
       end

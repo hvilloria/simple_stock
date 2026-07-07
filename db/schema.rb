@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_06_28_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_07_07_001551) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -180,8 +180,10 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_28_120000) do
     t.string "product_type"
     t.string "brand"
     t.string "location_code"
+    t.datetime "deleted_at"
+    t.index ["deleted_at"], name: "index_products_on_deleted_at"
     t.index ["location_code"], name: "index_products_on_location_code"
-    t.index ["sku", "product_type", "brand", "origin"], name: "index_products_on_variant_uniqueness", unique: true
+    t.index ["sku", "product_type", "brand", "origin"], name: "index_products_on_variant_uniqueness", unique: true, where: "(deleted_at IS NULL)"
     t.index ["sku"], name: "index_products_on_sku"
   end
 

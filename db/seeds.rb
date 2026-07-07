@@ -4,7 +4,11 @@
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
   [ Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
-    Invoice, StockMovement, Product, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
+    Invoice, StockMovement, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
+  # Product is soft-deleted (acts_as_paranoid), so destroy_all would leave ghost
+  # rows that pile up on every re-seed. Hard-delete all rows (incl. already
+  # soft-deleted ones) after their children are gone, so the dev reset is clean.
+  Product.with_deleted.delete_all
   puts "✅ Base de datos limpiada"
 end
 

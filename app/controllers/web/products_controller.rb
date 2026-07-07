@@ -52,6 +52,14 @@ module Web
       end
     end
 
+    def destroy
+      @product = Product.find(params[:id])
+      authorize @product
+
+      @product.destroy
+      redirect_to web_products_path, notice: "Producto eliminado exitosamente"
+    end
+
     def search
       authorize Product, :search?
       @products = Product.active

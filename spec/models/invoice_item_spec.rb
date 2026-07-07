@@ -6,6 +6,16 @@ RSpec.describe InvoiceItem, type: :model do
     it { is_expected.to belong_to(:product) }
   end
 
+  describe "product association after soft-delete" do
+    it "still resolves the product once it is soft-deleted" do
+      record = create(:invoice_item)
+      product = record.product
+      product.destroy
+
+      expect(record.reload.product).to eq(product)
+    end
+  end
+
   describe "validations" do
     it { is_expected.to validate_numericality_of(:quantity).is_greater_than(0) }
     it { is_expected.to validate_numericality_of(:unit_cost).is_greater_than_or_equal_to(0) }
