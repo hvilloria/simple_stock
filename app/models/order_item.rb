@@ -1,6 +1,6 @@
 class OrderItem < ApplicationRecord
   belongs_to :order
-  belongs_to :product
+  belongs_to :product, -> { with_deleted }
 
   validates :quantity, numericality: { greater_than: 0 }
   # unit_price may be NULL in sales-lite mode

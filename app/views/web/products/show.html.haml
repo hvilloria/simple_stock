@@ -13,6 +13,11 @@
       - if policy(@product).edit?
         = link_to edit_web_product_path(@product), class: "btn-primary" do
           %span Editar Producto
+      - if policy(@product).destroy?
+        = button_to web_product_path(@product), method: :delete,
+                    data: { turbo_confirm: "¿Eliminar este producto? Dejará de aparecer en el sistema." },
+                    class: "btn-danger" do
+          %span Eliminar
 
   -# Alert if product inactive
   - unless @product.active?

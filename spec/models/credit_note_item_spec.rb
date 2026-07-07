@@ -6,6 +6,16 @@ RSpec.describe CreditNoteItem, type: :model do
     it { is_expected.to belong_to(:product) }
   end
 
+  describe "product association after soft-delete" do
+    it "still resolves the product once it is soft-deleted" do
+      record = create(:credit_note_item)
+      product = record.product
+      product.destroy
+
+      expect(record.reload.product).to eq(product)
+    end
+  end
+
   describe "validations" do
     it { is_expected.to validate_presence_of(:quantity) }
     it { is_expected.to validate_numericality_of(:quantity).only_integer.is_greater_than(0) }

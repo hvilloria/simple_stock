@@ -1,7 +1,7 @@
 class InvoiceItem < ApplicationRecord
   # Associations
   belongs_to :invoice
-  belongs_to :product
+  belongs_to :product, -> { with_deleted }
 
   # Validations
   validates :quantity, numericality: { greater_than: 0 }

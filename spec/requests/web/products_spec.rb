@@ -107,4 +107,35 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(target.reload.origin).to eq("japan")
     end
   end
+
+  describe "DELETE /web/products/:id" do
+    let!(:target) { create(:product, name: "Para borrar") }
+
+    it "lets an admin soft-delete the product" do
+      sign_in admin
+      delete web_product_path(target)
+
+      expect(response).to redirect_to(web_products_path)
+      expect(Product.exists?(target.id)).to be(false)          # hidden by default scope
+      expect(Product.with_deleted.find(target.id).deleted_at).to be_present
+      follow_redirect!
+      expect(response.body).to include("eliminado")
+    end
+
+    it "forbids a vendedor" do
+      sign_in vendedor
+      delete web_product_path(target)
+
+      expect(response).to have_http_status(:redirect)
+      expect(Product.exists?(target.id)).to be(true)
+    end
+
+    it "forbids caja" do
+      sign_in caja
+      delete web_product_path(target)
+
+      expect(response).to have_http_status(:redirect)
+      expect(Product.exists?(target.id)).to be(true)
+    end
+  end
 end
