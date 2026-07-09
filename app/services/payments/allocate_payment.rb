@@ -2,6 +2,10 @@
 
 module Payments
   class AllocatePayment
+    include Payments::CashRounding
+
+    TOLERANCE = 0.01
+
     def self.call(customer:, payment_date:, allocations:, notes: nil)
       new(
         customer: customer,
@@ -139,7 +143,23 @@ module Payments
         discount_factor = 1 - oi.discount_percent.to_d / 100
         (unit * oi.quantity * discount_factor).round(2)
       end
-      order.update!(total_amount: new_total)
+      order.update!(total_amount: canonical_total(row, new_total, percents_by_item_id))
+    end
+
+    # A discounted order settled entirely in cash gets the nearest-hundred courtesy
+    # (mirrors CollectSaleNote / CollectOnAccount). The rounded value becomes the
+    # canonical total_amount so the allocation closes the balance exactly; the
+    # remainder surfaces via Order#rounding_amount. Any other case — non-cash, no
+    # discount, or a partial amount that does not match the rounded full total —
+    # keeps the exact nominal total so partial credit payments stay free-form.
+    def canonical_total(row, new_total, percents_by_item_id)
+      return new_total unless row[:payment_method] == "cash"
+      return new_total unless percents_by_item_id.values.any?(&:positive?)
+
+      rounded = round_to_nearest_hundred(new_total)
+      return new_total unless (row[:amount].to_d - rounded.to_d).abs <= TOLERANCE
+
+      rounded
     end
 
     def check_outstanding_after_discounts!(row)
