@@ -1,0 +1,5 @@
+3. feature -> add compatibility info in Product table and show it in Product index.. 
+4. feature -> pagos a cuenta se debe poder cambiar los productos anotados en pagos a cuenta ( los que no se hayan marcado como entregados )
+6. feature -> VIN breakdown, how to know what part matches the current car given the VIN.
+7. feature -> talonarios must be uniques
+8. feature -> pensar en metricas, reportes, etc
