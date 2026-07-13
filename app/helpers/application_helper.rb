@@ -11,16 +11,16 @@ module ApplicationHelper
   }.freeze
 
   PAYMENT_METHOD_BADGE_CLASSES = {
-    "cash"          => "bg-green-900 text-white",  # verde oscuro
-    "bank_qr"       => "bg-blue-900 text-white",   # azul oscuro
+    "cash"          => "bg-green-900 text-white",  # dark green
+    "bank_qr"       => "bg-blue-900 text-white",   # dark blue
     "bank_card"     => "bg-blue-900 text-white",
     "bank_transfer" => "bg-blue-900 text-white",
     "bank"          => "bg-blue-900 text-white",   # ledger (cash/bank/mercado_pago)
-    "mercado_pago"  => "bg-sky-400 text-white"     # azul claro
+    "mercado_pago"  => "bg-sky-400 text-white"     # light blue
   }.freeze
 
-  # Delega al catálogo del modelo Payment y agrega "bank" para las vistas del
-  # Sales Ledger (subsistema con su propio set de métodos).
+  # Delegates to the Payment model catalog and adds "bank" for the
+  # Sales Ledger views (subsystem with its own set of methods).
   PAYMENT_METHOD_LABELS = Payment::PAYMENT_METHOD_LABELS.merge("bank" => "Banco").freeze
 
   def product_source_badge_class(source)
@@ -48,12 +48,12 @@ module ApplicationHelper
     end
   end
 
-  # Helper para verificar si el controlador actual coincide con alguno de los nombres dados
-  # Soporta múltiples controladores y acciones opcionales
+  # Helper to check whether the current controller matches any of the given names
+  # Supports multiple controllers and optional actions
   def active_class(*controller_names)
     controllers = controller_names.flatten.map(&:to_s)
 
-    # Verificar si alguno coincide
+    # Check whether any of them matches
     if controllers.any? { |name| controller_name == name }
       "active"
     else
@@ -61,11 +61,11 @@ module ApplicationHelper
     end
   end
 
-  # Helper para generar links de ordenamiento en tablas
-  # Parámetros:
-  #   column: nombre de la columna a ordenar
-  #   title: texto a mostrar en el header
-  #   current_params: parámetros actuales del request
+  # Helper to generate sorting links in tables
+  # Parameters:
+  #   column: name of the column to sort by
+  #   title: text to display in the header
+  #   current_params: current request parameters
   def sortable_column(column, title, current_params)
     direction = if current_params[:sort] == column.to_s && current_params[:direction] == "asc"
       "desc"
@@ -73,7 +73,7 @@ module ApplicationHelper
       "asc"
     end
 
-    # Mantener otros parámetros de filtro (q, category, status)
+    # Keep other filter parameters (q, category, status)
     link_params = {
       q: current_params[:q],
       category: current_params[:category],
@@ -85,7 +85,7 @@ module ApplicationHelper
     link_to web_products_path(link_params), class: "flex items-center gap-1.5 hover:text-slate-700 transition-colors" do
       content = content_tag(:span, title)
 
-      # Mostrar flecha si esta columna está activa
+      # Show arrow if this column is active
       if current_params[:sort] == column.to_s
         arrow = if current_params[:direction] == "asc"
           content_tag(:span, "↑", class: "text-slate-700 font-semibold")
@@ -94,7 +94,7 @@ module ApplicationHelper
         end
         content + arrow
       else
-        # Mostrar flecha doble si no está ordenando por esta columna
+        # Show double arrow if not sorting by this column
         content + content_tag(:span, "↕", class: "text-slate-400")
       end
     end

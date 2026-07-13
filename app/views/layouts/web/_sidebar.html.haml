@@ -2,7 +2,7 @@
   -# Logo
   .flex.items-center.justify-between.px-6.py-4.border-b.border-slate-200
     = link_to root_path, class: "flex items-center gap-3" do
-      -# Logo con fondo rojo (único uso del color corporativo)
+      -# Logo with red background (only use of corporate color)
       .w-10.h-10.rounded-lg.bg-brand.flex.items-center.justify-center.shadow-sm
         %span.font-bold.text-lg.text-white GS
       
@@ -10,7 +10,7 @@
         %h1.font-bold.text-base.text-slate-900 Gente del Sol
         %p.text-xs.text-slate-500 Sistema de Gestión
   
-  -# Navegación
+  -# Navigation
   %nav.flex-1.px-3.py-4.space-y-1
     = link_to web_dashboard_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'dashboard' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
       %span.text-base 📊
@@ -38,67 +38,28 @@
         - if open_on_account_count > 0
           %span.ml-auto.inline-flex.items-center.justify-center.w-5.h-5.rounded-full.bg-amber-100.text-amber-700.text-xs.font-bold= open_on_account_count
 
-    -# Ventas (con submenu desplegable)
-    - ventas_active = controller_path.start_with?('web/sales_ledger') || controller_name == 'orders'
-    .nav-group{ data: { controller: "dropdown" } }
-      %button.nav-item.nav-group-toggle{
-        type: "button",
-        data: { action: "click->dropdown#toggle" },
-        class: (ventas_active ? 'bg-slate-100' : '')
-      }
-        .flex.items-center.justify-between.w-full
-          .flex.items-center.gap-3
-            .nav-icon
-              %span.text-base 🛒
-            %span.font-medium.text-slate-900 Ventas
-          .nav-arrow{ data: { dropdown_target: "arrow" } }
-            ▼
+    - if current_user&.vendedor? || current_user&.caja? || current_user&.admin?
+      - debtors_count = Customer.with_outstanding_balance.count
+      - debtors_active = controller_name == 'customers' && action_name == 'debtors'
+      = link_to debtors_web_customers_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{debtors_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+        %span.text-base 💳
+        %span Cuentas por Cobrar
+        - if debtors_count > 0
+          %span.ml-auto.inline-flex.items-center.justify-center.w-5.h-5.rounded-full.bg-amber-100.text-amber-700.text-xs.font-bold= debtors_count
 
-      .nav-submenu.pl-8.border-l-2.border-slate-200.ml-4{ data: { dropdown_target: "menu" } }
-        = link_to web_orders_path, class: "nav-subitem #{controller_name == 'orders' ? 'active' : ''}" do
-          %span.text-base 🧾
-          %span Ventas del Sistema
+    -# Sales
+    - ventas_active = controller_name == 'orders'
+    = link_to web_orders_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{ventas_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 🛒
+      %span Ventas
 
-        = link_to web_sales_ledger_imports_path, class: "nav-subitem #{controller_name == 'imports' ? 'active' : ''}" do
-          %span.text-base 📋
-          %span Ventas Importadas
-
-        = link_to web_sales_ledger_reports_path, class: "nav-subitem #{controller_name == 'reports' ? 'active' : ''}" do
-          %span.text-base 📊
-          %span Reportes
+    -# Customers
+    - clientes_active = (controller_name == 'customers' && action_name != 'debtors') || controller_path.start_with?('web/customers/')
+    = link_to web_customers_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{clientes_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      %span.text-base 👥
+      %span Clientes
     
-    -# Clientes (con submenu)
-    - clientes_active = controller_name == 'customers' || controller_path.start_with?('web/customers/')
-    - debtors_count = Customer.with_outstanding_balance.count
-    .nav-group{ data: { controller: "dropdown" } }
-      %button.nav-item.nav-group-toggle{
-        type: "button",
-        data: { action: "click->dropdown#toggle" },
-        class: (clientes_active ? 'bg-slate-100' : '')
-      }
-        .flex.items-center.justify-between.w-full
-          .flex.items-center.gap-3
-            .nav-icon
-              %span.text-base 👥
-            %span.font-medium.text-slate-900 Clientes
-          .nav-arrow{ data: { dropdown_target: "arrow" } }
-            ▼
-
-      .nav-submenu.pl-8.border-l-2.border-slate-200.ml-4{ data: { dropdown_target: "menu" } }
-        = link_to web_customers_path, class: "nav-subitem #{(clientes_active && action_name != 'debtors') ? 'active' : ''}" do
-          %span.text-base 👤
-          %span Todos los Clientes
-
-        = link_to debtors_web_customers_path, class: "nav-subitem #{(controller_name == 'customers' && action_name == 'debtors') ? 'active' : ''}" do
-          .flex.items-center.justify-between.w-full
-            .flex.items-center.gap-2
-              %span.text-base 💳
-              %span Cuentas por Cobrar
-            - if debtors_count > 0
-              %span.inline-flex.items-center.justify-center.w-5.h-5.rounded-full.bg-amber-100.text-amber-700.text-xs.font-bold
-                = debtors_count
-    
-    -# Facturación (con submenu desplegable)
+    -# Billing (with dropdown submenu)
     .nav-group{ data: { controller: "dropdown" } }
       %button.nav-item.nav-group-toggle{ 
         type: "button",
@@ -131,13 +92,8 @@
         %span.text-base 🏭
         %span Proveedores
   
-  -# Usuario
+  -# Main CTA: new sale (user info lives in the header)
   .px-3.py-4.border-t.border-slate-200
-    .flex.items-center.gap-3.px-3.py-2
-      .w-8.h-8.rounded-full.bg-slate-200.flex.items-center.justify-center.text-slate-700.text-sm.font-semibold
-        = current_user.name.first.upcase
-      .flex-1.min-w-0
-        %p.text-sm.font-medium.text-slate-900.truncate 
-          = current_user.name
-        %p.text-xs.text-slate-500 
-          = current_user.role.titleize
+    = link_to new_web_order_path, class: "btn-primary w-full" do
+      %span +
+      %span Nueva Venta

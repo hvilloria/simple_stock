@@ -1,17 +1,17 @@
 .min-h-screen.bg-gray-50.flex.items-center.justify-center.py-12.px-4
   .space-y-8{style: "width: 100%; max-width: 400px;"}
     
-    -# Logo y título
+    -# Logo and title
     .text-center
       .mx-auto.h-16.w-16.rounded-2xl.flex.items-center.justify-center.mb-4{style: "background-color: #DC3545"}
         %h1.text-3xl.font-bold.text-white GS
       %h2.text-2xl.font-bold.text-gray-900 Gente del Sol
       %p.mt-2.text-sm.text-gray-600 Sistema de Gestión
     
-    -# Formulario de login
+    -# Login form
     .bg-white.rounded-2xl.shadow-sm.p-6
       
-      -# Errores
+      -# Errors
       - if flash[:alert]
         .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6
           %p.text-sm.text-red-700= flash[:alert]

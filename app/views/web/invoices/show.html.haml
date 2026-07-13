@@ -31,10 +31,10 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-    -# Columna Principal (2/3)
+    -# Main column (2/3)
     .lg:col-span-2.space-y-6
 
-      -# Card Información de Factura
+      -# Invoice info card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Factura
 
@@ -113,14 +113,14 @@
               %span.text-gray-500.w-40.flex-shrink-0 Fecha de Pago:
               %span.text-gray-900= @invoice.paid_at.to_date.strftime("%d/%m/%Y")
 
-      -# Card Notas (si existen)
+      -# Notes card (if any)
       - if @invoice.notes.present?
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 Notas
 
           %p.text-gray-700.whitespace-pre-wrap= @invoice.notes
 
-      -# Card Información del Proveedor
+      -# Supplier info card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         .flex.items-center.justify-between.mb-4
           %h3.text-lg.font-semibold.text-gray-900 Información del Proveedor
@@ -154,7 +154,7 @@
               %span 🏦
               %span.text-gray-600.font-mono= @invoice.supplier.bank_alias
 
-    -# Columna Lateral (1/3)
+    -# Side column (1/3)
     .lg:col-span-1
       .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Acciones
@@ -187,7 +187,7 @@
               %p.text-5xl.mb-3 ❌
               %p.text-gray-600.font-medium Factura Cancelada
 
--# Modal: Marcar como Pagada (SOLO SI PENDING)
+-# Modal: Mark as paid (ONLY IF PENDING)
 - if @invoice.pending_status?
   #markAsPaidModal.hidden.fixed.inset-0.bg-black.bg-opacity-50.z-50.flex.items-center.justify-center
     .bg-white.rounded-lg.p-6.max-w-md.w-full.mx-4{ onclick: "event.stopPropagation()" }

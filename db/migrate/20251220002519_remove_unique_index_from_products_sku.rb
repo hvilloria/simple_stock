@@ -1,14 +1,14 @@
 class RemoveUniqueIndexFromProductsSku < ActiveRecord::Migration[7.2]
   def change
-    # Eliminar el índice único existente sobre sku
+    # Remove the existing unique index on sku
     remove_index :products, :sku
 
-    # Agregar índice normal para búsquedas rápidas por código OEM
+    # Add a normal index for fast lookups by OEM code
     add_index :products, :sku
 
-    # Agregar índice único compuesto para evitar duplicar la misma variante exacta
-    # Esto permite múltiples variantes del mismo OEM (sku), pero no duplicar
-    # la misma combinación de sku + tipo + marca + origen
+    # Add a composite unique index to prevent duplicating the same exact variant
+    # This allows multiple variants of the same OEM (sku), but not duplicating
+    # the same combination of sku + type + brand + origin
     add_index :products,
               [ :sku, :product_type, :brand, :origin ],
               unique: true,

@@ -2,6 +2,10 @@
 
 module Payments
   class AllocatePayment
+    include Payments::CashRounding
+
+    TOLERANCE = 0.01
+
     def self.call(customer:, payment_date:, allocations:, notes: nil)
       new(
         customer: customer,
@@ -67,6 +71,16 @@ module Payments
 
     class ValidationError < StandardError; end
 
+    # Backstop: callers must pass numeric (already-cleaned) amounts. A String
+    # still carrying Argentine formatting (decimal comma / thousands separator)
+    # would be silently truncated by #to_f (e.g. "80.000,00".to_f == 80.0), so
+    # we fail loudly instead of registering an absurdly small payment.
+    def reject_unparsed_amount_format!(raw)
+      return unless raw.is_a?(String) && raw.include?(",")
+
+      raise ValidationError, "Monto con formato inválido (debe venir numérico)"
+    end
+
     def validate_params
       raise ValidationError, "Customer is required" if @customer.nil?
 
@@ -77,6 +91,8 @@ module Payments
       raise ValidationError, "Debe incluir al menos una orden" if @allocations.empty?
 
       @allocations.each do |row|
+        reject_unparsed_amount_format!(row[:amount])
+
         amount = row[:amount].to_f
         raise ValidationError, "El monto debe ser mayor a cero" if amount <= 0
 
@@ -127,7 +143,23 @@ module Payments
         discount_factor = 1 - oi.discount_percent.to_d / 100
         (unit * oi.quantity * discount_factor).round(2)
       end
-      order.update!(total_amount: new_total)
+      order.update!(total_amount: canonical_total(row, new_total, percents_by_item_id))
+    end
+
+    # A discounted order settled entirely in cash gets the nearest-hundred courtesy
+    # (mirrors CollectSaleNote / CollectOnAccount). The rounded value becomes the
+    # canonical total_amount so the allocation closes the balance exactly; the
+    # remainder surfaces via Order#rounding_amount. Any other case — non-cash, no
+    # discount, or a partial amount that does not match the rounded full total —
+    # keeps the exact nominal total so partial credit payments stay free-form.
+    def canonical_total(row, new_total, percents_by_item_id)
+      return new_total unless row[:payment_method] == "cash"
+      return new_total unless percents_by_item_id.values.any?(&:positive?)
+
+      rounded = round_to_nearest_hundred(new_total)
+      return new_total unless (row[:amount].to_d - rounded.to_d).abs <= TOLERANCE
+
+      rounded
     end
 
     def check_outstanding_after_discounts!(row)

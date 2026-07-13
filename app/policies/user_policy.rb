@@ -2,7 +2,7 @@
 
 class UserPolicy < ApplicationPolicy
   def index?
-    user.admin?  # Solo admin ve usuarios
+    user.admin?  # Only admin views users
   end
 
   def show?
@@ -10,7 +10,7 @@ class UserPolicy < ApplicationPolicy
   end
 
   def create?
-    user.admin?  # Solo admin crea usuarios
+    user.admin?  # Only admin creates users
   end
 
   def new?
@@ -26,6 +26,6 @@ class UserPolicy < ApplicationPolicy
   end
 
   def destroy?
-    user.admin? && record != user  # Admin puede eliminar, pero no a sí mismo
+    user.admin? && record != user  # Admin can delete, but not themselves
   end
 end

@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { roundToNearestHundred } from "helpers/cash_rounding"
 
 // Manages the multi-order payment form with per-product discounts.
 // - Each card represents one credit order.
@@ -30,6 +31,12 @@ export default class extends Controller {
   }
 
   discountChanged(event) {
+    const row = event.target.closest("[data-payment-allocation-target='row']")
+    this.recomputeCard(row)
+    this.updateSummary()
+  }
+
+  methodChanged(event) {
     const row = event.target.closest("[data-payment-allocation-target='row']")
     this.recomputeCard(row)
     this.updateSummary()
@@ -100,15 +107,29 @@ export default class extends Controller {
 
     // Unlocked orders have paid_so_far == 0, so the new pending equals the new total.
     row.dataset.pending = newSum.toFixed(2)
+    // Prefill rule: when paying a discounted order in cash, round the charged amount
+    // to the nearest hundred. On a FULL cash settlement the backend (AllocatePayment)
+    // now enforces this same rounding as the canonical total; a partial credit payment
+    // stays free-form and exact (backend leaves the nominal total untouched).
+    const methodSelect = row.querySelector("[data-role='method-select']")
+    const isCash = methodSelect && methodSelect.value === "cash"
+    const hasDiscount = Math.abs(originalSum - newSum) > 0.001
+    const chargeable = (isCash && hasDiscount) ? roundToNearestHundred(newSum) : newSum
+
+    // Discount forgiven on this order (debt the customer no longer owes once charged).
+    // Measured against the charged amount so a rounded full cash settlement reads $0.
+    row.dataset.discountForgiven = (originalSum - chargeable).toFixed(2)
+
     const amountInput = row.querySelector("[data-role='amount-input']")
     const checkbox = row.querySelector("[data-role='include-checkbox']")
     if (checkbox.checked) {
-      amountInput.value = this.formatAmount(newSum)
+      amountInput.value = this.formatAmount(chargeable)
     }
   }
 
   updateSummary() {
     let charging = 0
+    let totalDiscount = 0
     let selected = 0
 
     this.rowTargets.forEach(row => {
@@ -117,11 +138,12 @@ export default class extends Controller {
       if (checkbox.checked && amountInput.value) {
         const v = this.parseAmount(amountInput.value)
         charging += v
+        totalDiscount += parseFloat(row.dataset.discountForgiven) || 0
         if (v > 0) selected += 1
       }
     })
 
-    const remaining = this.totalDebtValue - charging
+    const remaining = this.totalDebtValue - charging - totalDiscount
 
     this.totalChargingTarget.textContent = this.formatMoney(charging)
     this.remainingBalanceTarget.textContent = this.formatMoney(remaining)

@@ -26,10 +26,10 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
 
-    -# Columna Principal (2/3)
+    -# Main column (2/3)
     .lg:col-span-2.space-y-6
 
-      -# Card Información de la NC
+      -# Credit note info card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Nota de Crédito
 
@@ -81,7 +81,7 @@
                 ARS
                 = number_with_precision(@credit_note.total_amount_ars, precision: 2, delimiter: ".", separator: ",")
 
-      -# Card Estado de la Nota
+      -# Note status card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Estado
         
@@ -99,14 +99,14 @@
               ✕ Cancelada
         
 
-      -# Card Notas (si existen)
+      -# Notes card (if any)
       - if @credit_note.notes.present?
         .bg-white.border.border-slate-200.rounded-lg.p-6
           %h3.text-lg.font-semibold.text-gray-900.mb-4 Notas
 
           %p.text-gray-700.whitespace-pre-wrap= @credit_note.notes
 
-      -# Card Información del Proveedor
+      -# Supplier info card
       .bg-white.border.border-slate-200.rounded-lg.p-6
         .flex.items-center.justify-between.mb-4
           %h3.text-lg.font-semibold.text-gray-900 Información del Proveedor
@@ -130,7 +130,7 @@
               %span 📞
               %span.text-gray-600= @credit_note.supplier.phone
 
-    -# Columna Lateral (1/3)
+    -# Side column (1/3)
     .lg:col-span-1
       .bg-white.border.border-slate-200.rounded-lg.p-6.sticky.top-24
         %h3.text-lg.font-semibold.text-gray-900.mb-4 Acciones

@@ -7,6 +7,16 @@ RSpec.describe StockMovement, type: :model do
     it { is_expected.to belong_to(:reference).optional }
   end
 
+  describe "product association after soft-delete" do
+    it "still resolves the product once it is soft-deleted" do
+      record = create(:stock_movement)
+      product = record.product
+      product.destroy
+
+      expect(record.reload.product).to eq(product)
+    end
+  end
+
   describe "enums" do
     it { is_expected.to define_enum_for(:movement_type).with_values(purchase: "purchase", sale: "sale", adjustment: "adjustment").backed_by_column_of_type(:string).with_suffix }
   end

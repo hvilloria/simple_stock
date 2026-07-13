@@ -5,10 +5,10 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
   let(:csv_file) { Tempfile.new([ 'products', '.csv' ]) }
   let(:file_path) { csv_file.path }
 
-  # Helper para crear archivo CSV de prueba
+  # Helper to create a test CSV file
   def write_csv(rows)
     CSV.open(csv_file.path, 'w', encoding: 'UTF-8') do |csv|
-      # Headers del CSV (mismos que products_inventory.csv)
+      # CSV headers (same as products_inventory.csv)
       csv << [ 'ID del artículo', 'Nombre del artículo', 'Compatibilidad', 'Precio Lista ( U$D)',
               'Precio Venta (ARS)', 'Stock', 'Estado', 'Origen', 'Pasillo', 'Notas' ]
       rows.each { |row| csv << row }
@@ -124,7 +124,7 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
           price_unit: 1000,
           current_stock: 0
         )
-        # Crear movimiento inicial
+        # Create initial movement
         create(:stock_movement,
           product: product,
           stock_location: stock_location,
@@ -180,7 +180,7 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
 
       context 'when only price changes' do
         before do
-          # Ajustar el stock a 799
+          # Adjust the stock to 799
           create(:stock_movement,
             product: existing_product,
             stock_location: stock_location,
@@ -211,7 +211,7 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
 
       context 'when nothing changes' do
         before do
-          # Ajustar el stock a 799 y precio a 1300
+          # Adjust the stock to 799 and price to 1300
           existing_product.update!(price_unit: 1300)
           create(:stock_movement,
             product: existing_product,
@@ -337,7 +337,7 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
 
         result = described_class.call(file_path: file_path)
 
-        # Origin es opcional ahora, así que debería tener éxito
+        # Origin is optional now, so it should succeed
         expect(result.success?).to be true
         product = Product.find_by(sku: '91503-SZ3-003')
         expect(product.origin).to be_nil
@@ -368,7 +368,7 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
       it 'creates all valid products' do
         expect {
           described_class.call(file_path: file_path)
-        }.to change(Product, :count).by(3) # Todos son válidos (precio 0 permitido)
+        }.to change(Product, :count).by(3) # All are valid (price 0 allowed)
       end
 
       it 'tracks all stats correctly' do
@@ -400,7 +400,7 @@ RSpec.describe Inventory::SyncFromCsv, skip: true do
         expect {
           described_class.call(file_path: file_path)
         }.to change(Product, :count).by(1)
-         .and change(StockMovement, :count).by(0) # No movement para stock 0
+         .and change(StockMovement, :count).by(0) # No movement for stock 0
       end
 
       it 'creates product with zero stock' do

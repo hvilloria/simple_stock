@@ -72,8 +72,8 @@ RSpec.describe Order, type: :model do
 
         it 'allows nil customer (validation is skipped)' do
           order = build(:order, order_type: 'credit', customer: nil)
-          # El error vendrá de la validación de numericality de total_amount o de belongs_to
-          # pero no de credit_order_requires_credit_account
+          # The error will come from the numericality validation of total_amount or from belongs_to
+          # but not from credit_order_requires_credit_account
           order.valid?
           expect(order.errors[:base]).not_to include("Credit orders require a customer with credit account enabled")
         end
@@ -313,19 +313,74 @@ RSpec.describe Order, type: :model do
 
   describe "#discount_amount" do
     let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
+    let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
 
-    it "returns original_total_amount - total_amount" do
+    it "returns the NOMINAL per-item discount, ignoring cash ceil-rounding" do
+      # 24,500 with 10% => nominal discount 2,450; the stored total (22,100)
+      # already has the ceil-to-100, but the discount must NOT be affected.
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9003",
-                            sale_date: Date.current, total_amount: 90, original_total_amount: 100, status: "confirmed",
-                            user: create(:user))
-      expect(order.discount_amount).to eq(10)
+                            sale_date: Date.current, total_amount: 22_100, original_total_amount: 24_500,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
+      expect(order.discount_amount).to eq(2_450)
+    end
+
+    it "sums per-item discounts (credit orders with mixed percents)" do
+      credit_customer = create(:customer, customer_type: "workshop", has_credit_account: true)
+      order = Order.create!(customer: credit_customer, order_type: "credit", source: "live", paper_number: "9007",
+                            sale_date: Date.current, total_amount: 170, original_total_amount: 200,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 10) # 10
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 20) # 20
+      expect(order.discount_amount).to eq(30)
     end
 
     it "returns 0 when no discount was applied" do
       order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9004",
                             sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed",
                             user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 0)
       expect(order.discount_amount).to eq(0)
+    end
+  end
+
+  describe "#rounding_amount" do
+    let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
+    let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }
+
+    it "returns the cash nearest-hundred surcharge baked into total_amount" do
+      # neto nominal 24.500 - 2.450 = 22.050; total guardado 22.100 => redondeo +50
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9008",
+                            sale_date: Date.current, total_amount: 22_100, original_total_amount: 24_500,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
+      expect(order.rounding_amount).to eq(50)
+    end
+
+    it "returns a NEGATIVE surcharge when nearest-100 rounded the total down" do
+      # neto nominal 24.500 − 2.450 = 22.050; nearest-100 total 22.000 => redondeo −50
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9011",
+                            sale_date: Date.current, total_amount: 22_000, original_total_amount: 24_500,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 24_500, discount_percent: 10)
+      expect(order.rounding_amount).to eq(-50)
+    end
+
+    it "returns 0 when there was no rounding (credit per-item discount)" do
+      credit_customer = create(:customer, customer_type: "workshop", has_credit_account: true)
+      order = Order.create!(customer: credit_customer, order_type: "credit", source: "live", paper_number: "9009",
+                            sale_date: Date.current, total_amount: 90, original_total_amount: 100,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 10)
+      expect(order.rounding_amount).to eq(0)
+    end
+
+    it "returns 0 when no discount was applied" do
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9010",
+                            sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed",
+                            user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 0)
+      expect(order.rounding_amount).to eq(0)
     end
   end
 
@@ -389,6 +444,12 @@ RSpec.describe Order, type: :model do
 
     it "does not require contact for immediate or credit orders" do
       expect(build(:order, order_type: "immediate", contact_name: nil)).to be_valid
+    end
+
+    it "normalizes contact_phone to digits-only on save" do
+      order = create(:order, :on_account, contact_phone: "11 5555-1234",
+                     total_amount: 1000, original_total_amount: 1000)
+      expect(order.reload.contact_phone).to eq("1155551234")
     end
   end
 

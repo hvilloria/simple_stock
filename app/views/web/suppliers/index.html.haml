@@ -10,7 +10,7 @@
       %span +
       %span Nuevo Proveedor
 
-  -# Mensajes
+  -# Messages
   - if flash[:notice]
     .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
       .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
@@ -27,7 +27,7 @@
         %h4.font-semibold.text-red-800.mb-1 Error
         %p.text-sm.text-red-700= flash[:alert]
 
-  -# Lista de proveedores en tabla
+  -# Supplier list in table
   - if @suppliers.any?
     .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
       %table.min-w-full.divide-y.divide-slate-200
@@ -49,7 +49,7 @@
         %tbody.divide-y.divide-slate-100.bg-white
           - @suppliers.each do |supplier|
             %tr.hover:bg-slate-50.transition-colors
-              -# Nombre del proveedor
+              -# Supplier name
               %td.px-4.py-3.whitespace-nowrap
                 .flex.items-center.gap-3
                   .w-10.h-10.rounded-lg.bg-slate-100.flex.items-center.justify-center.text-xl.flex-shrink-0
@@ -59,7 +59,7 @@
                     - if supplier.bank_alias.present?
                       %p.text-xs.text-slate-500.font-mono= supplier.bank_alias
               
-              -# Contacto (email y teléfono)
+              -# Contact (email and phone)
               %td.px-4.py-3
                 - if supplier.email.present? || supplier.phone.present?
                   .space-y-1
@@ -81,7 +81,7 @@
                 - else
                   %span.text-xs.text-slate-400.italic -
               
-              -# Plazo de pago
+              -# Payment term
               %td.px-4.py-3.whitespace-nowrap
                 - if supplier.payment_term_days.present? && supplier.payment_term_days > 0
                   %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-blue-100.text-blue-800
@@ -91,7 +91,7 @@
                   %span.inline-flex.items-center.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-slate-100.text-slate-700
                     Inmediato
               
-              -# Deuda pendiente
+              -# Pending debt
               %td.px-4.py-3.whitespace-nowrap.text-right
                 - pending_amount = supplier.current_balance
                 - if pending_amount > 0
@@ -100,7 +100,7 @@
                 - else
                   %span.text-xs.text-slate-400 Sin deuda
               
-              -# Acciones
+              -# Actions
               %td.px-4.py-3.whitespace-nowrap.text-center
                 .flex.items-center.justify-center.gap-2
                   = link_to web_supplier_path(supplier), class: "inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors", title: "Ver detalle" do

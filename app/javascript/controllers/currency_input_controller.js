@@ -1,9 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Controller reutilizable para inputs de moneda en formato argentino
-// Uso: data-controller="currency-input" data-action="blur->currency-input#format focus->currency-input#unformat"
+// Reusable controller for currency inputs in Argentine format
+// Usage: data-controller="currency-input" data-action="blur->currency-input#format focus->currency-input#unformat"
 export default class extends Controller {
-  // Formatear al perder foco (blur) - formato argentino: 1.500.000,50
+  // Format on blur (losing focus) - Argentine format: 1.500.000,50
   format(event) {
     const input = event.target
     const rawValue = this.cleanValue(input.value)
@@ -15,28 +15,28 @@ export default class extends Controller {
         maximumFractionDigits: 2
       }).format(numValue)
     } else if (input.value === '') {
-      // Si está vacío, no hacer nada (permitir campos opcionales)
+      // If empty, do nothing (allow optional fields)
     } else {
-      // Si es inválido, limpiar
+      // If invalid, clear
       input.value = ''
     }
   }
 
-  // Limpiar formato al hacer focus - remover separadores de miles, mantener coma
+  // Clear formatting on focus - remove thousands separators, keep comma
   // 1.500.000,50 → 1500000,50
   unformat(event) {
     const input = event.target
     input.value = input.value.replace(/\./g, '')
   }
 
-  // Limpiar valor para enviar al backend: 1.500.000,50 → 1500000.50
+  // Clean value to send to the backend: 1.500.000,50 → 1500000.50
   cleanValue(value) {
     if (!value) return ''
-    // Remover puntos (separador miles) y cambiar coma por punto (decimal)
+    // Remove dots (thousands separator) and change comma to dot (decimal)
     return value.replace(/\./g, '').replace(/,/g, '.')
   }
 
-  // Método para ser llamado antes de submit del formulario
+  // Method to be called before form submit
   prepareForSubmit(input) {
     const cleanValue = this.cleanValue(input.value)
     input.value = cleanValue

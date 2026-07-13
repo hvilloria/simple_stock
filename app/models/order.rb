@@ -35,6 +35,8 @@ class Order < ApplicationRecord
   validates :original_total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validate :original_total_at_least_current_total
 
+  before_validation :normalize_contact_phone
+
   scope :immediate, -> { where(order_type: "immediate") }
   scope :credit,    -> { where(order_type: "credit") }
   scope :on_account, -> { where(order_type: "on_account") }
@@ -78,9 +80,18 @@ class Order < ApplicationRecord
     update!(total_amount: order_items.sum("quantity * unit_price"))
   end
 
+  # Real NOMINAL discount (sum of the per-item discounts). It does NOT include the
+  # nearest-100 rounding applied to the total to pay — that goes in #rounding_amount.
   def discount_amount
-    return 0 if original_total_amount.nil? || total_amount.nil?
-    original_total_amount - total_amount
+    order_items.sum { |i| (i.quantity * i.unit_price) * (i.discount_percent.to_d / 100) }.round(2)
+  end
+
+  # Nearest-100 rounding adjustment baked into total_amount (cash collection
+  # with discount). Signed: positive when rounded up, negative when rounded down,
+  # 0 when there was no rounding (e.g. per-item credit discounts).
+  def rounding_amount
+    return 0 if total_amount.nil? || original_total_amount.nil?
+    total_amount - (original_total_amount - discount_amount)
   end
 
   def discount_percent_display
@@ -115,6 +126,11 @@ class Order < ApplicationRecord
   end
 
   private
+
+  def normalize_contact_phone
+    return if contact_phone.blank?
+    self.contact_phone = contact_phone.gsub(/\D/, "")
+  end
 
   def credit_order_requires_credit_account
     return unless credit_order_type?

@@ -4,8 +4,9 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
   let(:vendedor) { create(:user, role: "vendedor") }
   let(:caja) { create(:user, role: "caja") }
   let(:product) { create(:product) }
+  let(:seller) { create(:user, role: "vendedor", name: "Vendedor Registró") }
   let!(:open_order) do
-    o = create(:order, :on_account, contact_name: "Juan Pérez", contact_phone: "11 5555 1234",
+    o = create(:order, :on_account, user: seller, contact_name: "Juan Pérez", contact_phone: "11 5555 1234",
                total_amount: 1000, original_total_amount: 1000)
     create(:order_item, order: o, product: product, quantity: 1, unit_price: 1000)
     o
@@ -17,6 +18,7 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       get web_payments_on_account_index_path
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Juan Pérez")
+      expect(response.body).to include("Vendedor Registró")
     end
 
     it "filters by contact query" do
@@ -32,6 +34,7 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       get web_payments_on_account_path(open_order)
       expect(response.body).to include("marcar entregado")
       expect(response.body).not_to include("Cobrar →")
+      expect(response.body).to include("Vendedor Registró")
     end
 
     it "shows the collect button but not delivery checkboxes to caja" do

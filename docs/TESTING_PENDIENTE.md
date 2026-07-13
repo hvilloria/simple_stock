@@ -1,55 +1,57 @@
 # TESTING_PENDIENTE.md
 
-Backlog de cobertura de tests, derivado de la auditoría del **2026-06-26** contra la doctrina de `docs/TESTING_GUIDE.md` (capas + árbol + flujos de plata) y `WORKING_CONTEXT.md`.
+Test coverage backlog, derived from the audit of **2026-06-26** against the doctrine in `docs/TESTING_GUIDE.md` (layers + tree + money flows) and `WORKING_CONTEXT.md`.
 
-Es un documento **de trabajo / transitorio**: cada ítem se borra a medida que se cubre. La doctrina estable vive en `AGENTS.md` → "Testing Rules" y en `TESTING_GUIDE.md`; esto es solo la lista de huecos pendientes.
+This is a **working / transitional** document: each item is deleted as it gets covered. The stable doctrine lives in `AGENTS.md` → "Testing Rules" and in `TESTING_GUIDE.md`; this is only the list of pending gaps.
 
-## Hallazgo transversal — dos parsers de moneda
+## Cross-cutting finding — two currency parsers
 
-- `orders` y `payments` parsean montos con **`.to_f` crudo** (ej. `app/controllers/web/orders_controller.rb:122`). `.to_f` no valida, adivina: `"1.500.000,50".to_f == 1.5`, `"abc".to_f == 0.0`.
-- `invoices` y `credit_notes` ya usan un **`CurrencyParser`** (`parse_amount`).
-- Consecuencia para los specs hostiles: probablemente **pasen del lado invoices/credit_notes y fallen del lado orders/payments** — ahí está el bug real. El fix de fondo es unificar todos en un parser estricto (trabajo aparte de esta lista).
-
----
-
-## 🔴 P1 — Input hostil en endpoints write-money
-
-Todos tienen request spec, pero ninguno ataca el borde de parseo con valores hostiles: `"1.500.000,50"` (miles), negativo, `"abc"` (no numérico), vacío. Cada caso debe asertar **rechazo / normalización**, nunca aceptar un número equivocado.
-
-- [ ] **`Sales::CreateOrder`** — POST `/web/orders`, `purchase_items[][unit_price]` hostil. (`spec/requests/web/orders_spec.rb`)
-- [ ] **`Payments::AllocatePayment`** — POST `/web/customers/:id/payments`, `amount` + per-item `discounts` hostiles. (`spec/requests/web/customers/payments_spec.rb`)
-- [ ] **`Payments::CollectSaleNote`** — completar: hoy solo cubre coma-decimal `"200,00"`; faltan miles `"1.500.000,50"`, negativo, `"abc"`, vacío en `tenders[][amount]`. (`spec/requests/web/sale_notes/payments_spec.rb`)
-- [ ] **`Payments::CollectOnAccount`** — `amount_to_settle` / `discount_percent` hostiles **+** regla cash-only a nivel controller (hoy solo testeada en el service spec). (`spec/requests/web/payments_on_account/payments_spec.rb`)
-- [ ] **`Invoices::CreateSimpleInvoice`** — POST `/web/invoices`, `amount` hostil vía `parse_amount`. (`spec/requests/invoices_spec.rb`)
-- [ ] **Credit notes create** — completar: AR-format ya cubierto; faltan negativo/`"abc"`/vacío + `exchange_rate` hostil. (`spec/controllers/web/credit_notes_controller_spec.rb`)
-
-## 🔴 P2 — Cobertura MISSING (no hay nada hoy)
-
-- [ ] **`Inventory::AdjustStock`** — sin service spec **ni** request spec. Crear `spec/services/inventory/adjust_stock_spec.rb` (movimiento creado + efecto de `recalculate_current_stock!` + fallos) y request spec de `Web::Products::StockMovementsController#create` (signo purchase/sale/adjustment, `quantity=0` / tipo inválido → 422).
-- [ ] **Invoice cancel** (`Web::InvoicesController#cancel`) — sin cobertura. Request spec: pending → `cancelled` + redirect/notice; no-pending → rechazado, status intacto.
-- [ ] **Credit notes `update` / `destroy`** — sin request spec; el path `parse_amount` de update está sin probar. PATCH con `amount`/`exchange_rate` hostil + DELETE happy path.
-- [ ] **`Sales::CancelOrder` restock** — aserciones en `skip`/`xit` ("stock movements temporarily disabled"); el restock no se verifica. Re-habilitar/reescribir cuando el restock esté activo. (`spec/services/sales/cancel_order_spec.rb`)
-
-## 🟡 P3 — Correctitud de cálculo en read-money (reportes)
-
-El filtro `product_source` está bien en los tres; **los montos no se asertan**. Sembrar tickets multi-renglón y asertar valores numéricos.
-
-- [ ] **`SummaryQuery`** — asertar `:revenue`, `:reported` (dedup `DISTINCT ON ticket_number`), `:unique_products`. (`spec/services/sales_ledger/reports/summary_query_spec.rb`)
-- [ ] **`SalesByDateQuery`** — asertar montos por fila; la lógica `SUM(CASE WHEN rn=1 ...)` con `ROW_NUMBER` está sin probar. (`spec/services/sales_ledger/reports/sales_by_date_query_spec.rb`)
-- [ ] **`TopProductsQuery`** — asertar `total_revenue` / `total_quantity` (la frecuencia ya está bien). (`spec/services/sales_ledger/reports/top_products_query_spec.rb`)
-- [ ] **`ImportCsv`** — agregar negativo y formato AR (menor: parser point-decimal propio). (`spec/services/sales_ledger/import_csv_spec.rb`)
-
-## 🟢 P4 — Controllers sin request spec (más allá de lo de plata)
-
-- [ ] `Web::SalesLedger::ImportsController` (ingesta de plata — amerita hostil) y `Web::SalesLedger::ReportsController` (render de agregados)
-- [ ] `Web::SuppliersController` (CRUD completo con `destroy`)
-- [ ] `Web::ProductsController` y `Web::DashboardController`
+- `orders` and `payments` parse amounts with **raw `.to_f`** (e.g. `app/controllers/web/orders_controller.rb:122`). `.to_f` does not validate, it guesses: `"1.500.000,50".to_f == 1.5`, `"abc".to_f == 0.0`.
+- `invoices` and `credit_notes` already use a **`CurrencyParser`** (`parse_amount`).
+- Consequence for hostile specs: they will probably **pass on the invoices/credit_notes side and fail on the orders/payments side** — that is where the real bug is. The deep fix is to unify all of them under a strict parser (work separate from this list).
 
 ---
 
-## ✅ Bien cubierto (no tocar — referencia)
+## 🔴 P1 — Hostile input on write-money endpoints
 
-- Saldos: `Customer#current_balance`, `Order#outstanding_balance` / `refresh_status_from_balance!` — OK con datos sembrados.
+They all have a request spec, but none attack the parsing edge with hostile values: `"1.500.000,50"` (thousands), negative, `"abc"` (non-numeric), empty. Each case must assert **rejection / normalization**, never accept a wrong number.
+
+- [ ] **`Sales::CreateOrder`** — POST `/web/orders`, hostile `purchase_items[][unit_price]`. (`spec/requests/web/orders_spec.rb`)
+- [ ] **`Payments::AllocatePayment`** — POST `/web/customers/:id/payments`, hostile `amount` + per-item `discounts`. (`spec/requests/web/customers/payments_spec.rb`)
+- [ ] **`Payments::CollectSaleNote`** — complete: today it only covers the decimal-comma case `"200,00"`; missing thousands `"1.500.000,50"`, negative, `"abc"`, empty in `tenders[][amount]`. (`spec/requests/web/sale_notes/payments_spec.rb`)
+- [ ] **`Payments::CollectOnAccount`** — hostile `amount_to_settle` / `discount_percent` **+** the cash-only rule at the controller level (today only tested in the service spec). (`spec/requests/web/payments_on_account/payments_spec.rb`)
+- [ ] **`Invoices::CreateSimpleInvoice`** — POST `/web/invoices`, hostile `amount` via `parse_amount`. (`spec/requests/invoices_spec.rb`)
+- [ ] **Credit notes create** — complete: AR-format already covered; missing negative/`"abc"`/empty + hostile `exchange_rate`. (`spec/controllers/web/credit_notes_controller_spec.rb`)
+
+## 🔴 P2 — MISSING coverage (nothing today)
+
+- [ ] **`Inventory::AdjustStock`** — no service spec **nor** request spec. Create `spec/services/inventory/adjust_stock_spec.rb` (movement created + effect of `recalculate_current_stock!` + failures) and a request spec for `Web::Products::StockMovementsController#create` (purchase/sale/adjustment sign, `quantity=0` / invalid type → 422).
+- [ ] **Invoice cancel** (`Web::InvoicesController#cancel`) — no coverage. Request spec: pending → `cancelled` + redirect/notice; non-pending → rejected, status intact.
+- [ ] **Credit notes `update` / `destroy`** — no request spec; the `parse_amount` path of update is untested. PATCH with hostile `amount`/`exchange_rate` + DELETE happy path.
+- [ ] **`Sales::CancelOrder` restock** — assertions in `skip`/`xit` ("stock movements temporarily disabled"); the restock is not verified. Re-enable/rewrite when the restock is active. (`spec/services/sales/cancel_order_spec.rb`)
+
+## 🟡 P3 — Calculation correctness on read-money (reports)
+
+The `product_source` filter is fine in all three; **the amounts are not asserted**. Seed multi-line tickets and assert numeric values.
+
+- [ ] **`SummaryQuery`** — assert `:revenue`, `:reported` (dedup `DISTINCT ON ticket_number`), `:unique_products`. (`spec/services/sales_ledger/reports/summary_query_spec.rb`)
+- [ ] **`SalesByDateQuery`** — assert per-row amounts; the `SUM(CASE WHEN rn=1 ...)` logic with `ROW_NUMBER` is untested. (`spec/services/sales_ledger/reports/sales_by_date_query_spec.rb`)
+- [ ] **`TopProductsQuery`** — assert `total_revenue` / `total_quantity` (frequency is already fine). (`spec/services/sales_ledger/reports/top_products_query_spec.rb`)
+- [ ] **`ImportCsv`** — add negative and AR format (minor: it has its own point-decimal parser). (`spec/services/sales_ledger/import_csv_spec.rb`)
+
+## 🟢 P4 — Controllers without a request spec (beyond the money ones)
+
+- [ ] `Web::SalesLedger::ImportsController` (money ingestion — deserves hostile) and `Web::SalesLedger::ReportsController` (aggregate rendering)
+- [ ] `Web::SuppliersController` (full CRUD with `destroy`)
+- [ ] `Web::ProductsController` and `Web::DashboardController`
+
+---
+
+## ✅ Well covered (do not touch — reference)
+
+- Balances: `Customer#current_balance`, `Order#outstanding_balance` / `refresh_status_from_balance!` — OK with seeded data.
 - `Inventory::MarkDelivered` — OK (unit + request + system).
 - `CreditNote#available?` / `#exhausted?` / `#remaining_balance` — OK.
-- `Invoices::MarkAsPaid` y `Invoices::ProcessPayment` — OK (reciben IDs/booleanos, no montos crudos → hostil N/A).
+- `Invoices::MarkAsPaid` and `Invoices::ProcessPayment` — OK (they receive IDs/booleans, not raw amounts → hostile N/A).
+</content>
+</invoke>

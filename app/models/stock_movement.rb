@@ -1,6 +1,6 @@
 class StockMovement < ApplicationRecord
   # Associations
-  belongs_to :product
+  belongs_to :product, -> { with_deleted }
   belongs_to :stock_location
   belongs_to :reference, polymorphic: true, optional: true
 

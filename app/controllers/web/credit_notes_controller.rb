@@ -21,7 +21,7 @@ module Web
                                 .limit(50)
 
       @total_credit_amount = @credit_notes.where(status: "active").sum { |cn| cn.remaining_balance }
-      # Contar solo las notas con saldo disponible (excluye las ya aplicadas/agotadas)
+      # Count only notes with available balance (excludes those already applied/exhausted)
       @credit_notes_count = @credit_notes.count(&:available?)
       @selected_status = params[:status]
     end
@@ -36,7 +36,7 @@ module Web
         issue_date: Date.current
       )
 
-      # Pre-cargar factura si viene del parámetro
+      # Pre-load invoice if it comes from the parameter
       if params[:invoice_id].present?
         invoice = Invoice.find(params[:invoice_id])
         @credit_note.invoice = invoice

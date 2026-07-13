@@ -1,15 +1,19 @@
 # db/seeds.rb
 
-# Limpiar solo en development
+# Clean only in development
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
   [ Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
-    Invoice, StockMovement, Product, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
+    Invoice, StockMovement, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
+  # Product is soft-deleted (acts_as_paranoid), so destroy_all would leave ghost
+  # rows that pile up on every re-seed. Hard-delete all rows (incl. already
+  # soft-deleted ones) after their children are gone, so the dev reset is clean.
+  Product.with_deleted.delete_all
   puts "✅ Base de datos limpiada"
 end
 
 # ============================================
-# 0. USUARIOS
+# 0. USERS
 # ============================================
 puts "\n🔐 Creando usuarios iniciales..."
 if User.count.zero?
@@ -46,6 +50,9 @@ else
   puts "✅ Usuarios ya existen, saltando creación"
 end
 
+# User associated with the seed orders (feat_14: Order#user is mandatory)
+seller_user = User.find_by(role: "vendedor") || User.first!
+
 # ============================================
 # 1. STOCK LOCATION
 # ============================================
@@ -57,7 +64,7 @@ stock_location = StockLocation.create!(
 )
 
 # ============================================
-# 2. PROVEEDORES (5)
+# 2. SUPPLIERS (5)
 # ============================================
 puts "\n🏭 Creando proveedores..."
 supplier_japan = FactoryBot.create(:supplier, :japan)
@@ -70,7 +77,7 @@ suppliers = [ supplier_japan, supplier_usa, supplier_germany, supplier_taiwan, s
 puts "✅ #{suppliers.count} proveedores creados"
 
 # ============================================
-# 3. CLIENTES
+# 3. CUSTOMERS
 # ============================================
 puts "\n👥 Creando clientes..."
 
@@ -80,7 +87,7 @@ mostrador = Customer.find_or_create_by!(name: "Cliente Mostrador") do |c|
   c.has_credit_account = false
 end
 
-# Talleres con nombres argentinos realistas
+# Workshops with realistic Argentine names
 talleres = [
   FactoryBot.create(:customer, :workshop,
     name: "Taller Mecánico El Rayo",
@@ -104,7 +111,7 @@ talleres = [
   )
 ]
 
-# Cliente particular
+# Individual customer
 particular = FactoryBot.create(:customer, :with_credit,
   name: "Juan Pérez",
   document: "20-35678901-2",
@@ -116,11 +123,11 @@ clientes_con_credito = talleres + [ particular ]
 puts "✅ Cliente Mostrador + #{clientes_con_credito.count} clientes con cuenta corriente"
 
 # ============================================
-# 4. PRODUCTOS (200 productos Honda variados)
+# 4. PRODUCTS (200 varied Honda products)
 # ============================================
 puts "\n🔧 Creando 200 productos Honda..."
 
-# Nombres realistas por categoría
+# Realistic names by category
 PRODUCTOS_REALES = {
   frenos: [
     "Pastillas de Freno Delanteras", "Pastillas de Freno Traseras",
@@ -197,7 +204,7 @@ PRODUCTOS_REALES.each do |categoria, nombres|
   nombres.each do |nombre|
     break if counter > 200
 
-    # Determinar tipo, origen y marca (40% OEM Japan, 20% OEM USA, 40% Aftermarket)
+    # Determine type, origin and brand (40% OEM Japan, 20% OEM USA, 40% Aftermarket)
     rand_val = rand(100)
 
     if rand_val < 40
@@ -213,7 +220,7 @@ PRODUCTOS_REALES.each do |categoria, nombres|
       cost_usd = rand(15..120).round(2)
       price_multiplier = 1.6
     else
-      # Aftermarket (distribuir orígenes y marcas)
+      # Aftermarket (distribute origins and brands)
       origins_brands = {
         aftermarket_germany: [ "Bosch", "Continental", "Sachs" ],
         aftermarket_korea: [ "Hyundai Mobis", "Mando", "CTR" ],
@@ -229,20 +236,20 @@ PRODUCTOS_REALES.each do |categoria, nombres|
       price_multiplier = 1.3
     end
 
-    # Calcular precio en ARS
+    # Calculate price in ARS
     exchange_rate = rand(1150..1250)
     price_ars = (cost_usd * exchange_rate * price_multiplier * rand(1.3..1.9)).round(0)
 
-    # Generar ubicación física válida: [pasillo 1-9][lado I/D][posición 0-9][nivel 0-9]
-    # 80% de los productos tienen ubicación, 20% sin asignar
+    # Generate a valid physical location: [aisle 1-9][side I/D][position 0-9][level 0-9]
+    # 80% of the products have a location, 20% unassigned
     location_code = if rand(100) < 80
       pasillo = rand(1..9)
       lado = [ 'I', 'D' ].sample
       posicion = rand(0..9)
-      nivel = rand(0..4)  # Niveles 0-4 (5 niveles máximo)
+      nivel = rand(0..4)  # Levels 0-4 (5 levels maximum)
       "#{pasillo}#{lado}#{posicion}#{nivel}"
     else
-      nil  # Sin ubicación asignada
+      nil  # No location assigned
     end
 
     producto = FactoryBot.create(
@@ -271,7 +278,7 @@ puts "   - OEM USA: #{productos.count { |p| p.origin == 'usa' && p.oem? }}"
 puts "   - Aftermarket: #{productos.count { |p| p.aftermarket? }}"
 
 # ============================================
-# 5. COMPRAS (20 compras en últimos 30 días)
+# 5. PURCHASES (20 purchases in the last 30 days)
 # ============================================
 puts "\n📦 Creando compras..."
 
@@ -280,7 +287,7 @@ compras_exitosas = 0
   supplier = suppliers.sample
   fecha = rand(30).days.ago.to_date
 
-  # 5-15 productos aleatorios
+  # 5-15 random products
   productos_compra = productos.sample(rand(5..15))
 
   items = productos_compra.map do |producto|
@@ -312,14 +319,14 @@ end
 puts "\n✅ #{compras_exitosas}/20 compras creadas"
 
 # ============================================
-# 6. VENTAS (50 ventas en últimos 7 días)
+# 6. SALES (50 sales in the last 7 days)
 # ============================================
 puts "\n💰 Creando ventas (esto puede tardar un poco)..."
 
 ventas_exitosas = 0
 sale_counter = 1
 
-# 45 ventas de mostrador
+# 45 counter sales
 45.times do
   fecha = rand(7).days.ago + rand(24).hours
   productos_venta = productos.sample(rand(1..4))
@@ -330,6 +337,7 @@ sale_counter = 1
 
   result = Sales::CreateOrder.call(
     customer: mostrador,
+    user: seller_user,
     items: items,
     order_type: "immediate",
     paper_number: "T-#{format('%04d', sale_counter)}",
@@ -346,7 +354,7 @@ sale_counter = 1
   sale_counter += 1
 end
 
-# 5 ventas a crédito
+# 5 credit sales
 5.times do
   fecha = rand(7).days.ago + rand(24).hours
   cliente = clientes_con_credito.sample
@@ -358,6 +366,7 @@ end
 
   result = Sales::CreateOrder.call(
     customer: cliente,
+    user: seller_user,
     items: items,
     order_type: "credit",
     paper_number: "T-#{format('%04d', sale_counter)}",
@@ -377,7 +386,7 @@ end
 puts "\n✅ #{ventas_exitosas} ventas creadas"
 
 # ============================================
-# 6.5 PAGOS A CUENTA (operaciones abiertas)
+# 6.5 ON-ACCOUNT PAYMENTS (open operations)
 # ============================================
 puts "\n🗂️  Creando pagos a cuenta..."
 
@@ -400,6 +409,7 @@ crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobra
 
   result = Sales::CreateOrder.call(
     customer: mostrador,
+    user: seller_user,
     items: items,
     order_type: "on_account",
     paper_number: "T-#{format('%04d', sale_counter)}",
@@ -438,21 +448,21 @@ crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobra
        "entrega #{order.delivered_items_count}/#{order.order_items.size}"
 end
 
-# Seña pagada, nada entregado (espera el repuesto)
+# Deposit paid, nothing delivered (waiting for the part)
 crear_pac.(contacto: contactos_pac[0], cantidad_productos: 3, entregados_idx: [], cobrar_fraccion: 0.3)
-# Parcialmente entregado, con saldo pendiente
+# Partially delivered, with outstanding balance
 crear_pac.(contacto: contactos_pac[1], cantidad_productos: 3, entregados_idx: [ 0, 1 ], cobrar_fraccion: 0.5)
-# Pagado por completo pero falta retirar un ítem (sigue abierta)
+# Fully paid but one item still to be picked up (stays open)
 crear_pac.(contacto: contactos_pac[2], cantidad_productos: 2, entregados_idx: [ 0 ], cobrar_fraccion: 1.0)
-# Recién creado: entrega inicial parcial, sin cobros
+# Just created: partial initial delivery, no collections
 crear_pac.(contacto: contactos_pac[3], cantidad_productos: 2, entregados_idx: [ 0 ], cobrar_fraccion: nil)
-# Recién creado: nada entregado, nada pagado
+# Just created: nothing delivered, nothing paid
 crear_pac.(contacto: contactos_pac[4], cantidad_productos: 4, entregados_idx: [], cobrar_fraccion: nil)
 
 puts "✅ #{pac_creados} pagos a cuenta creados (abiertos: #{Order.open_on_account.length})"
 
 # ============================================
-# 7. PAGOS (2-3 pagos parciales)
+# 7. PAYMENTS (2-3 partial payments)
 # ============================================
 puts "\n💵 Registrando pagos..."
 
@@ -464,7 +474,7 @@ clientes_con_credito.each do |cliente|
   saldo_total = ordenes.sum(&:outstanding_balance)
   next unless saldo_total > 1000
 
-  metodo = [ 'cash', 'transfer', 'check' ].sample
+  metodo = %w[cash bank_transfer bank_card].sample
   monto_total = (saldo_total * rand(0.3..0.7)).round(2)
   fecha_pago = rand(3).days.ago.to_date
 
@@ -499,7 +509,7 @@ end
 puts "✅ #{pagos_creados} pagos registrados"
 
 # ============================================
-# 8. FACTURAS SIMPLES PENDIENTES
+# 8. PENDING SIMPLE INVOICES
 # ============================================
 puts "\n📄 Creando facturas simples pendientes (ARS)..."
 
@@ -534,7 +544,7 @@ today      = Date.current
 monday     = today.beginning_of_week(:monday)
 nxt_monday = monday + 7
 
-# ── Caso 1: Vencen esta semana ──────────────────────────────────────
+# ── Case 1: Due this week ──────────────────────────────────────
 puts "  → Esta semana (#{monday.strftime('%d/%m')} - #{(monday + 6).strftime('%d/%m')})..."
 
 create_inv.(supplier_japan,    134_862.37, today - 30, monday + 1)
@@ -546,7 +556,7 @@ create_inv.(supplier_taiwan,    83_219.48, today - 18, monday + 3)
 create_inv.(supplier_taiwan,    96_587.06, today - 15, monday + 5)
 create_inv.(supplier_brazil,    81_934.72, today - 30, monday + 2)
 
-# ── Caso 2: Vencen la semana próxima ────────────────────────────────
+# ── Case 2: Due next week ────────────────────────────────
 puts "  → Semana próxima (#{nxt_monday.strftime('%d/%m')} - #{(nxt_monday + 6).strftime('%d/%m')})..."
 
 create_inv.(supplier_japan,    178_304.56, today - 10, nxt_monday + 1)
@@ -558,7 +568,7 @@ create_inv.(supplier_taiwan,   110_782.94, today - 7,  nxt_monday + 2)
 create_inv.(supplier_brazil,    68_491.17, today - 9,  nxt_monday + 1)
 create_inv.(supplier_brazil,   114_236.85, today - 11, nxt_monday + 4)
 
-# ── Caso 3: Descuento anticipado vence esta semana (with_discount_to_advance) ──
+# ── Case 3: Early-payment discount is due this week (with_discount_to_advance) ──
 puts "  → Con descuento anticipado (expira en #{today + 1}..#{today + 3})..."
 
 create_inv.(supplier_japan,    356_128.43, today - 45, today + 30, ep_date: today + 2, ep_pct: 5)
@@ -567,24 +577,24 @@ create_inv.(supplier_germany,  495_702.36, today - 50, today + 35, ep_date: toda
 create_inv.(supplier_taiwan,   158_047.82, today - 38, today + 28, ep_date: today + 1, ep_pct: 8)
 create_inv.(supplier_brazil,   149_583.67, today - 42, today + 32, ep_date: today + 3, ep_pct: 6)
 
-# ── Caso 4: Variedad adicional para la vista de índice ──────────────
+# ── Case 4: Additional variety for the index view ──────────────
 puts "  → Variedad para el índice (vencidas, este mes, próximo mes)..."
 
-# Vencidas
+# Overdue
 create_inv.(supplier_japan,    95_318.54, today - 60, today - 15)
 create_inv.(supplier_usa,      77_642.31, today - 45, today - 7)
 create_inv.(supplier_germany,  261_409.78, today - 30, today - 3)
 
-# Este mes (fuera de esta semana y la próxima)
+# This month (outside this week and next)
 create_inv.(supplier_taiwan,   133_856.29, today - 5,  today + 14)
 create_inv.(supplier_brazil,    91_074.53, today - 3,  today + 18)
 create_inv.(supplier_japan,    116_493.87, today - 7,  today + 21)
 
-# Próximo mes
+# Next month
 create_inv.(supplier_usa,      175_237.46, today - 2,  today + 35)
 create_inv.(supplier_germany,  269_815.92, today - 8,  today + 42)
 
-# ── Pagadas (creadas y luego marcadas como paid) ─────────────────────
+# ── Paid (created and then marked as paid) ─────────────────────
 [
   [ supplier_japan,   297_183.64, today - 35 ],
   [ supplier_usa,     148_726.41, today - 28 ],
@@ -619,7 +629,7 @@ puts "   - Vencidas/este mes/futuras: 8"
 puts "   - Pagadas:                   5"
 
 # ============================================
-# 9. NOTAS DE CRÉDITO
+# 9. CREDIT NOTES
 # ============================================
 puts "\n📝 Creando notas de crédito..."
 
@@ -643,24 +653,24 @@ create_cn = ->(supplier, amount, issue_date, opts = {}) do
   cn_ok += 1
 end
 
-# Japan: 2 notas en ARS
+# Japan: 2 notes in ARS
 create_cn.(supplier_japan,  84_763.29, today - 20, notes: "Devolución mercadería defectuosa - Lote J201")
 create_cn.(supplier_japan, 129_408.54, today - 10, notes: "Ajuste de precio sobre factura anterior")
 
-# USA: 1 nota en ARS
+# USA: 1 note in ARS
 create_cn.(supplier_usa, 209_317.83, today - 15, notes: "NC por error de facturación en pedido #US-88")
 
-# Germany: 2 notas (1 ARS, 1 USD)
+# Germany: 2 notes (1 ARS, 1 USD)
 create_cn.(supplier_germany, 174_652.47, today - 8, notes: "Descuento por volumen retroactivo Q4")
 create_cn.(supplier_germany,     198.36, today - 5,
   currency: "USD", exchange_rate: 1200.0,
   notes: "Devolución por piezas incorrectas - Ref DEU-44"
 )
 
-# Taiwan: 1 nota pequeña en ARS
+# Taiwan: 1 small note in ARS
 create_cn.(supplier_taiwan, 54_891.62, today - 12, notes: "Faltante en pedido anterior - ajuste")
 
-# Brazil: 1 nota en ARS
+# Brazil: 1 note in ARS
 create_cn.(supplier_brazil, 89_534.18, today - 18, notes: "Mercadería dañada en tránsito - reembolso parcial")
 
 puts "✅ #{cn_ok} notas de crédito creadas"
@@ -671,7 +681,7 @@ puts "   - Taiwan:  1 nota  ARS ($54.891,62)"
 puts "   - Brazil:  1 nota  ARS ($89.534,18)"
 
 # ============================================
-# 10. ESTADÍSTICAS FINALES
+# 10. FINAL STATISTICS
 # ============================================
 puts "\n" + "="*60
 puts "📊 ESTADÍSTICAS FINALES"

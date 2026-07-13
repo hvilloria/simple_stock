@@ -2,13 +2,13 @@ module Web
   class DashboardController < ApplicationController
     def index
       authorize :dashboard, :index?
-      # Métricas principales
+      # Main metrics
       @sales_today = calculate_sales_today
       @low_stock_count = Product.with_low_stock.count
       @total_receivable = calculate_total_receivable
       @invoices_this_month = calculate_invoices_this_month
 
-      # Datos para secciones secundarias
+      # Data for secondary sections
       @recent_orders = Order.active
                             .order(created_at: :desc)
                             .limit(5)

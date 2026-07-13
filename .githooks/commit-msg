@@ -1,0 +1,33 @@
+#!/bin/sh
+# commit-msg hook — enforce simple_stock commit conventions.
+# Rules live in CLAUDE.md "Commits" and AGENTS.md "Commit Conventions".
+#
+# Activate (once per clone):  git config core.hooksPath .githooks
+
+msg_file="$1"
+
+# Subject = first non-comment, non-empty line.
+subject=$(grep -vE '^[[:space:]]*#' "$msg_file" | grep -vE '^[[:space:]]*$' | head -n1)
+
+# Let merge / revert / fixup commits through untouched.
+case "$subject" in
+  Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+
+# 1) Subject must be:  type(scope): title
+if ! printf '%s' "$subject" | grep -qE '^(feat|fix|ref|refactor|test|chore|docs|perf|style|build|ci)\([a-z0-9_.-]+\): .+'; then
+  echo "✗ commit rechazado: el subject debe ser  type(scope): title" >&2
+  echo "  type ∈ feat|fix|ref|refactor|test|chore|docs|perf|style|build|ci" >&2
+  echo "  scope = el work-item del branch (ej. fix_06), constante en todo el branch" >&2
+  echo "  ej:  fix(fix_06): corrige el redondeo del descuento" >&2
+  echo "  tuyo: $subject" >&2
+  exit 1
+fi
+
+# 2) No Anthropic/Claude attribution anywhere in the message.
+if grep -qiE 'co-authored-by:.*(claude|anthropic)|generated with .*claude|🤖 generated' "$msg_file"; then
+  echo "✗ commit rechazado: quitá las líneas de atribución a Claude/Anthropic." >&2
+  exit 1
+fi
+
+exit 0

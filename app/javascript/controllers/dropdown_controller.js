@@ -4,7 +4,7 @@ export default class extends Controller {
   static targets = ["menu", "arrow"]
 
   connect() {
-    // Auto-abrir solo si hay un item activo en el submenu
+    // Auto-open only if there is an active item in the submenu
     const activeItem = this.menuTarget.querySelector('.nav-subitem.active')
     if (activeItem) {
       this.open()

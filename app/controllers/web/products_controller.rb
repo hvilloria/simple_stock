@@ -3,12 +3,13 @@ module Web
     include CurrencyParser
 
     def index
-    authorize Product
-    @products = Product.search(params[:q])
-                       .by_category(params[:category])
-                       .by_status(params[:status])
-                       .sorted_by(params[:sort], params[:direction])
-  end
+      authorize Product
+      products_scope = Product.search(params[:q])
+                              .by_category(params[:category])
+                              .by_status(params[:status])
+                              .sorted_by(params[:sort], params[:direction])
+      @pagy, @products = pagy(products_scope)
+    end
 
     def show
       @product = Product.find(params[:id])
@@ -35,6 +36,30 @@ module Web
       end
     end
 
+    def edit
+      @product = Product.find(params[:id])
+      authorize @product
+    end
+
+    def update
+      @product = Product.find(params[:id])
+      authorize @product
+
+      if @product.update(update_product_params)
+        redirect_to web_product_path(@product), notice: "Producto actualizado exitosamente"
+      else
+        render :edit, status: :unprocessable_entity
+      end
+    end
+
+    def destroy
+      @product = Product.find(params[:id])
+      authorize @product
+
+      @product.destroy
+      redirect_to web_products_path, notice: "Producto eliminado exitosamente"
+    end
+
     def search
       authorize Product, :search?
       @products = Product.active
@@ -59,9 +84,21 @@ module Web
     def sanitized_product_params
       params_hash = product_params.to_h
 
-      # Convertir formato argentino a decimal para campos de moneda
+      # Convert Argentine format to decimal for currency fields
       params_hash[:price_unit] = parse_amount(params_hash[:price_unit]) if params_hash[:price_unit].present?
       params_hash[:cost_unit] = parse_amount(params_hash[:cost_unit]) if params_hash[:cost_unit].present?
+
+      params_hash
+    end
+
+    def update_product_params
+      params_hash = params.require(:product).permit(
+        :name, :brand, :category, :product_type, :origin,
+        :price_unit, :cost_unit, :cost_currency, :active
+      ).to_h
+
+      params_hash[:price_unit] = parse_amount(params_hash[:price_unit]) if params_hash[:price_unit].present?
+      params_hash[:cost_unit]  = parse_amount(params_hash[:cost_unit]) if params_hash[:cost_unit].present?
 
       params_hash
     end

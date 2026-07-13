@@ -28,16 +28,19 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(order.reload.outstanding_balance).to eq(600)
     end
 
-    it "derives the cash collected from the amount and cash discount" do
-      sign_in caja
-      post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "500", discount_percent: "10", payment_method: "cash" }
+    it "derives the cash collected, rounding the discounted cash UP to the next hundred" do
+      big = create(:order, :on_account, total_amount: 710_775, original_total_amount: 710_775)
+      create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775)
 
-      expect(response).to redirect_to(web_payments_on_account_path(order))
-      order.reload
-      expect(order.payment_allocations.sum(:amount)).to eq(450) # 500 - 10%
-      expect(order.total_amount).to eq(950)                       # shop absorbs 50
-      expect(order.outstanding_balance).to eq(500)                # debt drops by 500
+      sign_in caja
+      post web_payments_on_account_payment_path(big),
+           params: { amount_to_settle: "710775", discount_percent: "10", payment_method: "cash" }
+
+      expect(response).to redirect_to(web_payments_on_account_path(big))
+      big.reload
+      expect(big.payment_allocations.sum(:amount)).to eq(639_700) # 639.697,5 → ceil 639.700
+      expect(big.total_amount).to eq(639_700)                      # shop absorbs the effective discount
+      expect(big.outstanding_balance).to eq(0)
     end
 
     it "re-renders on invalid collection" do

@@ -203,12 +203,16 @@ When updating it:
 
 ## Commit Conventions
 
-These rules apply to **every** commit message and to who runs the commit:
+These rules apply to **every** commit message and to who runs the commit. They are mirrored in `CLAUDE.md` §Commits and enforced mechanically by the `commit-msg` hook in `.githooks/` (activate with `git config core.hooksPath .githooks`):
 
-1. **Write commit messages in English.**
-2. **Use Conventional Commit prefixes:** `feat`, `fix`, `ref`, `test`, `chore`, etc. (e.g. `feat: ...`, `fix: ...`, `ref: ...`).
+1. **Write commit messages in English.** Never Spanish.
+2. **Format `type(scope): title`**, then a blank line, then the body.
+   - `type` ∈ `feat | fix | ref | refactor | test | chore | docs | perf | style | build | ci`.
+   - `scope` = the numbered work-item from the **branch name**, kept **constant** across every commit on that branch (branch `fix-06_pending-issues` → `fix(fix_06): …`; branch `feat_18-…` → `feat(feat_18): …`). The `type` prefix may vary per commit; the scope does not.
+   - When handing the user a message, give **only** the message text — no `Subject:` / `Body:` labels.
 3. **Do NOT add `Co-Authored-By` / "Generated with Claude" / any Anthropic attribution lines.**
 4. **The agent does NOT run commits.** The user commits. Only run `git commit` when the user explicitly asks for it in that message (see also: never commit without explicit permission).
+5. **One logical change per commit** (e.g. one item from `docs/pendientes` per commit).
 
 ---
 

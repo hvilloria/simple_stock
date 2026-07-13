@@ -17,6 +17,7 @@
             %th.px-4.py-2.5.font-medium Cliente
             %th.px-4.py-2.5.font-medium Teléfono
             %th.px-4.py-2.5.font-medium Talonario
+            %th.px-4.py-2.5.font-medium Vendedor
             %th.px-4.py-2.5.font-medium.text-right Total
             %th.px-4.py-2.5.font-medium.text-right Pagado
             %th.px-4.py-2.5.font-medium.text-right Saldo
@@ -27,8 +28,9 @@
             - paid = op.total_amount - op.outstanding_balance
             %tr.hover:bg-slate-50
               %td.px-4.py-3.font-medium= op.contact_name
-              %td.px-4.py-3.text-slate-600= op.contact_phone
+              %td.px-4.py-3.text-slate-600= format_contact_phone(op.contact_phone)
               %td.px-4.py-3.text-slate-600= op.paper_number
+              %td.px-4.py-3.text-slate-600= op.user.name
               %td.px-4.py-3.text-right= number_to_currency(op.total_amount, unit: "$", separator: ",", delimiter: ".")
               %td.px-4.py-3.text-right.text-slate-600= number_to_currency(paid, unit: "$", separator: ",", delimiter: ".")
               %td.px-4.py-3.text-right.font-medium= number_to_currency(op.outstanding_balance, unit: "$", separator: ",", delimiter: ".")

@@ -510,7 +510,8 @@ RSpec.describe Sales::CreateOrder do
       expect(order.on_account_order_type?).to be(true)
       expect(order.status).to eq("pending")
       expect(order.contact_name).to eq("Juan Pérez")
-      expect(order.contact_phone).to eq("11 5555 1234")
+      # contact_phone is normalized to digits only in Order#normalize_contact_phone (pending #12)
+      expect(order.contact_phone).to eq("1155551234")
       expect(order.order_items.first.delivered_at).to be_present
     end
 

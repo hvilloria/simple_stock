@@ -19,7 +19,7 @@
       -# LEFT column
       .space-y-4
 
-        -# Productos read-only
+        -# Read-only products
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           .flex.items-baseline.justify-between.mb-3
             %h3.text-sm.font-semibold.text-slate-900 Productos
@@ -42,7 +42,7 @@
                   %td.py-2.text-right= number_to_currency(oi.unit_price, unit: "$", separator: ",", delimiter: ".")
                   %td.py-2.text-right= number_to_currency(oi.quantity * oi.unit_price, unit: "$", separator: ",", delimiter: ".")
 
-        -# Descuento
+        -# Discount
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           %h3.text-sm.font-semibold.text-slate-900.mb-1 Descuento
           %p.text-xs.text-slate-500.mb-3{ data: { "sale-note-payment-target": "discountHelper" } }
@@ -53,7 +53,7 @@
                       action: "change->sale-note-payment#discountChanged" },
               class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
 
-        -# Detalle de pago
+        -# Payment detail
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           .flex.items-baseline.justify-between.mb-3
             %h3.text-sm.font-semibold.text-slate-900 Detalle de pago
@@ -109,7 +109,7 @@
             data: { "sale-note-payment-target": "submitButton" },
             class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
 
-    -# Cancel button OUTSIDE the cobro form (it's a different POST)
+    -# Cancel button OUTSIDE the charge form (it's a different POST)
     = button_to "Cancelar nota",
                 cancel_web_sale_note_path(@note),
                 method: :post,

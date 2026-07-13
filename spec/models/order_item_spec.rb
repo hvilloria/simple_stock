@@ -6,6 +6,16 @@ RSpec.describe OrderItem, type: :model do
     it { is_expected.to belong_to(:product) }
   end
 
+  describe "product association after soft-delete" do
+    it "still resolves the product once it is soft-deleted" do
+      record = create(:order_item)
+      product = record.product
+      product.destroy
+
+      expect(record.reload.product).to eq(product)
+    end
+  end
+
   describe 'validations' do
     it 'validates quantity is greater than 0' do
       item = build(:order_item, quantity: 0)

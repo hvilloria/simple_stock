@@ -29,33 +29,33 @@ export default class extends Controller {
   connect() {
     console.log("Invoice form controller connected")
     
-    // Calcular fecha inicial si ya hay valores
+    // Calculate initial date if values already exist
     this.calculateDueDate()
-    
-    // Configurar visibilidad inicial del tipo de cambio
+
+    // Configure initial exchange rate visibility
     this.toggleExchangeRate()
-    
-    // Actualizar info de plazo
+
+    // Update payment term info
     this.updatePaymentTermInfo()
-    
-    // Actualizar info de early payment
+
+    // Update early payment info
     this.updateEarlyPaymentInfo()
 
-    // Inicializar panel de resumen
+    // Initialize summary panel
     this.updateSummaryDates()
     this.updateSummary()
   }
 
-  // ========== FORMATEO DE MONTOS ==========
-  
-  // Formatear al perder foco (blur)
+  // ========== AMOUNT FORMATTING ==========
+
+  // Format on blur (losing focus)
   formatAmount(event) {
     const input = event.target
     const rawValue = this.cleanAmountValue(input.value)
     const numValue = parseFloat(rawValue)
     
     if (!isNaN(numValue) && numValue > 0) {
-      // Formato argentino: 1.500.000,50
+      // Argentine format: 1.500.000,50
       input.value = new Intl.NumberFormat('es-AR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
@@ -64,31 +64,31 @@ export default class extends Controller {
     this.updateSummary()
   }
 
-  // Limpiar formato al hacer focus
+  // Clear formatting on focus
   unformatAmount(event) {
     const input = event.target
-    // Solo remover separadores de miles (puntos), mantener coma decimal
+    // Only remove thousands separators (dots), keep decimal comma
     // 1.500.000,50 → 1500000,50
     input.value = input.value.replace(/\./g, '')
   }
 
-  // Limpiar valor: 1.500.000,50 → 1500000.50
+  // Clean value: 1.500.000,50 → 1500000.50
   cleanAmountValue(value) {
     if (!value) return ''
-    // Remover puntos (separador miles) y cambiar coma por punto (decimal)
+    // Remove dots (thousands separator) and change comma to dot (decimal)
     return value.replace(/\./g, '').replace(/,/g, '.')
   }
 
-  // CRÍTICO: Limpiar antes de enviar el formulario
+  // CRITICAL: Clean before submitting the form
   handleFormSubmit(event) {
-    // Limpiar campo de monto
+    // Clean amount field
     if (this.hasAmountTarget && this.amountTarget.value) {
       const cleanValue = this.cleanAmountValue(this.amountTarget.value)
       this.amountTarget.value = cleanValue
       console.log('Amount enviado:', cleanValue)
     }
     
-    // Limpiar campo de tipo de cambio
+    // Clean exchange rate field
     if (this.hasExchangeRateInputTarget && this.exchangeRateInputTarget.value) {
       const cleanValue = this.cleanAmountValue(this.exchangeRateInputTarget.value)
       this.exchangeRateInputTarget.value = cleanValue
@@ -96,7 +96,7 @@ export default class extends Controller {
     }
   }
 
-  // ========== CÁLCULO DE FECHAS ==========
+  // ========== DATE CALCULATION ==========
   
   calculateDueDate() {
     if (!this.hasSupplierTarget) return
@@ -110,12 +110,12 @@ export default class extends Controller {
       return
     }
 
-    // Calcular nueva fecha de vencimiento
+    // Calculate new due date
     const purchaseDate = new Date(purchaseDateValue + "T00:00:00")
     const dueDate = new Date(purchaseDate)
     dueDate.setDate(dueDate.getDate() + paymentTermDays)
 
-    // Formatear a YYYY-MM-DD para el input date
+    // Format to YYYY-MM-DD for the date input
     const year = dueDate.getFullYear()
     const month = String(dueDate.getMonth() + 1).padStart(2, '0')
     const day = String(dueDate.getDate()).padStart(2, '0')
@@ -137,12 +137,12 @@ export default class extends Controller {
       return
     }
 
-    // Calcular fecha de early payment
+    // Calculate early payment date
     const purchaseDate = new Date(purchaseDateValue + "T00:00:00")
     const earlyPaymentDate = new Date(purchaseDate)
     earlyPaymentDate.setDate(earlyPaymentDate.getDate() + earlyPaymentDays)
 
-    // Formatear a YYYY-MM-DD para el input date
+    // Format to YYYY-MM-DD for the date input
     const year = earlyPaymentDate.getFullYear()
     const month = String(earlyPaymentDate.getMonth() + 1).padStart(2, '0')
     const day = String(earlyPaymentDate.getDate()).padStart(2, '0')
@@ -151,7 +151,7 @@ export default class extends Controller {
     this.updateSummaryDates()
   }
 
-  // ========== ACTUALIZACIÓN DE INFO ==========
+  // ========== INFO UPDATE ==========
   
   updatePaymentTermInfo() {
     if (!this.hasPaymentTermInfoTarget) return
@@ -181,10 +181,10 @@ export default class extends Controller {
     const discountPercentage = parseFloat(selectedOption.dataset.earlyPaymentDiscount || "0")
 
     if (earlyPaymentDays > 0 && discountPercentage > 0) {
-      // Mostrar sección
+      // Show section
       this.earlyPaymentSectionTarget.style.display = 'block'
-      
-      // Actualizar info text
+
+      // Update info text
       if (this.hasEarlyPaymentInfoTarget) {
         this.earlyPaymentInfoTarget.innerHTML = `
           <span class="inline-flex items-center gap-1 text-emerald-800">
@@ -193,12 +193,12 @@ export default class extends Controller {
         `
       }
 
-      // Setear el porcentaje de descuento
+      // Set the discount percentage
       if (this.hasEarlyPaymentDiscountTarget) {
         this.earlyPaymentDiscountTarget.value = discountPercentage
       }
 
-      // Mostrar panel de descuento en resumen
+      // Show discount panel in summary
       if (this.hasSummaryDiscountSectionTarget) {
         this.summaryDiscountSectionTarget.style.display = 'block'
       }
@@ -206,13 +206,13 @@ export default class extends Controller {
         this.summaryDiscountPctTarget.textContent = discountPercentage + '%'
       }
 
-      // Calcular fecha de early payment
+      // Calculate early payment date
       this.calculateEarlyPaymentDueDate()
     } else {
-      // Ocultar sección
+      // Hide section
       this.earlyPaymentSectionTarget.style.display = 'none'
 
-      // Ocultar panel de descuento en resumen
+      // Hide discount panel in summary
       if (this.hasSummaryDiscountSectionTarget) {
         this.summaryDiscountSectionTarget.style.display = 'none'
       }
@@ -223,7 +223,7 @@ export default class extends Controller {
 
   // ========== EVENT HANDLERS ==========
   
-  // Se llama cuando cambia el proveedor
+  // Called when the supplier changes
   onSupplierChange() {
     console.log("Supplier changed")
     this.calculateDueDate()
@@ -232,14 +232,14 @@ export default class extends Controller {
     this.calculateEarlyPaymentDueDate()
   }
 
-  // Se llama cuando cambia la fecha de compra
+  // Called when the purchase date changes
   onPurchaseDateChange() {
     console.log("Purchase date changed")
     this.calculateDueDate()
     this.calculateEarlyPaymentDueDate()
   }
 
-  // Se llama cuando cambia la moneda
+  // Called when the currency changes
   toggleExchangeRate() {
     const currencyUsd = document.getElementById('currency_usd')
     const currencyArs = document.getElementById('currency_ars')
@@ -250,23 +250,23 @@ export default class extends Controller {
 
     if (currencyUsd.checked) {
       this.exchangeRateFieldTarget.style.display = 'block'
-      // Hacer required cuando USD está seleccionado
+      // Make required when USD is selected
       if (this.hasExchangeRateInputTarget) {
         this.exchangeRateInputTarget.setAttribute('required', 'required')
       }
     } else {
       this.exchangeRateFieldTarget.style.display = 'none'
-      // Remover required cuando ARS está seleccionado
+      // Remove required when ARS is selected
       if (this.hasExchangeRateInputTarget) {
         this.exchangeRateInputTarget.removeAttribute('required')
       }
     }
   }
 
-  // ========== PANEL DE RESUMEN ==========
+  // ========== SUMMARY PANEL ==========
 
-  // Actualiza monto y monto con descuento en el panel derecho.
-  // Se llama en cada input del campo monto y en blur (después de formatear).
+  // Updates amount and discounted amount in the right panel.
+  // Called on every input of the amount field and on blur (after formatting).
   updateSummary() {
     if (!this.hasSummaryAmountTarget) return
 
@@ -289,7 +289,7 @@ export default class extends Controller {
     }
   }
 
-  // Actualiza las fechas de vencimiento en el panel derecho.
+  // Updates the due dates in the right panel.
   updateSummaryDates() {
     if (this.hasSummaryDueDateTarget && this.hasDueDateTarget) {
       this.summaryDueDateTarget.textContent = this.formatDateForDisplay(this.dueDateTarget.value)
@@ -306,7 +306,7 @@ export default class extends Controller {
     return `${day}/${month}/${year}`
   }
 
-  // Formato moneda es-AR: 95000.50 → "$ 95.000,50"
+  // es-AR currency format: 95000.50 → "$ 95.000,50"
   formatARS(num) {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',

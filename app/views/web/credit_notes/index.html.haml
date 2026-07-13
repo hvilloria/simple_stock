@@ -19,7 +19,7 @@
     .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6
       %p.text-sm.text-red-700= flash[:alert]
 
-  -# Filtros
+  -# Filters
   .bg-white.border.border-slate-200.rounded-lg.p-6.mb-6
     = form_with url: web_credit_notes_path, method: :get, data: { controller: "filter-form", turbo_frame: "credit_notes_content" } do |f|
       .grid.grid-cols-1.md:grid-cols-3.gap-4
@@ -46,7 +46,7 @@
 
   = turbo_frame_tag "credit_notes_content" do
     
-    -# Métricas
+    -# Metrics
     .grid.grid-cols-1.md:grid-cols-1.gap-6.mb-6
       .bg-white.border.border-slate-200.rounded-lg.p-6
         .flex.items-center.justify-between
@@ -57,7 +57,7 @@
           .w-10.h-10.bg-green-100.rounded-lg.flex.items-center.justify-center.text-xl
             ✓
 
-    -# Lista de Notas de Crédito
+    -# Credit notes list
     - if @credit_notes.any?
       .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
         .overflow-x-auto

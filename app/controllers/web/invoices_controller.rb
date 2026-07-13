@@ -10,13 +10,13 @@ module Web
     def index
       authorize Invoice
 
-      # Cargar proveedores para el filtro
+      # Load suppliers for the filter
       @suppliers = Supplier.alphabetical
 
-      # Filtrar por supplier_id si está presente
+      # Filter by supplier_id if present
       @selected_supplier = Supplier.find_by(id: params[:supplier_id]) if params[:supplier_id].present?
 
-      # Scope base con filtros opcionales (proveedor + búsqueda)
+      # Base scope with optional filters (supplier + search)
       invoices_scope = Invoice.simple_mode
                                 .includes(:supplier)
                                 .for_supplier(@selected_supplier)
@@ -24,7 +24,7 @@ module Web
 
       @pagy, @invoices = pagy(invoices_scope.priority_order)
 
-      # Métricas calculadas desde el modelo (filtradas si aplica)
+      # Metrics calculated from the model (filtered if applicable)
       metrics_scope = Invoice.simple_mode
                               .pending_payment
                               .for_supplier(@selected_supplier)
@@ -32,23 +32,23 @@ module Web
 
       @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars(include_discount: true) }
 
-      # Créditos disponibles (filtrados solo por proveedor, no por búsqueda de invoice)
+      # Available credits (filtered only by supplier, not by invoice search)
       credit_notes_scope = CreditNote.includes(:supplier)
                                       .for_supplier(@selected_supplier)
                                       .available
 
       @total_credit_amount = credit_notes_scope.sum { |cn| cn.remaining_balance_ars }
-      # Contar solo las notas con saldo disponible (excluye las ya aplicadas/agotadas)
+      # Count only notes with available balance (excludes those already applied/exhausted)
       @credit_notes_count = credit_notes_scope.count(&:available?)
 
-      # Balance neto
+      # Net balance
       @net_balance = @total_pending_amount - @total_credit_amount
     end
 
     def pending
       authorize Invoice, :view_pending?
 
-      # Período seleccionado
+      # Selected period
       period = params[:period] || "this_week"
       @selected_period = period
 
@@ -56,21 +56,21 @@ module Web
 
       @suppliers_with_payments = calculate_payments_by_supplier_unified(all_invoices)
 
-      # Métricas globales
+      # Global metrics
       @total_invoices_count = all_invoices.count
-      # Monto original (sin descuentos)
+      # Original amount (without discounts)
       @total_invoices_amount = all_invoices.sum { |i| i.total_amount_ars }
-      # Monto con descuentos aplicados donde corresponda
+      # Amount with discounts applied where applicable
       @total_invoices_with_discount = all_invoices.sum { |i| i.amount_with_discount_ars }
-      # Ahorro total por descuentos
+      # Total savings from discounts
       @total_savings = all_invoices.sum { |i| i.potential_savings_ars }
 
-      # Créditos disponibles (de proveedores que tienen facturas)
+      # Available credits (from suppliers that have invoices)
       supplier_ids = all_invoices.map(&:supplier_id).uniq
       @total_credits_amount = CreditNote.where(supplier_id: supplier_ids).available.sum { |cn| cn.remaining_balance_ars }
       @total_credits_count = CreditNote.where(supplier_id: supplier_ids).available.count
 
-      # Total a pagar (neto) - usa monto con descuento
+      # Total to pay (net) - uses amount with discount
       @total_to_pay = @total_invoices_with_discount - @total_credits_amount
     end
 
@@ -130,7 +130,7 @@ module Web
         return
       end
 
-      # Parsear valores con formato argentino
+      # Parse values in Argentine format
       update_params = invoice_update_params
       update_params[:amount] = parse_amount(update_params[:amount]) if update_params[:amount].present?
       update_params[:exchange_rate] = parse_amount(update_params[:exchange_rate]) if update_params[:exchange_rate].present?
@@ -149,7 +149,7 @@ module Web
       payment_date = parse_date(params[:payment_date]) || Date.current
       apply_discount = params[:apply_discount] == "true"
 
-      # Validar descuento
+      # Validate discount
       if apply_discount && !@invoice.eligible_for_discount?(payment_date)
         redirect_to web_invoice_path(@invoice),
                     alert: "El descuento ya expiró. No se puede aplicar."
@@ -250,13 +250,13 @@ module Web
     end
 
     def parse_exchange_rate(rate_string, currency)
-      # Si la moneda es ARS, retornar nil (no se necesita tipo de cambio)
+      # If the currency is ARS, return nil (no exchange rate needed)
       return nil if currency == "ARS"
 
-      # Si está vacío o es nil, retornar nil
+      # If it is empty or nil, return nil
       return nil if rate_string.blank?
 
-      # Limpiar formato argentino y convertir a float
+      # Clean Argentine format and convert to float
       parse_amount(rate_string)
     end
 
@@ -336,15 +336,15 @@ module Web
                     .reverse
     end
 
-    # Agrupa facturas por proveedor calculando montos originales y con descuento
+    # Groups invoices by supplier calculating original and discounted amounts
     def calculate_payments_by_supplier_unified(invoices_array)
       invoices_array.group_by(&:supplier)
                     .map do |supplier, supplier_invoices|
                       credit_notes  = supplier.credit_notes.available.to_a.select(&:available?)
                       credits_amount = credit_notes.sum(&:remaining_balance_ars)
-                      # Monto original (sin descuento)
+                      # Original amount (without discount)
                       invoices_amount = supplier_invoices.sum { |i| i.total_amount }
-                      # Monto con descuento aplicado donde corresponda
+                      # Amount with discount applied where applicable
                       invoices_amount_with_discount = supplier_invoices.sum { |i| i.amount_with_discount_ars }
 
                       {

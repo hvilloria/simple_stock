@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { roundToNearestHundred } from "helpers/cash_rounding"
 
 // Drives the cashier cobro form:
 //   - keeps the live summary in sync with discount + tenders
@@ -29,7 +30,7 @@ export default class extends Controller {
     // Auto-fill a single tender with the discounted total so the cashier
     // doesn't have to retype the amount after picking a discount.
     if (discount > 0 && this.tenderRowTargets.length === 1) {
-      const finalTotal = +(this.originalTotalValue * (1 - discount / 100)).toFixed(2)
+      const finalTotal = this._finalTotal(discount)
       this.tenderRowTargets[0].querySelector("input").value = this._fmtPlain(finalTotal)
     }
 
@@ -48,11 +49,14 @@ export default class extends Controller {
     }
     this.discountHelperTarget.classList.toggle("text-red-600", hasNonCash)
 
-    const finalTotal = +(this.originalTotalValue * (1 - discount / 100)).toFixed(2)
+    const finalTotal = this._finalTotal(discount)
     const paidSum    = tenders.reduce((s, t) => s + t.amount, 0)
     const diff       = +(finalTotal - paidSum).toFixed(2)
 
-    this.summaryDiscountTarget.textContent = `−${this._fmt(this.originalTotalValue - finalTotal)}`
+    // The discount shown is always the exact nominal amount (never rounded).
+    // Rounding applies only to the total to collect (the result), via _finalTotal.
+    const nominalDiscount = discount > 0 ? this.originalTotalValue * discount / 100 : 0
+    this.summaryDiscountTarget.textContent = `−${this._fmt(nominalDiscount)}`
     this.summaryTotalTarget.textContent    = this._fmt(finalTotal)
     this.summaryPaidTarget.textContent     = this._fmt(paidSum)
     this.summaryDiffTarget.textContent     = this._fmt(diff)
@@ -79,6 +83,13 @@ export default class extends Controller {
     if (this.tenderRowTargets.length <= 1) return
     event.currentTarget.closest("[data-sale-note-payment-target='tenderRow']").remove()
     this.recalc()
+  }
+
+  // Discounted cash totals round to the nearest hundred (matches backend).
+  // No discount: the exact two-decimal total.
+  _finalTotal(discount) {
+    const raw = this.originalTotalValue * (1 - discount / 100)
+    return discount > 0 ? roundToNearestHundred(raw) : +raw.toFixed(2)
   }
 
   _readTenders() {

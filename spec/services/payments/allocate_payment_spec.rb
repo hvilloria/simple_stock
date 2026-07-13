@@ -111,6 +111,17 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect(result.failure?).to be true
         expect(result.errors.join).to match(/método de pago/i)
       end
+
+      it "rejects an Argentine-formatted amount string instead of silently truncating it (backstop)" do
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [ { order_id: order_a.id, amount: "80.000,00", payment_method: "cash" } ]
+        )
+        expect(result.failure?).to be true
+        expect(result.errors.join).to match(/formato inválido/i)
+        expect(Payment.count).to eq(0)
+      end
     end
 
     context "with valid input — single method" do
@@ -325,6 +336,123 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         items.each(&:reload)
         expect(items.first.discount_percent.to_i).to eq(10)
         expect(items.last.discount_percent.to_i).to eq(0)
+      end
+    end
+
+    context "nearest-hundred rounding on a full discounted cash settlement" do
+      # unit_price 34_780 × 2 = 69_560 original; 20% off → 55_648 nominal;
+      # nearest hundred → 55_600 (55_648 / 100 = 556.48 → 556 → 55_600).
+      let(:discounted_order) do
+        Sales::CreateOrder.call(
+          customer: customer,
+          items: [ { product_id: product.id, quantity: 2, unit_price: 34_780 } ],
+          order_type: "credit",
+          paper_number: "AP-ROUND",
+          user: user
+        ).record
+      end
+
+      it "rounds total_amount to the nearest hundred and closes the balance (confirmed)" do
+        item = discounted_order.order_items.first
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [
+            {
+              order_id: discounted_order.id,
+              amount: 55_600,
+              payment_method: "cash",
+              item_discounts: { item.id => 20 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        discounted_order.reload
+        expect(discounted_order.total_amount.to_f).to eq(55_600.0)
+        expect(discounted_order.outstanding_balance.to_f).to eq(0.0)
+        expect(discounted_order.status).to eq("confirmed")
+      end
+
+      it "preserves the nominal discount invariant (discount 13_912, rounding -48)" do
+        item = discounted_order.order_items.first
+        described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [
+            {
+              order_id: discounted_order.id,
+              amount: 55_600,
+              payment_method: "cash",
+              item_discounts: { item.id => 20 }
+            }
+          ]
+        )
+
+        discounted_order.reload
+        expect(discounted_order.discount_amount.to_f).to eq(13_912.0)
+        expect(discounted_order.rounding_amount.to_f).to eq(-48.0)
+      end
+
+      it "does NOT round a partial cash payment on a discounted order (stays exact)" do
+        item = discounted_order.order_items.first
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [
+            {
+              order_id: discounted_order.id,
+              amount: 20_000,
+              payment_method: "cash",
+              item_discounts: { item.id => 20 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        discounted_order.reload
+        expect(discounted_order.total_amount.to_f).to eq(55_648.0)
+        expect(discounted_order.status).to eq("pending")
+      end
+
+      it "does NOT round a non-cash full settlement (bank_transfer stays exact)" do
+        item = discounted_order.order_items.first
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [
+            {
+              order_id: discounted_order.id,
+              amount: 55_648,
+              payment_method: "bank_transfer",
+              item_discounts: { item.id => 20 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        discounted_order.reload
+        expect(discounted_order.total_amount.to_f).to eq(55_648.0)
+      end
+
+      it "does NOT round when there is no discount (all item percents 0)" do
+        item = discounted_order.order_items.first
+        result = described_class.call(
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [
+            {
+              order_id: discounted_order.id,
+              amount: 69_560,
+              payment_method: "cash",
+              item_discounts: { item.id => 0 }
+            }
+          ]
+        )
+
+        expect(result.success?).to be true
+        discounted_order.reload
+        expect(discounted_order.total_amount.to_f).to eq(discounted_order.original_total_amount.to_f)
       end
     end
 

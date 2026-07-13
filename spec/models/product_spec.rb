@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe Product, type: :model do
   describe 'associations' do
-    it { is_expected.to have_many(:stock_movements).dependent(:destroy) }
+    it { is_expected.to have_many(:stock_movements) }
   end
 
   describe 'validations' do
@@ -118,9 +118,9 @@ RSpec.describe Product, type: :model do
       end
 
       it 'allows blank origin for aftermarket products (relaxed for CSV import)' do
-        # La validación de origin para aftermarket está deshabilitada intencionalmente
-        # para permitir que el importador de ventas cree productos sin origin conocido.
-        # Ver: app/models/product.rb — validación comentada con nota explicativa.
+        # The origin validation for aftermarket is intentionally disabled
+        # to allow the sales importer to create products without a known origin.
+        # See: app/models/product.rb — validation commented out with an explanatory note.
         product = build(:product, product_type: 'aftermarket', origin: nil)
         expect(product).to be_valid
       end
@@ -445,6 +445,31 @@ RSpec.describe Product, type: :model do
     end
   end
 
+  describe 'sku normalization' do
+    it 'upcases the sku before validation' do
+      product = build(:product, sku: 'lub-mot-8100-0w20-4l')
+      product.valid?
+      expect(product.sku).to eq('LUB-MOT-8100-0W20-4L')
+    end
+
+    it 'strips surrounding whitespace' do
+      product = build(:product, sku: '  71508-tj5-k00  ')
+      product.valid?
+      expect(product.sku).to eq('71508-TJ5-K00')
+    end
+
+    it 'persists the sku in uppercase' do
+      product = create(:product, sku: 'abc-123')
+      expect(product.reload.sku).to eq('ABC-123')
+    end
+
+    it 'leaves a blank sku untouched' do
+      product = build(:product, sku: nil)
+      expect { product.valid? }.not_to raise_error
+      expect(product.sku).to be_nil
+    end
+  end
+
   describe '#recalculate_current_stock!' do
     it 'recalculates stock from stock_movements' do
       product = create(:product, current_stock: 0)
@@ -519,7 +544,7 @@ RSpec.describe Product, type: :model do
 
         product.recalculate_average_cost!
 
-        # Solo cuenta purchase1
+        # Only counts purchase1
         expect(product.reload.cost_unit).to eq(10.0)
       end
     end
@@ -562,6 +587,37 @@ RSpec.describe Product, type: :model do
       product = create(:product, cost_unit: 50.0)
       expect(product.average_cost).to eq(product.cost_unit)
       expect(product.average_cost).to eq(50.0)
+    end
+  end
+
+  describe "soft delete (paranoia)" do
+    it "sets deleted_at and hides the row from the default scope" do
+      product = create(:product)
+
+      expect { product.destroy }.to change { Product.count }.by(-1)
+      expect(product.deleted_at).to be_present
+      expect(Product.with_deleted).to include(product)
+      expect(Product.only_deleted).to include(product)
+    end
+
+    it "lets a live variant reuse the identity of a soft-deleted one" do
+      attrs = { sku: "AB-100", product_type: "aftermarket", origin: "china", brand: "Marca1" }
+      deleted = create(:product, **attrs)
+      deleted.destroy
+
+      fresh = build(:product, **attrs)
+      expect(fresh).to be_valid
+      expect { fresh.save! }.not_to raise_error
+    end
+
+    it "keeps stock movements when the product is soft-deleted" do
+      product = create(:product)
+      location = StockLocation.first || create(:stock_location)
+      movement = StockMovement.create!(product: product, stock_location: location,
+                                       quantity: 5, movement_type: "adjustment")
+
+      product.destroy
+      expect(StockMovement.find_by(id: movement.id)).to eq(movement)
     end
   end
 end

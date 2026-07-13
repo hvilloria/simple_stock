@@ -1,10 +1,10 @@
 class AddLocationCodeToProducts < ActiveRecord::Migration[7.2]
   def change
-    # Agregar columna para código de ubicación física en el depósito
-    # Formato: [pasillo][lado][posición][nivel] - Ejemplo: "2D31"
+    # Add a column for the physical location code in the warehouse
+    # Format: [aisle][side][position][level] - Example: "2D31"
     add_column :products, :location_code, :string
 
-    # Índice para búsquedas por ubicación (no único, varios productos pueden estar en la misma ubicación)
+    # Index for lookups by location (not unique, several products can be in the same location)
     add_index :products, :location_code
   end
 end

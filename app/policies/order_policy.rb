@@ -2,15 +2,15 @@
 
 class OrderPolicy < ApplicationPolicy
   def index?
-    true  # Todos pueden ver ventas
+    true  # Everyone can view sales
   end
 
   def show?
-    true  # Todos pueden ver detalle de venta
+    true  # Everyone can view sale detail
   end
 
   def create?
-    user.vendedor? || user.admin?  # Solo vendedores y admin
+    user.vendedor? || user.admin?  # Only vendedores and admin
   end
 
   def new?
@@ -18,7 +18,7 @@ class OrderPolicy < ApplicationPolicy
   end
 
   def cancel?
-    user.admin?  # Solo admin puede cancelar
+    user.admin?  # Only admin can cancel
   end
 
   def cancel_pending?
@@ -26,10 +26,10 @@ class OrderPolicy < ApplicationPolicy
   end
 
   def update?
-    false  # No se permite editar ventas
+    false  # Editing sales is not allowed
   end
 
   def destroy?
-    false  # No se permite eliminar ventas
+    false  # Deleting sales is not allowed
   end
 end
