@@ -52,6 +52,17 @@ RSpec.describe "Web::Products", type: :request do
   describe "POST /web/products" do
     before { sign_in vendedor }
 
+    let(:base_attributes) do
+      {
+        sku: "OEM-558",
+        name: "Pastilla nueva",
+        brand: "TRW",
+        product_type: "aftermarket",
+        origin: "japan",
+        cost_currency: "ARS"
+      }
+    end
+
     it "creates the product, normalizing the sku and the Argentine amounts" do
       expect {
         post web_products_path, params: {
@@ -85,6 +96,57 @@ RSpec.describe "Web::Products", type: :request do
       expect {
         post web_products_path, params: {
           product: { sku: "OEM-556", name: "", cost_currency: "ARS" }
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "persists a clean decimal price" do
+      post web_products_path, params: {
+        product: base_attributes.merge(price_unit: "1500.50", cost_unit: "1.500.000,50")
+      }
+
+      created = Product.find_by(name: "Pastilla nueva")
+      expect(created.price_unit).to eq(1_500.50)
+      expect(created.cost_unit).to eq(1_500_000.50)
+    end
+
+    it "allows a blank price and cost" do
+      post web_products_path, params: {
+        product: base_attributes.merge(price_unit: "", cost_unit: "")
+      }
+
+      created = Product.find_by(name: "Pastilla nueva")
+      expect(created).to be_present
+      expect(created.price_unit).to be_nil
+      expect(created.cost_unit).to be_nil
+    end
+
+    it "rejects an unparseable price instead of saving it as null" do
+      expect {
+        post web_products_path, params: {
+          product: base_attributes.merge(price_unit: "abc")
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects an unparseable cost instead of saving it as null" do
+      expect {
+        post web_products_path, params: {
+          product: base_attributes.merge(cost_unit: "1..5")
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects a negative price" do
+      expect {
+        post web_products_path, params: {
+          product: base_attributes.merge(price_unit: "-1.500,50")
         }
       }.not_to change(Product, :count)
 
@@ -172,6 +234,56 @@ RSpec.describe "Web::Products", type: :request do
       expect(product.brand).to eq("TRW")
       expect(product.origin).to eq("japan")
       expect(product.price_unit).to eq(250.50)
+    end
+
+    it "persiste montos en formato argentino y decimal limpio" do
+      patch web_product_path(product), params: {
+        product: { price_unit: "1.500.000,50", cost_unit: "1500.50" }
+      }
+
+      product.reload
+      expect(product.price_unit).to eq(1_500_000.50)
+      expect(product.cost_unit).to eq(1_500.50)
+    end
+
+    it "rechaza un precio ilegible en vez de anularlo" do
+      patch web_product_path(product), params: {
+        product: { name: "Disco nuevo", price_unit: "abc" }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      product.reload
+      expect(product.price_unit).to eq(100)
+      expect(product.name).to eq("Disco viejo")
+    end
+
+    it "rechaza un costo ilegible en vez de anularlo" do
+      product.update!(cost_unit: 50)
+
+      patch web_product_path(product), params: {
+        product: { cost_unit: "12.34.56" }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(product.reload.cost_unit).to eq(50)
+    end
+
+    it "rechaza un precio negativo" do
+      patch web_product_path(product), params: {
+        product: { price_unit: "-1.500,50" }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(product.reload.price_unit).to eq(100)
+    end
+
+    it "permite vaciar el precio" do
+      patch web_product_path(product), params: {
+        product: { price_unit: "" }
+      }
+
+      expect(response).to redirect_to(web_product_path(product))
+      expect(product.reload.price_unit).to be_nil
     end
 
     it "no modifica el sku aunque venga en params" do

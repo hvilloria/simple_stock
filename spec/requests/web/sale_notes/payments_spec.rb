@@ -102,4 +102,79 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
       expect(big.status).to eq("confirmed")
     end
   end
+
+  # Money values POSTed straight at the endpoint, bypassing Stimulus. The backend must
+  # normalize correctly or reject — never book a wrong number, never drop the tender.
+  describe "POST create — hostile tender amount" do
+    def note_for(total, paper:)
+      o = create(:order, :pending, order_type: "immediate", paper_number: paper,
+                                   total_amount: total, original_total_amount: total)
+      create(:order_item, order: o, product: product, quantity: 1, unit_price: total, discount_percent: 0)
+      o
+    end
+
+    def collect(target, amount)
+      post "/web/sale_notes/#{target.id}/payment", params: {
+        discount_percent: "0",
+        tenders: { "0" => { payment_method: "cash", amount: amount } }
+      }
+    end
+
+    it "persists 1500000.50 for the Argentine format '1.500.000,50'" do
+      target = note_for(BigDecimal("1500000.50"), paper: "H-0001")
+
+      collect(target, "1.500.000,50")
+
+      expect(response).to redirect_to(web_sale_notes_path)
+      target.reload
+      expect(target.payment_allocations.sum(:amount)).to eq(BigDecimal("1500000.50"))
+      expect(target.status).to eq("confirmed")
+    end
+
+    it "persists 1500000 for the Argentine thousands '1.500.000'" do
+      target = note_for(1_500_000, paper: "H-0002")
+
+      collect(target, "1.500.000")
+
+      expect(response).to redirect_to(web_sale_notes_path)
+      target.reload
+      expect(target.payment_allocations.sum(:amount)).to eq(1_500_000)
+      expect(target.status).to eq("confirmed")
+    end
+
+    it "persists 1500.50 for the clean decimal '1500.50'" do
+      target = note_for(BigDecimal("1500.50"), paper: "H-0003")
+
+      collect(target, "1500.50")
+
+      expect(response).to redirect_to(web_sale_notes_path)
+      target.reload
+      expect(target.payment_allocations.sum(:amount)).to eq(BigDecimal("1500.50"))
+      expect(target.status).to eq("confirmed")
+    end
+
+    it "rejects a non-numeric tender instead of booking zero" do
+      expect { collect(note, "abc") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(note.reload.status).to eq("pending")
+    end
+
+    it "rejects a negative tender" do
+      expect { collect(note, "-500") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(note.reload.status).to eq("pending")
+    end
+
+    it "rejects a blank tender" do
+      expect { collect(note, "") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(note.reload.status).to eq("pending")
+    end
+  end
 end

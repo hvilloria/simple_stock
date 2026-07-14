@@ -1,6 +1,8 @@
 module Web
   module SaleNotes
     class PaymentsController < ApplicationController
+      include CurrencyParser
+
       before_action :set_note
 
       def new
@@ -31,16 +33,16 @@ module Web
       end
 
       # Tenders arrive as `tenders[0][payment_method]=cash&tenders[0][amount]=1.500,00`.
-      # Strip Argentine formatting (1.500,00 -> 1500.00) before to_f.
+      # A blank row is an unused tender slot in the form and is dropped. Anything else must
+      # parse — an unparseable amount stays nil so Payments::CollectSaleNote rejects the cobro.
       def parsed_tenders
         rows = params[:tenders]
         return [] if rows.blank?
 
         rows.to_unsafe_h.values.filter_map do |row|
-          raw    = row[:amount].to_s.gsub(".", "").tr(",", ".")
-          amount = raw.to_f
-          next if amount <= 0
-          { payment_method: row[:payment_method], amount: amount }
+          next if row[:amount].blank?
+
+          { payment_method: row[:payment_method], amount: parse_amount(row[:amount]) }
         end
       end
     end

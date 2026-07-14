@@ -2,6 +2,8 @@ module Web
   class ProductsController < ApplicationController
     include CurrencyParser
 
+    MONEY_FIELDS = %i[price_unit cost_unit].freeze
+
     def index
       authorize Product
       products_scope = Product.search(params[:q])
@@ -26,10 +28,16 @@ module Web
     end
 
     def create
-      @product = Product.new(sanitized_product_params)
+      attributes = product_params.to_h
+      invalid_amounts = parse_money_fields!(attributes)
+
+      @product = Product.new(attributes)
       authorize @product
 
-      if @product.save
+      if invalid_amounts.any?
+        reject_invalid_amounts(invalid_amounts)
+        render :new, status: :unprocessable_entity
+      elsif @product.save
         redirect_to web_products_path, notice: "Producto creado exitosamente"
       else
         render :new, status: :unprocessable_entity
@@ -45,7 +53,14 @@ module Web
       @product = Product.find(params[:id])
       authorize @product
 
-      if @product.update(update_product_params)
+      attributes = update_product_params.to_h
+      invalid_amounts = parse_money_fields!(attributes)
+
+      if invalid_amounts.any?
+        @product.assign_attributes(attributes)
+        reject_invalid_amounts(invalid_amounts)
+        render :edit, status: :unprocessable_entity
+      elsif @product.update(attributes)
         redirect_to web_product_path(@product), notice: "Producto actualizado exitosamente"
       else
         render :edit, status: :unprocessable_entity
@@ -81,26 +96,34 @@ module Web
       )
     end
 
-    def sanitized_product_params
-      params_hash = product_params.to_h
-
-      # Convert Argentine format to decimal for currency fields
-      params_hash[:price_unit] = parse_amount(params_hash[:price_unit]) if params_hash[:price_unit].present?
-      params_hash[:cost_unit] = parse_amount(params_hash[:cost_unit]) if params_hash[:cost_unit].present?
-
-      params_hash
-    end
-
     def update_product_params
-      params_hash = params.require(:product).permit(
+      params.require(:product).permit(
         :name, :brand, :category, :product_type, :origin,
         :price_unit, :cost_unit, :cost_currency, :active
-      ).to_h
+      )
+    end
 
-      params_hash[:price_unit] = parse_amount(params_hash[:price_unit]) if params_hash[:price_unit].present?
-      params_hash[:cost_unit]  = parse_amount(params_hash[:cost_unit]) if params_hash[:cost_unit].present?
+    # Converts the money fields in place and returns the ones that were filled in but
+    # could not be parsed. A blank field is legitimate (nil price), an unparseable one
+    # is dropped from the hash so ActiveRecord's decimal cast cannot turn it into 0.0.
+    def parse_money_fields!(attributes)
+      MONEY_FIELDS.select do |field|
+        next false if attributes[field].blank?
 
-      params_hash
+        amount = parse_amount(attributes[field])
+        if amount.nil?
+          attributes.delete(field)
+          true
+        else
+          attributes[field] = amount
+          false
+        end
+      end
+    end
+
+    def reject_invalid_amounts(fields)
+      @product.valid?
+      fields.each { |field| @product.errors.add(field, "no es un monto válido") }
     end
   end
 end

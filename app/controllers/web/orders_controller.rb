@@ -1,5 +1,7 @@
 module Web
   class OrdersController < ApplicationController
+    include CurrencyParser
+
     before_action :load_products, only: [ :new, :create ]
     before_action :load_customers, only: [ :new, :create ]
     before_action :load_order, only: [ :show, :cancel ]
@@ -111,15 +113,16 @@ module Web
       @order = Order.includes(order_items: :product, stock_movements: [ :product, :stock_location ], payment_allocations: :payment).find(params[:id])
     end
 
+    # An unparseable unit_price stays nil so Sales::CreateOrder rejects the note
+    # ("El precio debe ser mayor a cero") instead of booking it at zero.
     def parse_items
-      # Parse items from purchase_items params
       return [] unless params[:purchase_items]
 
       params[:purchase_items].map do |item|
         {
           product_id: item[:product_id].to_i,
           quantity: item[:quantity].to_i,
-          unit_price: item[:unit_price].present? ? item[:unit_price].to_f : nil # Permitir nil
+          unit_price: parse_amount(item[:unit_price])
         }
       end.reject { |item| item[:quantity] <= 0 }
     end

@@ -137,6 +137,60 @@ RSpec.describe "Web::Orders", type: :request do
     end
   end
 
+  # Money values POSTed straight at the endpoint, bypassing Stimulus. The backend must
+  # normalize correctly or reject — never book a wrong number, never drop the row.
+  describe "POST /web/orders — hostile unit_price" do
+    def post_price(unit_price)
+      post "/web/orders", params: {
+        order: { customer_id: customer_with_credit.id, order_type: "credit", channel: "counter" },
+        purchase_items: [ { product_id: product.id, quantity: "2", unit_price: unit_price } ],
+        sale_date: Date.current.iso8601,
+        paper_number: "0099"
+      }
+    end
+
+    def last_item
+      Order.order(:created_at).last.order_items.first
+    end
+
+    it "persists 1500000.50 for the Argentine format '1.500.000,50'" do
+      expect { post_price("1.500.000,50") }.to change(Order, :count).by(1)
+
+      expect(last_item.unit_price).to eq(BigDecimal("1500000.50"))
+      expect(Order.order(:created_at).last.total_amount).to eq(BigDecimal("3000001.00"))
+    end
+
+    it "persists 1500000 for the Argentine thousands '1.500.000'" do
+      expect { post_price("1.500.000") }.to change(Order, :count).by(1)
+
+      expect(last_item.unit_price).to eq(1_500_000)
+    end
+
+    it "persists 1500.50 for the clean decimal '1500.50'" do
+      expect { post_price("1500.50") }.to change(Order, :count).by(1)
+
+      expect(last_item.unit_price).to eq(BigDecimal("1500.50"))
+    end
+
+    it "rejects a non-numeric price instead of booking zero" do
+      expect { post_price("abc") }.not_to change(Order, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects a negative price" do
+      expect { post_price("-500") }.not_to change(Order, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects a blank price" do
+      expect { post_price("") }.not_to change(Order, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
   describe "GET /web/orders/:id" do
     it "renders the order show page after its product is soft-deleted" do
       admin = create(:user, role: "admin")

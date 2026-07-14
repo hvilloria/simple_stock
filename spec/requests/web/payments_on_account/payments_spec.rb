@@ -58,4 +58,67 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(order.reload.outstanding_balance).to eq(1000)
     end
   end
+
+  # Money values POSTed straight at the endpoint, bypassing Stimulus. The controller derives
+  # the cash tender from amount_to_settle, so a mis-parsed value is booked with no invariant
+  # to catch it. It must normalize correctly or reject.
+  describe "POST create — hostile amount_to_settle" do
+    let!(:big) do
+      o = create(:order, :on_account, total_amount: 4_000_000, original_total_amount: 4_000_000)
+      create(:order_item, order: o, product: product, quantity: 1, unit_price: 4_000_000)
+      o
+    end
+
+    before { sign_in caja }
+
+    def settle(amount)
+      post web_payments_on_account_payment_path(big),
+           params: { amount_to_settle: amount, discount_percent: "0", payment_method: "cash" }
+    end
+
+    it "persists 1500000.50 for the Argentine format '1.500.000,50'" do
+      settle("1.500.000,50")
+
+      expect(response).to redirect_to(web_payments_on_account_path(big))
+      expect(big.reload.payment_allocations.sum(:amount)).to eq(BigDecimal("1500000.50"))
+    end
+
+    it "persists 1500000 for the Argentine thousands '1.500.000'" do
+      settle("1.500.000")
+
+      expect(response).to redirect_to(web_payments_on_account_path(big))
+      expect(big.reload.payment_allocations.sum(:amount)).to eq(1_500_000)
+    end
+
+    it "persists 1500.50 for the clean decimal '1500.50'" do
+      settle("1500.50")
+
+      expect(response).to redirect_to(web_payments_on_account_path(big))
+      expect(big.reload.payment_allocations.sum(:amount)).to eq(BigDecimal("1500.50"))
+    end
+
+    it "rejects a non-numeric amount instead of booking zero" do
+      expect { settle("abc") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(big.reload.outstanding_balance).to eq(4_000_000)
+    end
+
+    it "rejects a negative amount" do
+      expect { settle("-500") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(big.reload.outstanding_balance).to eq(4_000_000)
+    end
+
+    it "rejects a blank amount" do
+      expect { settle("") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(big.reload.outstanding_balance).to eq(4_000_000)
+    end
+  end
 end

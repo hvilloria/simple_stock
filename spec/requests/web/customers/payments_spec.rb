@@ -251,4 +251,96 @@ RSpec.describe "Web::Customers::Payments", type: :request do
       expect(payment.amount.to_f).to eq(80_000.0)
     end
   end
+
+  # Money values POSTed straight at the endpoint, bypassing Stimulus. The backend must
+  # normalize correctly or reject — never book a wrong number, never drop a checked row.
+  describe "POST /web/customers/:id/payments — hostile allocation amount" do
+    let(:hostile_customer) { create(:customer, :with_credit) }
+    let(:big_product) do
+      p = create(:product, current_stock: 0, price_unit: 2_000_000)
+      create(:stock_movement, product: p, stock_location: stock_location, quantity: 10, movement_type: "purchase")
+      p.recalculate_current_stock!
+      p
+    end
+    let!(:big_order) do
+      Sales::CreateOrder.call(
+        customer: hostile_customer,
+        items: [ { product_id: big_product.id, quantity: 2, unit_price: 2_000_000 } ],
+        order_type: "credit",
+        paper_number: "L-9000",
+        user: user
+      ).record
+    end
+
+    def post_amount(amount)
+      post web_customer_payments_path(hostile_customer), params: {
+        payment_date: Date.current.iso8601,
+        allocations: {
+          "0" => { order_id: big_order.id.to_s, include: "1", amount: amount, payment_method: "cash" }
+        }
+      }
+    end
+
+    it "persists 1500000.50 for the Argentine format '1.500.000,50'" do
+      expect { post_amount("1.500.000,50") }.to change(Payment, :count).by(1)
+
+      expect(Payment.last.amount).to eq(BigDecimal("1500000.50"))
+      expect(big_order.reload.payment_allocations.sum(:amount)).to eq(BigDecimal("1500000.50"))
+    end
+
+    it "persists 1500000 for the Argentine thousands '1.500.000'" do
+      expect { post_amount("1.500.000") }.to change(Payment, :count).by(1)
+
+      expect(Payment.last.amount).to eq(1_500_000)
+    end
+
+    it "persists 1500.50 for the clean decimal '1500.50'" do
+      expect { post_amount("1500.50") }.to change(Payment, :count).by(1)
+
+      expect(Payment.last.amount).to eq(BigDecimal("1500.50"))
+    end
+
+    it "rejects a non-numeric amount instead of booking zero" do
+      expect { post_amount("abc") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects a negative amount" do
+      expect { post_amount("-500") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects a blank amount on a checked row" do
+      expect { post_amount("") }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects the whole submission when one checked row is invalid, without booking the valid one" do
+      other = Sales::CreateOrder.call(
+        customer: hostile_customer,
+        items: [ { product_id: big_product.id, quantity: 1, unit_price: 2_000_000 } ],
+        order_type: "credit",
+        paper_number: "L-9001",
+        user: user
+      ).record
+
+      expect {
+        post web_customer_payments_path(hostile_customer), params: {
+          allocations: {
+            "0" => { order_id: big_order.id.to_s, include: "1", amount: "1000", payment_method: "cash" },
+            "1" => { order_id: other.id.to_s, include: "1", amount: "abc", payment_method: "cash" }
+          }
+        }
+      }.to change(Payment, :count).by(0)
+        .and change(PaymentAllocation, :count).by(0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
 end

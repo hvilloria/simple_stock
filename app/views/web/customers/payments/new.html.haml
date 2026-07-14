@@ -37,7 +37,7 @@
         = link_to "← Volver al cliente", web_customer_path(@customer), class: "inline-flex items-center gap-2 mt-6 px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
 
   - else
-    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation product-form", action: "turbo:submit-start->product-form#handleSubmit", "payment-allocation-total-debt-value": total_debt.to_s } do
+    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation", "payment-allocation-total-debt-value": total_debt.to_s } do
 
       -# Summary card
       .bg-white.border.border-slate-200.rounded-xl.p-5.mb-4
