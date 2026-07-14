@@ -4,8 +4,8 @@ require "rails_helper"
 
 # System tests for the JS modal in /web/invoices/pending.
 #
-# Prerequisites:
-#   - Google Chrome installed (uses :selenium_chrome_headless driver)
+# Driver, login helpers and Warden reset come from spec/support/system.rb.
+# Runs only with FULL=1 (needs Chrome).
 #
 # What is tested here:
 #   1. Invoice list in modal shows individual numbers, not a generic count
@@ -18,17 +18,10 @@ require "rails_helper"
 #   8. No credit notes section shown when supplier has no active NCs
 
 RSpec.describe "Pending modal — credit note checkbox behavior", type: :system do
-  include Warden::Test::Helpers
-
   let(:admin)    { create(:user, role: "admin") }
   let(:supplier) { create(:supplier, name: "Proveedor Modal Test") }
 
-  before do
-    driven_by :selenium_chrome_headless, screen_size: [ 1400, 900 ]
-    login_as(admin, scope: :user)
-  end
-
-  after { Warden.test_reset! }
+  before { login_as(admin, scope: :user) }
 
   # ── Helpers ────────────────────────────────────────────────────────
 
@@ -57,7 +50,6 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
   # issue is diagnosed here rather than with a cryptic "button not found" message.
   def open_payment_modal
     visit pending_web_invoices_path
-    page.driver.browser.manage.window.resize_to(1400, 900)
     expect(page).to have_text(supplier.name)
     find("tr.bg-slate-50", text: supplier.name).find("button").click
     expect(page).to have_css("#paymentModal", visible: true)

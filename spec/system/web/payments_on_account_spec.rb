@@ -4,8 +4,8 @@ require "rails_helper"
 
 # End-to-end system test for the "pagos a cuenta" (on_account) flow.
 #
-# Prerequisites:
-#   - Google Chrome installed (uses :selenium_chrome_headless driver)
+# Driver, login helpers and Warden reset come from spec/support/system.rb.
+# Runs only with FULL=1 (needs Chrome).
 #
 # Flow covered (an admin can both deliver and collect):
 #   1. Index lists the open operation by contact name.
@@ -19,8 +19,6 @@ require "rails_helper"
 # soft-confirm dialog must NOT fire.
 
 RSpec.describe "Pagos a cuenta", type: :system do
-  include Warden::Test::Helpers
-
   let(:admin)     { create(:user, role: "admin") }
   let(:product_a) { create(:product, price_unit: 500) }
   let(:product_b) { create(:product, price_unit: 500) }
@@ -36,12 +34,7 @@ RSpec.describe "Pagos a cuenta", type: :system do
     o
   end
 
-  before do
-    driven_by :selenium_chrome_headless, screen_size: [ 1400, 900 ]
-    login_as(admin, scope: :user)
-  end
-
-  after { Warden.test_reset! }
+  before { login_as(admin, scope: :user) }
 
   it "lists, opens detail, marks delivery and collects" do
     visit web_payments_on_account_index_path

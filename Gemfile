@@ -71,8 +71,10 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
+  gem "cuprite"
   gem "selenium-webdriver"
   gem "shoulda-matchers", "~> 6.0"
+  gem "simplecov", "~> 0.22", require: false
 end
 
 gem "tailwindcss-rails", "~> 4.4"

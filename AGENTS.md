@@ -127,35 +127,81 @@ Never:
 
 ## Testing Rules
 
-Defines which test layer a change belongs to. The goal is a regression net cheap to maintain for a solo developer: integration (request) specs are the base; browser (system) specs are a thin layer reserved for JS behavior.
+Defines which test layer a change belongs to. The goal is a regression net cheap to maintain for a solo developer: integration (request) specs are the base; browser (system) specs stay a **thin** layer — but where JS touches money, they are **load-bearing, not optional** (see Rule A).
+
+Three named rules govern the layers below: **Rule A** (wire-format contract), **Rule B** (hostile input), **Rule C** (authorization matrix).
 
 ### Layers
 
 | Layer | Specs | When |
 |-------|-------|------|
 | Unit | `spec/models`, `spec/services` | Pure Ruby, no HTTP — isolated business logic, validations, calculations |
-| Integration | `spec/requests` | Base regression net — "given these params, the system does X" + rejection of hostile input |
-| E2E | `spec/system` | Only when correctness depends on Stimulus JS behavior |
+| Integration | `spec/requests` | Base regression net — "given these params, the system does X" + **Rule B** (hostile input) + **Rule C** (authorization matrix) |
+| E2E | `spec/system` | **Rule A** — Stimulus formats/computes/mirrors a value that gets submitted. Runs only under `FULL=1` (needs Chrome) |
 
 ### Decision tree (default + reason — not a blind mandate)
 
 1. Pure model/service logic, no HTTP? → **unit**.
-2. Crosses route → controller → service → DB? → **request**. If it touches money/amounts, include at least one **hostile-input** case (AR format `1.500.000,50`, negative, non-numeric, blank).
-3. Correctness depends on Stimulus JS (disabled submit, live recalculation, cash-only rule, modals)? → **system** (minimal), in addition to the request spec.
-4. When in doubt: **request over system** — cheaper and more robust.
+2. Crosses route → controller → service → DB? → **request**. If it touches money/amounts, it must satisfy **Rule B** (hostile input).
+3. Does Stimulus format, compute, or mirror backend logic on a value that gets **submitted**? → **system**, per **Rule A** — in addition to the request spec.
+4. Does the change add or gate a route by role? → **Rule C** (authorization matrix).
+5. When in doubt: **request over system** — cheaper and more robust. Rule A is the one case where that default does not apply.
 
 A change may need more than one layer.
 
+### Rule A — Wire-format contract
+
+**For any screen where Stimulus formats, computes, or mirrors backend logic on a value that gets submitted, one system spec must drive the real form in a real browser and assert the *persisted* value.**
+
+Rationale: a request spec tests what the *author believes* the browser sends. This class of bug lives in the seam between Stimulus and the controller — the JS sends `"1.500.000,50"` while the controller expects `1500000.5`, or the JS rounds one way and the service rounds another. Both sides pass their own tests; the seam is broken and **no other layer can see it**. Unit specs test each side in isolation; request specs test a hand-written payload that never came from the real form.
+
+This promotes system specs from "nice to have" to **load-bearing for money screens**. The assertion must be on the **persisted value** (`order.reload.total_amount`), not on rendered text — rendered text can be right while the DB is wrong.
+
+Applies whenever JS duplicates a backend rule: see `Payments::CashRounding` (Ruby) vs `app/javascript/helpers/cash_rounding.js` (JS) in `docs/TESTING_GUIDE.md`.
+
+### Rule B — Hostile input
+
+**Every money endpoint needs a request spec that POSTs hostile values *bypassing JS*.** A system spec is the wrong place for this: Stimulus would sanitize the value, so the backend's defense would never run.
+
+Required cases:
+
+| Case | Value | Why |
+|------|-------|-----|
+| AR-thousands | `"1.500.000,50"` | `.to_f` → `1.5` (stops at first dot) |
+| **Clean-decimal** | `"1500.50"` | **Required.** Some controllers strip dots unconditionally → `"150050"` → `150050.0`, a **100×** error |
+| Non-numeric | `"abc"` | `.to_f` → `0.0`, no error raised |
+| Negative | `"-500"` | Must be rejected, not stored |
+| Blank | `""` | Must be rejected, not coerced to `0` |
+
+The clean-decimal case is non-negotiable: it is the one that catches a naive `gsub(".", "")` normalizer, and it is the case authors habitually omit because it "looks valid".
+
+### Rule C — Authorization matrix
+
+**Every gated route must be asserted for every role, via a table-driven request spec.**
+
+The app has 3 roles (`vendedor`, `caja`, `admin`) and 12 Pundit policies, but only 5 policy specs — the gap is untested authorization, and a missing `authorize` call fails open (the action just runs). A policy unit spec proves the *policy* is right; it does **not** prove the controller *calls* it. Only a request spec does.
+
+Drive it from a table (role × route → expected outcome), so adding a role or a route forces the matrix to be updated rather than silently under-tested.
+
 ### Definition of Done
 
-Every new flow enters at least through a request spec; it rises to a system spec only if its correctness depends on Stimulus JS; money flows include a hostile-input case. What counts as a "money flow": see `docs/TESTING_GUIDE.md`.
+Every new flow enters at least through a **request spec**. On top of that:
+
+- **money flow** → satisfies **Rule B** (hostile-input case, including clean-decimal). What counts as a "money flow": see `docs/TESTING_GUIDE.md`.
+- **Stimulus touches a submitted value** → satisfies **Rule A** (system spec asserting the persisted value).
+- **role-gated route** → satisfies **Rule C** (authorization matrix).
+
+### Running the suite
+
+- `bundle exec rspec` — default net. Fast, **no browser**; system specs are excluded. Coverage is reported but not enforced.
+- `FULL=1 bundle exec rspec` — everything, **including system specs** (Cuprite/headless Chrome), and enforces the SimpleCov floor. This is the gate a change must pass before it is done.
 
 ### Responsibilities
 
 These map to the roles in "Role Definitions" above. The responsibility belongs to whoever performs the role, named agent or not.
 
 - **Builder** (the `rails-builder` agent, or whoever implements the change — including the main session): applies the decision tree; writes tests alongside the feature; when the feature introduces a **new money flow** (a service or action that creates, persists, or computes amounts/discounts/balances/prices), adds it to the catalog in `docs/TESTING_GUIDE.md` under the right list (write-money / read-money); declares the choice in its output as a one-line **Test strategy** (layer + why; trivial changes = "unit, sin riesgo"); **flags** criticality for the user — does not decide it.
-- **Reviewer** (the `code-reviewer` agent, or whoever reviews the change): verifies the chosen layer matches the tree; for money flows, confirms a request spec with a hostile-input case exists.
+- **Reviewer** (the `code-reviewer` agent, or whoever reviews the change): verifies the chosen layer matches the tree; for money flows, confirms **Rule B** (hostile input, incl. clean-decimal) is covered; when Stimulus touches a submitted value, confirms **Rule A** (system spec on the persisted value) exists; for role-gated routes, confirms **Rule C** (authorization matrix) covers every role.
 
 ---
 
