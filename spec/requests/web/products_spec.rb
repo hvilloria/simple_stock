@@ -2,7 +2,7 @@
 
 require "rails_helper"
 
-RSpec.describe "Web::Products edit/update", type: :request do
+RSpec.describe "Web::Products", type: :request do
   let(:vendedor) { create(:user, role: "vendedor") }
   let(:admin)    { create(:user, role: "admin") }
   let(:caja)     { create(:user, role: "caja") }
@@ -35,6 +35,105 @@ RSpec.describe "Web::Products edit/update", type: :request do
 
       get web_products_path, params: { q: "FRAM", page: 2 }
       expect(response.body).to include("Filtro 25")
+    end
+  end
+
+  describe "GET /web/products/:id" do
+    it "shows the product detail" do
+      sign_in vendedor
+      get web_product_path(product)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Disco viejo")
+      expect(response.body).to include(product.sku)
+    end
+  end
+
+  describe "POST /web/products" do
+    before { sign_in vendedor }
+
+    it "creates the product, normalizing the sku and the Argentine amounts" do
+      expect {
+        post web_products_path, params: {
+          product: {
+            sku: "oem-555",
+            name: "Pastilla nueva",
+            brand: "TRW",
+            category: "frenos",
+            product_type: "aftermarket",
+            origin: "japan",
+            price_unit: "1.500,50",
+            cost_unit: "900",
+            cost_currency: "ARS",
+            active: "1"
+          }
+        }
+      }.to change(Product, :count).by(1)
+
+      expect(response).to redirect_to(web_products_path)
+      created = Product.find_by(name: "Pastilla nueva")
+      expect(created.sku).to eq("OEM-555")
+      expect(created.price_unit).to eq(1_500.50)
+      expect(created.cost_unit).to eq(900)
+      expect(created.origin).to eq("japan")
+
+      follow_redirect!
+      expect(response.body).to include("Producto creado exitosamente")
+    end
+
+    it "re-renders new with 422 when the name is missing" do
+      expect {
+        post web_products_path, params: {
+          product: { sku: "OEM-556", name: "", cost_currency: "ARS" }
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "re-renders new with 422 when the variant already exists" do
+      create(:product, sku: "OEM-777", product_type: "aftermarket", origin: "china", brand: "Marca1")
+
+      expect {
+        post web_products_path, params: {
+          product: {
+            sku: "OEM-777",
+            name: "Duplicada",
+            brand: "Marca1",
+            product_type: "aftermarket",
+            origin: "china",
+            cost_currency: "ARS"
+          }
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe "GET /web/products/search" do
+    before { sign_in caja }
+
+    it "returns only active products matching the query, as JSON" do
+      create(:product, name: "Filtro de aceite", sku: "FIL-001", price_unit: 2_500)
+      create(:product, name: "Filtro de aire", sku: "FIL-002")
+      create(:product, :inactive, name: "Filtro discontinuado", sku: "FIL-003")
+      create(:product, name: "Bujia NGK", sku: "BUJ-001")
+
+      get search_web_products_path, params: { q: "Filtro" }
+
+      expect(response).to have_http_status(:ok)
+      results = response.parsed_body
+      expect(results.map { |p| p["sku"] }).to contain_exactly("FIL-001", "FIL-002")
+      expect(results.first.keys).to include("id", "sku", "name", "price_unit", "current_stock")
+    end
+
+    it "caps the result set at 10" do
+      12.times { |i| create(:product, name: "Junta #{i}", sku: format("JNT-%02d", i)) }
+
+      get search_web_products_path, params: { q: "Junta" }
+
+      expect(response.parsed_body.size).to eq(10)
     end
   end
 

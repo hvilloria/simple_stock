@@ -180,4 +180,29 @@ RSpec.describe "Invoices", type: :request do
       end
     end
   end
+
+  describe "PATCH /web/invoices/:id/cancel" do
+    it "cancels a pending simple invoice without creating stock movements" do
+      invoice = create(:invoice, :simple_mode, supplier: supplier)
+
+      expect {
+        patch cancel_web_invoice_path(invoice)
+      }.not_to change(StockMovement, :count)
+
+      expect(response).to redirect_to(web_invoices_path)
+      expect(invoice.reload.status).to eq("cancelled")
+
+      follow_redirect!
+      expect(response.body).to include("Factura cancelada exitosamente")
+    end
+
+    it "rejects cancelling an invoice that is already paid" do
+      invoice = create(:invoice, :paid, supplier: supplier)
+
+      patch cancel_web_invoice_path(invoice)
+
+      expect(response).to have_http_status(:redirect)
+      expect(invoice.reload.status).to eq("paid")
+    end
+  end
 end
