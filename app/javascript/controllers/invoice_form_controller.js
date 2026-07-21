@@ -212,6 +212,14 @@ export default class extends Controller {
       // Hide section
       this.earlyPaymentSectionTarget.style.display = 'none'
 
+      // Clear the inputs: hidden fields are still submitted with the form
+      if (this.hasEarlyPaymentDiscountTarget) {
+        this.earlyPaymentDiscountTarget.value = ''
+      }
+      if (this.hasEarlyPaymentDueDateTarget) {
+        this.earlyPaymentDueDateTarget.value = ''
+      }
+
       // Hide discount panel in summary
       if (this.hasSummaryDiscountSectionTarget) {
         this.summaryDiscountSectionTarget.style.display = 'none'
