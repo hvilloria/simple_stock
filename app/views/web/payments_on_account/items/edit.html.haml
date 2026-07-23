@@ -1,0 +1,72 @@
+- content_for :page_title, "Cambiar producto"
+
+.container.mx-auto.px-6.py-6
+  .max-w-4xl.mx-auto
+    .flex.items-baseline.justify-between.mb-6
+      %div
+        %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500
+          = "Talonario #{@order.paper_number} · #{@order.contact_name}"
+        %h1.text-3xl.font-semibold.text-slate-900 Cambiar producto
+      = link_to "← Volver a la operación", web_payments_on_account_path(@order), class: "text-sm text-slate-500 hover:text-slate-900"
+
+    - if flash.now[:alert]
+      .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash.now[:alert]
+
+    = form_with url: web_payments_on_account_item_path(@order, @item), method: :patch,
+        data: { controller: "item-swap",
+                'item-swap-original-product-id-value': @item.product_id,
+                'item-swap-original-quantity-value': @item.quantity,
+                'item-swap-unit-price-value': @item.unit_price,
+                'item-swap-order-total-value': @order.total_amount,
+                'item-swap-order-paid-value': @order.total_amount - @order.outstanding_balance } do |f|
+
+      = hidden_field_tag :product_id, @item.product_id, data: { 'item-swap-target': 'productId' }
+
+      .grid.grid-cols-1.gap-5.items-stretch{ class: "lg:grid-cols-[1fr_320px]" }
+
+        -# LEFT column — product + quantity
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          %h3.text-sm.font-semibold.text-slate-900.mb-3 Producto
+          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path,
+                        action: "click@window->product-search#clickOutside product-selected->item-swap#productSelected" },
+                class: "mb-4 relative" }
+            %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off",
+                    class: "w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent",
+                    data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
+            %div{ data: { 'product-search-target': 'results' },
+                  class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden",
+                  style: "max-height: 400px; overflow-y: scroll;" }
+
+          .text-sm.text-slate-800.mb-1
+            Seleccionado:
+            %span.font-semibold{ data: { 'item-swap-target': 'selectedName' } }
+              = "#{@item.product.name} · SKU #{@item.product.sku}"
+            %span.inline-block.border.border-slate-300.rounded-full.px-2.text-xs.text-slate-600{ data: { 'item-swap-target': 'selectedBadge' } } actual
+          %p.text-xs.text-slate-500.mb-4{ data: { 'item-swap-target': 'selectedPrice' } }
+
+          .border-t.border-slate-200.my-3
+          %label.block.text-sm.text-slate-800.mb-1{ for: "quantity" } Cantidad
+          = number_field_tag :quantity, @item.quantity, min: 1,
+            class: "w-24 px-3 py-2 border border-slate-300 rounded-lg text-center font-semibold",
+            data: { 'item-swap-target': 'quantity', action: 'input->item-swap#recompute' }
+
+        -# RIGHT column — summary + actions
+        .bg-white.border.border-slate-200.rounded-2xl.p-5.flex.flex-col
+          %h3.text-sm.font-semibold.text-slate-900.mb-3 Resumen
+          .space-y-3.text-sm
+            %div
+              %p.text-slate-500 Importe del producto
+              %p.text-slate-900.tabular-nums{ data: { 'item-swap-target': 'subtotal' } }
+            %div
+              %p.text-slate-500 Total de la operación
+              %p.text-slate-900.tabular-nums{ data: { 'item-swap-target': 'total' } }
+            .border-t.border-slate-200
+            %div
+              %p.text-slate-500 Saldo pendiente
+              %p.text-base.font-semibold.text-slate-900.tabular-nums{ data: { 'item-swap-target': 'balance' } }
+
+          = f.submit "Guardar cambio", disabled: true,
+            class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed",
+            data: { 'item-swap-target': 'submit' }
+          = link_to "Cancelar", web_payments_on_account_path(@order),
+            class: "mt-2 block text-center w-full text-slate-500 hover:text-slate-900 py-2 text-sm"

@@ -15,6 +15,11 @@ class PaymentOnAccountPolicy < ApplicationPolicy
     (user.vendedor? || user.admin?) && record.on_account_order_type?
   end
 
+  def edit_item?
+    (user.vendedor? || user.admin?) && record.on_account_order_type? &&
+      !record.cancelled_status?
+  end
+
   def collect?
     (user.caja? || user.admin?) && record.on_account_order_type? && !record.cancelled_status?
   end
