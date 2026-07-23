@@ -19,6 +19,7 @@
                 %th.py-1.5.font-medium.border-b.border-slate-100 Producto
                 %th.py-1.5.font-medium.border-b.border-slate-100.text-right Subtotal
                 %th.py-1.5.font-medium.border-b.border-slate-100.text-center Entrega
+                %th.py-1.5.font-medium.border-b.border-slate-100
             %tbody
               - @order.order_items.each do |item|
                 %tr
@@ -34,6 +35,13 @@
                         marcar entregado
                     - else
                       %span.text-xs.text-slate-400 pendiente
+                  %td.py-2.5.text-center
+                    - if @can_edit_items && item.delivered_at.nil?
+                      = link_to edit_web_payments_on_account_item_path(@order, item),
+                        class: "inline-flex items-center gap-1 px-2.5 py-1 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50" do
+                        ⇄ Cambiar
+                    - else
+                      %span.text-xs.text-slate-300 —
           - if @can_deliver
             .mt-3.flex.justify-end
               = f.submit "Guardar entrega", class: "px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium cursor-pointer"
@@ -75,5 +83,5 @@
         .flex.justify-between.text-slate-600
           %span Vendedor
           %span= @order.user.name
-      - if @can_collect
+      - if @can_collect && @order.outstanding_balance.positive?
         = link_to "Cobrar →", new_web_payments_on_account_payment_path(@order), class: "mt-4 block text-center w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-medium"

@@ -43,6 +43,25 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       expect(response.body).to include("Cobrar →")
       expect(response.body).not_to include("marcar entregado")
     end
+
+    it "shows the change-product action to a vendedor on undelivered rows only" do
+      delivered = create(:order_item, :delivered, order: open_order, product: create(:product),
+                         quantity: 1, unit_price: 100)
+      sign_in vendedor
+      get web_payments_on_account_path(open_order)
+
+      undelivered_path = edit_web_payments_on_account_item_path(open_order, open_order.order_items.first)
+      delivered_path   = edit_web_payments_on_account_item_path(open_order, delivered)
+      expect(response.body).to include("Cambiar")
+      expect(response.body).to include(undelivered_path)
+      expect(response.body).not_to include(delivered_path)
+    end
+
+    it "hides the change-product action from caja" do
+      sign_in caja
+      get web_payments_on_account_path(open_order)
+      expect(response.body).not_to include("Cambiar")
+    end
   end
 
   describe "POST deliver" do

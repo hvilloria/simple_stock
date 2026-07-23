@@ -45,3 +45,4 @@
 # Superpowers — agent scaffolding, brainstorm artifacts (not part of the project)
 /.superpowers/
 /.claude
+/coverage/**

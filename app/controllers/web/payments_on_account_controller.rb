@@ -15,6 +15,7 @@ module Web
       policy = PaymentOnAccountPolicy.new(current_user, @order)
       @can_deliver = policy.deliver?
       @can_collect = policy.collect?
+      @can_edit_items = policy.edit_item?
     end
 
     def deliver

@@ -25,6 +25,15 @@ RSpec.describe PaymentOnAccountPolicy do
     it "forbids collect" do
       expect(subject.collect?).to be false
     end
+
+    it "permits edit_item" do
+      expect(subject.edit_item?).to be true
+    end
+
+    it "forbids edit_item on a cancelled order" do
+      cancelled = build(:order, :on_account, :cancelled)
+      expect(described_class.new(user, cancelled).edit_item?).to be false
+    end
   end
 
   context "caja" do
@@ -50,6 +59,10 @@ RSpec.describe PaymentOnAccountPolicy do
       cancelled_order = build(:order, :on_account, :cancelled)
       expect(described_class.new(user, cancelled_order).collect?).to be false
     end
+
+    it "forbids edit_item" do
+      expect(subject.edit_item?).to be false
+    end
   end
 
   context "admin" do
@@ -74,6 +87,10 @@ RSpec.describe PaymentOnAccountPolicy do
     it "forbids collect on a cancelled order" do
       cancelled_order = build(:order, :on_account, :cancelled)
       expect(described_class.new(user, cancelled_order).collect?).to be false
+    end
+
+    it "permits edit_item" do
+      expect(subject.edit_item?).to be true
     end
   end
 end
