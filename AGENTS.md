@@ -117,6 +117,7 @@ Always:
 - use HAML + Tailwind
 - keep UI consistent with existing views
 - keep business logic out of views
+- keep UI-facing text (labels, flash messages, buttons) in Spanish; code and comments in English
 
 Never:
 - introduce a new UI paradigm without reason
@@ -154,8 +155,8 @@ Every new flow enters at least through a request spec; it rises to a system spec
 
 These map to the roles in "Role Definitions" above. The responsibility belongs to whoever performs the role, named agent or not.
 
-- **Builder** (the `rails-builder` agent, or whoever implements the change — including the main session): applies the decision tree; writes tests alongside the feature; when the feature introduces a **new money flow** (a service or action that creates, persists, or computes amounts/discounts/balances/prices), adds it to the catalog in `docs/TESTING_GUIDE.md` under the right list (write-money / read-money); declares the choice in its output as a one-line **Test strategy** (layer + why; trivial changes = "unit, sin riesgo"); **flags** criticality for the user — does not decide it.
-- **Reviewer** (the `code-reviewer` agent, or whoever reviews the change): verifies the chosen layer matches the tree; for money flows, confirms a request spec with a hostile-input case exists.
+- **Builder** (the `builder` agent, or whoever implements the change — including the main session): applies the decision tree; writes tests alongside the feature; when the feature introduces a **new money flow** (a service or action that creates, persists, or computes amounts/discounts/balances/prices), adds it to the catalog in `docs/TESTING_GUIDE.md` under the right list (write-money / read-money); declares the choice in its output as a one-line **Test strategy** (layer + why; trivial changes = "unit, sin riesgo"); **flags** criticality for the user — does not decide it.
+- **Reviewer** (the `reviewer` agent, or whoever reviews the change): verifies the chosen layer matches the tree; for money flows, confirms a request spec with a hostile-input case exists.
 
 ---
 
