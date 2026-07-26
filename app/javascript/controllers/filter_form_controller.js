@@ -9,6 +9,16 @@ export default class extends Controller {
     delay: { type: Number, default: 300 }
   }
 
+  connect() {
+    // autofocus lands the caret at the start of the existing value, so typing
+    // after a filtered reload would insert text before what was already there
+    const input = this.element.querySelector("input[autofocus]")
+    if (input) {
+      const end = input.value.length
+      input.setSelectionRange(end, end)
+    }
+  }
+
   disconnect() {
     // Clear the timeout if the controller disconnects
     if (this.timeout) {

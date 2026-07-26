@@ -10,19 +10,17 @@ module Web
     def index
       authorize Invoice
 
-      # Load suppliers for the filter
       @suppliers = Supplier.alphabetical
-
-      # Filter by supplier_id if present
       @selected_supplier = Supplier.find_by(id: params[:supplier_id]) if params[:supplier_id].present?
+      @status = normalize_status(params[:status])
 
-      # Base scope with optional filters (supplier + search)
       invoices_scope = Invoice.simple_mode
-                                .includes(:supplier)
-                                .for_supplier(@selected_supplier)
-                                .search_invoice(params[:invoice_search])
+                              .includes(:supplier)
+                              .for_supplier(@selected_supplier)
+                              .search_invoice(params[:invoice_search])
+                              .by_status_filter(@status)
 
-      @pagy, @invoices = pagy(invoices_scope.priority_order)
+      @pagy, @invoices = pagy(ordered_invoices(invoices_scope))
 
       # Metrics calculated from the model (filtered if applicable)
       metrics_scope = Invoice.simple_mode
@@ -33,7 +31,7 @@ module Web
       @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars(include_discount: true) }
 
       # Available credits (filtered only by supplier, not by invoice search)
-      credit_notes_scope = CreditNote.includes(:supplier)
+      credit_notes_scope = CreditNote.includes(:applied_credits)
                                       .for_supplier(@selected_supplier)
                                       .available
 
@@ -220,6 +218,16 @@ module Web
 
     def load_suppliers
       @suppliers = Supplier.order(:name)
+    end
+
+    STATUS_FILTERS = %w[pending paid cancelled].freeze
+
+    def normalize_status(status)
+      STATUS_FILTERS.include?(status) ? status : "pending"
+    end
+
+    def ordered_invoices(scope)
+      @status == "paid" ? scope.by_payment_date : scope.priority_order
     end
 
     def load_invoice
