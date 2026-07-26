@@ -1,0 +1,8 @@
+- allowed = order.pending_status? ? policy(order).cancel_pending? : policy(order).cancel?
+- if !order.cancelled_status? && allowed
+  = button_to "Cancelar", cancel_web_order_path(order),
+              method: :post,
+              data: { turbo_confirm: "¿Seguro que quieres cancelar esta venta?" },
+              class: "text-red-600 hover:text-red-800"
+- else
+  %span.text-slate-400 —

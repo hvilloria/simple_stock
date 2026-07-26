@@ -1,66 +1,119 @@
 - content_for :page_title, "Ventas"
+- date_header = @status == "confirmed" ? "Cobrada el" : "Fecha venta"
+- show_settled_column = @status.blank? || search_mode?
 
-.flex.items-center.justify-between.mb-6
-  %h1.text-3xl.font-bold.text-gray-900 Ventas
-  = link_to new_web_order_path, class: "btn-primary" do
-    %span +
-    %span Nueva Venta
+.container.mx-auto.px-6.py-6
+  .flex.items-center.justify-between.mb-6
+    %h1.text-3xl.font-bold.text-slate-900 Ventas
+    = link_to new_web_order_path, class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
+      %span +
+      %span Nueva Venta
 
-.bg-white.rounded-2xl.shadow-soft.overflow-hidden
-  %table.min-w-full.divide-y.divide-gray-200
-    %thead.bg-gray-50
-      %tr
-        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
-          Productos
-        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
-          Fecha
-        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
-          Cliente
-        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider
-          Vendedor
-        %th.px-6.py-4.text-left.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider
-          Estado
-        %th.px-6.py-4.text-right.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
-          Total
-        %th.px-6.py-4.text-right.text-xs.font-semibold.text-gray-600.uppercase.tracking-wider 
-          Acciones
-    
-    %tbody.divide-y.divide-gray-100.bg-white
-      - @orders.each do |order|
-        %tr.hover:bg-gray-50.transition-colors
-          %td.px-6.py-4.whitespace-nowrap
-            = link_to web_order_path(order), class: "font-mono text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline" do
-              = "#{order.order_items.sum(&:quantity)} (##{order.paper_number})"
-          %td.px-6.py-4.whitespace-nowrap
-            %span.text-sm.text-gray-900= l(order.sale_date, format: :friendly)
-          %td.px-6.py-4
-            - if order.customer
-              %span.text-sm.text-gray-900= order.customer.name
-            - else
-              %span.text-sm.text-gray-500 -
-          %td.px-6.py-4.whitespace-nowrap
-            %span.text-sm.text-gray-900= order.user.name
-          %td.px-6.py-4.whitespace-nowrap
-            - if order.pending_status?
-              %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-full.text-xs.font-medium.bg-amber-100.text-amber-800
-                %span ⏳
-                %span Pendiente
-            - elsif order.confirmed_status?
-              %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-full.text-xs.font-medium.bg-success-light.text-success-dark
-                %span ✓
-                %span Confirmada
-            - else
-              %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-full.text-xs.font-medium.bg-red-100.text-red-800
-                %span ✕
-                %span Cancelada
-          %td.px-6.py-4.whitespace-nowrap.text-right
-            %span.text-sm.font-bold.text-gray-900= currency_ar(order.total_amount)
-          %td.px-6.py-4.whitespace-nowrap.text-right.text-sm.font-medium
-            - if !order.cancelled_status?
-              = button_to cancel_web_order_path(order),
-                          method: :post,
-                          data: { turbo_confirm: "¿Seguro que quieres cancelar esta venta?" },
-                          class: "text-red-600 hover:text-red-800" do
-                Cancelar
-            - else
-              %span.text-gray-400 -
+  .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
+    .flex.flex-col.md:flex-row.gap-3
+      = form_with url: web_orders_path, method: :get, data: { controller: "filter-form" }, class: "flex-1" do
+        = text_field_tag :paper_number, @search,
+                         placeholder: "🔍 Buscar por N° de nota…",
+                         autofocus: @search.present?,
+                         class: "w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                         data: { action: "input->filter-form#submitWithDebounce" }
+
+      = form_with url: web_orders_path, method: :get, data: { controller: "filter-form" }, class: "flex flex-col md:flex-row gap-3" do
+        = select_tag :type,
+                     options_for_select([ [ "Todos los tipos", "" ] ] + Order.type_options, @type),
+                     disabled: search_mode?,
+                     class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm disabled:bg-slate-50 disabled:text-slate-400",
+                     data: { action: "change->filter-form#submit" }
+
+        = select_tag :status,
+                     options_for_select([ [ "Todas", "" ], [ "Cobradas", "confirmed" ], [ "Pendientes", "pending" ], [ "Anuladas", "cancelled" ] ], @status),
+                     disabled: search_mode?,
+                     class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm disabled:bg-slate-50 disabled:text-slate-400",
+                     data: { action: "change->filter-form#submit" }
+
+        = select_tag :period,
+                     options_for_select([ [ "Hoy", "today" ], [ "Esta semana", "this_week" ], [ "Este mes", "this_month" ] ], @period),
+                     disabled: search_mode? || @status.blank?,
+                     class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm disabled:bg-slate-50 disabled:text-slate-400",
+                     data: { action: "change->filter-form#submit" }
+
+    - if search_mode?
+      %p.text-xs.text-slate-600.mt-3.flex.items-center.gap-2
+        %span
+          Buscando
+          %b= "“#{@search}”"
+          en todo el historial — los filtros no se aplican.
+        = link_to "Limpiar búsqueda", web_orders_path, class: "underline text-slate-900 font-medium"
+
+  - if @orders.any?
+    .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+      %table.min-w-full.divide-y.divide-slate-200
+        %thead.bg-slate-50
+          %tr
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Productos
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider= date_header
+            - if show_settled_column
+              %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Cobrada el
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Tipo
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Cliente
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Estado
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Total
+            %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Acciones
+
+        %tbody.divide-y.divide-slate-100.bg-white
+          - @orders.each do |order|
+            %tr.hover:bg-slate-50.transition-colors
+              %td.px-4.py-3.whitespace-nowrap
+                = link_to web_order_path(order), class: "font-mono text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline" do
+                  = "#{order.order_items.sum(&:quantity)} (##{order.paper_number})"
+
+              %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-900
+                - primary_date = @status == "confirmed" ? order.settled_on : order.sale_date
+                = primary_date ? l(primary_date, format: :friendly) : "—"
+
+              - if show_settled_column
+                %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600
+                  = order.settled_on ? l(order.settled_on, format: :friendly) : "—"
+
+              %td.px-4.py-3.whitespace-nowrap
+                %span.inline-flex.items-center.px-2.py-0.5.rounded-md.bg-slate-100.text-slate-700.text-xs
+                  = Order.type_label(order.order_type)
+
+              %td.px-4.py-3.text-sm.text-slate-900= order.customer&.name || "—"
+
+              %td.px-4.py-3.whitespace-nowrap.text-center
+                = render "web/orders/status_badge", order: order
+
+              %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.font-bold.text-slate-900
+                = currency_ar(order.total_amount)
+
+              %td.px-4.py-3.whitespace-nowrap.text-center.text-sm.font-medium
+                = render "web/orders/cancel_action", order: order
+
+  - else
+    .bg-white.border.border-slate-200.rounded-lg.p-16.text-center
+      .inline-flex.w-20.h-20.rounded-full.bg-slate-100.items-center.justify-center.text-4xl.mb-4
+        🛒
+      %h3.text-xl.font-bold.text-slate-900.mb-2 No hay ventas con esos filtros
+      %p.text-slate-600.mb-6 Probá con otro período o quitá los filtros.
+      = link_to "✕ Limpiar filtros", web_orders_path, class: "inline-flex items-center justify-center px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+
+  - if @pagy.pages > 1
+    .flex.items-center.justify-center.gap-1.mt-6.pb-2
+      - if @pagy.prev
+        = link_to "← Anterior", pagy_url_for(@pagy, @pagy.prev), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+      - else
+        %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed ← Anterior
+
+      - @pagy.series.each do |item|
+        - if item.is_a?(Integer)
+          = link_to item, pagy_url_for(@pagy, item), class: "inline-flex items-center justify-center w-9 h-9 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+        - elsif item.is_a?(String)
+          %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.font-semibold.text-white.bg-slate-700.border.border-slate-700.rounded-lg= item
+        - elsif item == :gap
+          %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.text-slate-400 …
+
+      - if @pagy.next
+        = link_to "Siguiente →", pagy_url_for(@pagy, @pagy.next), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+      - else
+        %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed Siguiente →

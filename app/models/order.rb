@@ -21,6 +21,20 @@ class Order < ApplicationRecord
     on_account: "on_account"
   }, suffix: true
 
+  ORDER_TYPE_LABELS = {
+    "immediate"  => "Nota de pedido",
+    "on_account" => "Pago a cuenta",
+    "credit"     => "Cuenta corriente"
+  }.freeze
+
+  def self.type_label(key)
+    ORDER_TYPE_LABELS.fetch(key.to_s, key.to_s.humanize)
+  end
+
+  def self.type_options
+    ORDER_TYPE_LABELS.map { |key, label| [ label, key ] }
+  end
+
   ALLOWED_CHANNELS = %w[counter whatsapp mercadolibre].freeze
 
   validates :order_type, presence: true
@@ -62,6 +76,13 @@ class Order < ApplicationRecord
   scope :from_paper, -> { where(source: "from_paper") }
   scope :live,       -> { where(source: "live") }
   scope :by_sale_date, ->(date) { where(sale_date: date) if date.present? }
+  scope :by_type, ->(type) { where(order_type: type) if order_types.key?(type.to_s) }
+  scope :by_status_filter, ->(status) { where(status: status) if statuses.key?(status.to_s) }
+  scope :settled_between, ->(from, to) { where(settled_on: from..to) if from && to }
+  scope :sold_between, ->(from, to) { where(sale_date: from..to) if from && to }
+  scope :search_paper, ->(query) {
+    where("paper_number ILIKE ?", "%#{query.strip}%") if query.present?
+  }
 
   def outstanding_balance
     return 0 if cancelled_status?
@@ -112,8 +133,12 @@ class Order < ApplicationRecord
 
   def refresh_status_from_balance!
     return if cancelled_status?
+
     new_status = outstanding_balance <= 0 ? "confirmed" : "pending"
-    update!(status: new_status) if status != new_status
+    new_settled_on = new_status == "confirmed" ? payments.maximum(:payment_date) : nil
+    return if status == new_status && settled_on == new_settled_on
+
+    update!(status: new_status, settled_on: new_settled_on)
   end
 
   def cancel!(reason: nil)

@@ -531,4 +531,172 @@ RSpec.describe Order, type: :model do
       expect(customer.current_balance).to eq(0)
     end
   end
+
+  describe "#refresh_status_from_balance! and settled_on" do
+    let(:customer) { create(:customer, :with_credit) }
+    let(:order) do
+      create(:order, :credit_order, :pending, customer: customer,
+             total_amount: 1_000, original_total_amount: 1_000)
+    end
+
+    def allocate(amount, payment_date: Date.current)
+      payment = create(:payment, customer: customer, amount: amount,
+                       payment_date: payment_date)
+      create(:payment_allocation, payment: payment, order: order, amount: amount)
+    end
+
+    it "stamps the payment date when the balance reaches zero" do
+      allocate(1_000, payment_date: Date.current - 2.days)
+
+      order.refresh_status_from_balance!
+
+      expect(order.reload).to be_confirmed_status
+      expect(order.settled_on).to eq(Date.current - 2.days)
+    end
+
+    it "leaves it empty while the balance is still open" do
+      allocate(400)
+
+      order.refresh_status_from_balance!
+
+      expect(order.reload.settled_on).to be_nil
+    end
+
+    it "clears it when the order reopens" do
+      allocate(1_000)
+      order.refresh_status_from_balance!
+      expect(order.reload.settled_on).to be_present
+
+      order.update!(total_amount: 1_500, original_total_amount: 1_500)
+      order.refresh_status_from_balance!
+
+      expect(order.reload).to be_pending_status
+      expect(order.settled_on).to be_nil
+    end
+
+    it "re-stamps with the new date when it closes again" do
+      allocate(1_000)
+      order.refresh_status_from_balance!
+      order.update!(total_amount: 1_500, original_total_amount: 1_500)
+      order.refresh_status_from_balance!
+
+      allocate(500, payment_date: Date.current)
+      order.refresh_status_from_balance!
+
+      expect(order.reload.settled_on).to eq(Date.current)
+    end
+
+    it "corrects a stale date even when the status does not change" do
+      allocate(1_000, payment_date: Date.current)
+      order.refresh_status_from_balance!
+      order.update_column(:settled_on, Date.current - 30.days)
+
+      order.refresh_status_from_balance!
+
+      expect(order.reload.settled_on).to eq(Date.current)
+    end
+
+    it "uses the latest declared payment date, not the last one loaded" do
+      allocate(600, payment_date: Date.current)
+      allocate(400, payment_date: Date.current - 5.days)
+
+      order.refresh_status_from_balance!
+
+      expect(order.reload.settled_on).to eq(Date.current)
+    end
+
+    it "does not stamp a cancelled order" do
+      allocate(1_000)
+      order.update!(status: "cancelled")
+
+      order.refresh_status_from_balance!
+
+      expect(order.reload.settled_on).to be_nil
+    end
+
+    it "confirms a zero-total order with no payments without a collected date" do
+      zero_order = create(:order, :from_paper, total_amount: 0, original_total_amount: 0)
+
+      zero_order.refresh_status_from_balance!
+
+      expect(zero_order.reload).to be_confirmed_status
+      expect(zero_order.settled_on).to be_nil
+    end
+  end
+
+  describe "filter scopes" do
+    let!(:immediate) { create(:order, sale_date: Date.current, settled_on: Date.current) }
+    let!(:on_account) do
+      create(:order, :on_account, sale_date: Date.current - 10.days,
+             settled_on: Date.current - 1.day, paper_number: "9911")
+    end
+
+    it "filters by type and ignores a blank value" do
+      expect(Order.by_type("on_account")).to contain_exactly(on_account)
+      expect(Order.by_type("")).to contain_exactly(immediate, on_account)
+      expect(Order.by_type(nil)).to contain_exactly(immediate, on_account)
+    end
+
+    it "rejects a type that is not an enum value" do
+      expect(Order.by_type("nonsense")).to contain_exactly(immediate, on_account)
+    end
+
+    it "filters by status and ignores a blank value" do
+      expect(Order.by_status_filter("confirmed")).to contain_exactly(immediate)
+      expect(Order.by_status_filter("")).to contain_exactly(immediate, on_account)
+    end
+
+    it "rejects a status that is not an enum value" do
+      expect(Order.by_status_filter("whatever")).to contain_exactly(immediate, on_account)
+    end
+
+    it "filters by collected date including both bounds" do
+      expect(Order.settled_between(Date.current - 1.day, Date.current))
+        .to contain_exactly(immediate, on_account)
+      expect(Order.settled_between(Date.current, Date.current)).to contain_exactly(immediate)
+      expect(Order.settled_between(nil, nil)).to contain_exactly(immediate, on_account)
+    end
+
+    it "filters by sale date including both bounds" do
+      expect(Order.sold_between(Date.current, Date.current)).to contain_exactly(immediate)
+      expect(Order.sold_between(nil, Date.current)).to contain_exactly(immediate, on_account)
+    end
+
+    it "does not filter when only one bound is given" do
+      future = create(:order, sale_date: Date.current + 5.days,
+                      settled_on: Date.current + 5.days, paper_number: "7777")
+
+      # future's sale_date is above the "to" bound: a genuine to-only half-open
+      # filter would exclude it, so its presence proves this call is a true no-op.
+      expect(Order.sold_between(nil, Date.current)).to include(future)
+
+      # on_account's settled_on (Date.current - 1.day) is below the "from" bound:
+      # a genuine from-only half-open filter would exclude it, so its presence
+      # proves this call is a true no-op.
+      expect(Order.settled_between(Date.current, nil)).to include(on_account)
+    end
+
+    it "searches by paper number, partially and case-insensitively" do
+      lettered = create(:order, paper_number: "ABC991")
+
+      expect(Order.search_paper("991")).to contain_exactly(on_account, lettered)
+      expect(Order.search_paper("  991  ")).to contain_exactly(on_account, lettered)
+      expect(Order.search_paper("abc")).to contain_exactly(lettered)
+      expect(Order.search_paper("")).to contain_exactly(immediate, on_account, lettered)
+    end
+  end
+
+  describe "order type labels" do
+    it "labels every type" do
+      expect(Order.type_label("on_account")).to eq("Pago a cuenta")
+    end
+
+    it "covers exactly the enum keys" do
+      expect(Order::ORDER_TYPE_LABELS.keys).to match_array(Order.order_types.keys)
+    end
+
+    it "builds select options as [label, value] pairs" do
+      expect(Order.type_options).to include([ "Cuenta corriente", "credit" ])
+    end
+  end
 end
