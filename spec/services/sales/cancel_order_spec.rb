@@ -32,6 +32,14 @@ RSpec.describe Sales::CancelOrder do
         expect(result.errors).to be_empty
       end
 
+      it 'clears settled_on so a cancelled order no longer shows a collected date' do
+        order.update!(settled_on: Date.current)
+
+        described_class.call(order: order)
+
+        expect(order.reload.settled_on).to be_nil
+      end
+
       it 'restores product stock' do
         skip "stock movements temporarily disabled"
         order # Create order first (reduces stock by 5)

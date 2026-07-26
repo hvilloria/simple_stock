@@ -36,7 +36,7 @@ module Sales
     end
 
     def cancel_order
-      @order.update!(status: "cancelled")
+      @order.update!(status: "cancelled", settled_on: nil)
     end
 
     def reverse_stock_movements

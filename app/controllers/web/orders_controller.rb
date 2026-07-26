@@ -4,12 +4,18 @@ module Web
     before_action :load_customers, only: [ :new, :create ]
     before_action :load_order, only: [ :show, :cancel ]
 
+    helper_method :search_mode?
+
     def index
       authorize Order
-      @orders = Order
-        .includes(:customer, :user, order_items: :product)
-        .order(sale_date: :desc, created_at: :desc)
-        .limit(50)
+
+      @search = params[:paper_number].to_s.strip
+      @type   = params[:type].to_s
+      @status = normalize_status(search_mode? ? "" : (params[:status] || "confirmed"))
+      @period = params[:period].presence || "this_week"
+      @from, @to = resolve_period
+
+      @pagy, @orders = pagy(filtered_orders)
     end
 
     def show
@@ -94,6 +100,43 @@ module Web
     end
 
     private
+
+    def search_mode?
+      params[:paper_number].present?
+    end
+
+    def normalize_status(status)
+      Order.statuses.key?(status) ? status : ""
+    end
+
+    def filtered_orders
+      base = Order.includes(:customer, order_items: :product)
+      return base.search_paper(@search).order(sale_date: :desc, id: :desc) if search_mode?
+
+      scoped = base.by_type(@type).by_status_filter(@status)
+
+      case @status
+      when "confirmed"
+        scoped.settled_between(@from, @to)
+              .order(Arel.sql("settled_on DESC NULLS LAST, id DESC"))
+      when "pending", "cancelled"
+        scoped.sold_between(@from, @to).order(sale_date: :desc, id: :desc)
+      else
+        scoped.order(sale_date: :desc, id: :desc)
+      end
+    end
+
+    # Todas and search mode deliberately return no range: they are the modes
+    # whose purpose is not to narrow.
+    def resolve_period
+      return [ nil, nil ] if @status.blank?
+
+      case @period
+      when "today"      then [ Date.current, Date.current ]
+      when "this_month" then [ Date.current.beginning_of_month, Date.current.end_of_month ]
+      else [ Date.current.beginning_of_week(:monday), Date.current.end_of_week(:monday) ]
+      end
+    end
 
     def load_products
       # Only load products if neither product_id nor purchase_items is present (to avoid
