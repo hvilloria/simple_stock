@@ -32,9 +32,21 @@ class CreditNote < ApplicationRecord
   # Scopes
   scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
   scope :search_number, ->(query) { where("credit_note_number ILIKE ?", "%#{query}%") if query.present? }
-  scope :recent, -> { order(issue_date: :desc, created_at: :desc) }
+  scope :recent, -> { order(issue_date: :desc, created_at: :desc, id: :desc) }
   scope :available, -> { where(status: "active") }
-  scope :by_status, ->(status) { where(status: status) if status.present? }
+
+  APPLIED_SUM = "COALESCE((SELECT SUM(ac.amount) FROM applied_credits ac WHERE ac.credit_note_id = credit_notes.id), 0)"
+
+  scope :with_balance, -> { where("credit_notes.amount > #{APPLIED_SUM}") }
+  scope :exhausted_credits, -> { where("credit_notes.amount <= #{APPLIED_SUM}") }
+
+  scope :by_availability, ->(filter) {
+    case filter
+    when "available" then where(status: "active").with_balance
+    when "applied"   then where(status: "active").exhausted_credits
+    when "cancelled" then where(status: "cancelled")
+    end
+  }
 
   # Callbacks
   before_validation :set_currency_from_invoice, if: -> { invoice_id.present? && invoice_id_changed? }
@@ -43,7 +55,7 @@ class CreditNote < ApplicationRecord
 
   # Amount remaining after all partial applications
   def remaining_balance
-    amount - applied_credits.sum(:amount)
+    amount - applied_credits.sum(&:amount)
   end
 
   # True when all credit has been consumed

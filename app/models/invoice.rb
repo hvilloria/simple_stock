@@ -84,12 +84,19 @@ class Invoice < ApplicationRecord
   # Search by invoice number (case-insensitive, partial match)
   scope :search_invoice, ->(query) { where("invoice_number ILIKE ?", "%#{query}%") if query.present? }
 
+  # Filter by status, ignoring values outside the enum
+  scope :by_status_filter, ->(status) { where(status: status) if statuses.key?(status.to_s) }
+
+  # Ordered by payment date, most recent first
+  scope :by_payment_date, -> { order(Arel.sql("paid_at DESC NULLS LAST"), id: :desc) }
+
   # Ordered by priority: 1) pending first, 2) nearest due date
   scope :priority_order, -> {
     order(
       Arel.sql("CASE WHEN status = 'pending' THEN 0 ELSE 1 END"),
       Arel.sql("CASE WHEN due_date IS NULL THEN 1 ELSE 0 END"),
-      "due_date ASC"
+      "due_date ASC",
+      "id DESC"
     )
   }
 

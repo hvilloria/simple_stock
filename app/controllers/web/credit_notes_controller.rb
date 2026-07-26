@@ -12,18 +12,23 @@ module Web
 
       @suppliers = Supplier.alphabetical
       @selected_supplier = Supplier.find_by(id: params[:supplier_id]) if params[:supplier_id].present?
+      @selected_status = params[:status].to_s
 
-      @credit_notes = CreditNote.includes(:supplier, :invoice)
-                                .for_supplier(@selected_supplier)
-                                .search_number(params[:search])
-                                .by_status(params[:status])
-                                .recent
-                                .limit(50)
+      filtered = CreditNote.includes(:supplier, :invoice, :applied_credits)
+                           .for_supplier(@selected_supplier)
+                           .search_number(params[:search])
+                           .by_availability(@selected_status)
+                           .recent
 
-      @total_credit_amount = @credit_notes.where(status: "active").sum { |cn| cn.remaining_balance }
-      # Count only notes with available balance (excludes those already applied/exhausted)
-      @credit_notes_count = @credit_notes.count(&:available?)
-      @selected_status = params[:status]
+      @pagy, @credit_notes = pagy(filtered)
+
+      available_scope = CreditNote.includes(:applied_credits)
+                                  .for_supplier(@selected_supplier)
+                                  .search_number(params[:search])
+                                  .available
+
+      @total_credit_amount = available_scope.sum { |cn| cn.remaining_balance_ars }
+      @credit_notes_count = available_scope.count(&:available?)
     end
 
     def show

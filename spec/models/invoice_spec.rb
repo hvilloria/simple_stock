@@ -446,6 +446,59 @@ RSpec.describe Invoice, type: :model do
         expect(result).not_to include(invoice_b_pending)
         expect(result.first).to eq(invoice_a_pending)
       end
+
+      it "breaks ties on the due date by id, newest first" do
+        due = 10.days.from_now.to_date
+        older = create(:invoice, :simple_mode, due_date: due)
+        newer = create(:invoice, :simple_mode, due_date: due)
+
+        result = Invoice.where(id: [ older.id, newer.id ]).priority_order
+
+        expect(result).to eq([ newer, older ])
+      end
+    end
+  end
+
+  describe ".by_status_filter" do
+    let!(:pending_invoice) { create(:invoice, :simple_mode) }
+    let!(:paid_invoice) { create(:invoice, :paid) }
+
+    it "keeps only invoices in the given status" do
+      expect(Invoice.by_status_filter("paid")).to contain_exactly(paid_invoice)
+    end
+
+    it "ignores a status outside the enum" do
+      expect(Invoice.by_status_filter("bogus")).to contain_exactly(pending_invoice, paid_invoice)
+    end
+  end
+
+  describe ".by_payment_date" do
+    it "puts the most recently paid invoice first, whatever its due date" do
+      paid_today = create(:invoice, :paid, due_date: 6.months.ago.to_date, paid_at: Date.current)
+      paid_last_week = create(:invoice, :paid, due_date: 1.month.from_now.to_date, paid_at: 1.week.ago.to_date)
+
+      result = Invoice.where(id: [ paid_today.id, paid_last_week.id ]).by_payment_date
+
+      expect(result).to eq([ paid_today, paid_last_week ])
+    end
+
+    it "pushes invoices without a payment date to the end" do
+      dated = create(:invoice, :paid, paid_at: 1.month.ago.to_date)
+      undated = create(:invoice, :paid, paid_at: nil)
+
+      result = Invoice.where(id: [ dated.id, undated.id ]).by_payment_date
+
+      expect(result).to eq([ dated, undated ])
+    end
+
+    it "breaks ties on the payment date by id, newest first" do
+      same_day = 3.days.ago.to_date
+      older = create(:invoice, :paid, paid_at: same_day)
+      newer = create(:invoice, :paid, paid_at: same_day)
+
+      result = Invoice.where(id: [ older.id, newer.id ]).by_payment_date
+
+      expect(result).to eq([ newer, older ])
     end
   end
 

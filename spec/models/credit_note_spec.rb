@@ -257,4 +257,69 @@ RSpec.describe CreditNote, type: :model do
       end
     end
   end
+
+  describe "balance scopes" do
+    let(:supplier) { create(:supplier) }
+    let(:invoice) { create(:invoice, :simple_mode, supplier: supplier) }
+    let!(:untouched) { create(:credit_note, supplier: supplier, amount: 1000) }
+    let!(:partially_used) { create(:credit_note, supplier: supplier, amount: 1000) }
+    let!(:drained) { create(:credit_note, supplier: supplier, amount: 1000) }
+
+    before do
+      create(:applied_credit, credit_note: partially_used, invoice: invoice, amount: 400)
+      create(:applied_credit, credit_note: drained, invoice: invoice, amount: 1000)
+    end
+
+    it "keeps notes that still have balance" do
+      expect(CreditNote.with_balance).to contain_exactly(untouched, partially_used)
+    end
+
+    it "keeps notes whose balance is fully consumed" do
+      expect(CreditNote.exhausted_credits).to contain_exactly(drained)
+    end
+  end
+
+  describe ".by_availability" do
+    let(:supplier) { create(:supplier) }
+    let(:invoice) { create(:invoice, :simple_mode, supplier: supplier) }
+    let!(:available_note) { create(:credit_note, supplier: supplier, amount: 1000) }
+    let!(:applied_note) { create(:credit_note, supplier: supplier, amount: 1000) }
+    let!(:cancelled_note) { create(:credit_note, :cancelled, supplier: supplier, amount: 1000) }
+
+    before { create(:applied_credit, credit_note: applied_note, invoice: invoice, amount: 1000) }
+
+    it "returns active notes with balance for 'available'" do
+      expect(CreditNote.by_availability("available")).to contain_exactly(available_note)
+    end
+
+    it "returns active notes without balance for 'applied'" do
+      expect(CreditNote.by_availability("applied")).to contain_exactly(applied_note)
+    end
+
+    it "returns cancelled notes for 'cancelled'" do
+      expect(CreditNote.by_availability("cancelled")).to contain_exactly(cancelled_note)
+    end
+
+    it "returns everything when no filter is given" do
+      expect(CreditNote.by_availability("")).to contain_exactly(available_note, applied_note, cancelled_note)
+    end
+
+    it "returns everything for a value outside the filter set" do
+      expect(CreditNote.by_availability("bogus")).to contain_exactly(available_note, applied_note, cancelled_note)
+    end
+  end
+
+  describe ".recent" do
+    it "breaks ties on both issue date and created_at by id, newest first" do
+      supplier = create(:supplier)
+      same_day = Date.current
+      same_moment = Time.current
+      older = create(:credit_note, supplier: supplier, issue_date: same_day)
+      newer = create(:credit_note, supplier: supplier, issue_date: same_day)
+      older.update_column(:created_at, same_moment)
+      newer.update_column(:created_at, same_moment)
+
+      expect(CreditNote.where(id: [ older.id, newer.id ]).recent).to eq([ newer, older ])
+    end
+  end
 end
