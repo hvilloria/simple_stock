@@ -78,6 +78,32 @@ RSpec.configure do |config|
   config.include Devise::Test::IntegrationHelpers, type: :request
 end
 
+# When the browser runs in its own container, Capybara must serve the app on an
+# interface that container can reach, and point the driver at the remote node
+# instead of launching a local Chrome. Without SELENIUM_REMOTE_URL nothing here
+# applies and system specs use a locally installed browser as before.
+if ENV["SELENIUM_REMOTE_URL"].present?
+  require "selenium/webdriver"
+
+  Capybara.server_host = "0.0.0.0"
+  Capybara.server_port = 3006
+  Capybara.app_host = "#{ENV.fetch('CAPYBARA_APP_HOST')}:#{Capybara.server_port}"
+
+  Capybara.register_driver :selenium_chrome_headless do |app|
+    options = Selenium::WebDriver::Chrome::Options.new
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--window-size=1400,900")
+
+    Capybara::Selenium::Driver.new(
+      app,
+      browser: :remote,
+      url: ENV.fetch("SELENIUM_REMOTE_URL"),
+      options: options
+    )
+  end
+end
+
 # Shoulda Matchers configuration
 Shoulda::Matchers.configure do |config|
   config.integrate do |with|
