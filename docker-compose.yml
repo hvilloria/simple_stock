@@ -1,0 +1,65 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    image: simple_stock-dev
+    # bin/rails server overrides the port set in config/puma.rb, so it is
+    # restated here to match the published port.
+    command: bin/rails server -b 0.0.0.0 -p 3005
+    env_file: .env
+    environment:
+      SELENIUM_REMOTE_URL: http://selenium:4444
+      CAPYBARA_APP_HOST: http://web
+    volumes:
+      - .:/app
+      - gems:/gems
+    ports:
+      - "3005:3005"
+    depends_on:
+      db:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+
+  css:
+    image: simple_stock-dev
+    command: bin/rails tailwindcss:watch
+    env_file: .env
+    volumes:
+      - .:/app
+      - gems:/gems
+    depends_on:
+      - web
+    # Tailwind's watcher exits as soon as stdin reaches EOF.
+    stdin_open: true
+    tty: true
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  selenium:
+    image: selenium/standalone-chromium:latest
+    # Chrome crashes against Docker's 64MB shared memory default.
+    shm_size: 2gb
+    ports:
+      - "7900:7900"
+
+volumes:
+  postgres_data:
+  gems:
