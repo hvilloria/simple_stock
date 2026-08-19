@@ -1,0 +1,17 @@
+.git
+.github
+.githooks
+.claude
+.superpowers
+
+log
+tmp
+coverage
+storage
+public/assets
+app/assets/builds
+
+.env
+.env.*
+
+node_modules
