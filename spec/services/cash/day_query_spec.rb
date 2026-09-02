@@ -93,6 +93,81 @@ RSpec.describe Cash::DayQuery do
     end
   end
 
+  describe "#arca_movements" do
+    it "leaves out every sale, whatever arca it lands in" do
+      cash_sale = create(:cash_movement, business_date: date, channel: "cash", account: "drawer")
+      card_sale = create(:cash_movement, :card_sale, business_date: date)
+      usd_sale  = create(:cash_movement, business_date: date, channel: "usd", account: "usd", amount: 50)
+
+      expect(query.arca_movements).not_to include(cash_sale, card_sale, usd_sale)
+    end
+
+    it "leaves out an expense paid out of the till" do
+      create(:cash_movement, :store_expense, business_date: date)
+
+      expect(query.arca_movements).to be_empty
+    end
+
+    it "takes an expense paid out of a bundle" do
+      expense = create(:cash_movement, :store_expense, business_date: date, account: "main_cash")
+
+      expect(query.arca_movements).to include(expense)
+    end
+
+    it "takes a supplier paid from the bank" do
+      supplier = create(:cash_movement, :supplier_payment, business_date: date)
+
+      expect(query.arca_movements).to include(supplier)
+    end
+
+    it "leaves out another day" do
+      create(:cash_movement, :supplier_payment, business_date: date + 1)
+
+      expect(query.arca_movements).to be_empty
+    end
+
+    it "orders by load order, oldest first" do
+      first  = create(:cash_movement, :supplier_payment, business_date: date, description: "primera")
+      second = create(:cash_movement, :supplier_payment, business_date: date, description: "segunda")
+
+      expect(query.arca_movements.map(&:description)).to eq([ "primera", "segunda" ])
+    end
+  end
+
+  describe "the two zones" do
+    it "partition the day: every movement lands in exactly one zone" do
+      cash_sale     = create(:cash_movement, business_date: date, channel: "cash", account: "drawer")
+      card_sale     = create(:cash_movement, :card_sale, business_date: date)
+      usd_sale      = create(:cash_movement, business_date: date, channel: "usd", account: "usd", amount: 50)
+      till_expense  = create(:cash_movement, :store_expense, business_date: date)
+      bundle_expense = create(:cash_movement, :store_expense, business_date: date, account: "main_cash")
+      supplier      = create(:cash_movement, :supplier_payment, business_date: date)
+      transfer_leg  = create(:cash_movement, :transfer_leg, business_date: date, account: "bank", amount: -50_000)
+      # The one row that legitimately has a NULL account. In SQL,
+      # NOT (false OR NULL) is NULL, not true, so a careless complement would
+      # drop it from BOTH zones and it would vanish from the screen.
+      compensation  = create(:cash_movement, :compensation_sale, business_date: date)
+
+      all_movements   = CashMovement.on(date)
+      drawer_movements = query.drawer_movements
+      arca_movements    = query.arca_movements
+
+      expect(drawer_movements + arca_movements).to contain_exactly(
+        cash_sale, card_sale, usd_sale, till_expense, bundle_expense, supplier, transfer_leg, compensation
+      )
+      expect(drawer_movements.to_a & arca_movements.to_a).to be_empty
+      expect(all_movements.count).to eq(8)
+    end
+
+    it "keeps a row with no arca in exactly one zone" do
+      movement = create(:cash_movement, :store_expense, business_date: date)
+      # The model forbids this state; the query must not depend on that.
+      movement.update_column(:account, nil)
+
+      expect(query.drawer_movements + query.arca_movements).to contain_exactly(movement)
+    end
+  end
+
   describe "#sales_by_channel" do
     it "groups the day's sales by channel and ignores expenses" do
       create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 299_700)

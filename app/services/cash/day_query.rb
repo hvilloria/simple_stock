@@ -17,6 +17,17 @@ module Cash
         .order(:created_at, :id)
     end
 
+    def arca_movements
+      CashMovement
+        .on(@business_date)
+        # COALESCE, not a bare comparison: account is nullable, and in SQL
+        # NOT (false OR NULL) is NULL, which would drop such a row from BOTH
+        # zones and make it vanish from the screen with nothing failing.
+        .where.not("category = :sale OR COALESCE(account, '') = :drawer", sale: "sale", drawer: "drawer")
+        .includes(source_payment: :orders)
+        .order(:created_at, :id)
+    end
+
     def sales_by_channel
       @sales_by_channel ||= CashMovement.on(@business_date).sales.group(:channel).sum(:amount)
     end
