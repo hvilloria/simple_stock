@@ -267,17 +267,26 @@ Paid out of the till — the common case — it goes in the drawer zone, against
 in the morning, it goes in the arca zone, against `main_cash`. The cashier knows
 which, because she is the one who took the bill.
 
-At closing time the system emits a single signed transfer for the drawer's net:
+At closing time the drawer is emptied in two steps, in this order:
 
 ```
-net positive → Caja del día → Caja grande     "the bundle was wrapped"
-net negative → Caja grande → Caja del día     "the bundles covered the day"
+1. discrepancy = counted − expected, as a cash_discrepancy movement on drawer
+2. a single signed transfer of the counted amount:
+     counted > 0 → Caja del día → Caja grande     "the bundle was wrapped"
+     counted = 0 → nothing to wrap, no transfer
 ```
 
-The drawer always ends at zero. The negative branch covers the partial case —
-the till had money but not enough, so the bundles made up the difference — and
-settles it as arithmetic, with nobody deciding anything and with the order of
-loading unable to change the result.
+After step 1 the drawer holds exactly what was counted; after step 2 it holds
+zero. That is true whatever the numbers were, so there is one rule and no
+branches, and the order of loading cannot change the result.
+
+When the day's cash expenses exceed its cash sales the expected amount is
+negative — the partial case, where the till had money but not enough and a
+bundle made up the difference. Step 1 then records a positive discrepancy for
+what the bundle put in, which is the honest statement: money entered the drawer
+and no movement said so. R-11 applies, as it does to any other difference. The
+screen presents it in the operator's words rather than as a negative number —
+see §7.2.
 
 **The count is defined by `account`, never by the zone.** Expected drawer =
 `SUM(amount) WHERE account = 'drawer' AND business_date = D`. The zones are UI;
@@ -535,8 +544,10 @@ Four steps, in one modal.
    shows what it has recorded next to each and flags the differences. It
    informs; it never blocks. QR and transfers also land in `bank` and are not
    verified in V1.
-4. **Close.** Seals the day's movements, emits the transfer between drawer and
-   bundles for the counted amount, and persists the closing record.
+4. **Close.** Records the discrepancy if the count differs, emits the transfer
+   of the counted amount from the drawer to the bundles, seals every movement of
+   the date, and persists the closing record — in that order, so the transfer
+   and the discrepancy are sealed too. See R-6 for the arithmetic.
 
 If the count differs, the discrepancy movement is created automatically and the
 close proceeds. **The note field is optional on purpose:** requiring a
