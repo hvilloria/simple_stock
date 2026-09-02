@@ -14,6 +14,7 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Payments::CollectOnAccount` — `amount_to_settle`, discount, lowers `total_amount`
 - `Invoices::CreateSimpleInvoice` / `MarkAsPaid` / `ProcessPayment` — amounts + `AppliedCredit`
 - Credit notes CRUD — `amount`, `exchange_rate`
+- `Cash::RecordMovement` — signed `amount`, arca and category routing
 
 ### Read-money (no input to attack, but calculation correctness is critical → unit/request with seeded data)
 
@@ -35,9 +36,22 @@ The backend must not trust the client to send a clean number. Ruby's `.to_f` doe
 "200000.50".to_f      # => 200000.5
 ```
 
+`BigDecimal` is stricter but not strict enough: a single-separator thousands
+string is a valid plain decimal to it, so the wrong number gets through without
+raising.
+
+```ruby
+BigDecimal("1.500.000,50")  # => ArgumentError (caught)
+BigDecimal("101.800")       # => 101.8  -- $101.800 read as $101,80
+```
+
+Gate the string on a plain-decimal regex instead of relying on the parser to
+raise.
+
 A request spec for any write-money flow should POST hostile values directly (bypassing the Stimulus normalization) and assert the backend rejects or normalizes them — never silently accepts a wrong number:
 
 - AR-formatted string `"1.500.000,50"` → must not become `1.5`
+- single-separator thousands string `"101.800"` → must not become `101.8`
 - non-numeric `"abc"` → rejected, not `0`
 - negative / blank → rejected
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_07_26_023613) do
+ActiveRecord::Schema[7.2].define(version: 2026_08_27_182700) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -23,6 +23,29 @@ ActiveRecord::Schema[7.2].define(version: 2026_07_26_023613) do
     t.datetime "updated_at", null: false
     t.index ["credit_note_id"], name: "index_applied_credits_on_credit_note_id"
     t.index ["invoice_id"], name: "index_applied_credits_on_invoice_id"
+  end
+
+  create_table "cash_movements", force: :cascade do |t|
+    t.date "business_date", null: false
+    t.string "account"
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.string "category", null: false
+    t.string "subcategory"
+    t.string "channel"
+    t.string "description"
+    t.uuid "transfer_group_id"
+    t.bigint "daily_closing_id"
+    t.bigint "source_payment_id"
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account"], name: "index_cash_movements_on_account"
+    t.index ["business_date"], name: "index_cash_movements_on_business_date"
+    t.index ["category"], name: "index_cash_movements_on_category"
+    t.index ["daily_closing_id"], name: "index_cash_movements_on_daily_closing_id"
+    t.index ["source_payment_id"], name: "index_cash_movements_on_source_payment_id"
+    t.index ["transfer_group_id"], name: "index_cash_movements_on_transfer_group_id"
+    t.index ["user_id"], name: "index_cash_movements_on_user_id"
   end
 
   create_table "credit_note_items", force: :cascade do |t|
@@ -65,6 +88,20 @@ ActiveRecord::Schema[7.2].define(version: 2026_07_26_023613) do
     t.boolean "has_credit_account", default: false, null: false
     t.string "customer_type", default: "retail", null: false
     t.index ["document"], name: "index_customers_on_document"
+  end
+
+  create_table "daily_closings", force: :cascade do |t|
+    t.date "business_date", null: false
+    t.decimal "expected_cash", precision: 10, scale: 2, null: false
+    t.decimal "counted_cash", precision: 10, scale: 2, null: false
+    t.decimal "payway_batch_total", precision: 10, scale: 2
+    t.decimal "mercado_pago_total", precision: 10, scale: 2
+    t.bigint "user_id", null: false
+    t.datetime "closed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_date"], name: "index_daily_closings_on_business_date", unique: true
+    t.index ["user_id"], name: "index_daily_closings_on_user_id"
   end
 
   create_table "invoice_items", force: :cascade do |t|
@@ -247,10 +284,14 @@ ActiveRecord::Schema[7.2].define(version: 2026_07_26_023613) do
 
   add_foreign_key "applied_credits", "credit_notes"
   add_foreign_key "applied_credits", "invoices"
+  add_foreign_key "cash_movements", "daily_closings"
+  add_foreign_key "cash_movements", "payments", column: "source_payment_id"
+  add_foreign_key "cash_movements", "users"
   add_foreign_key "credit_note_items", "credit_notes"
   add_foreign_key "credit_note_items", "products"
   add_foreign_key "credit_notes", "invoices"
   add_foreign_key "credit_notes", "suppliers"
+  add_foreign_key "daily_closings", "users"
   add_foreign_key "invoice_items", "invoices"
   add_foreign_key "invoice_items", "products"
   add_foreign_key "invoices", "suppliers"

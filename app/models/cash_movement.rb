@@ -1,0 +1,137 @@
+# frozen_string_literal: true
+
+class CashMovement < ApplicationRecord
+  class SealedMovementError < StandardError; end
+
+  ACCOUNT_LABELS = {
+    "drawer"       => "Caja del día",
+    "main_cash"    => "Caja grande",
+    "change_fund"  => "Remanente",
+    "bank"         => "Banco",
+    "mercado_pago" => "Mercado Pago",
+    "usd"          => "USD"
+  }.freeze
+
+  CATEGORY_LABELS = {
+    "sale"              => "Venta",
+    "suppliers"         => "Proveedores",
+    "fixed_expense"     => "Gastos fijos",
+    "internal_transfer" => "Movimiento entre arcas",
+    "partner"           => "Socio",
+    "cash_discrepancy"  => "Diferencia de arqueo",
+    "opening_balance"   => "Saldo inicial"
+  }.freeze
+
+  SUBCATEGORY_LABELS = {
+    "rent"           => "Alquiler",
+    "salaries"       => "Salarios",
+    "social_charges" => "Cargas sociales",
+    "taxes"          => "Impuestos",
+    "utilities"      => "Servicios",
+    "store_expenses" => "Gastos de local"
+  }.freeze
+
+  CHANNEL_LABELS = {
+    "cash"         => "Efectivo",
+    "card"         => "Tarjeta",
+    "qr"           => "QR",
+    "transfer"     => "Transferencia",
+    "mercado_pago" => "Mercado Pago",
+    "usd"          => "USD",
+    "compensation" => "Compensación"
+  }.freeze
+
+  # A sale's channel determines the arca it lands in. Compensation is the one
+  # channel that reaches no arca: it bills, but no money moves.
+  CHANNEL_ACCOUNTS = {
+    "cash"         => "drawer",
+    "card"         => "bank",
+    "qr"           => "bank",
+    "transfer"     => "bank",
+    "mercado_pago" => "mercado_pago",
+    "usd"          => "usd",
+    "compensation" => nil
+  }.freeze
+
+  belongs_to :daily_closing, optional: true
+  belongs_to :source_payment, class_name: "Payment", optional: true
+  belongs_to :user
+
+  before_update :prevent_sealed_change
+  before_destroy :prevent_sealed_change
+
+  # Suffixed because `mercado_pago` and `usd` are both an account and a
+  # channel; without the suffix the predicates would collide.
+  enum :account, ACCOUNT_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
+  enum :category, CATEGORY_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
+  enum :subcategory, SUBCATEGORY_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
+  enum :channel, CHANNEL_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
+
+  validates :business_date, presence: true
+  validates :category, presence: true
+  validates :amount, presence: true, numericality: { other_than: 0 }
+  validate :account_required_unless_compensation
+  validate :channel_only_on_sales
+  validate :subcategory_only_on_fixed_expenses
+
+  scope :for_account, ->(account) { where(account: account) }
+  scope :on, ->(date) { where(business_date: date) }
+  scope :between, ->(from, to) { where(business_date: from..to) }
+  scope :sales, -> { where(category: "sale") }
+
+  def self.balance_for(account)
+    for_account(account).sum(:amount)
+  end
+
+  def self.drawer_balance_on(date)
+    for_account("drawer").on(date).sum(:amount)
+  end
+
+  def self.account_for_channel(channel)
+    CHANNEL_ACCOUNTS.fetch(channel.to_s)
+  end
+
+  def self.account_label(key) = ACCOUNT_LABELS.fetch(key.to_s, key.to_s)
+  def self.category_label(key) = CATEGORY_LABELS.fetch(key.to_s, key.to_s)
+  def self.channel_label(key) = CHANNEL_LABELS.fetch(key.to_s, key.to_s)
+  def self.subcategory_label(key) = SUBCATEGORY_LABELS.fetch(key.to_s, key.to_s)
+
+  def inflow? = amount.positive?
+  def outflow? = amount.negative?
+  def sealed? = daily_closing_id.present?
+
+  private
+
+  # Guards on the persisted value, not the assigned one, so Cash::CloseDay can
+  # stamp daily_closing_id on a row that has none yet.
+  def prevent_sealed_change
+    return if daily_closing_id_was.blank?
+
+    raise SealedMovementError,
+          "cash movement #{id} is sealed by closing #{daily_closing_id_was}"
+  end
+
+  def account_required_unless_compensation
+    if compensation_channel?
+      errors.add(:account, "must be blank on a compensation sale") if account.present?
+    elsif account.blank?
+      errors.add(:account, "can't be blank")
+    end
+  end
+
+  def channel_only_on_sales
+    if sale_category?
+      errors.add(:channel, "can't be blank") if channel.blank?
+    elsif channel.present?
+      errors.add(:channel, "is only valid on a sale")
+    end
+  end
+
+  def subcategory_only_on_fixed_expenses
+    if fixed_expense_category?
+      errors.add(:subcategory, "can't be blank") if subcategory.blank?
+    elsif subcategory.present?
+      errors.add(:subcategory, "is only valid on a fixed expense")
+    end
+  end
+end
