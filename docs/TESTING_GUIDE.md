@@ -16,6 +16,7 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - Credit notes CRUD — `amount`, `exchange_rate`
 - `Cash::RecordMovement` — signed `amount`, arca and category routing
 - `Cash::RecordSaleFromPayment` — copies a `Payment`'s amount into a sale movement and routes it to an arca (its amount comes from the persisted payment, so the hostile-input case belongs to the collection flow upstream)
+- `Cash::ReversePayment` — writes the mirror of an existing sale movement (its amount comes from the persisted movement, so there is no hostile input to attack; what it must get right is the sign, the arca and refusing a double reversal)
 
 ### Read-money (no input to attack, but calculation correctness is critical → unit/request with seeded data)
 
