@@ -14,7 +14,7 @@
         %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Egreso
         %th.px-4.py-3.w-24
     %tbody#drawer-rows.divide-y.divide-slate-100.bg-white
-      = render partial: "web/cash/movements/row", collection: movements, as: :movement
+      = render partial: "web/cash/movements/row", collection: movements, as: :movement, locals: { editable: !day.closed? }
     - unless day.closed?
       %tfoot.bg-slate-50.border-t.border-slate-200
         = render "web/cash/movements/live_row", error: nil

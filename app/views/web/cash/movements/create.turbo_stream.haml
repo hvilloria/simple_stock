@@ -1,6 +1,6 @@
 - if @movement.present?
   = turbo_stream.append "drawer-rows" do
-    = render "web/cash/movements/row", movement: @movement
+    = render "web/cash/movements/row", movement: @movement, editable: true
 
 = turbo_stream.replace "drawer-live-row" do
   = render "web/cash/movements/live_row", error: @error
