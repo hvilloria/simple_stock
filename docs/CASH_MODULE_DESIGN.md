@@ -614,7 +614,14 @@ to beat Excel on speed.
   `cash_movements`, not `orders`. It is the only thing that can be touched on a
   sealed day, and it is worth writing down before it shows up as a surprise
   during implementation.
-- Reuses `currency-input` (AR format) and the existing Turbo Stream patterns.
+- Reuses `currency-input` (AR format).
+- **Turbo Streams arrive with this screen.** The project has `turbo-rails`
+  installed and Turbo Drive active, but not a single `format.turbo_stream` or
+  `.turbo_stream.haml` anywhere — every form today submits in full and
+  redirects. The live row is where the pattern is introduced, so it is new work,
+  not reuse, and whatever shape it takes here is the shape the arca zone, the
+  close and the transfer form will copy. Stimulus keeps doing what it already
+  does on the screen: the amount format, the Enter key and the focus.
 
 ### 8.2 Cierre del día
 
@@ -717,7 +724,9 @@ subagents do not see them otherwise.
 - **Reuse before building.** `currency-input`, `filter_form_controller`, pagy,
   the `Result` pattern, `Payment::PAYMENT_METHOD_LABELS`, the index-filter
   pattern from `orders#index`. Look for the existing pattern before writing a
-  new one.
+  new one. Two things this module needs have no precedent in the codebase and
+  must be treated as new: saving a row without a full reload (see §8.1) and a
+  form row inside a table.
 - **Services return `Result`; controllers stay thin.** Direct ActiveRecord is
   acceptable only in trivial single-model actions.
 - **HAML only.** No ERB, no queries or business logic in views.
