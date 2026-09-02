@@ -24,6 +24,7 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Customer#current_balance` / `Order#outstanding_balance` — balance formulas
 - `SalesLedger::Reports::{SummaryQuery, SalesByDateQuery, TopProductsQuery}` — report aggregates
 - `SalesLedger::ImportCsv` — imports amounts (does not create Order/Payment/StockMovement)
+- `Cash::Reports::BalanceQuery` — the balance report: every figure is a SUM over movements (opening, per-category columns, closing), and every row must reconcile arithmetically
 
 Out of scope on purpose: `Inventory::AdjustStock` / `Inventory::MarkDelivered` — quantity/delivery, not money; stock has its own critical rule (see `CLAUDE.md`).
 
