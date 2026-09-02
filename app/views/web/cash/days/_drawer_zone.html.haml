@@ -1,0 +1,17 @@
+- movements = day.drawer_movements.to_a
+
+.bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+  %table.min-w-full.divide-y.divide-slate-200
+    %thead.bg-slate-50
+      %tr
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Descripción
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Canal
+        %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Ingreso
+        %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Egreso
+        %th.px-4.py-3.w-24
+    %tbody#drawer-rows.divide-y.divide-slate-100.bg-white
+      = render partial: "web/cash/movements/row", collection: movements, as: :movement
+
+  - if movements.empty?
+    .p-12.text-center
+      %p.text-slate-500 No hay movimientos cargados en este día.

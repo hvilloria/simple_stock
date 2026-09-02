@@ -74,5 +74,10 @@ Rails.application.routes.draw do
         get :supplier_invoices
       end
     end
+
+    namespace :cash do
+      resources :days, only: [ :index, :show ], param: :business_date
+      resources :movements, only: [ :create, :edit, :update, :destroy ]
+    end
   end
 end
