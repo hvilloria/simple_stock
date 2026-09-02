@@ -22,6 +22,7 @@ module Web
         @period_options = PERIOD_OPTIONS
         @from, @to = resolve_range
         @rows = ::Cash::Reports::BalanceQuery.call(from: @from, to: @to)
+        @breakdown = ::Cash::Reports::FixedExpenseBreakdownQuery.new(from: @from, to: @to)
       end
 
       private

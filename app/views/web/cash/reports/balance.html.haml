@@ -52,3 +52,26 @@
             %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.text-slate-900= number_ar(row.transfers)
             %td.px-4.py-3.whitespace-nowrap.text-right.text-sm{ class: row.discrepancies.zero? ? "text-slate-900" : "text-amber-700 font-semibold" }= number_ar(row.discrepancies)
             %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.font-bold.text-slate-900= number_ar(row.closing)
+
+  %details#fixed-expense-breakdown.bg-white.border.border-slate-200.rounded-lg.mt-6.overflow-x-auto{ open: true }
+    %summary.px-4.py-3.text-sm.font-semibold.text-slate-900.cursor-pointer.select-none
+      Gastos fijos por subcategoría
+    %table.min-w-full.divide-y.divide-slate-200
+      %thead.bg-slate-50
+        %tr
+          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Subcategoría
+          - @breakdown.groups.each do |group|
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider= @breakdown.group_label(group)
+
+      %tbody.divide-y.divide-slate-100.bg-white
+        - @breakdown.rows.each do |row|
+          %tr.hover:bg-slate-50.transition-colors
+            %th.px-4.py-3.whitespace-nowrap.text-left.text-sm.font-medium.text-slate-700= row.label
+            - @breakdown.groups.each do |group|
+              %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.text-slate-900= number_ar(row.amount_for(group))
+
+      %tfoot.bg-slate-50
+        %tr
+          %th.px-4.py-3.whitespace-nowrap.text-left.text-sm.font-semibold.text-slate-900 Total
+          - @breakdown.groups.each do |group|
+            %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.font-bold.text-slate-900= number_ar(@breakdown.totals_by_group.fetch(group))

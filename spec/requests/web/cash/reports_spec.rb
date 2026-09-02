@@ -132,6 +132,74 @@ RSpec.describe "Web::Cash::Reports", type: :request do
     end
   end
 
+  describe "the fixed-expense breakdown" do
+    before { sign_in admin }
+
+    def breakdown
+      Nokogiri::HTML(response.body).at("#fixed-expense-breakdown")
+    end
+
+    def cells_of(row) = row.css("th, td").map { |cell| cell.text.strip }
+
+    it "expands inside the report instead of sending the owner to another screen" do
+      get "/web/cash/reports/balance"
+
+      expect(breakdown).to be_present
+      expect(breakdown.text).to include("Gastos fijos por subcategoría")
+    end
+
+    it "reads at the reporting group, the same columns the report's rows use" do
+      get "/web/cash/reports/balance"
+
+      headers = breakdown.css("thead th").map { |cell| cell.text.strip }
+      expect(headers).to eq([ "Subcategoría", "Efectivo", "Banco", "Mercado Pago", "USD" ])
+    end
+
+    it "lists the six subcategories even when a month has none of them" do
+      get "/web/cash/reports/balance"
+
+      labels = breakdown.css("tbody tr").map { |row| cells_of(row).first }
+      expect(labels)
+        .to eq([ "Alquiler", "Salarios", "Cargas sociales", "Impuestos", "Servicios", "Gastos de local" ])
+    end
+
+    it "puts each subcategory against the arca it was paid from" do
+      travel_to Date.new(2026, 9, 2) do
+        movement(category: "fixed_expense", subcategory: "rent", channel: nil,
+                 account: "main_cash", amount: -400_000)
+        movement(category: "fixed_expense", subcategory: "taxes", channel: nil,
+                 account: "bank", amount: -96_300)
+
+        get "/web/cash/reports/balance"
+      end
+
+      rent = breakdown.css("tbody tr").find { |row| cells_of(row).first == "Alquiler" }
+      taxes = breakdown.css("tbody tr").find { |row| cells_of(row).first == "Impuestos" }
+
+      expect(cells_of(rent)).to eq([ "Alquiler", "-400.000,00", "0,00", "0,00", "0,00" ])
+      expect(cells_of(taxes)).to eq([ "Impuestos", "0,00", "-96.300,00", "0,00", "0,00" ])
+    end
+
+    it "closes with the totals the fixed-expenses column of each row shows" do
+      travel_to Date.new(2026, 9, 2) do
+        movement(category: "fixed_expense", subcategory: "rent", channel: nil,
+                 account: "main_cash", amount: -400_000)
+        movement(category: "fixed_expense", subcategory: "utilities", channel: nil,
+                 account: "drawer", amount: -37_400)
+        movement(category: "fixed_expense", subcategory: "taxes", channel: nil,
+                 account: "bank", amount: -96_300)
+
+        get "/web/cash/reports/balance"
+      end
+
+      totals = cells_of(breakdown.at("tfoot tr"))
+      expect(totals).to eq([ "Total", "-437.400,00", "-96.300,00", "0,00", "0,00" ])
+
+      balance_row = Nokogiri::HTML(response.body).css("#balance-rows tr").first
+      expect(balance_row.css("td")[4].text.strip).to eq("-437.400,00")
+    end
+  end
+
   describe "the sidebar entry" do
     it "offers the report to the admin" do
       sign_in admin
