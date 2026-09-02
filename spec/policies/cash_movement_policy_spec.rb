@@ -32,6 +32,15 @@ RSpec.describe CashMovementPolicy do
       expect(described_class.new(seller, open_movement).destroy?).to be(false)
     end
 
+    it "refuses a movement born from a collection" do
+      automatic = create(:cash_movement, :from_collection)
+
+      expect(described_class.new(cashier, automatic).update?).to be(false)
+      expect(described_class.new(admin, automatic).update?).to be(false)
+      expect(described_class.new(cashier, automatic).destroy?).to be(false)
+      expect(described_class.new(admin, automatic).destroy?).to be(false)
+    end
+
     it "refuses a movement sealed by a closing" do
       sealed = create(:cash_movement, :sealed)
 

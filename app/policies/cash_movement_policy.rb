@@ -14,8 +14,10 @@ class CashMovementPolicy < ApplicationPolicy
     index?
   end
 
+  # An automatic row is undone through Cash::ReversePayment, never edited here:
+  # correcting it would make the two modules disagree about the same money.
   def update?
-    index? && !record.sealed?
+    index? && !record.sealed? && !record.automatic?
   end
 
   def destroy?

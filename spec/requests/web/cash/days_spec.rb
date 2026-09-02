@@ -121,6 +121,45 @@ RSpec.describe "Web::Cash::Days", type: :request do
     end
   end
 
+  describe "a row born from a collection" do
+    before { sign_in cashier }
+
+    it "offers no way to correct it" do
+      create(:cash_movement, :from_collection, business_date: date, description: "Cobro a cuenta")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("Cobro a cuenta")
+      expect(response.body).not_to include("Editar")
+      expect(response.body).not_to include("Eliminar")
+    end
+
+    it "offers them on a row the cashier typed the same day" do
+      create(:cash_movement, business_date: date, description: "Venta mostrador")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("Editar")
+      expect(response.body).to include("Eliminar")
+    end
+
+    it "marks the row's origin" do
+      create(:cash_movement, :from_collection, business_date: date, description: "Cobro a cuenta")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("Automático")
+    end
+
+    it "leaves a typed row unmarked" do
+      create(:cash_movement, business_date: date, description: "Venta mostrador")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).not_to include("Automático")
+    end
+  end
+
   describe "an open day" do
     before do
       sign_in cashier

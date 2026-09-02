@@ -114,6 +114,9 @@ class CashMovement < ApplicationRecord
   def outflow? = amount.negative?
   def sealed? = daily_closing_id.present?
 
+  # Born from a collection, not typed into the drawer zone.
+  def automatic? = source_payment_id.present?
+
   private
 
   # Guards on the persisted value, not the assigned one, so Cash::CloseDay can

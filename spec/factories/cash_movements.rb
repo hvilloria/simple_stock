@@ -47,6 +47,10 @@ FactoryBot.define do
       description { "Saldo inicial" }
     end
 
+    trait :from_collection do
+      association :source_payment, factory: :payment
+    end
+
     trait :sealed do
       daily_closing { association :daily_closing, business_date: business_date }
     end

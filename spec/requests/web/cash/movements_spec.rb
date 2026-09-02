@@ -248,6 +248,20 @@ RSpec.describe "Web::Cash::Movements", type: :request do
         expect(flash[:alert]).to be_present
       end
 
+      it "refuses a movement born from a collection with a redirect and a flash, not a 500" do
+        automatic = create(:cash_movement, :from_collection, business_date: business_date, user: cashier,
+                           description: "Cobro a cuenta")
+
+        expect {
+          patch_movement(automatic, category: "sale", channel: "cash",
+                                    description: "Corrección a mano", amount: "1.000,00")
+        }.not_to change { automatic.reload.description }
+
+        expect(response).to have_http_status(:redirect)
+        expect(response).not_to have_http_status(:internal_server_error)
+        expect(flash[:alert]).to be_present
+      end
+
       it "turns a seller away" do
         movement
         sign_in create(:user, role: "vendedor")
@@ -287,6 +301,15 @@ RSpec.describe "Web::Cash::Movements", type: :request do
         sealed = create(:cash_movement, :sealed, business_date: business_date, user: cashier)
 
         expect { delete_movement(sealed) }.not_to change(CashMovement, :count)
+        expect(response).to have_http_status(:redirect)
+        expect(response).not_to have_http_status(:internal_server_error)
+        expect(flash[:alert]).to be_present
+      end
+
+      it "refuses a movement born from a collection with a redirect and a flash, not a 500" do
+        automatic = create(:cash_movement, :from_collection, business_date: business_date, user: cashier)
+
+        expect { delete_movement(automatic) }.not_to change(CashMovement, :count)
         expect(response).to have_http_status(:redirect)
         expect(response).not_to have_http_status(:internal_server_error)
         expect(flash[:alert]).to be_present
