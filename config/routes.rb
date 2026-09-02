@@ -80,6 +80,9 @@ Rails.application.routes.draw do
         resource :closing, only: [ :new, :create ], controller: "closings"
       end
       resources :movements, only: [ :create, :edit, :update, :destroy ]
+      resources :transfers, only: [ :create ] do
+        post :preview, on: :collection
+      end
     end
   end
 end

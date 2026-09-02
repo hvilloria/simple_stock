@@ -1,0 +1,14 @@
+- @legs.each do |leg|
+  - if leg.drawer_zone?
+    = turbo_stream.append "drawer-rows" do
+      = render "web/cash/movements/row", movement: leg, editable: true
+  - else
+    = turbo_stream.append "arca-rows" do
+      = render "web/cash/movements/arca_row", movement: leg, editable: true
+
+-# A saved transfer leaves the panel empty and closed: its rows are in the table now.
+= turbo_stream.replace "transfer-panel" do
+  = render "web/cash/transfers/panel", business_date: @business_date
+
+= turbo_stream.replace "sales-by-channel" do
+  = render "web/cash/days/sales_by_channel", day: @day

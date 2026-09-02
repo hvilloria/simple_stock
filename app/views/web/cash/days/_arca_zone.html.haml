@@ -27,3 +27,6 @@
   - if movements.empty?
     .p-12.text-center
       %p.text-slate-500 No hay movimientos de arcas cargados en este día.
+
+  - unless day.closed?
+    = render "web/cash/transfers/panel", business_date: business_date

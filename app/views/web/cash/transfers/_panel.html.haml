@@ -1,0 +1,39 @@
+#transfer-panel.px-4.py-3.border-t.border-slate-200.bg-slate-50{ data: { controller: "cash-transfer" } }
+  %button.text-sm.font-medium.text-slate-600.hover:text-slate-900{ type: "button",
+                                                                   data: { action: "cash-transfer#toggle" } }
+    + Movimiento entre arcas
+
+  .mt-3{ data: { "cash-transfer-target": "panel" }, hidden: true }
+    = form_with url: preview_web_cash_transfers_path, id: "transfer-form" do
+      = hidden_field_tag :business_date, business_date
+      .grid.grid-cols-1.sm:grid-cols-4.gap-2
+        %label.block
+          %span.block.text-xs.font-medium.text-slate-500.mb-1 Desde
+          = select_tag :from,
+                       options_for_select(CashMovement::ACCOUNT_LABELS.map { |k, v| [ v, k ] }, "main_cash"),
+                       data: { "cash-transfer-target": "firstField", action: "change->cash-transfer#invalidate" },
+                       class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+        %label.block
+          %span.block.text-xs.font-medium.text-slate-500.mb-1 Hacia
+          = select_tag :to,
+                       options_for_select(CashMovement::ACCOUNT_LABELS.map { |k, v| [ v, k ] }, "bank"),
+                       data: { action: "change->cash-transfer#invalidate" },
+                       class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+        %label.block
+          %span.block.text-xs.font-medium.text-slate-500.mb-1 Monto
+          = text_field_tag :amount, nil,
+                           placeholder: "0,00",
+                           data: { controller: "currency-input",
+                                   action: "blur->currency-input#format focus->currency-input#unformat input->cash-transfer#invalidate" },
+                           class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-right"
+        %label.block
+          %span.block.text-xs.font-medium.text-slate-500.mb-1 Descripción
+          = text_field_tag :description, nil,
+                           placeholder: "Descripción",
+                           data: { action: "input->cash-transfer#invalidate" },
+                           class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+      .mt-2.text-right
+        = submit_tag "Ver los movimientos",
+                     class: "px-3 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg"
+
+    = render "web/cash/transfers/preview", legs: nil, error: nil, fields: {}
