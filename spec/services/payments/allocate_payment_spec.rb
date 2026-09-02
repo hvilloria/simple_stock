@@ -3,6 +3,7 @@
 require "rails_helper"
 
 RSpec.describe Payments::AllocatePayment, type: :service do
+  let(:cashier) { create(:user, :caja) }
   let!(:stock_location) { create(:stock_location) }
   let(:user) { create(:user) }
   let(:customer) { create(:customer, :with_credit) }
@@ -38,6 +39,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "fails when customer has no credit account" do
         retail = create(:customer, has_credit_account: false)
         result = described_class.call(
+          user: cashier,
           customer: retail,
           payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: 100, payment_method: "cash" } ]
@@ -48,6 +50,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "fails when allocations is empty" do
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: []
@@ -67,6 +70,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         ).record
 
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: foreign_order.id, amount: 50, payment_method: "cash" } ]
@@ -85,6 +89,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         ).record
 
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: immediate.id, amount: 50, payment_method: "cash" } ]
@@ -94,6 +99,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "fails when amount exceeds outstanding balance of an order" do
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: order_a.total_amount + 1, payment_method: "cash" } ]
@@ -104,6 +110,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "fails when payment_method is invalid" do
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: 50, payment_method: "bitcoin" } ]
@@ -114,6 +121,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "rejects an Argentine-formatted amount string instead of silently truncating it (backstop)" do
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: "80.000,00", payment_method: "cash" } ]
@@ -128,6 +136,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "creates one Payment grouping all allocations under that method" do
         expect {
           described_class.call(
+            user: cashier,
             customer: customer,
             payment_date: Date.current,
             allocations: [
@@ -146,6 +155,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "returns Result.success with the array of created Payments in record" do
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order_a.id, amount: 100, payment_method: "cash" } ]
@@ -161,6 +171,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "creates one Payment per payment_method group" do
         expect {
           described_class.call(
+            user: cashier,
             customer: customer,
             payment_date: Date.current,
             allocations: [
@@ -183,6 +194,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         bad_amount = order_b.total_amount + 1
         expect {
           described_class.call(
+            user: cashier,
             customer: customer,
             payment_date: Date.current,
             allocations: [
@@ -198,6 +210,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
     context "notes" do
       it "saves the notes on every created Payment" do
         described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           notes: "Pago semanal",
@@ -227,6 +240,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "applies the per-item discounts, recalculates total_amount, and creates the allocation" do
         items = multi_item_order.order_items.order(:id).to_a
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -253,6 +267,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         items = multi_item_order.order_items.order(:id).to_a
 
         described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -269,6 +284,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         locked_total = multi_item_order.total_amount.to_f
 
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -292,6 +308,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "fails when a percent is outside 0..20" do
         items = multi_item_order.order_items.order(:id).to_a
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -319,6 +336,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         foreign_item_id = other_order.order_items.first.id
 
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -355,6 +373,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "rounds total_amount to the nearest hundred and closes the balance (confirmed)" do
         item = discounted_order.order_items.first
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -377,6 +396,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "preserves the nominal discount invariant (discount 13_912, rounding -48)" do
         item = discounted_order.order_items.first
         described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -397,6 +417,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "does NOT round a partial cash payment on a discounted order (stays exact)" do
         item = discounted_order.order_items.first
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -418,6 +439,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "does NOT round a non-cash full settlement (bank_transfer stays exact)" do
         item = discounted_order.order_items.first
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -438,6 +460,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       it "does NOT round when there is no discount (all item percents 0)" do
         item = discounted_order.order_items.first
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [
@@ -467,6 +490,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "accepts a pending credit order (no longer requires confirmed)" do
         result = described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 400, payment_method: "cash" } ]
@@ -478,6 +502,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "promotes the order to confirmed when balance reaches 0" do
         described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 1000, payment_method: "cash" } ]
@@ -488,6 +513,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
 
       it "keeps pending after a partial then promotes on the final allocation" do
         described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 600, payment_method: "cash" } ]
@@ -495,12 +521,76 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect(order.reload.status).to eq("pending")
 
         described_class.call(
+          user: cashier,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order.id, amount: 400, payment_method: "cash" } ]
         )
         expect(order.reload.status).to eq("confirmed")
       end
+    end
+  end
+
+  describe "cash movements" do
+    it "rolls the whole collection back when the cash service fails" do
+      allow(Cash::RecordSaleFromPayment).to receive(:call)
+        .and_return(Result.new(success?: false, record: nil, errors: [ "Este pago ya fue registrado en caja" ]))
+
+      result = described_class.call(
+        user: cashier,
+        customer: customer,
+        payment_date: Date.current,
+        allocations: [ { order_id: order_a.id, amount: 100, payment_method: "cash" } ]
+      )
+
+      expect(result).to be_failure
+      expect(result.errors.join).to match(/registrado en caja/)
+      expect(Payment.count).to eq(0)
+      expect(PaymentAllocation.count).to eq(0)
+      expect(CashMovement.count).to eq(0)
+      expect(order_a.reload.status).to eq("pending")
+      expect(order_a.outstanding_balance).to eq(300)
+    end
+
+    it "writes a single sale movement named after the customer when one payment settles several orders" do
+      result = described_class.call(
+        user: cashier,
+        customer: customer,
+        payment_date: Date.current,
+        allocations: [
+          { order_id: order_a.id, amount: 100, payment_method: "cash" },
+          { order_id: order_b.id, amount: 50, payment_method: "cash" }
+        ]
+      )
+
+      expect(result).to be_success
+      movement = CashMovement.sole
+      expect(movement.category).to eq("sale")
+      expect(movement.account).to eq("drawer")
+      expect(movement.channel).to eq("cash")
+      expect(movement.amount).to eq(150)
+      expect(movement.user).to eq(cashier)
+      expect(movement.description).to eq("Cobranza cta. cte. — #{customer.name}")
+      expect(movement.source_payment.orders).to contain_exactly(order_a, order_b)
+    end
+
+    it "writes one movement per arca when the collection mixes payment methods" do
+      result = described_class.call(
+        user: cashier,
+        customer: customer,
+        payment_date: Date.current,
+        allocations: [
+          { order_id: order_a.id, amount: 100, payment_method: "cash" },
+          { order_id: order_b.id, amount: 50, payment_method: "bank_transfer" }
+        ]
+      )
+
+      expect(result).to be_success
+      movements = CashMovement.all
+      expect(movements.count).to eq(2)
+      expect(movements.map(&:account)).to contain_exactly("drawer", "bank")
+      expect(movements.map(&:description).uniq).to eq([ "Cobranza cta. cte. — #{customer.name}" ])
+      expect(movements.sum(:amount)).to eq(150)
     end
   end
 end

@@ -94,6 +94,12 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         expect(response).to redirect_to(web_customer_path(customer))
         follow_redirect!
         expect(response.body).to include("Cobro de $350")
+
+        movement = CashMovement.sole
+        expect(movement.user).to eq(admin)
+        expect(movement.account).to eq("drawer")
+        expect(movement.amount).to eq(350)
+        expect(movement.description).to eq("Cobranza cta. cte. — #{customer.name}")
       end
     end
 

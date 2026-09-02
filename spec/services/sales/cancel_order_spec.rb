@@ -115,6 +115,7 @@ RSpec.describe Sales::CancelOrder do
           user: user
         ).record
         Payments::AllocatePayment.call(
+          user: user,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order_with_payment.id, amount: 200, payment_method: 'cash' } ]
@@ -135,6 +136,7 @@ RSpec.describe Sales::CancelOrder do
           user: user
         ).record
         Payments::AllocatePayment.call(
+          user: user,
           customer: customer,
           payment_date: Date.current,
           allocations: [ { order_id: order_with_payment.id, amount: 200, payment_method: 'cash' } ]

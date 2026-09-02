@@ -15,18 +15,20 @@ module Payments
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
-    def self.call(order:, amount_to_settle:, tenders:, discount_percent: 0, payment_date: Date.current)
+    def self.call(order:, amount_to_settle:, tenders:, user:, discount_percent: 0, payment_date: Date.current)
       new(
         order: order,
         amount_to_settle: amount_to_settle,
         tenders: tenders,
+        user: user,
         discount_percent: discount_percent,
         payment_date: payment_date
       ).call
     end
 
-    def initialize(order:, amount_to_settle:, tenders:, discount_percent:, payment_date:)
+    def initialize(order:, amount_to_settle:, tenders:, user:, discount_percent:, payment_date:)
       @order            = order
+      @user             = user
       @amount_to_settle = amount_to_settle.to_d
       @tenders          = Array(tenders).map { |t| t.to_h.symbolize_keys }
       @discount_percent = discount_percent.to_i
@@ -127,7 +129,27 @@ module Payments
         rows.each do |row|
           PaymentAllocation.create!(payment: payment, order: @order, amount: row[:amount].to_f)
         end
+
+        record_in_cash!(payment)
       end
+    end
+
+    def record_in_cash!(payment)
+      result = Cash::RecordSaleFromPayment.call(
+        payment:     payment,
+        user:        @user,
+        description: cash_description
+      )
+
+      raise ValidationError, result.errors.join(", ") if result.failure?
+    end
+
+    def cash_description
+      @cash_description ||= [
+        "Cobro a cuenta",
+        ("Nota #{@order.paper_number}" if @order.paper_number.present?),
+        @order.contact_name.presence
+      ].compact.join(" — ")
     end
   end
 end

@@ -18,6 +18,7 @@ module Web
         cash     = discount.positive? ? ::Payments::CashRounding.round_to_nearest_hundred(cash_raw) : cash_raw
 
         result = ::Payments::CollectOnAccount.call(
+          user:             current_user,
           order:            @order,
           amount_to_settle: amount,
           discount_percent: discount,
