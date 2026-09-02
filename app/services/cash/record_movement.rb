@@ -64,23 +64,10 @@ module Cash
       end
     end
 
-    # Only accepts values that are already numeric or a plain decimal string.
-    # An AR-formatted string like "1.500.000,50" or "101.800" is rejected rather
-    # than run through BigDecimal, which would silently return 1.5 and 101.8.
     def normalized_amount
       return @normalized_amount if defined?(@normalized_amount)
 
-      @normalized_amount =
-        case @amount
-        when Numeric then BigDecimal(@amount.to_s)
-        when String  then decimal_from(@amount)
-        end
-    end
-
-    def decimal_from(string)
-      return nil unless string.match?(/\A-?\d+(\.\d{1,2})?\z/)
-
-      BigDecimal(string)
+      @normalized_amount = AmountParser.parse(@amount)
     end
   end
 end

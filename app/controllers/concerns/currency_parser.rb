@@ -61,6 +61,9 @@ module CurrencyParser
         value
       end
 
-    normalized.match?(/\A-?\d+(\.\d{1,2})?\z/) ? normalized : nil
+    # The strict reading lives in Cash::AmountParser, so what counts as a
+    # trustworthy amount is decided in one place. This method only undoes the
+    # Argentine display format before asking.
+    Cash::AmountParser.parse(normalized).nil? ? nil : normalized
   end
 end
