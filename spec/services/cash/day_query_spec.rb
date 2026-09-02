@@ -134,4 +134,39 @@ RSpec.describe Cash::DayQuery do
       expect(query).to be_closed
     end
   end
+  describe "#uncollected_notes_count" do
+    it "counts only the date's pending sale notes" do
+      create(:order, :pending, sale_date: date)
+      create(:order, :pending, sale_date: date + 1)
+      create(:order, sale_date: date)
+
+      expect(query.uncollected_notes_count).to eq(1)
+    end
+  end
+
+  describe "#sales_without_invoice_type_count" do
+    it "counts the date's active sales with no invoice type, ignoring cancelled ones" do
+      create(:order, sale_date: date, invoice_type: nil)
+      create(:order, :cancelled, sale_date: date, invoice_type: nil)
+      create(:order, :invoice_b, sale_date: date)
+
+      expect(query.sales_without_invoice_type_count).to eq(1)
+    end
+  end
+
+  describe "digital totals" do
+    it "reads the Payway total from card sales and Mercado Pago from its own channel" do
+      create(:cash_movement, :card_sale, business_date: date, amount: 54_700)
+      create(:cash_movement, business_date: date, channel: "qr", account: "bank", amount: 9_000)
+      create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 21_300)
+
+      expect(query.payway_recorded_total).to eq(54_700)
+      expect(query.mercado_pago_recorded_total).to eq(21_300)
+    end
+
+    it "is zero when the date has no such sales" do
+      expect(query.payway_recorded_total).to eq(0)
+      expect(query.mercado_pago_recorded_total).to eq(0)
+    end
+  end
 end

@@ -10,6 +10,74 @@ RSpec.describe "Web::Cash::Closings", type: :request do
     post "/web/cash/days/#{date}/closing", params: params
   end
 
+  describe "GET /web/cash/days/:day_business_date/closing/new" do
+    before { sign_in cashier }
+
+    def get_new
+      get "/web/cash/days/#{date}/closing/new"
+    end
+
+    it "shows the expected amount and how many movements the day has" do
+      create(:cash_movement, business_date: date, amount: 311_700)
+      create(:cash_movement, :store_expense, business_date: date)
+
+      get_new
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Esperado en el cajón")
+      expect(response.body).to include("298.700,00")
+      expect(response.body).to include("El día tiene 2 movimientos.")
+    end
+
+    it "warns about the day's uncollected sale notes" do
+      create(:order, :pending, :invoice_b, sale_date: date)
+
+      get_new
+
+      expect(response.body).to include("1 nota de pedido sin cobrar")
+    end
+
+    it "warns about the day's sales with no invoice type assigned" do
+      create(:order, sale_date: date, invoice_type: nil)
+
+      get_new
+
+      expect(response.body).to include("1 venta sin tipo de factura asignado")
+    end
+
+    it "shows neither warning when the day is complete" do
+      create(:order, :invoice_b, sale_date: date)
+      create(:order, :pending, :invoice_b, sale_date: date + 1)
+
+      get_new
+
+      expect(response.body).not_to include("sin cobrar")
+      expect(response.body).not_to include("sin tipo de factura")
+    end
+
+    it "never shows a negative expectation" do
+      create(:cash_movement, :store_expense, business_date: date, amount: -300_000)
+
+      get_new
+
+      expect(response.body).to include("El cajón no alcanzó: los fajos pusieron $300.000,00.")
+      expect(response.body).to include("A envolver: $0,00.")
+      expect(response.body).not_to include("Esperado en el cajón")
+    end
+
+    it "shows what the app recorded for each digital arca" do
+      create(:cash_movement, :card_sale, business_date: date, amount: 54_700)
+      create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 21_300)
+
+      get_new
+
+      expect(response.body).to include("Lote Payway")
+      expect(response.body).to include("54.700,00")
+      expect(response.body).to include("Mercado Pago")
+      expect(response.body).to include("21.300,00")
+    end
+  end
+
   describe "POST /web/cash/days/:day_business_date/closing" do
     before { sign_in cashier }
 

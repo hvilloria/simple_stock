@@ -13,6 +13,10 @@
     .px-4.py-6.text-center
       %p.text-sm.text-slate-500 No hay ventas cargadas en este día.
 
-  .px-4.py-3.bg-slate-50.border-t.border-slate-200.flex.items-center.justify-between
-    %span.text-sm.font-medium.text-slate-700 Monto a fajar
-    %span.text-sm.font-semibold.text-slate-900= number_ar(day.amount_to_wrap)
+  .px-4.py-3.bg-slate-50.border-t.border-slate-200
+    .flex.items-center.justify-between
+      %span.text-sm.font-medium.text-slate-700 Monto a fajar
+      %span.text-sm.font-semibold.text-slate-900= number_ar([ day.amount_to_wrap, 0 ].max)
+    - if day.amount_to_wrap.negative?
+      %p.text-xs.text-slate-500.mt-1
+        = "El cajón no alcanzó: los fajos pusieron #{number_ar(day.amount_to_wrap.abs)}."

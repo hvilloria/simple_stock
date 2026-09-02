@@ -1,21 +1,3 @@
 - content_for :page_title, "Caja"
 
-.container.mx-auto.px-6.py-6
-  .flex.items-center.justify-between.mb-6
-    %div
-      %h1.text-3xl.font-bold.text-slate-900= @business_date.strftime("%d/%m/%Y")
-      - if @day.closed?
-        %p.text-sm.text-slate-500.mt-1 Día cerrado — solo lectura
-
-    .flex.items-center.gap-2
-      = link_to "← Día anterior", web_cash_day_path(@business_date - 1),
-                class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-      = link_to "Hoy", web_cash_day_path(Date.current),
-                class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-      = link_to "Día siguiente →", web_cash_day_path(@business_date + 1),
-                class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-
-  .grid.grid-cols-1.lg:grid-cols-3.gap-6
-    .lg:col-span-2
-      = render "web/cash/days/drawer_zone", day: @day, business_date: @business_date
-    = render "web/cash/days/sales_by_channel", day: @day
+= render "web/cash/days/day", day: @day, business_date: @business_date

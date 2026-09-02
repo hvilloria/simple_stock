@@ -94,6 +94,25 @@ RSpec.describe "Web::Cash::Days", type: :request do
     end
   end
 
+  describe "a day whose cash expenses exceeded its cash sales" do
+    before do
+      sign_in cashier
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 50_000)
+      create(:cash_movement, :store_expense, business_date: date, amount: -350_000)
+
+      get "/web/cash/days/2026-08-03"
+    end
+
+    it "never shows the amount to wrap as a negative number" do
+      expect(response.body).not_to include("-300.000")
+    end
+
+    it "says the bundles covered the day instead" do
+      expect(response.body).to include("El cajón no alcanzó")
+      expect(response.body).to include("300.000,00")
+    end
+  end
+
   describe "a closed day" do
     before do
       sign_in cashier
