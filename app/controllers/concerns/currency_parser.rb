@@ -41,4 +41,26 @@ module CurrencyParser
       value.to_f
     end
   end
+
+  # Normalizes a user-typed amount into a plain decimal string the cash
+  # services accept, or nil when the input is not a number. Unlike
+  # parse_amount it never returns a Float, so no precision is lost on the way
+  # to BigDecimal, and it refuses garbage instead of reading it as zero.
+  #
+  # "1.500.000,50" -> "1500000.50", "101.800" -> "101800", "abc" -> nil
+  def decimal_string_from(raw)
+    value = raw.to_s.strip
+    return nil if value.blank?
+
+    normalized =
+      if value.include?(",")
+        value.delete(".").tr(",", ".")
+      elsif value.match?(/\A-?\d{1,3}(\.\d{3})+\z/)
+        value.delete(".")
+      else
+        value
+      end
+
+    normalized.match?(/\A-?\d+(\.\d{1,2})?\z/) ? normalized : nil
+  end
 end

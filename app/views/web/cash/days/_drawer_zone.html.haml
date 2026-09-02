@@ -1,6 +1,10 @@
 - movements = day.drawer_movements.to_a
 
 .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+  - unless day.closed?
+    = form_with url: web_cash_movements_path, id: "drawer-form", class: "contents" do
+      = hidden_field_tag :business_date, business_date
+
   %table.min-w-full.divide-y.divide-slate-200
     %thead.bg-slate-50
       %tr
@@ -11,6 +15,9 @@
         %th.px-4.py-3.w-24
     %tbody#drawer-rows.divide-y.divide-slate-100.bg-white
       = render partial: "web/cash/movements/row", collection: movements, as: :movement
+    - unless day.closed?
+      %tfoot.bg-slate-50.border-t.border-slate-200
+        = render "web/cash/movements/live_row", error: nil
 
   - if movements.empty?
     .p-12.text-center
