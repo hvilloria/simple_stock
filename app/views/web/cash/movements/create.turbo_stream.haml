@@ -4,3 +4,6 @@
 
 = turbo_stream.replace "drawer-live-row" do
   = render "web/cash/movements/live_row", error: @error
+
+= turbo_stream.replace "sales-by-channel" do
+  = render "web/cash/days/sales_by_channel", day: @day

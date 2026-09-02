@@ -49,6 +49,33 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
       expect(response).to redirect_to("/web/cash/days/#{Date.current}")
     end
+
+    it "shows the sales-by-channel panel with a channel's total and the amount to wrap" do
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 324_700)
+      create(:cash_movement, :store_expense, business_date: date)
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("Ventas por canal")
+      expect(response.body).to include("Efectivo")
+      expect(response.body).to include("324.700,00")
+      expect(response.body).to include("Monto a fajar")
+      expect(response.body).to include("311.700,00")
+    end
+  end
+
+  describe "POST /web/cash/movements" do
+    before { sign_in cashier }
+
+    it "includes the sales-by-channel panel in the turbo stream response" do
+      post "/web/cash/movements",
+           params: { business_date: date, category: "sale", channel: "cash",
+                     description: "Venta mostrador", amount: "1.000,00" },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include('target="sales-by-channel"')
+      expect(response.body).to include("Ventas por canal")
+    end
   end
 
   describe "authorization" do

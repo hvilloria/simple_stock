@@ -63,6 +63,7 @@ module Web
 
         return refuse_edit(@movement.errors.full_messages.join(", ")) unless saved
 
+        @day = ::Cash::DayQuery.new(@business_date)
         render :update
       end
 
@@ -72,6 +73,7 @@ module Web
         return refuse_closed_day if day_closed?
 
         @movement.destroy
+        @day = ::Cash::DayQuery.new(@business_date)
         render :destroy
       end
 

@@ -1,2 +1,5 @@
 = turbo_stream.replace dom_id(@movement) do
   = render "web/cash/movements/row", movement: @movement, editable: true
+
+= turbo_stream.replace "sales-by-channel" do
+  = render "web/cash/days/sales_by_channel", day: @day

@@ -15,4 +15,7 @@
       = link_to "Día siguiente →", web_cash_day_path(@business_date + 1),
                 class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
 
-  = render "web/cash/days/drawer_zone", day: @day, business_date: @business_date
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+    .lg:col-span-2
+      = render "web/cash/days/drawer_zone", day: @day, business_date: @business_date
+    = render "web/cash/days/sales_by_channel", day: @day

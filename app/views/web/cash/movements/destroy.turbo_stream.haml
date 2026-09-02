@@ -1,1 +1,4 @@
 = turbo_stream.remove dom_id(@movement)
+
+= turbo_stream.replace "sales-by-channel" do
+  = render "web/cash/days/sales_by_channel", day: @day
