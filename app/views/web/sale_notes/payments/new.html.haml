@@ -53,6 +53,21 @@
                       action: "change->sale-note-payment#discountChanged" },
               class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
 
+        -# Invoice
+        .bg-white.border.border-slate-200.rounded-2xl.p-5
+          %h3.text-sm.font-semibold.text-slate-900.mb-1 Factura
+          %p.text-xs.text-slate-500.mb-3 Se completa al emitirla; puede quedar sin definir
+          .flex.gap-2
+            = select_tag :invoice_type,
+                options_for_select([["Sin definir", ""], ["Factura A", "a"], ["Factura B", "b"], ["Sin factura", "none"]], ""),
+                data: { "sale-note-payment-target": "invoiceTypeSelect",
+                        action: "change->sale-note-payment#invoiceTypeChanged" },
+                class: "w-44 px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+            = text_field_tag :invoice_number, nil,
+                placeholder: "Número de factura",
+                data: { "sale-note-payment-target": "invoiceNumberField" },
+                class: "flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm hidden"
+
         -# Payment detail
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           .flex.items-baseline.justify-between.mb-3

@@ -228,4 +228,72 @@ RSpec.describe Payments::CollectSaleNote do
       expect(movements.sum(:amount)).to eq(1000)
     end
   end
+
+  describe "invoice assignment" do
+    it "stores type and number when the cashier issues a Factura B" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        invoice_type: "b",
+        invoice_number: "B-00042",
+        tenders: [ { payment_method: "cash", amount: 1000 } ]
+      )
+
+      expect(result).to be_success
+      expect(order.reload.invoice_type).to eq("b")
+      expect(order.invoice_number).to eq("B-00042")
+      expect(order.status).to eq("confirmed")
+    end
+
+    it "stores 'none' with a blank number when the cashier issues no invoice" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        invoice_type: "none",
+        invoice_number: "",
+        tenders: [ { payment_method: "cash", amount: 1000 } ]
+      )
+
+      expect(result).to be_success
+      expect(order.reload.invoice_type).to eq("none")
+      expect(order.invoice_number).to be_nil
+    end
+
+    it "leaves the invoice type NULL and still collects when the cashier picks nothing" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        invoice_type: "",
+        invoice_number: "",
+        tenders: [ { payment_method: "cash", amount: 1000 } ]
+      )
+
+      expect(result).to be_success
+      expect(order.reload.invoice_type).to be_nil
+      expect(order.invoice_number).to be_nil
+      expect(order.status).to eq("confirmed")
+      expect(order.payment_allocations.count).to eq(1)
+    end
+
+    it "rolls back the whole collection when the type is A without a number" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        invoice_type: "a",
+        invoice_number: "",
+        tenders: [ { payment_method: "cash", amount: 1000 } ]
+      )
+
+      expect(result).to be_failure
+      expect(order.reload.invoice_type).to be_nil
+      expect(order.status).to eq("pending")
+      expect(Payment.count).to eq(0)
+      expect(PaymentAllocation.count).to eq(0)
+      expect(CashMovement.count).to eq(0)
+    end
+  end
 end

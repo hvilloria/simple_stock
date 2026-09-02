@@ -9,6 +9,7 @@ export default class extends Controller {
     "discountSelect", "discountHelper",
     "tenderRows", "tenderRow", "tenderMethod", "tenderAmount",
     "summaryDiscount", "summaryTotal", "summaryPaid", "summaryDiff",
+    "invoiceTypeSelect", "invoiceNumberField",
     "submitButton"
   ]
 
@@ -18,7 +19,16 @@ export default class extends Controller {
 
   connect() {
     this._tenderIdx = this.tenderRowTargets.length
+    this.invoiceTypeChanged()
     this.recalc()
+  }
+
+  // The number only applies to A and B. An empty selection is "nobody decided
+  // yet" and is a different state from "Sin factura".
+  invoiceTypeChanged() {
+    const needsNumber = ["a", "b"].includes(this.invoiceTypeSelectTarget.value)
+    this.invoiceNumberFieldTarget.classList.toggle("hidden", !needsNumber)
+    if (!needsNumber) this.invoiceNumberFieldTarget.value = ""
   }
 
   // Selecting a discount: only the all-cash rule blocks it. If a single tender
