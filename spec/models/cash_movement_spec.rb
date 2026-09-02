@@ -306,4 +306,14 @@ RSpec.describe CashMovement, type: :model do
       expect(create(:cash_movement).paper_numbers).to eq([])
     end
   end
+
+  describe "#transfer?" do
+    it "is true on one leg of a Cash::RecordTransfer pair" do
+      expect(build(:cash_movement, :transfer_leg)).to be_transfer
+    end
+
+    it "is false on a row with no transfer_group_id" do
+      expect(build(:cash_movement)).not_to be_transfer
+    end
+  end
 end

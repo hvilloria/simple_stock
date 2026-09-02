@@ -51,6 +51,12 @@ FactoryBot.define do
       association :source_payment, factory: :payment
     end
 
+    trait :transfer_leg do
+      category { "internal_transfer" }
+      channel { nil }
+      transfer_group_id { SecureRandom.uuid }
+    end
+
     trait :sealed do
       daily_closing { association :daily_closing, business_date: business_date }
     end

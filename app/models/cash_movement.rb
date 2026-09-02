@@ -117,6 +117,10 @@ class CashMovement < ApplicationRecord
   # Born from a collection, not typed into the drawer zone.
   def automatic? = source_payment_id.present?
 
+  # Written as one half of a Cash::RecordTransfer pair; its twin carries the
+  # same transfer_group_id.
+  def transfer? = transfer_group_id.present?
+
   # The notes the source payment settled. Plural: one collection on a credit
   # account can settle several. Empty on a typed row.
   def paper_numbers

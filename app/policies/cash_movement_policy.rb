@@ -16,8 +16,11 @@ class CashMovementPolicy < ApplicationPolicy
 
   # An automatic row is undone through Cash::ReversePayment, never edited here:
   # correcting it would make the two modules disagree about the same money.
+  # A transfer leg cannot be corrected alone either: it was written as one half
+  # of a pair, and editing only one leg would leave the arcas disagreeing about
+  # the same money.
   def update?
-    index? && !record.sealed? && !record.automatic?
+    index? && !record.sealed? && !record.automatic? && !record.transfer?
   end
 
   def destroy?

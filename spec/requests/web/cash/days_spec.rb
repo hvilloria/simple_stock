@@ -192,6 +192,35 @@ RSpec.describe "Web::Cash::Days", type: :request do
     end
   end
 
+  describe "a transfer leg" do
+    before { sign_in cashier }
+
+    it "marks the row as one leg of a movement between arcas" do
+      create(:cash_movement, :transfer_leg, business_date: date, description: "Cierre de caja del día")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("Entre arcas")
+    end
+
+    it "leaves an ordinary row unmarked" do
+      create(:cash_movement, business_date: date, description: "Venta mostrador")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).not_to include("Entre arcas")
+    end
+
+    it "offers no way to correct it" do
+      create(:cash_movement, :transfer_leg, business_date: date, description: "Cierre de caja del día")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).not_to include("Editar")
+      expect(response.body).not_to include("Eliminar")
+    end
+  end
+
   describe "an open day" do
     before do
       sign_in cashier

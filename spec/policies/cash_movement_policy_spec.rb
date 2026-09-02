@@ -49,6 +49,15 @@ RSpec.describe CashMovementPolicy do
       expect(described_class.new(cashier, sealed).destroy?).to be(false)
       expect(described_class.new(admin, sealed).destroy?).to be(false)
     end
+
+    it "refuses one leg of a transfer" do
+      leg = create(:cash_movement, :transfer_leg)
+
+      expect(described_class.new(cashier, leg).update?).to be(false)
+      expect(described_class.new(admin, leg).update?).to be(false)
+      expect(described_class.new(cashier, leg).destroy?).to be(false)
+      expect(described_class.new(admin, leg).destroy?).to be(false)
+    end
   end
 
   describe "Scope" do
