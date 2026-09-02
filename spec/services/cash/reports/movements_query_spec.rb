@@ -116,28 +116,42 @@ RSpec.describe Cash::Reports::MovementsQuery do
     end
   end
 
-  # The paper-number column reads through the source payment, so a page of rows
-  # must cost the same round trips as a single row.
+  # The paper-number column reads through the source payment and the transfer
+  # counterpart through the shared transfer_group_id, so a page of rows must
+  # cost the same round trips as a single row.
   describe "the cost of a page" do
-    it "costs three round trips, not one per row" do
+    it "costs four round trips, not one per row" do
       3.times { movement(:from_collection, account: "drawer", amount: 10_000) }
       movement(account: "drawer", amount: 20_000)
+      transfer_pair
 
-      expect(round_trips).to eq(3)
+      expect(round_trips).to eq(4)
     end
 
     it "costs the same however many rows the page holds" do
       3.times { movement(:from_collection, account: "drawer", amount: 10_000) }
+      transfer_pair
       few = round_trips
 
       12.times { movement(:from_collection, account: "drawer", amount: 10_000) }
+      3.times { transfer_pair }
 
       expect(round_trips).to eq(few)
     end
 
+    def transfer_pair
+      ::Cash::RecordTransfer.call(
+        from: "drawer", to: "bank", amount: 5_000,
+        business_date: from + 3, user: user
+      ).record
+    end
+
     def round_trips
       capture_sql do
-        described_class.call(from: from, to: to).limit(50).each(&:paper_numbers)
+        described_class.call(from: from, to: to).limit(50).each do |row|
+          row.paper_numbers
+          row.transfer_counterpart_label
+        end
       end.size
     end
 

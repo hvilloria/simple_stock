@@ -234,6 +234,30 @@ RSpec.describe "Web::Cash::Reports", type: :request do
         expect(rows).to be_empty
       end
 
+      # Filtered to one arca you only see one leg, and a large row with no
+      # counterpart reads as money that evaporated.
+      it "states the counterpart of a transfer leg" do
+        travel_to Date.new(2026, 9, 2) do
+          ::Cash::RecordTransfer.call(from: "drawer", to: "bank", amount: 80_000,
+                                      business_date: Date.new(2026, 9, 3), user: admin)
+
+          get "/web/cash/reports/history", params: { group: "efectivo" }
+        end
+
+        expect(rows.size).to eq(1)
+        expect(cells_of(rows.first).join(" ")).to include("hacia Banco")
+      end
+
+      it "does not label an ordinary row with a counterpart" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(account: "drawer", amount: 10_000, description: "Venta del día")
+
+          get "/web/cash/reports/history"
+        end
+
+        expect(cells_of(rows.first).join(" ")).not_to match(/hacia|desde/)
+      end
+
       # Filter coarse, read fine: the four groups the balance report reads at,
       # never the six arcas, or the two screens would disagree.
       it "offers the four reporting groups in the arca filter, not the six arcas" do

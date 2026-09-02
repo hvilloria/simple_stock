@@ -317,6 +317,46 @@ RSpec.describe CashMovement, type: :model do
     end
   end
 
+  describe "#transfer_counterpart_label" do
+    let(:transfer_user) { create(:user, :caja) }
+
+    def legs(from: "drawer", to: "bank")
+      ::Cash::RecordTransfer.call(
+        from: from, to: to, amount: 80_000,
+        business_date: Date.new(2026, 8, 3), user: transfer_user
+      ).record
+    end
+
+    it "says where the money went on the leg that lost it" do
+      outflow, = legs
+
+      expect(outflow.transfer_counterpart_label).to eq("hacia Banco")
+    end
+
+    it "says where the money came from on the leg that gained it" do
+      _, inflow = legs
+
+      expect(inflow.transfer_counterpart_label).to eq("desde Caja del día")
+    end
+
+    it "uses the fine arca, not the reporting group" do
+      outflow, = legs(from: "main_cash", to: "change_fund")
+
+      expect(outflow.transfer_counterpart_label).to eq("hacia Remanente")
+    end
+
+    it "is nil on a row that is not a transfer" do
+      expect(create(:cash_movement).transfer_counterpart_label).to be_nil
+    end
+
+    it "is nil on a leg whose twin is gone" do
+      outflow, inflow = legs
+      inflow.destroy!
+
+      expect(outflow.reload.transfer_counterpart_label).to be_nil
+    end
+  end
+
   describe "reporting groups" do
     it "puts every arca in exactly one group, and only real arcas in a group" do
       grouped_accounts = described_class::REPORTING_GROUPS.values.flatten

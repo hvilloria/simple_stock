@@ -59,11 +59,15 @@
         %tbody#movement-rows.divide-y.divide-slate-100.bg-white
           - @movements.each do |movement|
             - paper_numbers = movement.paper_numbers
+            - counterpart = movement.transfer_counterpart_label
             %tr.hover:bg-slate-50.transition-colors
               %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= l(movement.business_date, format: :friendly)
               %td.px-4.py-3.text-sm.text-slate-900
                 .flex.items-center.gap-2
                   %span= movement.description
+                  -# Filtered to one arca only one leg shows, so the row says where its other half is.
+                  - if counterpart
+                    %span.text-sm.text-slate-500= counterpart
                   - if movement.automatic?
                     %span.inline-flex.items-center.rounded.bg-slate-100.px-1.5.py-0.5.text-xs.font-medium.text-slate-500 Automático
               -# The fine arca, against the coarse filter above: read fine, filter coarse.

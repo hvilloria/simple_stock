@@ -27,7 +27,7 @@ module Cash
       # is cut in SQL rather than in Ruby.
       def relation
         scoped = CashMovement.between(@from, @to)
-                             .includes(source_payment: :orders)
+                             .includes(:transfer_legs, source_payment: :orders)
                              .order(business_date: :desc, created_at: :desc, id: :desc)
         scoped = scoped.where(account: accounts) if accounts
         scoped = scoped.where(category: @category) if category?

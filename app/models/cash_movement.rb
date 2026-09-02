@@ -95,6 +95,12 @@ class CashMovement < ApplicationRecord
   belongs_to :source_payment, class_name: "Payment", optional: true
   belongs_to :user
 
+  # Both legs of a transfer, self-joined on the shared transfer_group_id. An
+  # association rather than a bare lookup so a page of history can preload
+  # every counterpart in one query instead of one per row.
+  has_many :transfer_legs, class_name: "CashMovement", primary_key: :transfer_group_id,
+           foreign_key: :transfer_group_id, inverse_of: false, dependent: nil
+
   before_update :prevent_sealed_change
   before_destroy :prevent_sealed_change
 
@@ -157,6 +163,22 @@ class CashMovement < ApplicationRecord
   # Written as one half of a Cash::RecordTransfer pair; its twin carries the
   # same transfer_group_id.
   def transfer? = transfer_group_id.present?
+
+  # The other leg of the pair. Read off the preloaded legs, never re-queried.
+  def transfer_counterpart
+    return nil unless transfer?
+
+    transfer_legs.detect { |leg| leg.id != id }
+  end
+
+  # Where the money went or came from, at the fine arca grain the screen reads
+  # at. The sign picks the preposition: an outflow leg left, an inflow arrived.
+  def transfer_counterpart_label
+    counterpart = transfer_counterpart
+    return nil if counterpart.nil?
+
+    "#{outflow? ? "hacia" : "desde"} #{self.class.account_label(counterpart.account)}"
+  end
 
   # The notes the source payment settled. Plural: one collection on a credit
   # account can settle several. Empty on a typed row.
