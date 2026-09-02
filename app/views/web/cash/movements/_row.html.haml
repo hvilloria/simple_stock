@@ -1,9 +1,17 @@
+- paper_numbers = movement.paper_numbers
+
 %tr{ id: dom_id(movement), class: "hover:bg-slate-50 transition-colors" }
   %td.px-4.py-3.text-sm.text-slate-900
     .flex.items-center.gap-2
       %span= movement.description
       - if movement.automatic?
         %span.inline-flex.items-center.rounded.bg-slate-100.px-1.5.py-0.5.text-xs.font-medium.text-slate-500 Automático
+  %td.px-4.py-3.text-sm.text-slate-600.font-mono.whitespace-nowrap
+    - if paper_numbers.empty?
+      = "—"
+    - else
+      - paper_numbers.each do |paper_number|
+        %div= paper_number
   %td.px-4.py-3.text-sm.text-slate-600= movement.channel.present? ? CashMovement.channel_label(movement.channel) : "—"
   %td.px-4.py-3.text-sm.text-right.text-slate-900= movement.inflow? ? number_ar(movement.amount) : ""
   %td.px-4.py-3.text-sm.text-right.text-slate-900= movement.outflow? ? number_ar(movement.amount.abs) : ""

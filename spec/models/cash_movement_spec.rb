@@ -277,4 +277,33 @@ RSpec.describe CashMovement, type: :model do
       expect(movement.daily_closing.business_date).to eq(movement.business_date)
     end
   end
+
+  describe "#paper_numbers" do
+    let(:customer) { create(:customer, :with_credit) }
+    let(:payment)  { create(:payment, customer: customer, amount: 300) }
+
+    it "lists every note the source payment settled, in order" do
+      %w[0042 0007].each do |paper|
+        order = create(:order, customer: customer, paper_number: paper, total_amount: 100)
+        create(:payment_allocation, payment: payment, order: order, amount: 100)
+      end
+
+      movement = create(:cash_movement, source_payment: payment)
+
+      expect(movement.paper_numbers).to eq([ "0007", "0042" ])
+    end
+
+    it "lists the single note of a one-note collection" do
+      order = create(:order, customer: customer, paper_number: "0042", total_amount: 100)
+      create(:payment_allocation, payment: payment, order: order, amount: 100)
+
+      movement = create(:cash_movement, source_payment: payment)
+
+      expect(movement.paper_numbers).to eq([ "0042" ])
+    end
+
+    it "is empty on a row the cashier typed, which has no payment behind it" do
+      expect(create(:cash_movement).paper_numbers).to eq([])
+    end
+  end
 end

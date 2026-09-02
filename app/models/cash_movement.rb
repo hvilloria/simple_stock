@@ -117,6 +117,14 @@ class CashMovement < ApplicationRecord
   # Born from a collection, not typed into the drawer zone.
   def automatic? = source_payment_id.present?
 
+  # The notes the source payment settled. Plural: one collection on a credit
+  # account can settle several. Empty on a typed row.
+  def paper_numbers
+    return [] if source_payment.nil?
+
+    source_payment.orders.map(&:paper_number).sort
+  end
+
   private
 
   # Guards on the persisted value, not the assigned one, so Cash::CloseDay can

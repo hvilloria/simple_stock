@@ -13,6 +13,7 @@ module Cash
       CashMovement
         .on(@business_date)
         .where("category = :sale OR account = :drawer", sale: "sale", drawer: "drawer")
+        .includes(source_payment: :orders)
         .order(:created_at, :id)
     end
 

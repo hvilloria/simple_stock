@@ -158,6 +158,19 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
       expect(response.body).not_to include("Automático")
     end
+
+    it "shows the paper number of the note the collection settled" do
+      customer = create(:customer, :with_credit)
+      payment = create(:payment, customer: customer, amount: 100)
+      order = create(:order, customer: customer, paper_number: "0042", total_amount: 100)
+      create(:payment_allocation, payment: payment, order: order, amount: 100)
+      create(:cash_movement, business_date: date, source_payment: payment, description: "Cobro a cuenta")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("Talonario")
+      expect(response.body).to include("0042")
+    end
   end
 
   describe "an open day" do

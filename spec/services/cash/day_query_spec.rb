@@ -46,6 +46,51 @@ RSpec.describe Cash::DayQuery do
 
       expect(query.drawer_movements.map(&:description)).to eq([ "primera", "segunda" ])
     end
+
+    # The project has no query-count tooling, so this is the standing N+1 guard
+    # for the paper-number column: it pins that the payment and its orders come
+    # back already loaded, and fails if the `includes` is ever dropped.
+    context "the payment chain behind an automatic row" do
+      let(:customer) { create(:customer, :with_credit) }
+
+      before do
+        3.times do |i|
+          payment = create(:payment, customer: customer, amount: 100)
+          order = create(:order, customer: customer, paper_number: "010#{i}", total_amount: 100)
+          create(:payment_allocation, payment: payment, order: order, amount: 100)
+          create(:cash_movement, business_date: date, source_payment: payment)
+        end
+      end
+
+      it "comes back already loaded, so no row walks the association itself" do
+        movements = query.drawer_movements.to_a
+
+        expect(movements.size).to eq(3)
+        movements.each do |movement|
+          expect(movement.association(:source_payment)).to be_loaded
+          expect(movement.source_payment.association(:orders)).to be_loaded
+        end
+      end
+
+      it "reads every row's paper numbers without firing a single extra query" do
+        movements = query.drawer_movements.to_a
+
+        queries = capture_sql { movements.flat_map(&:paper_numbers) }
+
+        expect(queries).to be_empty
+      end
+
+      def capture_sql
+        queries = []
+        subscriber = lambda do |*, payload|
+          next if payload[:cached] || %w[SCHEMA TRANSACTION].include?(payload[:name])
+          queries << payload[:sql]
+        end
+
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+        queries
+      end
+    end
   end
 
   describe "#sales_by_channel" do
