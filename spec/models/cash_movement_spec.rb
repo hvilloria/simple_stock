@@ -316,4 +316,32 @@ RSpec.describe CashMovement, type: :model do
       expect(build(:cash_movement)).not_to be_transfer
     end
   end
+
+  describe "reporting groups" do
+    it "puts every arca in exactly one group, and only real arcas in a group" do
+      grouped_accounts = described_class::REPORTING_GROUPS.values.flatten
+      expect(grouped_accounts).to match_array(described_class::ACCOUNT_LABELS.keys)
+    end
+
+    it "groups Efectivo as exactly the three cash arcas" do
+      expect(described_class::REPORTING_GROUPS.fetch("efectivo")).to contain_exactly(
+        "drawer", "main_cash", "change_fund"
+      )
+    end
+
+    describe ".reporting_group_for" do
+      it "maps each arca to its group" do
+        expect(described_class.reporting_group_for("drawer")).to eq("efectivo")
+        expect(described_class.reporting_group_for("main_cash")).to eq("efectivo")
+        expect(described_class.reporting_group_for("change_fund")).to eq("efectivo")
+        expect(described_class.reporting_group_for("bank")).to eq("banco")
+        expect(described_class.reporting_group_for("mercado_pago")).to eq("mercado_pago")
+        expect(described_class.reporting_group_for("usd")).to eq("usd")
+      end
+
+      it "raises on an arca it does not know, rather than reporting no group" do
+        expect { described_class.reporting_group_for("crypto") }.to raise_error(KeyError)
+      end
+    end
+  end
 end

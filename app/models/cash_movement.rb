@@ -70,6 +70,27 @@ class CashMovement < ApplicationRecord
     "mercado_pago"  => "mercado_pago"
   }.freeze
 
+  # The coarser grain the balance report reads at, matching the existing
+  # Caja Grande sheet. USD stands alone: there is no grand total mixing
+  # currencies, on purpose.
+  REPORTING_GROUPS = {
+    "efectivo"     => %w[drawer main_cash change_fund],
+    "banco"        => %w[bank],
+    "mercado_pago" => %w[mercado_pago],
+    "usd"          => %w[usd]
+  }.freeze
+
+  REPORTING_GROUP_LABELS = {
+    "efectivo"     => "Efectivo",
+    "banco"        => "Banco",
+    "mercado_pago" => "Mercado Pago",
+    "usd"          => "USD"
+  }.freeze
+
+  ACCOUNT_REPORTING_GROUPS = REPORTING_GROUPS.each_with_object({}) do |(group, accounts), lookup|
+    accounts.each { |account| lookup[account] = group }
+  end.freeze
+
   belongs_to :daily_closing, optional: true
   belongs_to :source_payment, class_name: "Payment", optional: true
   belongs_to :user
@@ -110,6 +131,10 @@ class CashMovement < ApplicationRecord
 
   def self.channel_for_payment_method(method)
     PAYMENT_METHOD_CHANNELS.fetch(method.to_s)
+  end
+
+  def self.reporting_group_for(account)
+    ACCOUNT_REPORTING_GROUPS.fetch(account.to_s)
   end
 
   def self.account_label(key) = ACCOUNT_LABELS.fetch(key.to_s, key.to_s)
