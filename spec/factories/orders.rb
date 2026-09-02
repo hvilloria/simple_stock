@@ -54,5 +54,19 @@ FactoryBot.define do
       source { "live" }
       sale_date { Date.current }
     end
+
+    trait :invoice_a do
+      invoice_type { "a" }
+      sequence(:invoice_number) { |n| format("A-%05d", n) }
+    end
+
+    trait :invoice_b do
+      invoice_type { "b" }
+      sequence(:invoice_number) { |n| format("B-%05d", n) }
+    end
+
+    trait :no_invoice do
+      invoice_type { "none" }
+    end
   end
 end

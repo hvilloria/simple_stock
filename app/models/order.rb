@@ -21,6 +21,12 @@ class Order < ApplicationRecord
     on_account: "on_account"
   }, suffix: true
 
+  enum :invoice_type, {
+    a:    "a",
+    b:    "b",
+    none: "none"
+  }, suffix: true
+
   ORDER_TYPE_LABELS = {
     "immediate"  => "Nota de pedido",
     "on_account" => "Pago a cuenta",
@@ -48,6 +54,7 @@ class Order < ApplicationRecord
   validate :on_account_requires_contact
   validates :original_total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validate :original_total_at_least_current_total
+  validate :invoice_number_matches_invoice_type
 
   before_validation :normalize_contact_phone
 
@@ -169,6 +176,16 @@ class Order < ApplicationRecord
     return unless on_account_order_type?
     errors.add(:contact_name, "es obligatorio para pagos a cuenta") if contact_name.blank?
     errors.add(:contact_phone, "es obligatorio para pagos a cuenta") if contact_phone.blank?
+  end
+
+  def invoice_number_matches_invoice_type
+    if %w[a b].include?(invoice_type) && invoice_number.blank?
+      errors.add(:invoice_number, "es obligatorio para facturas tipo A o B")
+    elsif invoice_type == "none" && invoice_number.present?
+      errors.add(:invoice_number, "debe estar vacío cuando no hay factura")
+    elsif invoice_type.nil? && invoice_number.present?
+      errors.add(:invoice_type, "debe indicarse antes de cargar un número de factura")
+    end
   end
 
   def original_total_at_least_current_total
