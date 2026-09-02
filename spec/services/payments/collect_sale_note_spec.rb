@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Payments::CollectSaleNote do
+  let(:cashier) { create(:user, :caja) }
   let(:customer) { Customer.mostrador }
   let!(:stock_location) { create(:stock_location) }
   let(:product) do
@@ -21,6 +22,7 @@ RSpec.describe Payments::CollectSaleNote do
   describe ".call" do
     it "creates payment + allocation and promotes order to confirmed when paid exactly" do
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 0,
         tenders: [ { payment_method: "cash", amount: 1000 } ]
@@ -40,6 +42,7 @@ RSpec.describe Payments::CollectSaleNote do
       create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)
 
       result = described_class.call(
+        user: cashier,
         order: big,
         discount_percent: 10,
         tenders: [ { payment_method: "cash", amount: 639_700 } ]
@@ -60,6 +63,7 @@ RSpec.describe Payments::CollectSaleNote do
       create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)
 
       result = described_class.call(
+        user: cashier,
         order: big,
         discount_percent: 10,
         tenders: [ { payment_method: "cash", amount: 639_697.5 } ]
@@ -71,6 +75,7 @@ RSpec.describe Payments::CollectSaleNote do
 
     it "rejects discount when any tender is non-cash" do
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 5,
         tenders: [
@@ -86,6 +91,7 @@ RSpec.describe Payments::CollectSaleNote do
 
     it "rejects discount when cash tender total != new total" do
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 5,
         tenders: [ { payment_method: "cash", amount: 800 } ]
@@ -96,6 +102,7 @@ RSpec.describe Payments::CollectSaleNote do
 
     it "rejects when tender sum != effective total (no discount)" do
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 0,
         tenders: [ { payment_method: "cash", amount: 999 } ]
@@ -111,6 +118,7 @@ RSpec.describe Payments::CollectSaleNote do
                       paper_number: "CSN-002",
                       total_amount: 100, original_total_amount: 100)
       result = described_class.call(
+        user: cashier,
         order: credit,
         discount_percent: 0,
         tenders: [ { payment_method: "cash", amount: 100 } ]
@@ -122,6 +130,7 @@ RSpec.describe Payments::CollectSaleNote do
     it "rejects already-confirmed orders" do
       order.update_column(:status, "confirmed")
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 0,
         tenders: [ { payment_method: "cash", amount: 1000 } ]
@@ -132,6 +141,7 @@ RSpec.describe Payments::CollectSaleNote do
 
     it "rejects invalid discount values (e.g., 7)" do
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 7,
         tenders: [ { payment_method: "cash", amount: 930 } ]
@@ -142,6 +152,7 @@ RSpec.describe Payments::CollectSaleNote do
 
     it "groups multi-tender mix into one Payment per method (no discount)" do
       result = described_class.call(
+        user: cashier,
         order: order,
         discount_percent: 0,
         tenders: [
@@ -154,6 +165,67 @@ RSpec.describe Payments::CollectSaleNote do
       payments = order.payment_allocations.map(&:payment).uniq
       expect(payments.size).to eq(2)
       expect(payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
+    end
+  end
+
+  describe "cash movements" do
+    it "rolls the whole collection back when the cash service fails" do
+      allow(Cash::RecordSaleFromPayment).to receive(:call)
+        .and_return(Result.new(success?: false, record: nil, errors: [ "Este pago ya fue registrado en caja" ]))
+
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        tenders: [ { payment_method: "cash", amount: 1000 } ]
+      )
+
+      expect(result).to be_failure
+      expect(result.errors.join).to match(/registrado en caja/)
+      expect(Payment.count).to eq(0)
+      expect(PaymentAllocation.count).to eq(0)
+      expect(CashMovement.count).to eq(0)
+      expect(order.reload.status).to eq("pending")
+    end
+
+    it "writes one movement in the right arca for a single-tender collection" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        tenders: [ { payment_method: "cash", amount: 1000 } ]
+      )
+
+      expect(result).to be_success
+      movement = CashMovement.sole
+      expect(movement.account).to eq("drawer")
+      expect(movement.channel).to eq("cash")
+      expect(movement.category).to eq("sale")
+      expect(movement.amount).to eq(1000)
+      expect(movement.description).to be_nil
+      expect(movement.user).to eq(cashier)
+      expect(movement.source_payment).to eq(order.payment_allocations.first.payment)
+    end
+
+    it "writes two movements, one per arca, for a mixed cash + card collection" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        tenders: [
+          { payment_method: "cash", amount: 600 },
+          { payment_method: "bank_card", amount: 400 }
+        ]
+      )
+
+      expect(result).to be_success
+      movements = CashMovement.order(:amount)
+      expect(movements.count).to eq(2)
+      expect(movements.map(&:account)).to contain_exactly("drawer", "bank")
+      expect(movements.map(&:channel)).to contain_exactly("cash", "card")
+      expect(movements.find_by(account: "drawer").amount).to eq(600)
+      expect(movements.find_by(account: "bank").amount).to eq(400)
+      expect(movements.sum(:amount)).to eq(1000)
     end
   end
 end

@@ -37,6 +37,11 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
       }
       expect(response).to redirect_to(web_sale_notes_path)
       expect(note.reload.status).to eq("confirmed")
+
+      movement = CashMovement.sole
+      expect(movement.user).to eq(cashier)
+      expect(movement.account).to eq("drawer")
+      expect(movement.amount).to eq(200)
     end
 
     it "rejects discount with non-cash tender (cash-only rule)" do

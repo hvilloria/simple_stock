@@ -12,6 +12,7 @@ module Web
 
         result = Payments::CollectSaleNote.call(
           order:            @note,
+          user:             current_user,
           discount_percent: params[:discount_percent].to_i,
           tenders:          parsed_tenders
         )

@@ -14,17 +14,19 @@ module Payments
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
-    def self.call(order:, tenders:, discount_percent: 0, payment_date: Date.current)
+    def self.call(order:, tenders:, user:, discount_percent: 0, payment_date: Date.current)
       new(
         order: order,
         tenders: tenders,
+        user: user,
         discount_percent: discount_percent,
         payment_date: payment_date
       ).call
     end
 
-    def initialize(order:, tenders:, discount_percent:, payment_date:)
+    def initialize(order:, tenders:, user:, discount_percent:, payment_date:)
       @order            = order
+      @user             = user
       @tenders          = Array(tenders).map { |t| t.to_h.symbolize_keys }
       @discount_percent = discount_percent.to_i
       @payment_date     = payment_date || Date.current
@@ -121,7 +123,15 @@ module Payments
             amount:  row[:amount].to_f
           )
         end
+
+        record_in_cash!(payment)
       end
+    end
+
+    def record_in_cash!(payment)
+      result = Cash::RecordSaleFromPayment.call(payment: payment, user: @user)
+
+      raise ValidationError, result.errors.join(", ") if result.failure?
     end
   end
 end
