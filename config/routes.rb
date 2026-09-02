@@ -83,6 +83,7 @@ Rails.application.routes.draw do
       resources :transfers, only: [ :create ] do
         post :preview, on: :collection
       end
+      get "reports/balance", to: "reports#balance", as: :balance_report
     end
   end
 end

@@ -48,6 +48,14 @@ RSpec.describe CashMovementPolicy do
     end
   end
 
+  describe "#balance_report?" do
+    it "is the admin's alone: the cashier never sees accumulated balances" do
+      expect(described_class.new(admin, CashMovement).balance_report?).to be(true)
+      expect(described_class.new(cashier, CashMovement).balance_report?).to be(false)
+      expect(described_class.new(seller, CashMovement).balance_report?).to be(false)
+    end
+  end
+
   describe "#update? and #destroy?" do
     let(:open_movement) { build(:cash_movement) }
 

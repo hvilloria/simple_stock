@@ -37,6 +37,12 @@ class CashMovementPolicy < ApplicationPolicy
     index?
   end
 
+  # The balance report is the owner's reading of the whole operation, not the
+  # cashier's: she works a day at a time and never sees accumulated balances.
+  def balance_report?
+    user.admin?
+  end
+
   # An automatic row is undone through Cash::ReversePayment, never edited here:
   # correcting it would make the two modules disagree about the same money.
   # A transfer leg cannot be corrected alone either: it was written as one half
