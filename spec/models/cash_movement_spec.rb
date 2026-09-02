@@ -80,6 +80,28 @@ RSpec.describe CashMovement, type: :model do
     end
   end
 
+  describe ".channel_for_payment_method" do
+    it "maps every payment method to its cash channel" do
+      expect(described_class.channel_for_payment_method("cash")).to eq("cash")
+      expect(described_class.channel_for_payment_method("bank_qr")).to eq("qr")
+      expect(described_class.channel_for_payment_method("bank_card")).to eq("card")
+      expect(described_class.channel_for_payment_method("bank_transfer")).to eq("transfer")
+      expect(described_class.channel_for_payment_method("mercado_pago")).to eq("mercado_pago")
+    end
+
+    it "raises on a payment method it does not know" do
+      expect { described_class.channel_for_payment_method("crypto") }.to raise_error(KeyError)
+    end
+
+    it "covers every payment method" do
+      expect(described_class::PAYMENT_METHOD_CHANNELS.keys).to match_array(Payment::PAYMENT_METHODS)
+    end
+
+    it "maps only to channels that have an arca" do
+      expect(described_class::PAYMENT_METHOD_CHANNELS.values).to all(satisfy { |v| described_class::CHANNEL_ACCOUNTS.key?(v) })
+    end
+  end
+
   describe "amount column" do
     it "round-trips an opening balance in the tens of millions" do
       movement = create(:cash_movement, :opening_balance)

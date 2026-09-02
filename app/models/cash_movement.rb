@@ -53,6 +53,16 @@ class CashMovement < ApplicationRecord
     "compensation" => nil
   }.freeze
 
+  # A payment's method and a cash channel are different vocabularies; this is
+  # the one place that translates between them.
+  PAYMENT_METHOD_CHANNELS = {
+    "cash"          => "cash",
+    "bank_qr"       => "qr",
+    "bank_card"     => "card",
+    "bank_transfer" => "transfer",
+    "mercado_pago"  => "mercado_pago"
+  }.freeze
+
   belongs_to :daily_closing, optional: true
   belongs_to :source_payment, class_name: "Payment", optional: true
   belongs_to :user
@@ -89,6 +99,10 @@ class CashMovement < ApplicationRecord
 
   def self.account_for_channel(channel)
     CHANNEL_ACCOUNTS.fetch(channel.to_s)
+  end
+
+  def self.channel_for_payment_method(method)
+    PAYMENT_METHOD_CHANNELS.fetch(method.to_s)
   end
 
   def self.account_label(key) = ACCOUNT_LABELS.fetch(key.to_s, key.to_s)
