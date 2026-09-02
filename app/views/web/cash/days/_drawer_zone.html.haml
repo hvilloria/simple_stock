@@ -1,6 +1,10 @@
 - movements = day.drawer_movements.to_a
 
 .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+  .px-4.py-3.border-b.border-slate-200
+    %h2.text-sm.font-semibold.text-slate-900 Caja del día
+    %p.text-xs.text-slate-500.mt-1 Las ventas del día y lo que se pagó con plata del cajón.
+
   - unless day.closed?
     = form_with url: web_cash_movements_path, id: "drawer-form", class: "contents" do
       = hidden_field_tag :business_date, business_date

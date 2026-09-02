@@ -1,0 +1,29 @@
+- movements = day.arca_movements.to_a
+
+.bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+  .px-4.py-3.border-b.border-slate-200
+    %h2.text-sm.font-semibold.text-slate-900 Movimientos de arcas
+    %p.text-xs.text-slate-500.mt-1 Lo que no salió del cajón: pagos hechos con un fajo, por banco o por Mercado Pago.
+
+  - unless day.closed?
+    = form_with url: web_cash_movements_path, id: "arca-form", class: "contents" do
+      = hidden_field_tag :business_date, business_date
+
+  %table.min-w-full.divide-y.divide-slate-200
+    %thead.bg-slate-50
+      %tr
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Descripción
+        %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Arca
+        %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Ingreso
+        %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Egreso
+        %th.px-4.py-3.w-24
+    %tbody#arca-rows.divide-y.divide-slate-100.bg-white
+      = render partial: "web/cash/movements/arca_row", collection: movements, as: :movement, locals: { editable: !day.closed? }
+    - unless day.closed?
+      %tfoot.bg-slate-50.border-t.border-slate-200
+        -# The drawer zone holds the caret on load; this row takes it once clicked into.
+        = render "web/cash/movements/arca_live_row", error: nil, autofocus: false
+
+  - if movements.empty?
+    .p-12.text-center
+      %p.text-slate-500 No hay movimientos de arcas cargados en este día.

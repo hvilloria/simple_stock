@@ -115,6 +115,143 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
   end
 
+  describe "the arca zone" do
+    def post_arca_movement(params)
+      post_movement({ account: "bank" }.merge(params))
+    end
+
+    it "records a supplier payment against the arca the cashier declared" do
+      post_arca_movement(category: "suppliers", description: "Cromosol", amount: "153.951,00")
+
+      movement = CashMovement.last
+      expect(movement.category).to eq("suppliers")
+      expect(movement.account).to eq("bank")
+      expect(movement.amount).to eq(-153_951)
+    end
+
+    it "records a fixed expense against a bundle" do
+      post_arca_movement(account: "main_cash", category: "fixed_expense", subcategory: "salaries",
+                         description: "Sueldos", amount: "400.000,00")
+
+      movement = CashMovement.last
+      expect(movement.account).to eq("main_cash")
+      expect(movement.subcategory).to eq("salaries")
+      expect(movement.amount).to eq(-400_000)
+    end
+
+    it "answers with a stream that appends to the arca zone and refreshes its live row" do
+      post_arca_movement(category: "suppliers", description: "Cromosol", amount: "153.951,00")
+
+      expect(response.body).to include('action="append"', 'target="arca-rows"')
+      expect(response.body).to include('target="arca-live-row"')
+      expect(response.body).not_to include('target="drawer-live-row"')
+    end
+
+    it "leaves the amount to wrap untouched when the arca is not the drawer" do
+      expect {
+        post_arca_movement(category: "suppliers", description: "Cromosol", amount: "153.951,00")
+      }.not_to change { ::Cash::DayQuery.new(Date.new(2026, 8, 3)).amount_to_wrap }
+    end
+
+    it "puts the same expense in the drawer zone when it came out of the till" do
+      post_arca_movement(account: "drawer", category: "suppliers", description: "Cromosol", amount: "153.951,00")
+
+      movement = CashMovement.last
+      expect(movement.account).to eq("drawer")
+      expect(movement).to be_drawer_zone
+      expect(response.body).to include('action="append"', 'target="drawer-rows"')
+      expect(response.body).to include('target="arca-live-row"')
+    end
+
+    it "moves the amount to wrap when the arca is the drawer" do
+      expect {
+        post_arca_movement(account: "drawer", category: "suppliers", description: "Cromosol", amount: "153.951,00")
+      }.to change { ::Cash::DayQuery.new(Date.new(2026, 8, 3)).amount_to_wrap }.by(-153_951)
+    end
+
+    it "refuses a sale, which belongs to the drawer zone" do
+      expect {
+        post_arca_movement(category: "sale", channel: "cash", description: "Venta", amount: "1.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "refuses a category the arca zone does not offer" do
+      expect {
+        post_arca_movement(category: "partner", description: "Retiro", amount: "1.000,00")
+      }.not_to change(CashMovement, :count)
+    end
+
+    it "refuses an arca that does not exist" do
+      expect {
+        post_arca_movement(account: "colchon", category: "suppliers", description: "Cromosol", amount: "1.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "refuses to write into a closed day" do
+      create(:daily_closing, business_date: Date.new(2026, 8, 3))
+
+      expect {
+        post_arca_movement(category: "suppliers", description: "Cromosol", amount: "1.000,00")
+      }.not_to change(CashMovement, :count)
+    end
+
+    it "keeps the error on the arca live row" do
+      post_arca_movement(category: "suppliers", description: "Cromosol", amount: "0,00")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include('target="arca-live-row"')
+      expect(response.body).to include("El monto no puede ser cero.")
+    end
+
+    describe "correcting an arca row" do
+      let(:movement) do
+        create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: cashier)
+      end
+
+      it "opens a form row that offers the arca" do
+        get "/web/cash/movements/#{movement.id}/edit",
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response.body).to include('name="account"')
+        expect(response.body).to include("Banco")
+      end
+
+      it "corrects the arca in place" do
+        patch "/web/cash/movements/#{movement.id}",
+              params: { account: "main_cash", category: "suppliers",
+                        description: "Cromosol", amount: "153.951,00" },
+              headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(movement.reload.account).to eq("main_cash")
+        expect(movement.amount).to eq(-153_951)
+      end
+
+      it "offers no correction on a closed day" do
+        movement
+        create(:daily_closing, business_date: Date.new(2026, 8, 3))
+
+        get "/web/cash/days/2026-08-03"
+
+        expect(response.body).to include("Cromosol")
+        expect(response.body).not_to include("Editar")
+      end
+
+      it "offers no correction on a transfer leg" do
+        create(:cash_movement, :transfer_leg, business_date: Date.new(2026, 8, 3),
+               account: "main_cash", amount: -1_000, description: "Traspaso")
+
+        get "/web/cash/days/2026-08-03"
+
+        expect(response.body).to include("Traspaso")
+        expect(response.body).not_to include("Editar")
+      end
+    end
+  end
+
   describe "correcting a row" do
     let(:business_date) { Date.new(2026, 8, 3) }
     let(:movement) do

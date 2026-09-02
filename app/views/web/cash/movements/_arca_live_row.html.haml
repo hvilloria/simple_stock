@@ -1,0 +1,33 @@
+%tr#arca-live-row{ data: { controller: "cash-live-row", "cash-live-row-autofocus-value": autofocus.to_s } }
+  %td.px-4.py-2
+    = text_field_tag :description, nil, form: "arca-form", id: "arca-description",
+                     placeholder: "Descripción",
+                     data: { "cash-live-row-target": "firstField" },
+                     class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+  %td.px-4.py-2
+    = select_tag :category,
+                 options_for_select(CashMovementPolicy::ARCA_CATEGORIES.map { |c| [ CashMovement.category_label(c), c ] }),
+                 form: "arca-form", id: "arca-category",
+                 data: { "cash-live-row-target": "category", action: "change->cash-live-row#toggleFields" },
+                 class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    = select_tag :account,
+                 options_for_select(CashMovement::ACCOUNT_LABELS.map { |k, v| [ v, k ] }),
+                 form: "arca-form", id: "arca-account",
+                 class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    = select_tag :subcategory,
+                 options_for_select(CashMovement::SUBCATEGORY_LABELS.map { |k, v| [ v, k ] }),
+                 form: "arca-form", id: "arca-subcategory",
+                 data: { "cash-live-row-target": "subcategory" },
+                 class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+  %td.px-4.py-2{ colspan: 2 }
+    = text_field_tag :amount, nil, form: "arca-form", id: "arca-amount",
+                     placeholder: "0,00",
+                     data: { controller: "currency-input",
+                             action: "blur->currency-input#format focus->currency-input#unformat" },
+                     class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-right"
+  %td.px-4.py-2.text-right
+    = submit_tag "Guardar", form: "arca-form",
+                 class: "px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg"
+- if error.present?
+  %tr
+    %td.px-4.py-2.text-sm.text-red-700{ colspan: 5 }= error

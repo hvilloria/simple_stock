@@ -1,0 +1,39 @@
+- form_id = dom_id(movement, :form)
+
+%tr{ id: dom_id(movement), data: { controller: "cash-live-row" } }
+  %td.px-4.py-2
+    = form_with url: web_cash_movement_path(movement), method: :patch, id: form_id, class: "contents" do
+      = hidden_field_tag :business_date, movement.business_date
+    = text_field_tag :description, movement.description, form: form_id,
+                     placeholder: "Descripción",
+                     data: { "cash-live-row-target": "firstField" },
+                     class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+  %td.px-4.py-2
+    = select_tag :category,
+                 options_for_select(CashMovementPolicy::ARCA_CATEGORIES.map { |c| [ CashMovement.category_label(c), c ] }, movement.category),
+                 form: form_id,
+                 data: { "cash-live-row-target": "category", action: "change->cash-live-row#toggleFields" },
+                 class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    = select_tag :account,
+                 options_for_select(CashMovement::ACCOUNT_LABELS.map { |k, v| [ v, k ] }, movement.account),
+                 form: form_id,
+                 class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    = select_tag :subcategory,
+                 options_for_select(CashMovement::SUBCATEGORY_LABELS.map { |k, v| [ v, k ] }, movement.subcategory),
+                 form: form_id,
+                 data: { "cash-live-row-target": "subcategory" },
+                 class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+  %td.px-4.py-2{ colspan: 2 }
+    = text_field_tag :amount, number_ar(movement.amount.abs), form: form_id,
+                     placeholder: "0,00",
+                     data: { controller: "currency-input",
+                             action: "blur->currency-input#format focus->currency-input#unformat" },
+                     class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-right"
+  %td.px-4.py-2.text-right
+    = submit_tag "Guardar", form: form_id,
+                 class: "px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg"
+    = link_to "Cancelar", web_cash_day_path(movement.business_date),
+              class: "block mt-1 text-xs text-slate-500 hover:text-slate-700"
+- if error.present?
+  %tr
+    %td.px-4.py-2.text-sm.text-red-700{ colspan: 5 }= error

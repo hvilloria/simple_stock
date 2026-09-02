@@ -114,6 +114,10 @@ class CashMovement < ApplicationRecord
   def outflow? = amount.negative?
   def sealed? = daily_closing_id.present?
 
+  # Which zone of the day screen this row belongs to. Same split as
+  # Cash::DayQuery: every sale plus whatever moved through the till.
+  def drawer_zone? = sale_category? || drawer_account?
+
   # Born from a collection, not typed into the drawer zone.
   def automatic? = source_payment_id.present?
 

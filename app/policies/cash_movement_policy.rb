@@ -6,6 +6,10 @@ class CashMovementPolicy < ApplicationPolicy
   # Cash::RecordTransfer, never one leg at a time.
   DRAWER_CATEGORIES = %w[sale suppliers fixed_expense].freeze
 
+  # Categories the arca zone offers. No sale: a sale is always a drawer-zone
+  # row, whatever arca its channel reaches.
+  ARCA_CATEGORIES = %w[suppliers fixed_expense].freeze
+
   def index?
     user.caja? || user.admin?
   end

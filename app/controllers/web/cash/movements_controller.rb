@@ -11,8 +11,9 @@ module Web
         authorize CashMovement, :create?
 
         @business_date = Date.parse(params[:business_date])
+        @zone = arca_submission? ? :arca : :drawer
         return refuse("El día está cerrado.") if day_closed?
-        return refuse("Esa categoría no se carga en la caja del día.") unless drawer_category?
+        return refuse("Esa categoría no se carga en esta zona.") unless zone_category?
 
         amount = signed_amount
         return refuse("El monto no es un número.") if amount.nil?
@@ -48,12 +49,13 @@ module Web
         load_movement
         authorize @movement
         return refuse_closed_day if day_closed?
-        return refuse_edit("Esa categoría no se carga en la caja del día.") unless drawer_category?
+        return refuse_edit("Esa categoría no se carga en esta zona.") unless zone_category?
 
         amount = signed_amount
         return refuse_edit("El monto no es un número.") if amount.nil?
         return refuse_edit("El monto no puede ser cero.") if zero_amount?(amount)
 
+        drawer_zone_before = @movement.drawer_zone?
         saved = @movement.update(
           amount: amount,
           category: params[:category],
@@ -65,6 +67,7 @@ module Web
 
         return refuse_edit(@movement.errors.full_messages.join(", ")) unless saved
 
+        @zone_changed = @movement.drawer_zone? != drawer_zone_before
         @day = ::Cash::DayQuery.new(@business_date)
         render :update
       end
@@ -86,21 +89,35 @@ module Web
         @business_date = @movement.business_date
       end
 
-      def drawer_category?
-        CashMovementPolicy::DRAWER_CATEGORIES.include?(params[:category])
+      # The arca zone is the one that declares its arca; the drawer zone never
+      # submits one.
+      def arca_submission?
+        params[:account].present?
+      end
+
+      def zone_category?
+        categories = arca_submission? ? CashMovementPolicy::ARCA_CATEGORIES : CashMovementPolicy::DRAWER_CATEGORIES
+        categories.include?(params[:category])
       end
 
       def day_closed?
         DailyClosing.exists?(business_date: @business_date)
       end
 
-      # A sale lands in the arca its channel implies; an expense loaded here came
-      # out of the till by definition. An unknown channel yields a nil account,
-      # which the model rejects.
+      # The single point the two zones diverge: the arca zone submits its arca,
+      # the drawer zone derives it. A sale lands in the arca its channel implies;
+      # an expense loaded in the drawer zone came out of the till by definition.
       def account_for(category, channel)
+        return submitted_account if arca_submission?
         return "drawer" unless category == "sale"
 
         CashMovement::CHANNEL_ACCOUNTS[channel.to_s]
+      end
+
+      # An unknown arca yields a nil account, which the model rejects, the same
+      # way an unknown channel does.
+      def submitted_account
+        CashMovement::ACCOUNT_LABELS.key?(params[:account]) ? params[:account] : nil
       end
 
       def zero_amount?(decimal_string)

@@ -36,14 +36,6 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(response.body).not_to include("De otro día")
     end
 
-    it "does not render an arca-zone movement" do
-      create(:cash_movement, :supplier_payment, business_date: date, description: "Cromosol")
-
-      get "/web/cash/days/2026-08-03"
-
-      expect(response.body).not_to include("Cromosol")
-    end
-
     it "falls back to today when the date is not a date" do
       get "/web/cash/days/no-es-fecha"
 
@@ -61,6 +53,55 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(response.body).to include("324.700,00")
       expect(response.body).to include("Monto a fajar")
       expect(response.body).to include("311.700,00")
+    end
+  end
+
+  describe "the two zones of the day" do
+    before { sign_in cashier }
+
+    def zone_text(dom_id)
+      Nokogiri::HTML(response.body).at("##{dom_id}").to_s
+    end
+
+    it "renders an arca-zone movement in the arca zone and not in the drawer zone" do
+      create(:cash_movement, :supplier_payment, business_date: date, description: "Cromosol")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(zone_text("arca-rows")).to include("Cromosol")
+      expect(zone_text("drawer-rows")).not_to include("Cromosol")
+    end
+
+    it "renders a drawer-zone movement in the drawer zone and not in the arca zone" do
+      create(:cash_movement, business_date: date, description: "Venta mostrador")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(zone_text("drawer-rows")).to include("Venta mostrador")
+      expect(zone_text("arca-rows")).not_to include("Venta mostrador")
+    end
+
+    it "keeps an expense paid out of the till in the drawer zone" do
+      create(:cash_movement, :store_expense, business_date: date, description: "Bolsas")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(zone_text("drawer-rows")).to include("Bolsas")
+      expect(zone_text("arca-rows")).not_to include("Bolsas")
+    end
+
+    it "names the arca of an arca-zone row" do
+      create(:cash_movement, :supplier_payment, business_date: date, account: "bank")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(zone_text("arca-rows")).to include("Banco")
+    end
+
+    it "offers the arca live row on an open day" do
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("arca-live-row")
     end
   end
 
@@ -132,6 +173,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
     it "offers no live row" do
       expect(response.body).not_to include("drawer-live-row")
+      expect(response.body).not_to include("arca-live-row")
     end
 
     it "offers no way to correct a row" do

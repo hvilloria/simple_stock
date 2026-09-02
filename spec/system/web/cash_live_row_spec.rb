@@ -25,55 +25,90 @@ RSpec.describe "Caja - fila viva del día", type: :system do
   it "appends the saved row and leaves an empty live row focused" do
     visit day_path
 
-    fill_in "description", with: "Venta mostrador"
-    select "Venta", from: "category"
-    select "Efectivo", from: "channel"
-    fill_in "amount", with: "1500"
-    click_button "Guardar"
+    within("#drawer-live-row") do
+      fill_in "description", with: "Venta mostrador"
+      select "Venta", from: "category"
+      select "Efectivo", from: "channel"
+      fill_in "amount", with: "1500"
+      click_button "Guardar"
+    end
 
     expect(page).to have_css("#drawer-rows tr", count: 1)
     expect(page).to have_css("#drawer-rows tr", text: "Venta mostrador")
     expect(page).to have_css("#drawer-rows tr", text: "1.500,00")
 
-    expect(page).to have_field("description", with: "")
-    expect(page).to have_field("amount", with: "")
-    expect(page.evaluate_script("document.activeElement.getAttribute('name')")).to eq("description")
+    within("#drawer-live-row") do
+      expect(page).to have_field("description", with: "")
+      expect(page).to have_field("amount", with: "")
+    end
+    expect(page.evaluate_script("document.activeElement.id")).to eq("description")
+  end
+
+  it "appends an arca row to the arca zone and leaves its live row focused" do
+    visit day_path
+
+    within("#arca-live-row") do
+      fill_in "description", with: "Cromosol"
+      select "Proveedores", from: "category"
+      select "Banco", from: "account"
+      fill_in "amount", with: "153951"
+      click_button "Guardar"
+    end
+
+    expect(page).to have_css("#arca-rows tr", count: 1)
+    expect(page).to have_css("#arca-rows tr", text: "Cromosol")
+    expect(page).to have_css("#arca-rows tr", text: "Banco")
+    expect(page).to have_css("#drawer-rows tr", count: 0)
+
+    expect(page.evaluate_script("document.activeElement.id")).to eq("arca-description")
+  end
+
+  it "leaves the caret in the drawer zone on load" do
+    visit day_path
+
+    expect(page.evaluate_script("document.activeElement.id")).to eq("description")
   end
 
   it "shows the channel only on a sale and the subcategory only on a fixed expense" do
     visit day_path
 
-    expect(page).to have_select("channel", visible: :visible)
-    expect(page).to have_select("subcategory", visible: :hidden, disabled: true)
+    within("#drawer-live-row") do
+      expect(page).to have_select("channel", visible: :visible)
+      expect(page).to have_select("subcategory", visible: :hidden, disabled: true)
 
-    select "Proveedores", from: "category"
-    expect(page).to have_select("channel", visible: :hidden, disabled: true)
-    expect(page).to have_select("subcategory", visible: :hidden, disabled: true)
+      select "Proveedores", from: "category"
+      expect(page).to have_select("channel", visible: :hidden, disabled: true)
+      expect(page).to have_select("subcategory", visible: :hidden, disabled: true)
 
-    select "Gastos fijos", from: "category"
-    expect(page).to have_select("channel", visible: :hidden, disabled: true)
-    expect(page).to have_select("subcategory", visible: :visible)
+      select "Gastos fijos", from: "category"
+      expect(page).to have_select("channel", visible: :hidden, disabled: true)
+      expect(page).to have_select("subcategory", visible: :visible)
 
-    select "Venta", from: "category"
-    expect(page).to have_select("channel", visible: :visible)
-    expect(page).to have_select("subcategory", visible: :hidden, disabled: true)
+      select "Venta", from: "category"
+      expect(page).to have_select("channel", visible: :visible)
+      expect(page).to have_select("subcategory", visible: :hidden, disabled: true)
+    end
   end
 
   it "formats the amount in Argentine format when the field loses focus" do
     visit day_path
 
-    fill_in "amount", with: "324700"
-    find_field("description").click
+    within("#drawer-live-row") do
+      fill_in "amount", with: "324700"
+      find_field("description").click
 
-    expect(page).to have_field("amount", with: "324.700,00")
+      expect(page).to have_field("amount", with: "324.700,00")
+    end
   end
 
   it "refuses an amount that is not a number and writes no row" do
     visit day_path
 
-    fill_in "description", with: "Monto ilegible"
-    fill_in "amount", with: "abc"
-    click_button "Guardar"
+    within("#drawer-live-row") do
+      fill_in "description", with: "Monto ilegible"
+      fill_in "amount", with: "abc"
+      click_button "Guardar"
+    end
 
     expect(page).to have_content("El monto no es un número.")
     expect(page).to have_css("#drawer-rows tr", count: 0)
