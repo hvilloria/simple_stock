@@ -63,7 +63,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
     it "refuses a category the drawer zone does not offer" do
       expect {
-        post_movement(category: "partner", description: "Retiro", amount: "1.000,00")
+        post_movement(category: "internal_transfer", description: "Traspaso", amount: "1.000,00")
       }.not_to change(CashMovement, :count)
     end
 
@@ -179,7 +179,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
     it "refuses a category the arca zone does not offer" do
       expect {
-        post_arca_movement(category: "partner", description: "Retiro", amount: "1.000,00")
+        post_arca_movement(category: "internal_transfer", description: "Traspaso", amount: "1.000,00")
       }.not_to change(CashMovement, :count)
     end
 
@@ -458,6 +458,101 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
         expect { delete_movement(movement) }.not_to change(CashMovement, :count)
       end
+    end
+  end
+
+  describe "partner movements" do
+    let(:admin) { create(:user, role: "admin") }
+
+    def post_partner(params)
+      post_movement({ account: "main_cash", category: "partner" }.merge(params))
+    end
+
+    it "records what the partner took as an outflow from the arca the admin declared" do
+      sign_in admin
+
+      post_partner(direction: "withdrawal", description: "Retiro", amount: "500.000,00")
+
+      movement = CashMovement.last
+      expect(movement.category).to eq("partner")
+      expect(movement.account).to eq("main_cash")
+      expect(movement.amount).to eq(-500_000)
+      expect(movement).not_to be_drawer_zone
+    end
+
+    it "records what he put back as an inflow under the same category" do
+      sign_in admin
+
+      post_partner(direction: "contribution", description: "Aporte", amount: "500.000,00")
+
+      movement = CashMovement.last
+      expect(movement.category).to eq("partner")
+      expect(movement.amount).to eq(500_000)
+    end
+
+    it "refuses one with no direction rather than guessing the sign" do
+      sign_in admin
+
+      expect {
+        post_partner(description: "Retiro", amount: "500.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Indicá si el socio retira o aporta.")
+    end
+
+    it "refuses one in the drawer zone, where it never belonged" do
+      sign_in admin
+
+      expect {
+        post_movement(category: "partner", direction: "withdrawal", description: "Retiro", amount: "500.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "refuses one forged by the cashier with a redirect and a flash, not a 500" do
+      expect {
+        post_partner(direction: "withdrawal", description: "Retiro", amount: "500.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:redirect)
+      expect(response).not_to have_http_status(:internal_server_error)
+      expect(flash[:alert]).to be_present
+    end
+
+    it "refuses a correction that turns her own row into a partner one" do
+      movement = create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: cashier)
+
+      expect {
+        patch "/web/cash/movements/#{movement.id}",
+              params: { account: "main_cash", category: "partner", direction: "withdrawal",
+                        description: "Retiro", amount: "500.000,00" },
+              headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      }.not_to change { movement.reload.category }
+
+      expect(response).to have_http_status(:redirect)
+      expect(flash[:alert]).to be_present
+    end
+
+    it "offers the category in the admin's arca selector and not in the cashier's" do
+      sign_in admin
+      get "/web/cash/days/2026-08-03"
+      expect(response.body).to include('value="partner"')
+
+      sign_in cashier
+      get "/web/cash/days/2026-08-03"
+      expect(response.body).not_to include('value="partner"')
+    end
+
+    it "offers the direction to the admin alone, alongside the category it belongs to" do
+      sign_in admin
+      get "/web/cash/days/2026-08-03"
+      expect(response.body).to include('value="withdrawal"', 'value="contribution"')
+
+      sign_in cashier
+      get "/web/cash/days/2026-08-03"
+      expect(response.body).not_to include('value="withdrawal"')
     end
   end
 end

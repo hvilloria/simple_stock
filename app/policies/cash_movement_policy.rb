@@ -10,6 +10,25 @@ class CashMovementPolicy < ApplicationPolicy
   # row, whatever arca its channel reaches.
   ARCA_CATEGORIES = %w[suppliers fixed_expense].freeze
 
+  # partner marks only what a partner keeps; what he then pays with that money
+  # is recorded under its own real category.
+  ADMIN_ARCA_CATEGORIES = %w[partner].freeze
+
+  # The list depends on the user, so it is a method and not a constant. The
+  # views and the controller both read it: neither keeps its own idea of what
+  # a role may load.
+  def categories_for(zone)
+    return DRAWER_CATEGORIES unless zone == :arca
+
+    user.admin? ? ARCA_CATEGORIES + ADMIN_ARCA_CATEGORIES : ARCA_CATEGORIES
+  end
+
+  # Not the wrong zone but not hers: a forged partner row is refused as a
+  # permission failure, the way any other action she lacks is.
+  def forbidden_category?(category)
+    ADMIN_ARCA_CATEGORIES.include?(category) && !user.admin?
+  end
+
   def index?
     user.caja? || user.admin?
   end

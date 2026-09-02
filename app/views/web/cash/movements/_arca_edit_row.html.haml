@@ -1,4 +1,5 @@
 - form_id = dom_id(movement, :form)
+- categories = policy(CashMovement).categories_for(:arca)
 
 %tr{ id: dom_id(movement), data: { controller: "cash-live-row" } }
   %td.px-4.py-2
@@ -10,7 +11,7 @@
                      class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
   %td.px-4.py-2
     = select_tag :category,
-                 options_for_select(CashMovementPolicy::ARCA_CATEGORIES.map { |c| [ CashMovement.category_label(c), c ] }, movement.category),
+                 options_for_select(categories.map { |c| [ CashMovement.category_label(c), c ] }, movement.category),
                  form: form_id,
                  data: { "cash-live-row-target": "category", action: "change->cash-live-row#toggleFields" },
                  class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
@@ -23,6 +24,12 @@
                  form: form_id,
                  data: { "cash-live-row-target": "subcategory" },
                  class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    - if categories.include?("partner")
+      = select_tag :direction,
+                   options_for_select(CashMovement::PARTNER_DIRECTION_LABELS.map { |k, v| [ v, k ] }, movement.partner_direction),
+                   form: form_id,
+                   data: { "cash-live-row-target": "direction" },
+                   class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
   %td.px-4.py-2{ colspan: 2 }
     = text_field_tag :amount, number_ar(movement.amount.abs), form: form_id,
                      placeholder: "0,00",

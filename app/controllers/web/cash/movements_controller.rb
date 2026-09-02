@@ -9,11 +9,13 @@ module Web
 
       def create
         authorize CashMovement, :create?
+        deny_forbidden_category!
 
         @business_date = Date.parse(params[:business_date])
         @zone = arca_submission? ? :arca : :drawer
         return refuse("El día está cerrado.") if day_closed?
         return refuse("Esa categoría no se carga en esta zona.") unless zone_category?
+        return refuse("Indicá si el socio retira o aporta.") unless partner_direction?
 
         amount = signed_amount
         return refuse("El monto no es un número.") if amount.nil?
@@ -48,8 +50,10 @@ module Web
       def update
         load_movement
         authorize @movement
+        deny_forbidden_category!
         return refuse_closed_day if day_closed?
         return refuse_edit("Esa categoría no se carga en esta zona.") unless zone_category?
+        return refuse_edit("Indicá si el socio retira o aporta.") unless partner_direction?
 
         amount = signed_amount
         return refuse_edit("El monto no es un número.") if amount.nil?
@@ -96,8 +100,19 @@ module Web
       end
 
       def zone_category?
-        categories = arca_submission? ? CashMovementPolicy::ARCA_CATEGORIES : CashMovementPolicy::DRAWER_CATEGORIES
-        categories.include?(params[:category])
+        policy(CashMovement).categories_for(arca_submission? ? :arca : :drawer).include?(params[:category])
+      end
+
+      # A category she may not load at all is a permission failure, not a row
+      # she filled in wrong; the redirect says so.
+      def deny_forbidden_category!
+        raise Pundit::NotAuthorizedError if policy(CashMovement).forbidden_category?(params[:category])
+      end
+
+      def partner_direction?
+        return true unless params[:category] == "partner"
+
+        CashMovement::PARTNER_DIRECTION_LABELS.key?(params[:direction])
       end
 
       def day_closed?
@@ -129,7 +144,15 @@ module Web
         decimal = decimal_string_from(params[:amount])
         return nil if decimal.nil?
 
-        OUTFLOW_CATEGORIES.include?(params[:category]) ? "-#{decimal.delete_prefix('-')}" : decimal
+        outflow_submission? ? "-#{decimal.delete_prefix('-')}" : decimal
+      end
+
+      # partner is the one category that goes both ways, so the direction comes
+      # from the named field beside it rather than from the category.
+      def outflow_submission?
+        return params[:direction] == "withdrawal" if params[:category] == "partner"
+
+        OUTFLOW_CATEGORIES.include?(params[:category])
       end
 
       # A rejected correction keeps the form row on screen, with the reason, the

@@ -1,3 +1,5 @@
+- categories = policy(CashMovement).categories_for(:arca)
+
 %tr#arca-live-row{ data: { controller: "cash-live-row", "cash-live-row-autofocus-value": autofocus.to_s } }
   %td.px-4.py-2
     = text_field_tag :description, nil, form: "arca-form", id: "arca-description",
@@ -6,7 +8,7 @@
                      class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
   %td.px-4.py-2
     = select_tag :category,
-                 options_for_select(CashMovementPolicy::ARCA_CATEGORIES.map { |c| [ CashMovement.category_label(c), c ] }),
+                 options_for_select(categories.map { |c| [ CashMovement.category_label(c), c ] }),
                  form: "arca-form", id: "arca-category",
                  data: { "cash-live-row-target": "category", action: "change->cash-live-row#toggleFields" },
                  class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
@@ -19,6 +21,14 @@
                  form: "arca-form", id: "arca-subcategory",
                  data: { "cash-live-row-target": "subcategory" },
                  class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    -# The sign is never typed: on the one category that goes both ways it is
+    -# picked by name here.
+    - if categories.include?("partner")
+      = select_tag :direction,
+                   options_for_select(CashMovement::PARTNER_DIRECTION_LABELS.map { |k, v| [ v, k ] }),
+                   form: "arca-form", id: "arca-direction",
+                   data: { "cash-live-row-target": "direction" },
+                   class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
   %td.px-4.py-2{ colspan: 2 }
     = text_field_tag :amount, nil, form: "arca-form", id: "arca-amount",
                      placeholder: "0,00",

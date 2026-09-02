@@ -31,6 +31,13 @@ class CashMovement < ApplicationRecord
     "store_expenses" => "Gastos de local"
   }.freeze
 
+  # partner is the one category that goes both ways, so its direction is picked
+  # by name instead of typed as a minus. It is not stored: the sign is.
+  PARTNER_DIRECTION_LABELS = {
+    "withdrawal"   => "Retiro",
+    "contribution" => "Aporte"
+  }.freeze
+
   CHANNEL_LABELS = {
     "cash"         => "Efectivo",
     "card"         => "Tarjeta",
@@ -112,6 +119,7 @@ class CashMovement < ApplicationRecord
 
   def inflow? = amount.positive?
   def outflow? = amount.negative?
+  def partner_direction = outflow? ? "withdrawal" : "contribution"
   def sealed? = daily_closing_id.present?
 
   # Which zone of the day screen this row belongs to. Same split as

@@ -7,6 +7,35 @@ RSpec.describe CashMovementPolicy do
   let(:admin)   { build(:user, role: "admin") }
   let(:seller)  { build(:user, role: "vendedor") }
 
+  describe "#categories_for" do
+    it "offers partner in the arca zone to the admin alone" do
+      expect(described_class.new(admin, CashMovement).categories_for(:arca)).to include("partner")
+      expect(described_class.new(cashier, CashMovement).categories_for(:arca)).not_to include("partner")
+    end
+
+    it "keeps the rest of the arca list the same for both" do
+      expect(described_class.new(admin, CashMovement).categories_for(:arca)).to include("suppliers", "fixed_expense")
+      expect(described_class.new(cashier, CashMovement).categories_for(:arca)).to contain_exactly("suppliers", "fixed_expense")
+    end
+
+    it "keeps partner out of the drawer zone for everyone" do
+      expect(described_class.new(admin, CashMovement).categories_for(:drawer)).not_to include("partner")
+      expect(described_class.new(cashier, CashMovement).categories_for(:drawer)).not_to include("partner")
+    end
+  end
+
+  describe "#forbidden_category?" do
+    it "reads partner from the cashier as a permission failure, not a wrong zone" do
+      expect(described_class.new(cashier, CashMovement).forbidden_category?("partner")).to be(true)
+      expect(described_class.new(admin, CashMovement).forbidden_category?("partner")).to be(false)
+    end
+
+    it "leaves the categories both roles share alone" do
+      expect(described_class.new(cashier, CashMovement).forbidden_category?("suppliers")).to be(false)
+      expect(described_class.new(cashier, CashMovement).forbidden_category?("internal_transfer")).to be(false)
+    end
+  end
+
   describe "#index? and #create?" do
     it "permits the cashier and the admin, and forbids the seller" do
       expect(described_class.new(cashier, CashMovement).index?).to be(true)
