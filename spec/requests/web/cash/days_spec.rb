@@ -93,4 +93,49 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(response).to redirect_to(new_user_session_path)
     end
   end
+
+  describe "a closed day" do
+    before do
+      sign_in cashier
+      create(:cash_movement, business_date: date, description: "Venta mostrador")
+      create(:daily_closing, business_date: date)
+
+      get "/web/cash/days/2026-08-03"
+    end
+
+    it "says so" do
+      expect(response.body).to include("Día cerrado")
+    end
+
+    it "still shows the day's movements" do
+      expect(response.body).to include("Venta mostrador")
+    end
+
+    it "offers no live row" do
+      expect(response.body).not_to include("drawer-live-row")
+    end
+
+    it "offers no way to correct a row" do
+      expect(response.body).not_to include("Editar")
+      expect(response.body).not_to include("Eliminar")
+    end
+  end
+
+  describe "an open day" do
+    before do
+      sign_in cashier
+      create(:cash_movement, business_date: date, description: "Venta mostrador")
+
+      get "/web/cash/days/2026-08-03"
+    end
+
+    it "offers the live row" do
+      expect(response.body).to include("drawer-live-row")
+    end
+
+    it "offers the correction affordances" do
+      expect(response.body).to include("Editar")
+      expect(response.body).to include("Eliminar")
+    end
+  end
 end
