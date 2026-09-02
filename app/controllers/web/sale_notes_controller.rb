@@ -13,7 +13,7 @@ module Web
       @note = Order.find(params[:id])
       authorize @note, :cancel?, policy_class: SaleNotePolicy
 
-      result = Sales::CancelOrder.call(order: @note, reason: "Cancelada desde caja")
+      result = Sales::CancelOrder.call(order: @note, user: current_user, reason: "Cancelada desde caja")
 
       if result.success?
         redirect_to web_sale_notes_path, notice: "Nota #{@note.paper_number} cancelada"

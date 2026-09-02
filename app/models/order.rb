@@ -141,8 +141,8 @@ class Order < ApplicationRecord
     update!(status: new_status, settled_on: new_settled_on)
   end
 
-  def cancel!(reason: nil)
-    result = Sales::CancelOrder.call(order: self, reason: reason)
+  def cancel!(user:, reason: nil)
+    result = Sales::CancelOrder.call(order: self, user: user, reason: reason)
     if result.success?
       result.record
     else
