@@ -56,6 +56,14 @@ RSpec.describe CashMovementPolicy do
     end
   end
 
+  describe "#movement_history?" do
+    it "is the admin's alone: the history is the report's drill-down" do
+      expect(described_class.new(admin, CashMovement).movement_history?).to be(true)
+      expect(described_class.new(cashier, CashMovement).movement_history?).to be(false)
+      expect(described_class.new(seller, CashMovement).movement_history?).to be(false)
+    end
+  end
+
   describe "#update? and #destroy?" do
     let(:open_movement) { build(:cash_movement) }
 

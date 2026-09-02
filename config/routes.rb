@@ -84,6 +84,7 @@ Rails.application.routes.draw do
         post :preview, on: :collection
       end
       get "reports/balance", to: "reports#balance", as: :balance_report
+      get "reports/history", to: "reports#history", as: :movement_history
     end
   end
 end

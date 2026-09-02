@@ -15,17 +15,44 @@ module Web
         [ "Personalizado", "custom" ]
       ].freeze
 
+      # The arca filter offers the four reporting groups, never the six arcas:
+      # the history reads at the grain the report reads at, so a filtered
+      # history still adds up to the figures it explains.
+      GROUP_OPTIONS = CashMovement::REPORTING_GROUP_LABELS.map { |group, label| [ label, group ] }.freeze
+
+      CATEGORY_OPTIONS = CashMovement::CATEGORY_LABELS.map { |category, label| [ label, category ] }.freeze
+
       def balance
         authorize CashMovement, :balance_report?
 
-        @period = PERIODS.include?(params[:period]) ? params[:period] : DEFAULT_PERIOD
-        @period_options = PERIOD_OPTIONS
-        @from, @to = resolve_range
+        load_range
         @rows = ::Cash::Reports::BalanceQuery.call(from: @from, to: @to)
         @breakdown = ::Cash::Reports::FixedExpenseBreakdownQuery.new(from: @from, to: @to)
       end
 
+      def history
+        authorize CashMovement, :movement_history?
+
+        load_range
+        @group = params[:group].to_s
+        @category = params[:category].to_s
+        @search = params[:search].to_s.strip
+        @group_options = GROUP_OPTIONS
+        @category_options = CATEGORY_OPTIONS
+        @pagy, @movements = pagy(
+          ::Cash::Reports::MovementsQuery.call(
+            from: @from, to: @to, group: @group, category: @category, search: @search
+          )
+        )
+      end
+
       private
+
+      def load_range
+        @period = PERIODS.include?(params[:period]) ? params[:period] : DEFAULT_PERIOD
+        @period_options = PERIOD_OPTIONS
+        @from, @to = resolve_range
+      end
 
       def resolve_range
         case @period

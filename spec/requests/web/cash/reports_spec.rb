@@ -200,6 +200,168 @@ RSpec.describe "Web::Cash::Reports", type: :request do
     end
   end
 
+  describe "GET /web/cash/reports/history" do
+    def rows
+      Nokogiri::HTML(response.body).css("#movement-rows tr")
+    end
+
+    def cells_of(row) = row.css("td").map { |cell| cell.text.strip }
+
+    context "as the admin" do
+      before { sign_in admin }
+
+      it "lists the movements of the range, showing the fine arca" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(account: "main_cash", category: "suppliers", channel: nil,
+                   amount: -153_951, description: "Cromosol")
+
+          get "/web/cash/reports/history"
+        end
+
+        expect(response).to have_http_status(:ok)
+        expect(rows.size).to eq(1)
+        expect(cells_of(rows.first)).to include("Caja grande", "Proveedores", "Cromosol")
+      end
+
+      it "leaves out what falls outside the range" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(business_date: Date.new(2026, 10, 5), amount: 777_777,
+                   account: "drawer", channel: "cash")
+
+          get "/web/cash/reports/history"
+        end
+
+        expect(rows).to be_empty
+      end
+
+      # Filter coarse, read fine: the four groups the balance report reads at,
+      # never the six arcas, or the two screens would disagree.
+      it "offers the four reporting groups in the arca filter, not the six arcas" do
+        get "/web/cash/reports/history"
+
+        options = Nokogiri::HTML(response.body).css("select[name=group] option").map { |o| o.text.strip }
+        expect(options).to eq([ "Todas las arcas", "Efectivo", "Banco", "Mercado Pago", "USD" ])
+      end
+
+      it "matches every fine arca of the group the filter names" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(account: "drawer", amount: 10_000, description: "En la caja del día")
+          movement(account: "main_cash", category: "suppliers", channel: nil,
+                   amount: -20_000, description: "En la caja grande")
+          movement(:card_sale, description: "En el banco")
+
+          get "/web/cash/reports/history", params: { group: "efectivo" }
+        end
+
+        expect(rows.size).to eq(2)
+        expect(response.body).to include("En la caja del día", "En la caja grande")
+        expect(response.body).not_to include("En el banco")
+      end
+
+      it "narrows by category" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(:store_expense, description: "Gasto de local")
+          movement(account: "drawer", amount: 10_000, description: "Una venta")
+
+          get "/web/cash/reports/history", params: { category: "fixed_expense" }
+        end
+
+        expect(rows.size).to eq(1)
+        expect(response.body).to include("Gasto de local")
+        expect(response.body).not_to include("Una venta")
+      end
+
+      it "narrows by description search" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(:supplier_payment, description: "Cromosol")
+          movement(:supplier_payment, description: "Otro proveedor")
+
+          get "/web/cash/reports/history", params: { search: "cromo" }
+        end
+
+        expect(rows.size).to eq(1)
+        expect(response.body).to include("Cromosol")
+      end
+
+      it "narrows by the custom period" do
+        movement(business_date: Date.new(2026, 7, 10), amount: 555_000,
+                 account: "drawer", channel: "cash", description: "De julio")
+        movement(business_date: Date.new(2026, 9, 10), amount: 111_000,
+                 account: "drawer", channel: "cash", description: "De septiembre")
+
+        get "/web/cash/reports/history",
+            params: { period: "custom", from: "2026-07-04", to: "2026-08-09" }
+
+        expect(rows.size).to eq(1)
+        expect(response.body).to include("De julio")
+        expect(response.body).not_to include("De septiembre")
+      end
+
+      it "combines the filters instead of letting one override another" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(account: "main_cash", category: "suppliers", channel: nil,
+                   amount: -50_000, description: "Cromosol agosto")
+          movement(:card_sale, description: "Cromosol agosto")
+          movement(account: "main_cash", category: "suppliers", channel: nil,
+                   amount: -50_000, description: "Otro proveedor")
+
+          get "/web/cash/reports/history",
+              params: { group: "efectivo", category: "suppliers", search: "cromosol" }
+        end
+
+        expect(rows.size).to eq(1)
+      end
+
+      it "paginates instead of pouring the whole history onto one page" do
+        travel_to Date.new(2026, 9, 2) do
+          25.times { |i| movement(account: "drawer", amount: 1_000 + i) }
+
+          get "/web/cash/reports/history"
+        end
+
+        expect(rows.size).to eq(20)
+        expect(response.body).to include("Siguiente")
+
+        travel_to Date.new(2026, 9, 2) do
+          get "/web/cash/reports/history", params: { page: 2 }
+        end
+
+        expect(rows.size).to eq(5)
+      end
+
+      # Editing happens on the open day and nowhere else, whoever is looking.
+      it "offers no edit or delete affordance, not even to the admin" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(:store_expense)
+
+          get "/web/cash/reports/history"
+        end
+
+        table = Nokogiri::HTML(response.body).at("#movement-rows")
+        expect(table.text).not_to include("Editar")
+        expect(table.text).not_to include("Eliminar")
+        expect(table.css("a, form, button")).to be_empty
+      end
+
+      it "shows an empty state when no row matches" do
+        get "/web/cash/reports/history", params: { search: "nada de nada" }
+
+        expect(response.body).to include("No hay movimientos con esos filtros")
+      end
+    end
+
+    context "as the cashier" do
+      before { sign_in cashier }
+
+      it "turns her away even when she types the URL" do
+        get "/web/cash/reports/history"
+
+        expect(response).to redirect_to(authenticated_root_path)
+        expect(flash[:alert]).to be_present
+      end
+    end
+  end
+
   describe "the sidebar entry" do
     it "offers the report to the admin" do
       sign_in admin
@@ -215,6 +377,22 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       get "/web/cash/days/2026-09-03"
 
       expect(response.body).not_to include("Balance general")
+    end
+
+    it "offers the history to the admin" do
+      sign_in admin
+
+      get "/web/cash/days/2026-09-03"
+
+      expect(response.body).to include("Historial de movimientos")
+    end
+
+    it "does not offer the history to the cashier" do
+      sign_in cashier
+
+      get "/web/cash/days/2026-09-03"
+
+      expect(response.body).not_to include("Historial de movimientos")
     end
   end
 end

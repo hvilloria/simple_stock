@@ -43,6 +43,12 @@ class CashMovementPolicy < ApplicationPolicy
     user.admin?
   end
 
+  # The history is the drill-down of the balance report, so the two screens are
+  # one permission: whoever may read the figures may read the rows behind them.
+  def movement_history?
+    balance_report?
+  end
+
   # An automatic row is undone through Cash::ReversePayment, never edited here:
   # correcting it would make the two modules disagree about the same money.
   # A transfer leg cannot be corrected alone either: it was written as one half
