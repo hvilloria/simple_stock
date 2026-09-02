@@ -92,7 +92,9 @@ RSpec.describe CashMovement, type: :model do
       it "is required on an ordinary movement" do
         movement = build(:cash_movement, account: nil)
         expect(movement).not_to be_valid
-        expect(movement.errors[:account]).to be_present
+        expect(movement.errors[:base]).to include(
+          "Falta el arca: indicá a qué caja entra o de cuál sale el dinero."
+        )
       end
 
       it "must be absent on a compensation sale" do
@@ -102,7 +104,9 @@ RSpec.describe CashMovement, type: :model do
       it "is rejected when a compensation sale names an arca" do
         movement = build(:cash_movement, :compensation_sale, account: "bank")
         expect(movement).not_to be_valid
-        expect(movement.errors[:account]).to be_present
+        expect(movement.errors[:base]).to include(
+          "Una venta por compensación no lleva arca: no entra dinero a ninguna caja."
+        )
       end
     end
 
@@ -110,13 +114,17 @@ RSpec.describe CashMovement, type: :model do
       it "is required on a sale" do
         movement = build(:cash_movement, category: "sale", channel: nil)
         expect(movement).not_to be_valid
-        expect(movement.errors[:channel]).to be_present
+        expect(movement.errors[:base]).to include(
+          "Falta el canal: indicá cómo entró el dinero de la venta."
+        )
       end
 
       it "must be absent on anything that is not a sale" do
         movement = build(:cash_movement, :supplier_payment, channel: "cash")
         expect(movement).not_to be_valid
-        expect(movement.errors[:channel]).to be_present
+        expect(movement.errors[:base]).to include(
+          "El canal solo corresponde a una venta."
+        )
       end
     end
 
@@ -124,13 +132,17 @@ RSpec.describe CashMovement, type: :model do
       it "is required on a fixed expense" do
         movement = build(:cash_movement, :store_expense, subcategory: nil)
         expect(movement).not_to be_valid
-        expect(movement.errors[:subcategory]).to be_present
+        expect(movement.errors[:base]).to include(
+          "Falta la subcategoría: indicá de qué tipo de gasto fijo se trata."
+        )
       end
 
       it "must be absent on anything that is not a fixed expense" do
         movement = build(:cash_movement, :supplier_payment, subcategory: "rent")
         expect(movement).not_to be_valid
-        expect(movement.errors[:subcategory]).to be_present
+        expect(movement.errors[:base]).to include(
+          "La subcategoría solo corresponde a un gasto fijo."
+        )
       end
     end
   end

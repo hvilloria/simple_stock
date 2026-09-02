@@ -67,6 +67,15 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       }.not_to change(CashMovement, :count)
     end
 
+    it "refuses a zero amount and writes nothing" do
+      expect {
+        post_movement(category: "sale", channel: "cash", description: "Venta", amount: "0,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El monto no puede ser cero.")
+    end
+
     it "refuses to write into a closed day" do
       create(:daily_closing, business_date: Date.new(2026, 8, 3))
 
@@ -201,6 +210,16 @@ RSpec.describe "Web::Cash::Movements", type: :request do
         expect {
           patch_movement(movement, category: "partner", description: "Retiro", amount: "1.000,00")
         }.not_to change { movement.reload.category }
+      end
+
+      it "refuses a zero amount and leaves the row untouched" do
+        expect {
+          patch_movement(movement, category: "sale", channel: "cash",
+                                   description: "Venta mostrador", amount: "0,00")
+        }.not_to change { movement.reload.amount }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("El monto no puede ser cero.")
       end
 
       it "refuses a day that was closed in another tab" do

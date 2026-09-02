@@ -16,6 +16,7 @@ module Web
 
         amount = signed_amount
         return refuse("El monto no es un número.") if amount.nil?
+        return refuse("El monto no puede ser cero.") if zero_amount?(amount)
 
         result = ::Cash::RecordMovement.call(
           business_date: @business_date,
@@ -51,6 +52,7 @@ module Web
 
         amount = signed_amount
         return refuse_edit("El monto no es un número.") if amount.nil?
+        return refuse_edit("El monto no puede ser cero.") if zero_amount?(amount)
 
         saved = @movement.update(
           amount: amount,
@@ -99,6 +101,10 @@ module Web
         return "drawer" unless category == "sale"
 
         CashMovement::CHANNEL_ACCOUNTS[channel.to_s]
+      end
+
+      def zero_amount?(decimal_string)
+        BigDecimal(decimal_string).zero?
       end
 
       # The cashier types a bare amount; the category decides the sign.
