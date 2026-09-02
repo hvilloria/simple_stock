@@ -76,7 +76,9 @@ Rails.application.routes.draw do
     end
 
     namespace :cash do
-      resources :days, only: [ :index, :show ], param: :business_date
+      resources :days, only: [ :index, :show ], param: :business_date do
+        resource :closing, only: [ :new, :create ], controller: "closings"
+      end
       resources :movements, only: [ :create, :edit, :update, :destroy ]
     end
   end

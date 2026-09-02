@@ -1,0 +1,23 @@
+- content_for :page_title, "Cerrar día"
+
+.container.mx-auto.px-6.py-6
+  %h1.text-2xl.font-bold.text-slate-900= "Cerrar el día #{@business_date.strftime('%d/%m/%Y')}"
+
+  - if @error
+    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mt-4
+      %p.text-sm.text-red-700= @error
+
+  -# Placeholder shell: the four-step closing flow (§7.2 of the design doc)
+  -# is built in the next task.
+  = form_with url: web_cash_day_closing_path(@business_date), method: :post, local: true do
+    .mt-4
+      %label.block.text-sm.font-medium.text-slate-700.mb-1 Monto contado
+      = text_field_tag :counted_cash, nil,
+          data: { controller: "currency-input" },
+          class: "border border-slate-300 rounded-lg px-3 py-2 text-sm"
+
+    .flex.gap-2.mt-4
+      = link_to "Cancelar", web_cash_day_path(@business_date),
+          class: "px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+      = submit_tag "Cerrar día",
+          class: "px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition-colors"
