@@ -20,6 +20,11 @@ module Web
       # history still adds up to the figures it explains.
       GROUP_OPTIONS = CashMovement::REPORTING_GROUP_LABELS.map { |group, label| [ label, group ] }.freeze
 
+      # A compensation has no arca, so the arca filter cannot reach it and its
+      # category is the same "Venta" every sale carries; the channel is the
+      # only handle the period's compensations have.
+      CHANNEL_OPTIONS = CashMovement::CHANNEL_LABELS.map { |channel, label| [ label, channel ] }.freeze
+
       CATEGORY_OPTIONS = CashMovement::CATEGORY_LABELS.map { |category, label| [ label, category ] }.freeze
 
       def balance
@@ -35,13 +40,16 @@ module Web
 
         load_range
         @group = params[:group].to_s
+        @channel = params[:channel].to_s
         @category = params[:category].to_s
         @search = params[:search].to_s.strip
         @group_options = GROUP_OPTIONS
+        @channel_options = CHANNEL_OPTIONS
         @category_options = CATEGORY_OPTIONS
         @pagy, @movements = pagy(
           ::Cash::Reports::MovementsQuery.call(
-            from: @from, to: @to, group: @group, category: @category, search: @search
+            from: @from, to: @to, group: @group, channel: @channel,
+            category: @category, search: @search
           )
         )
       end

@@ -3,6 +3,8 @@
 module Web
   module Cash
     class DaysController < ApplicationController
+      include SupplierOptions
+
       def index
         authorize CashMovement, :index?
 
@@ -17,6 +19,8 @@ module Web
 
         @business_date = business_date
         @day = ::Cash::DayQuery.new(@business_date)
+        # Only the live row offers a supplier, and a closed day has no live row.
+        @suppliers = supplier_options unless @day.closed?
       end
 
       private

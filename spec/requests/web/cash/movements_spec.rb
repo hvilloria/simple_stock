@@ -555,4 +555,74 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       expect(response.body).not_to include('value="withdrawal"')
     end
   end
+
+  describe "compensation sales" do
+    let!(:supplier) { create(:supplier, name: "Cromosol") }
+
+    it "names the supplier whose debt the sale cancels" do
+      post_movement(category: "sale", channel: "compensation", supplier_id: supplier.id,
+                    description: "Compensación Cromosol", amount: "661.188,00")
+
+      movement = CashMovement.last
+      expect(movement.channel).to eq("compensation")
+      expect(movement.supplier).to eq(supplier)
+      expect(movement.account).to be_nil
+      expect(movement.amount).to eq(661_188)
+    end
+
+    it "refuses one with no supplier and writes nothing" do
+      expect {
+        post_movement(category: "sale", channel: "compensation", supplier_id: "",
+                      description: "Compensación", amount: "661.188,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Falta el proveedor")
+    end
+
+    it "refuses a supplier on a sale that reached an arca" do
+      expect {
+        post_movement(category: "sale", channel: "cash", supplier_id: supplier.id,
+                      description: "Venta mostrador", amount: "1.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "offers the supplier in the drawer live row, which the cash sale then leaves unsent" do
+      get "/web/cash/days/2026-08-03"
+
+      expect(response.body).to include("cash-live-row-target=\"supplier\"", "Cromosol")
+
+      expect {
+        post_movement(category: "sale", channel: "cash", description: "Venta mostrador", amount: "1.000,00")
+      }.to change(CashMovement, :count).by(1)
+      expect(CashMovement.last.supplier).to be_nil
+    end
+
+    it "keeps the supplier when the row is corrected" do
+      movement = create(:cash_movement, :compensation_sale, business_date: Date.new(2026, 8, 3),
+                                                            supplier: supplier, user: cashier)
+
+      patch "/web/cash/movements/#{movement.id}",
+            params: { business_date: date, category: "sale", channel: "compensation",
+                      supplier_id: supplier.id, description: "Compensación", amount: "700.000,00" },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      movement.reload
+      expect(movement.amount).to eq(700_000)
+      expect(movement.supplier).to eq(supplier)
+    end
+
+    it "offers the supplier in the edit row of a compensation sale" do
+      movement = create(:cash_movement, :compensation_sale, business_date: Date.new(2026, 8, 3),
+                                                            supplier: supplier, user: cashier)
+
+      get "/web/cash/movements/#{movement.id}/edit",
+          headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include("cash-live-row-target=\"supplier\"")
+      expect(response.body).to include(%(selected="selected" value="#{supplier.id}"))
+    end
+  end
 end

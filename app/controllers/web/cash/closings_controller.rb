@@ -4,6 +4,7 @@ module Web
   module Cash
     class ClosingsController < ApplicationController
       include CurrencyParser
+      include SupplierOptions
 
       before_action :set_business_date
 
@@ -11,6 +12,8 @@ module Web
         authorize DailyClosing.new, :new?
 
         @day = ::Cash::DayQuery.new(@business_date)
+        # The screen shows the still-open day behind the modal, live row and all.
+        @suppliers = supplier_options
       end
 
       def create
@@ -53,6 +56,7 @@ module Web
       def refuse(message)
         @error = message
         @day = ::Cash::DayQuery.new(@business_date)
+        @suppliers = supplier_options
         render :new, status: :unprocessable_entity
       end
     end

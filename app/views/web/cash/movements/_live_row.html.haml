@@ -14,12 +14,18 @@
     = select_tag :channel,
                  options_for_select(CashMovement::CHANNEL_LABELS.map { |k, v| [ v, k ] }),
                  form: "drawer-form",
-                 data: { "cash-live-row-target": "channel" },
+                 data: { "cash-live-row-target": "channel", action: "change->cash-live-row#toggleFields" },
                  class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
     = select_tag :subcategory,
                  options_for_select(CashMovement::SUBCATEGORY_LABELS.map { |k, v| [ v, k ] }),
                  form: "drawer-form",
                  data: { "cash-live-row-target": "subcategory" },
+                 class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+    = select_tag :supplier_id,
+                 options_for_select(suppliers),
+                 form: "drawer-form",
+                 include_blank: "Proveedor",
+                 data: { "cash-live-row-target": "supplier" },
                  class: "w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
   %td.px-4.py-2{ colspan: 2 }
     = text_field_tag :amount, nil, form: "drawer-form",

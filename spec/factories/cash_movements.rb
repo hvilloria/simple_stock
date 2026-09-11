@@ -20,6 +20,7 @@ FactoryBot.define do
       channel { "compensation" }
       account { nil }
       amount { 661_188 }
+      association :supplier
     end
 
     trait :store_expense do

@@ -10,7 +10,7 @@ module Cash
 
     def initialize(business_date:, account:, amount:, category:, user:,
                    subcategory: nil, channel: nil, description: nil,
-                   source_payment: nil)
+                   source_payment: nil, supplier: nil)
       @business_date  = business_date
       @account        = account
       @amount         = amount
@@ -20,6 +20,7 @@ module Cash
       @channel        = channel
       @description    = description
       @source_payment = source_payment
+      @supplier       = supplier
     end
 
     def call
@@ -34,6 +35,7 @@ module Cash
         channel:        @channel,
         description:    @description,
         source_payment: @source_payment,
+        supplier:       @supplier,
         user:           @user
       )
 

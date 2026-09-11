@@ -40,10 +40,13 @@ RSpec.describe Cash::RecordMovement do
     end
 
     it "records a compensation sale with no arca" do
-      result = call(channel: "compensation", account: nil, amount: 661_188)
+      supplier = create(:supplier)
+      result = call(channel: "compensation", account: nil, amount: 661_188,
+                    supplier: supplier)
 
       expect(result).to be_success
       expect(result.record.account).to be_nil
+      expect(result.record.supplier).to eq(supplier)
     end
   end
 
@@ -58,6 +61,13 @@ RSpec.describe Cash::RecordMovement do
 
     it "rejects a sale with no channel" do
       result = call(channel: nil)
+
+      expect(result).to be_failure
+      expect(CashMovement.count).to eq(0)
+    end
+
+    it "rejects a compensation sale with no supplier" do
+      result = call(channel: "compensation", account: nil, amount: 661_188)
 
       expect(result).to be_failure
       expect(CashMovement.count).to eq(0)

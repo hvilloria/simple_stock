@@ -1,5 +1,5 @@
 = turbo_stream.replace dom_id(@movement) do
   - if @movement.drawer_zone?
-    = render "web/cash/movements/edit_row", movement: @movement, error: @error
+    = render "web/cash/movements/edit_row", movement: @movement, error: @error, suppliers: @suppliers
   - else
     = render "web/cash/movements/arca_edit_row", movement: @movement, error: @error

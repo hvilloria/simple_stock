@@ -4,6 +4,7 @@ module Web
   module Cash
     class MovementsController < ApplicationController
       include CurrencyParser
+      include SupplierOptions
 
       OUTFLOW_CATEGORIES = %w[suppliers fixed_expense].freeze
 
@@ -13,6 +14,8 @@ module Web
 
         @business_date = Date.parse(params[:business_date])
         @zone = arca_submission? ? :arca : :drawer
+        # Only the drawer live row offers a supplier; the arca zone has none.
+        @suppliers = supplier_options if @zone == :drawer
         return refuse("El día está cerrado.") if day_closed?
         return refuse("Esa categoría no se carga en esta zona.") unless zone_category?
         return refuse("Indicá si el socio retira o aporta.") unless partner_direction?
@@ -28,6 +31,7 @@ module Web
           category: params[:category],
           subcategory: params[:subcategory].presence,
           channel: params[:channel].presence,
+          supplier: submitted_supplier,
           description: params[:description].presence,
           user: current_user
         )
@@ -44,6 +48,7 @@ module Web
         authorize @movement, :update?
         return refuse_closed_day if day_closed?
 
+        @suppliers = supplier_options if @movement.drawer_zone?
         render :edit
       end
 
@@ -66,6 +71,7 @@ module Web
           subcategory: params[:subcategory].presence,
           channel: params[:channel].presence,
           account: account_for(params[:category], params[:channel]),
+          supplier: submitted_supplier,
           description: params[:description].presence
         )
 
@@ -129,6 +135,12 @@ module Web
         CashMovement::CHANNEL_ACCOUNTS[channel.to_s]
       end
 
+      # Only a compensation sale names one. An id that matches nothing yields
+      # nil, which the model rejects, the same way an unknown arca does.
+      def submitted_supplier
+        Supplier.find_by(id: params[:supplier_id])
+      end
+
       # An unknown arca yields a nil account, which the model rejects, the same
       # way an unknown channel does.
       def submitted_account
@@ -160,6 +172,7 @@ module Web
       def refuse_edit(message)
         @error = message
         @movement.restore_attributes
+        @suppliers = supplier_options if @movement.drawer_zone?
         render :edit, status: :unprocessable_entity
       end
 

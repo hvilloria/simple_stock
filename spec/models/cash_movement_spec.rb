@@ -98,7 +98,11 @@ RSpec.describe CashMovement, type: :model do
     end
 
     it "maps only to channels that have an arca" do
-      expect(described_class::PAYMENT_METHOD_CHANNELS.values).to all(satisfy { |v| described_class::CHANNEL_ACCOUNTS.key?(v) })
+      # key? is not enough: compensation IS a key, mapping to nil. Money that
+      # arrives through a payment method always lands somewhere.
+      arcas = described_class::PAYMENT_METHOD_CHANNELS.values.map { |channel| described_class::CHANNEL_ACCOUNTS.fetch(channel) }
+
+      expect(arcas).to all(be_present)
     end
   end
 
@@ -164,6 +168,30 @@ RSpec.describe CashMovement, type: :model do
         expect(movement).not_to be_valid
         expect(movement.errors[:base]).to include(
           "La subcategoría solo corresponde a un gasto fijo."
+        )
+      end
+    end
+
+    context "supplier" do
+      it "is required on a compensation sale" do
+        movement = build(:cash_movement, :compensation_sale, supplier: nil)
+        expect(movement).not_to be_valid
+        expect(movement.errors[:base]).to include(
+          "Falta el proveedor: indicá a quién se le descuenta la deuda por la compensación."
+        )
+      end
+
+      it "is accepted on a compensation sale" do
+        movement = build(:cash_movement, :compensation_sale)
+        expect(movement.supplier).to be_present
+        expect(movement).to be_valid
+      end
+
+      it "must be absent on anything that is not a compensation sale" do
+        movement = build(:cash_movement, supplier: build(:supplier))
+        expect(movement).not_to be_valid
+        expect(movement.errors[:base]).to include(
+          "El proveedor solo corresponde a una venta por compensación."
         )
       end
     end

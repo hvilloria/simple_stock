@@ -93,6 +93,7 @@ class CashMovement < ApplicationRecord
 
   belongs_to :daily_closing, optional: true
   belongs_to :source_payment, class_name: "Payment", optional: true
+  belongs_to :supplier, optional: true
   belongs_to :user
 
   # Both legs of a transfer, self-joined on the shared transfer_group_id. An
@@ -117,6 +118,7 @@ class CashMovement < ApplicationRecord
   validate :account_required_unless_compensation
   validate :channel_only_on_sales
   validate :subcategory_only_on_fixed_expenses
+  validate :supplier_only_on_compensation_sales
 
   scope :for_account, ->(account) { where(account: account) }
   scope :on, ->(date) { where(business_date: date) }
@@ -226,6 +228,18 @@ class CashMovement < ApplicationRecord
       end
     elsif subcategory.present?
       errors.add(:base, "La subcategoría solo corresponde a un gasto fijo.")
+    end
+  end
+
+  # Cash names the supplier whose debt the compensation cancels; adjusting that
+  # debt is a manual step in the invoices module.
+  def supplier_only_on_compensation_sales
+    if compensation_channel?
+      if supplier.blank?
+        errors.add(:base, "Falta el proveedor: indicá a quién se le descuenta la deuda por la compensación.")
+      end
+    elsif supplier.present?
+      errors.add(:base, "El proveedor solo corresponde a una venta por compensación.")
     end
   end
 end

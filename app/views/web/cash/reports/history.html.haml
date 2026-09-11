@@ -21,6 +21,11 @@
                      class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm",
                      data: { action: "change->filter-form#submit" }
 
+        = select_tag :channel,
+                     options_for_select([ [ "Todos los canales", "" ] ] + @channel_options, @channel),
+                     class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm",
+                     data: { action: "change->filter-form#submit" }
+
         = select_tag :category,
                      options_for_select([ [ "Todas las categorías", "" ] ] + @category_options, @category),
                      class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm",
@@ -52,6 +57,7 @@
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Descripción
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Arca
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Categoría
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Proveedor
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider N° nota
             %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Entrada
             %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Salida
@@ -73,6 +79,8 @@
               -# The fine arca, against the coarse filter above: read fine, filter coarse.
               %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= movement.account.present? ? CashMovement.account_label(movement.account) : "—"
               %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= CashMovement.category_label(movement.category)
+              -# Only a compensation names a supplier: the debt it cancels is settled by hand in facturas.
+              %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= movement.supplier&.name || "—"
               %td.px-4.py-3.text-sm.text-slate-600.font-mono.whitespace-nowrap
                 - if paper_numbers.empty?
                   = "—"

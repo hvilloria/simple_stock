@@ -18,6 +18,6 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     .lg:col-span-2.space-y-6
-      = render "web/cash/days/drawer_zone", day: day, business_date: business_date
+      = render "web/cash/days/drawer_zone", day: day, business_date: business_date, suppliers: suppliers
       = render "web/cash/days/arca_zone", day: day, business_date: business_date
     = render "web/cash/days/sales_by_channel", day: day

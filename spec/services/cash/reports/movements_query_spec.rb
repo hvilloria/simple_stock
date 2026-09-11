@@ -63,6 +63,38 @@ RSpec.describe Cash::Reports::MovementsQuery do
     end
   end
 
+  # The one filter that reaches a compensation: it has no arca, so the arca
+  # filter cannot find it, and its category is the same "Venta" every sale of
+  # the month carries.
+  describe "the channel filter" do
+    it "narrows to one channel" do
+      card = movement(:card_sale)
+      movement(account: "drawer", amount: 10_000)
+
+      expect(result(channel: "card")).to eq([ card ])
+    end
+
+    it "reaches the compensations of the period, which no arca filter can" do
+      compensation = movement(:compensation_sale)
+      movement(account: "drawer", amount: 10_000)
+      movement(:card_sale)
+
+      expect(result(channel: "compensation")).to eq([ compensation ])
+    end
+
+    it "ignores a channel nobody offers" do
+      drawer = movement(account: "drawer", amount: 10_000)
+
+      expect(result(channel: "no-existe")).to eq([ drawer ])
+    end
+
+    it "ignores a blank channel" do
+      drawer = movement(account: "drawer", amount: 10_000)
+
+      expect(result(channel: "")).to eq([ drawer ])
+    end
+  end
+
   describe "the category filter" do
     it "narrows to one category" do
       expense = movement(:store_expense)
@@ -114,26 +146,40 @@ RSpec.describe Cash::Reports::MovementsQuery do
 
       expect(result(group: "efectivo", category: "suppliers", search: "cromosol")).to eq([ wanted ])
     end
+
+    it "narrows a compensation by channel, category and search at once" do
+      wanted = movement(:compensation_sale, description: "Cromosol compensación")
+      movement(:compensation_sale, description: "Otro proveedor")
+      movement(:card_sale, description: "Cromosol compensación")
+      movement(business_date: to + 1, channel: "compensation", account: nil,
+               supplier: create(:supplier), amount: 1_000, description: "Cromosol compensación")
+
+      expect(result(channel: "compensation", category: "sale", search: "cromosol")).to eq([ wanted ])
+    end
   end
 
-  # The paper-number column reads through the source payment and the transfer
-  # counterpart through the shared transfer_group_id, so a page of rows must
-  # cost the same round trips as a single row.
+  # The paper-number column reads through the source payment, the transfer
+  # counterpart through the shared transfer_group_id and the supplier column
+  # through the compensation's supplier, so a page of rows must cost the same
+  # round trips as a single row.
   describe "the cost of a page" do
-    it "costs four round trips, not one per row" do
+    it "costs five round trips, not one per row" do
       3.times { movement(:from_collection, account: "drawer", amount: 10_000) }
       movement(account: "drawer", amount: 20_000)
+      movement(:compensation_sale)
       transfer_pair
 
-      expect(round_trips).to eq(4)
+      expect(round_trips).to eq(5)
     end
 
     it "costs the same however many rows the page holds" do
       3.times { movement(:from_collection, account: "drawer", amount: 10_000) }
+      movement(:compensation_sale)
       transfer_pair
       few = round_trips
 
       12.times { movement(:from_collection, account: "drawer", amount: 10_000) }
+      3.times { movement(:compensation_sale) }
       3.times { transfer_pair }
 
       expect(round_trips).to eq(few)
@@ -151,6 +197,7 @@ RSpec.describe Cash::Reports::MovementsQuery do
         described_class.call(from: from, to: to).limit(50).each do |row|
           row.paper_numbers
           row.transfer_counterpart_label
+          row.supplier&.name
         end
       end.size
     end

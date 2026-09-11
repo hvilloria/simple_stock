@@ -282,6 +282,64 @@ RSpec.describe "Web::Cash::Reports", type: :request do
         expect(response.body).not_to include("En el banco")
       end
 
+      # The compensations of a period are otherwise unfindable: they have no
+      # arca, and their category is the same "Venta" every sale carries.
+      it "offers every channel in the channel filter" do
+        get "/web/cash/reports/history"
+
+        options = Nokogiri::HTML(response.body).css("select[name=channel] option").map { |o| o.text.strip }
+        expect(options).to eq([ "Todos los canales", "Efectivo", "Tarjeta", "QR", "Transferencia",
+                                "Mercado Pago", "USD", "Compensación" ])
+      end
+
+      it "narrows by channel" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(:compensation_sale, description: "Compensada")
+          movement(:card_sale, description: "Con tarjeta")
+          movement(account: "drawer", amount: 10_000, description: "En efectivo")
+
+          get "/web/cash/reports/history", params: { channel: "compensation" }
+        end
+
+        expect(rows.size).to eq(1)
+        expect(response.body).to include("Compensada")
+        expect(response.body).not_to include("Con tarjeta")
+      end
+
+      it "combines the channel filter with the period" do
+        movement(:compensation_sale, business_date: Date.new(2026, 7, 10), description: "De julio")
+        movement(:compensation_sale, business_date: Date.new(2026, 9, 10), description: "De septiembre")
+
+        get "/web/cash/reports/history",
+            params: { channel: "compensation", period: "custom", from: "2026-07-04", to: "2026-08-09" }
+
+        expect(rows.size).to eq(1)
+        expect(response.body).to include("De julio")
+        expect(response.body).not_to include("De septiembre")
+      end
+
+      it "names the supplier whose debt a compensation cancels" do
+        travel_to Date.new(2026, 9, 2) do
+          supplier = create(:supplier, name: "Cromosol")
+          movement(:compensation_sale, supplier: supplier, description: "Compensada")
+
+          get "/web/cash/reports/history"
+        end
+
+        expect(cells_of(rows.first)).to include("Cromosol")
+      end
+
+      it "leaves the supplier blank on a row that is not a compensation" do
+        travel_to Date.new(2026, 9, 2) do
+          movement(account: "drawer", amount: 10_000, description: "Una venta")
+
+          get "/web/cash/reports/history"
+        end
+
+        headers = Nokogiri::HTML(response.body).css("thead th").map { |cell| cell.text.strip }
+        expect(cells_of(rows.first)[headers.index("Proveedor")]).to eq("—")
+      end
+
       it "narrows by category" do
         travel_to Date.new(2026, 9, 2) do
           movement(:store_expense, description: "Gasto de local")

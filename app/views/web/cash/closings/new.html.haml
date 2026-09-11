@@ -1,6 +1,6 @@
 - content_for :page_title, "Cerrar día"
 
-= render "web/cash/days/day", day: @day, business_date: @business_date
+= render "web/cash/days/day", day: @day, business_date: @business_date, suppliers: @suppliers
 
 .fixed.inset-0.z-50.overflow-y-auto{ class: "bg-slate-900/50" }
   .flex.min-h-full.items-start.justify-center.p-4

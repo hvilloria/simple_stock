@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_09_02_000000) do
+ActiveRecord::Schema[7.2].define(version: 2026_09_02_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -39,11 +39,13 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_02_000000) do
     t.bigint "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "supplier_id"
     t.index ["account"], name: "index_cash_movements_on_account"
     t.index ["business_date"], name: "index_cash_movements_on_business_date"
     t.index ["category"], name: "index_cash_movements_on_category"
     t.index ["daily_closing_id"], name: "index_cash_movements_on_daily_closing_id"
     t.index ["source_payment_id"], name: "index_cash_movements_on_source_payment_id"
+    t.index ["supplier_id"], name: "index_cash_movements_on_supplier_id"
     t.index ["transfer_group_id"], name: "index_cash_movements_on_transfer_group_id"
     t.index ["user_id"], name: "index_cash_movements_on_user_id"
   end
@@ -289,6 +291,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_02_000000) do
   add_foreign_key "applied_credits", "invoices"
   add_foreign_key "cash_movements", "daily_closings"
   add_foreign_key "cash_movements", "payments", column: "source_payment_id"
+  add_foreign_key "cash_movements", "suppliers"
   add_foreign_key "cash_movements", "users"
   add_foreign_key "credit_note_items", "credit_notes"
   add_foreign_key "credit_note_items", "products"
