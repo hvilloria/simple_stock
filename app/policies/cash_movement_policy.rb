@@ -29,8 +29,11 @@ class CashMovementPolicy < ApplicationPolicy
     ADMIN_ARCA_CATEGORIES.include?(category) && !user.admin?
   end
 
+  # The module is admin-only for now: the cashier's access is deferred, not
+  # cancelled. Everything else here derives from this gate, so re-opening it to
+  # her is this line and the Scope below.
   def index?
-    user.caja? || user.admin?
+    user.admin?
   end
 
   def create?
@@ -64,7 +67,7 @@ class CashMovementPolicy < ApplicationPolicy
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      return scope.all if user.caja? || user.admin?
+      return scope.all if user.admin?
 
       scope.none
     end

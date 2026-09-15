@@ -444,37 +444,31 @@ RSpec.describe "Web::Cash::Reports", type: :request do
     end
   end
 
-  describe "the sidebar entry" do
-    it "offers the report to the admin" do
-      sign_in admin
+  describe "the sidebar entries" do
+    context "as the admin" do
+      before { sign_in admin }
 
-      get "/web/cash/days/2026-09-03"
+      it "offers the whole module" do
+        get "/web/cash/days/2026-09-03"
 
-      expect(response.body).to include("Balance general")
+        expect(response.body).to include("Balance general")
+        expect(response.body).to include("Historial de movimientos")
+        expect(response.body).to include(web_cash_days_path)
+      end
     end
 
-    it "does not offer it to the cashier" do
-      sign_in cashier
+    # She is sent to the dashboard: no cash screen renders for her at all, so
+    # the sidebar is read from a screen she can still reach.
+    context "as the cashier" do
+      before { sign_in cashier }
 
-      get "/web/cash/days/2026-09-03"
+      it "offers her none of the three cash screens" do
+        get authenticated_root_path
 
-      expect(response.body).not_to include("Balance general")
-    end
-
-    it "offers the history to the admin" do
-      sign_in admin
-
-      get "/web/cash/days/2026-09-03"
-
-      expect(response.body).to include("Historial de movimientos")
-    end
-
-    it "does not offer the history to the cashier" do
-      sign_in cashier
-
-      get "/web/cash/days/2026-09-03"
-
-      expect(response.body).not_to include("Historial de movimientos")
+        expect(response.body).not_to include("Balance general")
+        expect(response.body).not_to include("Historial de movimientos")
+        expect(response.body).not_to include(web_cash_days_path)
+      end
     end
   end
 end

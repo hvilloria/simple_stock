@@ -13,7 +13,7 @@ require "rails_helper"
 RSpec.describe "Caja - compensación", type: :system do
   include Warden::Test::Helpers
 
-  let(:cashier)       { create(:user, :caja) }
+  let(:admin)         { create(:user, :admin) }
   let(:business_date) { Date.new(2026, 8, 3) }
   let(:day_path)      { "/web/cash/days/#{business_date}" }
 
@@ -24,7 +24,7 @@ RSpec.describe "Caja - compensación", type: :system do
 
   before do
     driven_by :selenium_chrome_headless, screen_size: [ 1400, 900 ]
-    login_as(cashier, scope: :user)
+    login_as(admin, scope: :user)
   end
 
   after { Warden.test_reset! }

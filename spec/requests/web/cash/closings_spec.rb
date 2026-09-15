@@ -3,15 +3,15 @@
 require "rails_helper"
 
 RSpec.describe "Web::Cash::Closings", type: :request do
-  let(:cashier) { create(:user, role: "caja") }
-  let(:date)    { Date.new(2026, 8, 3) }
+  let(:admin) { create(:user, role: "admin") }
+  let(:date)  { Date.new(2026, 8, 3) }
 
   def post_closing(params)
     post "/web/cash/days/#{date}/closing", params: params
   end
 
   describe "GET /web/cash/days/:day_business_date/closing/new" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     def get_new
       get "/web/cash/days/#{date}/closing/new"
@@ -79,7 +79,7 @@ RSpec.describe "Web::Cash::Closings", type: :request do
   end
 
   describe "POST /web/cash/days/:day_business_date/closing" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     it "closes the day and seals its movements" do
       movement = create(:cash_movement, business_date: date, amount: 311_700)
@@ -121,6 +121,17 @@ RSpec.describe "Web::Cash::Closings", type: :request do
   end
 
   describe "authorization" do
+    it "turns the cashier away: the closing flow is admin-only for now" do
+      sign_in create(:user, role: "caja")
+
+      expect {
+        post_closing(counted_cash: "0,00")
+      }.not_to change(DailyClosing, :count)
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(flash[:alert]).to be_present
+    end
+
     it "turns a seller away" do
       sign_in create(:user, role: "vendedor")
 

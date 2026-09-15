@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 class DailyClosingPolicy < ApplicationPolicy
+  # Admin-only while the cash module is closed to the cashier.
   def create?
-    user.caja? || user.admin?
+    user.admin?
   end
 
   def new?

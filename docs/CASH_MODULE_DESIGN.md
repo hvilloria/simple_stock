@@ -681,10 +681,29 @@ warning). UI labels in Spanish; HAML only.
 
 ## 9. Roles
 
+**As shipped today the module is admin-only.** The three cash screens — the day
+view, the balance report and the movement history — are the `admin`'s alone.
+
 | Role | Can |
+|---|---|
+| `caja` | Nothing, for now. No day view, no closing flow, no reports. |
+| `admin` | Everything: both zones of any open day, the closing flow, the whole month of day views, and the two reports. |
+
+### The cashier's access is deferred, not cancelled
+
+The module was designed around the cashier as its primary user and she is
+expected back. The intended end state is:
+
+| Role | Will be able to |
 |---|---|
 | `caja` | Load movements in **both zones** of any open day, run the closing flow, view the whole month of day views. **Cannot** load `partner` or `opening_balance` categories. **Does not see** the balance report or the movement history. |
 | `admin` | Everything, plus the reports. |
+
+The role logic that distinguishes the two is still in place and still tested:
+`CashMovementPolicy::ADMIN_ARCA_CATEGORIES`, `#categories_for` and
+`#forbidden_category?`. Re-opening the module to her is
+`CashMovementPolicy#index?`, `CashMovementPolicy::Scope#resolve` and
+`DailyClosingPolicy#create?` — three lines, no other change.
 
 Pundit policies: `CashMovementPolicy`, `DailyClosingPolicy`. The restriction on
 the cashier is on data as well as actions — the policy scope has to be real,

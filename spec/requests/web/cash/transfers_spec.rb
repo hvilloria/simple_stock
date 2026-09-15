@@ -3,10 +3,10 @@
 require "rails_helper"
 
 RSpec.describe "Web::Cash::Transfers", type: :request do
-  let(:cashier) { create(:user, role: "caja") }
-  let(:date)    { "2026-08-03" }
+  let(:admin) { create(:user, role: "admin") }
+  let(:date)  { "2026-08-03" }
 
-  before { sign_in cashier }
+  before { sign_in admin }
 
   def post_transfer(params)
     post "/web/cash/transfers",
@@ -112,6 +112,17 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
       expect {
         post_transfer(from: "main_cash", to: "bank", amount: "10.000,00")
       }.not_to change(CashMovement, :count)
+    end
+
+    it "turns the cashier away: the module is admin-only for now" do
+      sign_in create(:user, role: "caja")
+
+      expect {
+        post_transfer(from: "main_cash", to: "bank", amount: "10.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(flash[:alert]).to be_present
     end
   end
 

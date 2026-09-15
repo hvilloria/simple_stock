@@ -3,12 +3,12 @@
 require "rails_helper"
 
 RSpec.describe "Web::Cash::Days", type: :request do
-  let(:cashier) { create(:user, role: "caja") }
-  let(:date)    { Date.new(2026, 8, 3) }
+  let(:admin) { create(:user, role: "admin") }
+  let(:date)  { Date.new(2026, 8, 3) }
 
   describe "GET /web/cash/days" do
-    it "sends the cashier to today" do
-      sign_in cashier
+    it "sends the admin to today" do
+      sign_in admin
 
       get "/web/cash/days"
 
@@ -17,7 +17,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "GET /web/cash/days/:business_date" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     it "renders the day's drawer movements" do
       create(:cash_movement, business_date: date, description: "Venta mostrador")
@@ -57,7 +57,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "the two zones of the day" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     def zone_text(dom_id)
       Nokogiri::HTML(response.body).at("##{dom_id}").to_s
@@ -106,7 +106,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "POST /web/cash/movements" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     it "includes the sales-by-channel panel in the turbo stream response" do
       post "/web/cash/movements",
@@ -120,6 +120,15 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "authorization" do
+    it "turns the cashier away: the module is admin-only for now" do
+      sign_in create(:user, role: "caja")
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(flash[:alert]).to be_present
+    end
+
     it "turns a seller away" do
       sign_in create(:user, role: "vendedor")
 
@@ -137,7 +146,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
   describe "a day whose cash expenses exceeded its cash sales" do
     before do
-      sign_in cashier
+      sign_in admin
       create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 50_000)
       create(:cash_movement, :store_expense, business_date: date, amount: -350_000)
 
@@ -156,7 +165,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
   describe "a closed day" do
     before do
-      sign_in cashier
+      sign_in admin
       create(:cash_movement, business_date: date, description: "Venta mostrador")
       create(:daily_closing, business_date: date)
 
@@ -183,7 +192,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "a row born from a collection" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     it "offers no way to correct it" do
       create(:cash_movement, :from_collection, business_date: date, description: "Cobro a cuenta")
@@ -195,7 +204,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(response.body).not_to include("Eliminar")
     end
 
-    it "offers them on a row the cashier typed the same day" do
+    it "offers them on a row the admin typed the same day" do
       create(:cash_movement, business_date: date, description: "Venta mostrador")
 
       get "/web/cash/days/2026-08-03"
@@ -235,7 +244,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "a transfer leg" do
-    before { sign_in cashier }
+    before { sign_in admin }
 
     it "marks the row as one leg of a movement between arcas" do
       create(:cash_movement, :transfer_leg, business_date: date, description: "Cierre de caja del día")
@@ -265,7 +274,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
   describe "an open day" do
     before do
-      sign_in cashier
+      sign_in admin
       create(:cash_movement, business_date: date, description: "Venta mostrador")
 
       get "/web/cash/days/2026-08-03"

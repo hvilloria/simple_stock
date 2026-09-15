@@ -13,7 +13,6 @@ require "rails_helper"
 RSpec.describe "Caja - zona de arcas", type: :system do
   include Warden::Test::Helpers
 
-  let(:cashier)       { create(:user, :caja) }
   let(:admin)         { create(:user, :admin) }
   let(:business_date) { Date.new(2026, 8, 3) }
   let(:day_path)      { "/web/cash/days/#{business_date}" }
@@ -28,8 +27,8 @@ RSpec.describe "Caja - zona de arcas", type: :system do
 
   after { Warden.test_reset! }
 
-  context "as a cashier" do
-    before { login_as(cashier, scope: :user) }
+  context "the day screen" do
+    before { login_as(admin, scope: :user) }
 
     it "leaves the caret in the drawer row only, with the arca row waiting" do
       visit day_path
@@ -62,7 +61,7 @@ RSpec.describe "Caja - zona de arcas", type: :system do
       end
     end
 
-    it "shows the subcategory only on a fixed expense and offers no partner category" do
+    it "shows the subcategory only on a fixed expense" do
       visit day_path
 
       within("#arca-live-row") do
@@ -76,8 +75,6 @@ RSpec.describe "Caja - zona de arcas", type: :system do
       end
 
       expect(page).to have_css("#arca-category option", text: "Proveedores")
-      expect(page).to have_no_css("#arca-category option", text: "Socio")
-      expect(page).to have_no_css("#arca-direction", visible: :all)
     end
 
     # R-6: the zone a row lands in is the arca it names, not the form it was
@@ -177,7 +174,7 @@ RSpec.describe "Caja - zona de arcas", type: :system do
     end
   end
 
-  context "as an admin" do
+  context "partner movements" do
     before { login_as(admin, scope: :user) }
 
     it "shows the direction only on a partner movement" do

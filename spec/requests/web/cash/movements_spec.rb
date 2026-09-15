@@ -3,10 +3,10 @@
 require "rails_helper"
 
 RSpec.describe "Web::Cash::Movements", type: :request do
-  let(:cashier) { create(:user, role: "caja") }
-  let(:date)    { "2026-08-03" }
+  let(:admin) { create(:user, role: "admin") }
+  let(:date)  { "2026-08-03" }
 
-  before { sign_in cashier }
+  before { sign_in admin }
 
   def post_movement(params)
     post "/web/cash/movements",
@@ -91,6 +91,51 @@ RSpec.describe "Web::Cash::Movements", type: :request do
         post_movement(category: "sale", channel: "cash", description: "Venta", amount: "1.000,00")
       }.not_to change(CashMovement, :count)
     end
+
+    it "turns the cashier away: the module is admin-only for now" do
+      sign_in create(:user, role: "caja")
+
+      expect {
+        post_movement(category: "sale", channel: "cash", description: "Venta", amount: "1.000,00")
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(flash[:alert]).to be_present
+    end
+  end
+
+  # Every verb, not only the ones index? happens to cover today. The module is
+  # closed to the cashier by a single gate, so each way in is worth its own
+  # example: if that gate is ever loosened, these say exactly what reopened.
+  describe "every way a cashier could reach a movement" do
+    let(:movement) { create(:cash_movement, business_date: Date.new(2026, 8, 3)) }
+
+    before { sign_in create(:user, role: "caja") }
+
+    it "refuses to open the edit form" do
+      get "/web/cash/movements/#{movement.id}/edit"
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(flash[:alert]).to be_present
+    end
+
+    it "refuses to update it, leaving the row untouched" do
+      patch "/web/cash/movements/#{movement.id}",
+            params: { category: "suppliers", description: "Forzado", amount: "1.000,00" }
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(movement.reload.description).not_to eq("Forzado")
+    end
+
+    it "refuses to destroy it" do
+      movement
+
+      expect {
+        delete "/web/cash/movements/#{movement.id}"
+      }.not_to change(CashMovement, :count)
+
+      expect(response).to redirect_to(authenticated_root_path)
+    end
   end
 
   describe "every category the drawer zone offers" do
@@ -120,7 +165,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       post_movement({ account: "bank" }.merge(params))
     end
 
-    it "records a supplier payment against the arca the cashier declared" do
+    it "records a supplier payment against the arca the user declared" do
       post_arca_movement(category: "suppliers", description: "Cromosol", amount: "153.951,00")
 
       movement = CashMovement.last
@@ -209,7 +254,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
     describe "correcting an arca row" do
       let(:movement) do
-        create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: cashier)
+        create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: admin)
       end
 
       it "opens a form row that offers the arca" do
@@ -255,7 +300,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
   describe "correcting a row" do
     let(:business_date) { Date.new(2026, 8, 3) }
     let(:movement) do
-      create(:cash_movement, business_date: business_date, user: cashier,
+      create(:cash_movement, business_date: business_date, user: admin,
              description: "Venta mostrador", amount: 324_700)
     end
 
@@ -373,7 +418,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       end
 
       it "refuses a sealed movement with a redirect and a flash, not a 500" do
-        sealed = create(:cash_movement, :sealed, business_date: business_date, user: cashier)
+        sealed = create(:cash_movement, :sealed, business_date: business_date, user: admin)
 
         expect {
           patch_movement(sealed, category: "sale", channel: "cash",
@@ -386,7 +431,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       end
 
       it "refuses a movement born from a collection with a redirect and a flash, not a 500" do
-        automatic = create(:cash_movement, :from_collection, business_date: business_date, user: cashier,
+        automatic = create(:cash_movement, :from_collection, business_date: business_date, user: admin,
                            description: "Cobro a cuenta")
 
         expect {
@@ -435,7 +480,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       end
 
       it "refuses a sealed movement with a redirect and a flash, not a 500" do
-        sealed = create(:cash_movement, :sealed, business_date: business_date, user: cashier)
+        sealed = create(:cash_movement, :sealed, business_date: business_date, user: admin)
 
         expect { delete_movement(sealed) }.not_to change(CashMovement, :count)
         expect(response).to have_http_status(:redirect)
@@ -444,7 +489,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       end
 
       it "refuses a movement born from a collection with a redirect and a flash, not a 500" do
-        automatic = create(:cash_movement, :from_collection, business_date: business_date, user: cashier)
+        automatic = create(:cash_movement, :from_collection, business_date: business_date, user: admin)
 
         expect { delete_movement(automatic) }.not_to change(CashMovement, :count)
         expect(response).to have_http_status(:redirect)
@@ -462,15 +507,11 @@ RSpec.describe "Web::Cash::Movements", type: :request do
   end
 
   describe "partner movements" do
-    let(:admin) { create(:user, role: "admin") }
-
     def post_partner(params)
       post_movement({ account: "main_cash", category: "partner" }.merge(params))
     end
 
     it "records what the partner took as an outflow from the arca the admin declared" do
-      sign_in admin
-
       post_partner(direction: "withdrawal", description: "Retiro", amount: "500.000,00")
 
       movement = CashMovement.last
@@ -481,8 +522,6 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
 
     it "records what he put back as an inflow under the same category" do
-      sign_in admin
-
       post_partner(direction: "contribution", description: "Aporte", amount: "500.000,00")
 
       movement = CashMovement.last
@@ -491,8 +530,6 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
 
     it "refuses one with no direction rather than guessing the sign" do
-      sign_in admin
-
       expect {
         post_partner(description: "Retiro", amount: "500.000,00")
       }.not_to change(CashMovement, :count)
@@ -502,8 +539,6 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
 
     it "refuses one in the drawer zone, where it never belonged" do
-      sign_in admin
-
       expect {
         post_movement(category: "partner", direction: "withdrawal", description: "Retiro", amount: "500.000,00")
       }.not_to change(CashMovement, :count)
@@ -512,6 +547,8 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
 
     it "refuses one forged by the cashier with a redirect and a flash, not a 500" do
+      sign_in create(:user, role: "caja")
+
       expect {
         post_partner(direction: "withdrawal", description: "Retiro", amount: "500.000,00")
       }.not_to change(CashMovement, :count)
@@ -521,8 +558,9 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       expect(flash[:alert]).to be_present
     end
 
-    it "refuses a correction that turns her own row into a partner one" do
-      movement = create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: cashier)
+    it "refuses a correction by the cashier that turns a row into a partner one" do
+      movement = create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: admin)
+      sign_in create(:user, role: "caja")
 
       expect {
         patch "/web/cash/movements/#{movement.id}",
@@ -535,24 +573,19 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       expect(flash[:alert]).to be_present
     end
 
-    it "offers the category in the admin's arca selector and not in the cashier's" do
-      sign_in admin
+    it "offers the category in the admin's arca selector, on a screen the cashier does not reach" do
       get "/web/cash/days/2026-08-03"
       expect(response.body).to include('value="partner"')
 
-      sign_in cashier
+      sign_in create(:user, role: "caja")
       get "/web/cash/days/2026-08-03"
-      expect(response.body).not_to include('value="partner"')
+      expect(response).to redirect_to(authenticated_root_path)
     end
 
-    it "offers the direction to the admin alone, alongside the category it belongs to" do
-      sign_in admin
+    it "offers the direction alongside the category it belongs to" do
       get "/web/cash/days/2026-08-03"
-      expect(response.body).to include('value="withdrawal"', 'value="contribution"')
 
-      sign_in cashier
-      get "/web/cash/days/2026-08-03"
-      expect(response.body).not_to include('value="withdrawal"')
+      expect(response.body).to include('value="withdrawal"', 'value="contribution"')
     end
   end
 
@@ -602,7 +635,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
     it "keeps the supplier when the row is corrected" do
       movement = create(:cash_movement, :compensation_sale, business_date: Date.new(2026, 8, 3),
-                                                            supplier: supplier, user: cashier)
+                                                            supplier: supplier, user: admin)
 
       patch "/web/cash/movements/#{movement.id}",
             params: { business_date: date, category: "sale", channel: "compensation",
@@ -616,7 +649,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
     it "offers the supplier in the edit row of a compensation sale" do
       movement = create(:cash_movement, :compensation_sale, business_date: Date.new(2026, 8, 3),
-                                                            supplier: supplier, user: cashier)
+                                                            supplier: supplier, user: admin)
 
       get "/web/cash/movements/#{movement.id}/edit",
           headers: { "Accept" => "text/vnd.turbo-stream.html" }
