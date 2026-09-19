@@ -234,7 +234,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
       buttons = form.css("[data-cash-entry-target='mode']")
 
       expect(buttons.map { |b| b["data-mode"] }).to eq(%w[in out move])
-      expect(buttons.map { |b| b.text.squish }).to eq([ "↓ Entrada", "↑ Salida", "⇄ Transferencia" ])
+      expect(buttons.map { |b| b.text.squish }).to eq([ "↓ Entrada", "↑ Salida", "⇄ Entre arcas" ])
       expect(buttons.select { |b| b["aria-pressed"] == "true" }.map { |b| b["data-mode"] }).to eq([ "out" ])
       expect(form["data-cash-entry-mode-value"]).to eq("out")
     end
@@ -269,7 +269,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(kinds).to eq([
         [ "Proveedor", "suppliers" ],
         [ "Alquiler", "fixed_expense:rent" ],
-        [ "Salarios", "fixed_expense:salaries" ],
+        [ "Sueldos", "fixed_expense:salaries" ],
         [ "Cargas sociales", "fixed_expense:social_charges" ],
         [ "Impuestos", "fixed_expense:taxes" ],
         [ "Servicios", "fixed_expense:utilities" ],
@@ -366,6 +366,26 @@ RSpec.describe "Web::Cash::Days", type: :request do
     it "says the bundles covered the day instead" do
       expect(response.body).to include("El cajón no alcanzó")
       expect(response.body).to include("300.000,00")
+    end
+  end
+
+  describe "the direction arrows" do
+    before do
+      sign_in create(:user, role: "admin")
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", description: "Venta mostrador")
+      create(:cash_movement, :store_expense, business_date: date, description: "Bolsas")
+
+      get "/web/cash/days/2026-08-03"
+    end
+
+    let(:page_html) { Nokogiri::HTML(response.body) }
+    let(:glyph_of) { ->(text) { page_html.at("#day-entries tr:contains('#{text}') td") } }
+
+    it "draws an inflow in green and an outflow in red" do
+      expect(glyph_of.("Venta mostrador")["class"]).to include("text-emerald-600")
+      expect(glyph_of.("Venta mostrador")["class"]).not_to include("text-red-600")
+      expect(glyph_of.("Bolsas")["class"]).to include("text-red-600")
+      expect(glyph_of.("Bolsas")["class"]).not_to include("text-emerald-600")
     end
   end
 

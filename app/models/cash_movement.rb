@@ -24,7 +24,7 @@ class CashMovement < ApplicationRecord
 
   SUBCATEGORY_LABELS = {
     "rent"           => "Alquiler",
-    "salaries"       => "Salarios",
+    "salaries"       => "Sueldos",
     "social_charges" => "Cargas sociales",
     "taxes"          => "Impuestos",
     "utilities"      => "Servicios",

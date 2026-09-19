@@ -43,7 +43,7 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
       expect(response.body).to include("Caja del día → Caja grande", "Cuenta en el cajón")
     end
 
-    it "brings the form back on Transferencia and repaints the sales panel" do
+    it "brings the form back on Entre arcas and repaints the sales panel" do
       post_transfer(from: "main_cash", to: "bank", amount: "10.000,00", description: "Depósito")
 
       expect(response.body).to include('action="replace"', 'target="day-entry-form"')
@@ -138,7 +138,7 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
     it "offers the transfer form on an open day" do
       get "/web/cash/days/#{date}"
 
-      expect(response.body).to include("⇄ Transferencia")
+      expect(response.body).to include("⇄ Entre arcas")
       expect(response.body).to include('action="/web/cash/transfers"')
     end
 
@@ -147,7 +147,7 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
 
       get "/web/cash/days/#{date}"
 
-      expect(response.body).not_to include("⇄ Transferencia")
+      expect(response.body).not_to include("⇄ Entre arcas")
       expect(response.body).not_to include('action="/web/cash/transfers"')
     end
   end

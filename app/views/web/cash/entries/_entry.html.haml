@@ -1,7 +1,7 @@
 - movement = entry.movement
 
 %tr{ id: "entry_#{movement.id}", class: "hover:bg-slate-50 transition-colors" }
-  %td.pl-4.py-3.text-base.text-slate-500= cash_entry_glyph(entry)
+  %td.pl-4.py-3.text-base{ class: cash_entry_glyph_class(entry) }= cash_entry_glyph(entry)
   %td.px-4.py-3.text-sm.text-slate-900
     .flex.items-center.gap-2
       %span= movement.description

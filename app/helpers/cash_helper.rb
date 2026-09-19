@@ -2,12 +2,17 @@
 
 module CashHelper
   ENTRY_GLYPHS = { in: "↓", out: "↑", move: "⇄" }.freeze
+  ENTRY_GLYPH_CLASSES = { in: "text-emerald-600", out: "text-red-600", move: "text-slate-400" }.freeze
   INVOICE_TYPE_LABELS = { "a" => "A", "b" => "B" }.freeze
   CASH_PILES = CashMovement::REPORTING_GROUPS.fetch("efectivo")
   PAYMENT_METHODS = %w[cash bank mercado_pago usd].freeze
 
   def cash_entry_glyph(entry)
     ENTRY_GLYPHS.fetch(entry.kind)
+  end
+
+  def cash_entry_glyph_class(entry)
+    ENTRY_GLYPH_CLASSES.fetch(entry.kind)
   end
 
   # The server stored the sign; an outflow shows it, a transfer shows only

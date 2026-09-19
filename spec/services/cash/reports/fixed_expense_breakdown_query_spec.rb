@@ -26,7 +26,7 @@ RSpec.describe Cash::Reports::FixedExpenseBreakdownQuery do
 
     it "labels every row for the screen" do
       expect(query.rows.map(&:label))
-        .to eq([ "Alquiler", "Salarios", "Cargas sociales", "Impuestos", "Servicios", "Gastos de local" ])
+        .to eq([ "Alquiler", "Sueldos", "Cargas sociales", "Impuestos", "Servicios", "Gastos de local" ])
     end
 
     it "reads at the reporting group, the same grain as the row it expands" do

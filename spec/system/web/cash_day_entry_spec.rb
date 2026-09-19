@@ -11,7 +11,7 @@ require "rails_helper"
 RSpec.describe "Caja - fila de carga del día", type: :system do
   include Warden::Test::Helpers
 
-  mode_labels = { "in" => "Entrada", "out" => "Salida", "move" => "Transferencia" }
+  mode_labels = { "in" => "Entrada", "out" => "Salida", "move" => "Entre arcas" }
 
   # How each way of paying is answered on screen, and the arca it must store.
   payments = [
@@ -36,7 +36,7 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
 
   fixed_expenses = {
     "Alquiler"        => "rent",
-    "Salarios"        => "salaries",
+    "Sueldos"         => "salaries",
     "Cargas sociales" => "social_charges",
     "Impuestos"       => "taxes",
     "Servicios"       => "utilities",
@@ -155,7 +155,7 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
       end
     end
 
-    it "stores a Transferencia as two legs, from one arca to the other" do
+    it "stores an Entre arcas movement as two legs, from one arca to the other" do
       visit day_path
       load_transfer(from: "Mercado Pago", to: "Banco", amount: "50000", description: "Retiro de Mercado Pago")
 
@@ -176,14 +176,14 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
       expect_mode("out")
     end
 
-    it "switches mode with E, S, T and the arrows while it has focus, and not from a text field" do
+    it "switches mode with E, S, A and the arrows while it has focus, and not from a text field" do
       visit day_path
       expect_mode("out")
 
       page.send_keys("e")
       expect_mode("in")
 
-      page.send_keys("t")
+      page.send_keys("a")
       expect_mode("move")
 
       page.send_keys(:left)
@@ -196,8 +196,8 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
       expect_mode("out")
 
       find_field("day-entry-out-description").click
-      page.send_keys("est")
-      expect(page).to have_field("day-entry-out-description", with: "est")
+      page.send_keys("esa")
+      expect(page).to have_field("day-entry-out-description", with: "esa")
       expect_mode("out", focused: false)
     end
   end

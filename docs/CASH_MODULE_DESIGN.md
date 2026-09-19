@@ -47,9 +47,9 @@ from it, the departure is deliberate and listed here.
 | 4 | R-16/R-17: partner movements identify the partner; there is a partner account | **`partner` is only a category.** No partner field, no account screen | Owner decision: the need is to mark "I took money" and "I put it back", nothing more. |
 | 5 | §8 lists a monthly P&L and a closing series | **Both cut from V1** | Owner decision: analytics come later. |
 | 6 | §6.1 step 4 stores the closing's totals per channel | Stores only what is **not derivable** (plus `expected_cash`, see §6.3) | Sealed movements can be summed forever; a second copy can drift. |
-| 7 | The category is called "Transferencia interna" | The category's label is **"Movimiento entre arcas"**, in the reports and the history. The day screen's third mode reads **"⇄ Transferencia"**, the spreadsheet's own word, next to Entrada and Salida (§8.1) | "Transferencia" already means a collection channel in this business. Two meanings for one word confuse the operator on day one. |
+| 7 | The category is called "Transferencia interna" | The category's label is **"Movimiento entre arcas"**, in the reports and the history. The day screen's third mode reads **"⇄ Entre arcas"** for the same reason (§8.1) | "Transferencia" already means a collection channel in this business. Two meanings for one word confuse the operator on day one. |
 | 8 | **Nothing** — the document never mentions the app's sales module, and assumes the cashier types every sale by hand into the cash book | **Every `Payment` generates its own `CashMovement`.** A collection made in the app appears in the day's cash book on its own, with nobody re-entering it | The app already records every collection with method, amount and date: it is the same data. Typing it twice is double work and guarantees the two modules end up saying different things about the same money. Full detail in §4.1. |
-| 9 | **Nothing** about the screen — the spreadsheet is one list per day, with an Entrada and a Salida column | **One list, and an entry row that starts on ↓ Entrada · ↑ Salida · ⇄ Transferencia** (§7.1, §8.1). A first version of this design split the day into a *drawer zone* and an *arca zone*, each its own table with its own live row, and it was built that way before being replaced | The owner found the two-zone screen confusing, for specific reasons. The direction was hidden: the row's first question was an accounting category ("Venta / Proveedores / Gastos fijos"), while the operator first thinks *did money come in or go out?*. The category sat under another field's header — "Canal" in one table, "Arca" in the other. The day was split in two tables only so the night's count knew which rows were the drawer's: accounting leaking into the screen. And the arca zone's arca select defaulted to "Caja del día", the very drawer it was meant to exclude, so a row saved without touching it was counted against the drawer and jumped to the other table. The count never needed the split: it is defined by each row's arca (R-6), which one list shows with a dot. |
+| 9 | **Nothing** about the screen — the spreadsheet is one list per day, with an Entrada and a Salida column | **One list, and an entry row that starts on ↓ Entrada · ↑ Salida · ⇄ Entre arcas** (§7.1, §8.1). A first version of this design split the day into a *drawer zone* and an *arca zone*, each its own table with its own live row, and it was built that way before being replaced | The owner found the two-zone screen confusing, for specific reasons. The direction was hidden: the row's first question was an accounting category ("Venta / Proveedores / Gastos fijos"), while the operator first thinks *did money come in or go out?*. The category sat under another field's header — "Canal" in one table, "Arca" in the other. The day was split in two tables only so the night's count knew which rows were the drawer's: accounting leaking into the screen. And the arca zone's arca select defaulted to "Caja del día", the very drawer it was meant to exclude, so a row saved without touching it was counted against the drawer and jumped to the other table. The count never needed the split: it is defined by each row's arca (R-6), which one list shows with a dot. |
 
 One correction in the other direction: the business document claims internal
 transfers were recorded in the spreadsheet as plain expenses. They were not —
@@ -514,7 +514,7 @@ out, or move? — and only then asks the rest:
   entró** instead of a channel, because a contribution has no sale channel.
 - **Salida** — Descripción (optional), **Qué es**, **Cómo se pagó** and Monto.
   Qué es is one flat list: Proveedor, each fixed-expense subcategory (Alquiler,
-  Salarios, Cargas sociales, Impuestos, Servicios, Gastos de local) and, for the
+  Sueldos, Cargas sociales, Impuestos, Servicios, Gastos de local) and, for the
   admin, Retiro de socio. Cómo se pagó is the spreadsheet's own `Canal` for an
   outflow: Efectivo, Banco, Mercado Pago or USD. Only for **Efectivo** does a
   **De qué caja** field follow — Caja del día (the default), Caja grande,
@@ -522,7 +522,7 @@ out, or move? — and only then asks the rest:
   for cash does it vary. The two answers name one arca: Efectivo + Caja del día
   is `drawer`, Banco is `bank`, and so on; the server receives a single
   `account`. Aporte de socio asks the same two questions.
-- **Transferencia** — Monto, De, A, Descripción (optional). See §7.3.
+- **Entre arcas** — Monto, De, A, Descripción (optional). See §7.3.
 
 The screen never sends a sign. The server derives it from the category, plus
 the direction for a partner movement; Entrada and Salida only decide which
@@ -587,7 +587,7 @@ $300.000. A envolver: $0."* rather than show a negative number.
 
 ### 7.3 Movements between arcas
 
-The entry row's third mode, **⇄ Transferencia** (§8.1): amount, origin,
+The entry row's third mode, **⇄ Entre arcas** (§8.1): amount, origin,
 destination, description, starting on Caja grande → Banco, the everyday
 deposit. There is no preview — the row already reads as the sentence it will
 write. `Cash::RecordTransfer` creates both legs in one transaction sharing a
@@ -618,9 +618,9 @@ The everyday screen. The only one the cashier uses daily, and the one that has
 to beat Excel on speed.
 
 - **The entry row sits above the list.** Its first stop is the mode control —
-  **↓ Entrada · ↑ Salida · ⇄ Transferencia**, the spreadsheet's own words, no
-  first person. It holds the focus when the page opens and after every save,
-  an edit included. While it has the focus, `E`, `S`, `T` and the arrow keys
+  **↓ Entrada · ↑ Salida · ⇄ Entre arcas** — no first person, and not
+  "Transferencia", which is already a sale channel (§2, row 7). It holds the focus when the page opens and after every save,
+  an edit included. While it has the focus, `E`, `S`, `A` and the arrow keys
   switch mode and Tab moves into the fields; a letter typed into a text field
   never switches mode. The page opens on Salida (§7.1), and the mode sticks
   after a save: five expenses in a row stay on Salida.
@@ -631,7 +631,7 @@ to beat Excel on speed.
 - **Enter saves**, the row appears at the end of the list, and the form comes
   back empty on the same mode. It is the Excel gesture; a modal per row is
   slower than the spreadsheet and loses success criterion #1.
-- **One list, in load order.** Columns: direction glyph (↓ in, ↑ out, ⇄ moved)
+- **One list, in load order.** Columns: direction glyph (↓ in, green; ↑ out, red; ⇄ moved, grey — direction is meaning, so it is one of the few places semantic colour is spent)
   · Descripción · Nota · Canal · Monto · drawer dot · Editar / Eliminar. It says
   only what was written: no category text on the row, no first person.
   - **Nota** stacks the paper numbers, each with its invoice type when there is

@@ -160,7 +160,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
 
       labels = breakdown.css("tbody tr").map { |row| cells_of(row).first }
       expect(labels)
-        .to eq([ "Alquiler", "Salarios", "Cargas sociales", "Impuestos", "Servicios", "Gastos de local" ])
+        .to eq([ "Alquiler", "Sueldos", "Cargas sociales", "Impuestos", "Servicios", "Gastos de local" ])
     end
 
     it "puts each subcategory against the arca it was paid from" do

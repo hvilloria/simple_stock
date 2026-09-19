@@ -15,7 +15,7 @@
 
 - body = capture do
   .flex.gap-1{ role: "group", aria: { label: "Qué movimiento es" } }
-    - [ [ "in", "↓ Entrada" ], [ "out", "↑ Salida" ], [ "move", "⇄ Transferencia" ] ].each do |button_mode, text|
+    - [ [ "in", "↓ Entrada" ], [ "out", "↑ Salida" ], [ "move", "⇄ Entre arcas" ] ].each do |button_mode, text|
       %button{ type: "button", disabled: edit, aria: { pressed: (button_mode == mode).to_s },
                data: { "cash-entry-target": "mode", mode: button_mode,
                        action: "click->cash-entry#select keydown->cash-entry#key" },

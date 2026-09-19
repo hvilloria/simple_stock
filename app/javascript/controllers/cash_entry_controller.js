@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 const MODES = ["in", "out", "move"]
-const MODE_KEYS = { e: "in", s: "out", t: "move" }
+const MODE_KEYS = { e: "in", s: "out", a: "move" }
 const DEFAULT_PILE = "drawer"
 
 // The day's entry row. The operator answers which way the money went, what it
