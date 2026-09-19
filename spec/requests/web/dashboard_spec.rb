@@ -60,6 +60,20 @@ RSpec.describe "Web::Dashboard", type: :request do
     end
   end
 
+  describe "the secondary grid" do
+    it "lays recent sales and critical stock side by side, in the same grid" do
+      sign_in create(:user, role: "admin")
+
+      get "/web/dashboard"
+
+      html = Nokogiri::HTML(response.body)
+      grid = html.css("div[class~='lg:grid-cols-2']").find { |node| node.text.include?("Ventas Recientes") }
+
+      expect(grid).to be_present
+      expect(grid.text).to include("Stock Crítico")
+    end
+  end
+
   describe "month navigation" do
     before { sign_in admin }
 
