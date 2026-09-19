@@ -1,5 +1,3 @@
-- entries = day.entries
-
 .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
   %table.min-w-full.divide-y.divide-slate-200
     %thead.bg-slate-50
@@ -13,9 +11,9 @@
         %th.py-3.w-6
           %span.sr-only Cajón
         %th.px-4.py-3.w-24
-    %tbody#day-entries.divide-y.divide-slate-100.bg-white
-      = render partial: "web/cash/entries/entry", collection: entries, as: :entry, locals: { editable: !day.closed? }
-
-  - if entries.empty?
-    .p-12.text-center
-      %p.text-slate-500 No hay movimientos cargados en este día.
+    %tbody#day-entries.peer.divide-y.divide-slate-100.bg-white
+      = render partial: "web/cash/entries/entry", collection: day.entries, as: :entry, locals: { editable: !day.closed? }
+    -# Rows arrive and leave through streams, so the list itself decides when it is empty.
+    %tbody#day-entries-empty{ class: "peer-has-[tr]:hidden" }
+      %tr
+        %td.p-12.text-center.text-slate-500{ colspan: 7 } No hay movimientos cargados en este día.

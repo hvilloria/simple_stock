@@ -3,21 +3,13 @@
 module Web
   module Cash
     # Moving money between two arcas is the one gesture in the app that writes
-    # two rows, so it does not go through either live row: it asks for an origin
-    # and a destination, shows the pair it is about to write, and only then
-    # writes it.
+    # two rows. The entry row already reads as the sentence it will write —
+    # amount, from, to — so it writes the pair straight away, with no preview.
     class TransfersController < ApplicationController
       include CurrencyParser
       include SupplierOptions
 
       before_action :set_business_date
-
-      def preview
-        authorize CashMovement, :create?
-        return refuse_closed_day if day_closed?
-
-        render_result(dry_run)
-      end
 
       def create
         authorize CashMovement, :create?
@@ -31,26 +23,6 @@ module Web
       end
 
       private
-
-      # The preview is the real write, rolled back. Same service, same
-      # validations, same rows, so what the cashier is shown cannot drift from
-      # what confirming writes: the only thing the two calls differ in is
-      # whether the transaction survives.
-      def dry_run
-        result = nil
-        ActiveRecord::Base.transaction do
-          result = ::Cash::RecordTransfer.call(**transfer_params)
-          raise ActiveRecord::Rollback
-        end
-        result
-      end
-
-      def render_result(result)
-        @legs   = result.record
-        @error  = result.errors.join(", ") if result.failure?
-        @fields = params.slice(:business_date, :from, :to, :amount, :description).permit!.to_h.symbolize_keys
-        render :preview, status: result.failure? ? :unprocessable_entity : :ok
-      end
 
       # The fresh entry form comes back on Transferencia, with the error when
       # there is one.

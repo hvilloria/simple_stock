@@ -223,7 +223,6 @@ RSpec.describe "Web::Cash::Movements", type: :request do
 
       movement = CashMovement.last
       expect(movement.account).to eq("drawer")
-      expect(movement).to be_drawer_zone
       expect(response.body).to include('action="append"', 'target="day-entries"')
       expect(response.body).to include("Cuenta en el cajón")
     end
@@ -589,7 +588,6 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       expect(movement.category).to eq("partner")
       expect(movement.account).to eq("main_cash")
       expect(movement.amount).to eq(-500_000)
-      expect(movement).not_to be_drawer_zone
     end
 
     it "records what he put back as an inflow under the same category" do

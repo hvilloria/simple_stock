@@ -19,7 +19,7 @@ module Web
 
         @business_date = business_date
         @day = ::Cash::DayQuery.new(@business_date)
-        # Only the live row offers a supplier, and a closed day has no live row.
+        # Only the entry row offers a supplier, and a closed day has no entry row.
         @suppliers = supplier_options unless @day.closed?
       end
 

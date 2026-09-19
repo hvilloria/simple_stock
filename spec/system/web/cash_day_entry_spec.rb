@@ -389,6 +389,23 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
     end
   end
 
+  describe "the empty list" do
+    let(:empty_message) { "No hay movimientos cargados en este día." }
+
+    it "says so until the first row arrives, and again once the last one is deleted" do
+      visit day_path
+      expect(page).to have_content(empty_message)
+
+      load_entry(mode: "out", description: "Bolsas", kind: "Gastos de local", method: "Banco")
+      expect(page).to have_css("#day-entries tr", count: 1)
+      expect(page).to have_no_content(empty_message)
+
+      accept_confirm { within("#day-entries") { click_button "Eliminar" } }
+      expect(page).to have_no_css("#day-entries tr")
+      expect(page).to have_content(empty_message)
+    end
+  end
+
   describe "editing a row" do
     let!(:expense) do
       create(:cash_movement, :store_expense, business_date: business_date, account: "main_cash")
@@ -419,6 +436,21 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
       expect(row).to have_link("Editar")
       expect(expense.reload.amount).to eq(-20_000)
       expect(expense.account).to eq("change_fund")
+    end
+
+    it "hands the focus back to the new-entry mode control, on the mode it was left on" do
+      visit day_path
+      find(mode_button("in")).click
+      expect_mode("in")
+
+      within("#entry_#{expense.id}") { click_link "Editar" }
+      within("#entry_#{expense.id}") do
+        find_field("Monto").send_keys([ :control, "a" ], :backspace, "20000")
+        click_button "Guardar"
+      end
+
+      expect(page).to have_css("#entry_#{expense.id}", text: "−20.000,00")
+      expect_mode("in")
     end
 
     it "restores the row on Cancelar without a request" do

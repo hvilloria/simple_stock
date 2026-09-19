@@ -80,9 +80,7 @@ Rails.application.routes.draw do
         resource :closing, only: [ :new, :create ], controller: "closings"
       end
       resources :movements, only: [ :create, :edit, :update, :destroy ]
-      resources :transfers, only: [ :create ] do
-        post :preview, on: :collection
-      end
+      resources :transfers, only: [ :create ]
       get "reports/balance", to: "reports#balance", as: :balance_report
       get "reports/history", to: "reports#history", as: :movement_history
     end

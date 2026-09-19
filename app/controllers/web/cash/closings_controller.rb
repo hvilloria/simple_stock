@@ -12,7 +12,7 @@ module Web
         authorize DailyClosing.new, :new?
 
         @day = ::Cash::DayQuery.new(@business_date)
-        # The screen shows the still-open day behind the modal, live row and all.
+        # The screen shows the still-open day behind the modal, entry row and all.
         @suppliers = supplier_options
       end
 

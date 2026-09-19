@@ -14,12 +14,6 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
          headers: { "Accept" => "text/vnd.turbo-stream.html" }
   end
 
-  def post_preview(params)
-    post "/web/cash/transfers/preview",
-         params: { business_date: date }.merge(params),
-         headers: { "Accept" => "text/vnd.turbo-stream.html" }
-  end
-
   describe "POST /web/cash/transfers" do
     it "writes exactly two legs tied by one transfer_group_id" do
       expect {
@@ -104,7 +98,7 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
     end
 
     # The module reads a single-separator thousands string as Argentine format,
-    # the same way the two live rows do. What must never happen is 1.500 being
+    # the same way the entry row does. What must never happen is 1.500 being
     # read as one and a half pesos.
     it "reads a thousands-separated amount as thousands, never as a decimal" do
       post_transfer(from: "main_cash", to: "bank", amount: "1.500")
@@ -137,63 +131,6 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
 
       expect(response).to redirect_to(authenticated_root_path)
       expect(flash[:alert]).to be_present
-    end
-  end
-
-  describe "POST /web/cash/transfers/preview" do
-    it "shows both legs without writing anything" do
-      expect {
-        post_preview(from: "main_cash", to: "bank", amount: "150.000,00", description: "Depósito")
-      }.not_to change(CashMovement, :count)
-
-      expect(response.body).to include('target="transfer-preview"')
-      expect(response.body).to include("Caja grande", "Banco", "150.000,00")
-    end
-
-    it "shows the same arcas and amounts the confirmation writes" do
-      params = { from: "mercado_pago", to: "bank", amount: "150.000,00", description: "Para proveedores" }
-
-      post_preview(params)
-      previewed = response.body
-
-      post_transfer(params)
-
-      legs = CashMovement.order(:id).last(2)
-      expect(legs.map { |leg| leg.amount.abs }.uniq).to eq([ 150_000 ])
-      legs.each { |leg| expect(previewed).to include(CashMovement.account_label(leg.account)) }
-      expect(previewed).to include("150.000,00")
-    end
-
-    it "refuses to preview a transfer between the same arca" do
-      expect {
-        post_preview(from: "bank", to: "bank", amount: "10.000,00")
-      }.not_to change(CashMovement, :count)
-
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("arcas distintas")
-    end
-
-    it "refuses to preview an unparseable amount" do
-      post_preview(from: "main_cash", to: "bank", amount: "abc")
-
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("mayor a cero")
-    end
-
-    it "refuses to preview a closed day" do
-      create(:daily_closing, business_date: Date.new(2026, 8, 3))
-
-      post_preview(from: "main_cash", to: "bank", amount: "10.000,00")
-
-      expect(response).to redirect_to("/web/cash/days/#{date}")
-    end
-
-    it "turns a seller away" do
-      sign_in create(:user, role: "vendedor")
-
-      post_preview(from: "main_cash", to: "bank", amount: "10.000,00")
-
-      expect(response).not_to have_http_status(:ok)
     end
   end
 

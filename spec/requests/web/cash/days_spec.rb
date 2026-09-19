@@ -308,7 +308,6 @@ RSpec.describe "Web::Cash::Days", type: :request do
 
       expect(transfer_form.at("select[name='from'] option[selected]")["value"]).to eq("main_cash")
       expect(transfer_form.at("select[name='to'] option[selected]")["value"]).to eq("bank")
-      expect(form.at("form[action='/web/cash/transfers/preview']")).to be_nil
     end
   end
 

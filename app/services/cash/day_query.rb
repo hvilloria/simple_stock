@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 module Cash
-  # Everything the day screen reads. The two zones of the design are not a
-  # column: the drawer zone is every sale plus whatever was paid out of the
-  # till, and the arca zone is the rest.
+  # Everything the day screen reads.
   class DayQuery
     # One row of the day's list: a single movement, or a transfer's two legs
     # with the outflow leg first.
@@ -44,25 +42,6 @@ module Cash
         .group_by { |movement| movement.transfer_group_id || movement.id }
         .values
         .map { |movements| self.class.entry_for(movements) }
-    end
-
-    def drawer_movements
-      CashMovement
-        .on(@business_date)
-        .where("category = :sale OR account = :drawer", sale: "sale", drawer: "drawer")
-        .includes(source_payment: :orders)
-        .order(:created_at, :id)
-    end
-
-    def arca_movements
-      CashMovement
-        .on(@business_date)
-        # COALESCE, not a bare comparison: account is nullable, and in SQL
-        # NOT (false OR NULL) is NULL, which would drop such a row from BOTH
-        # zones and make it vanish from the screen with nothing failing.
-        .where.not("category = :sale OR COALESCE(account, '') = :drawer", sale: "sale", drawer: "drawer")
-        .includes(source_payment: :orders)
-        .order(:created_at, :id)
     end
 
     def sales_by_channel

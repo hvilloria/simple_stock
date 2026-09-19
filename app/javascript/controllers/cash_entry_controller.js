@@ -36,6 +36,14 @@ export default class extends Controller {
     this.#switchTo(mode)
   }
 
+  // The stream replaces an edited row after this fires, so the focus goes
+  // back to the new-entry form's mode control, on whatever mode it was left on.
+  saved(event) {
+    if (!this.editValue || !event.detail.success) return
+
+    document.querySelector("#day-entry-form [data-cash-entry-target='mode'][aria-pressed='true']")?.focus()
+  }
+
   cancel(event) {
     event.preventDefault()
     this.element.replaceWith(this.originalTarget.content.cloneNode(true))

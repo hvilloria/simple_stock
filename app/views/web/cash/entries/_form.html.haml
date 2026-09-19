@@ -6,7 +6,8 @@
 - out_fields = mode == "out" ? fields : cash_entry_fields(mode: "out")
 - key = edit ? "entry_#{movement.id}" : "day-entry"
 - partner = policy(CashMovement).categories_for(:arca).include?("partner")
-- stimulus = { controller: "cash-entry", "cash-entry-mode-value": mode, "cash-entry-edit-value": edit.to_s }
+- stimulus = { controller: "cash-entry", "cash-entry-mode-value": mode, "cash-entry-edit-value": edit.to_s,
+               action: "turbo:submit-end->cash-entry#saved" }
 - label_text = "block text-xs font-medium text-slate-500 mb-1"
 - control = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
 - refresh = "change->cash-entry#refresh"

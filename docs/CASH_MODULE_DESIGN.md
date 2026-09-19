@@ -47,8 +47,9 @@ from it, the departure is deliberate and listed here.
 | 4 | R-16/R-17: partner movements identify the partner; there is a partner account | **`partner` is only a category.** No partner field, no account screen | Owner decision: the need is to mark "I took money" and "I put it back", nothing more. |
 | 5 | §8 lists a monthly P&L and a closing series | **Both cut from V1** | Owner decision: analytics come later. |
 | 6 | §6.1 step 4 stores the closing's totals per channel | Stores only what is **not derivable** (plus `expected_cash`, see §6.3) | Sealed movements can be summed forever; a second copy can drift. |
-| 7 | The category is called "Transferencia interna" | The UI calls it **"Movimiento entre arcas"** | "Transferencia" already means a collection channel in this business. Two meanings for one word confuse the operator on day one. |
+| 7 | The category is called "Transferencia interna" | The category's label is **"Movimiento entre arcas"**, in the reports and the history. The day screen's third mode reads **"⇄ Transferencia"**, the spreadsheet's own word, next to Entrada and Salida (§8.1) | "Transferencia" already means a collection channel in this business. Two meanings for one word confuse the operator on day one. |
 | 8 | **Nothing** — the document never mentions the app's sales module, and assumes the cashier types every sale by hand into the cash book | **Every `Payment` generates its own `CashMovement`.** A collection made in the app appears in the day's cash book on its own, with nobody re-entering it | The app already records every collection with method, amount and date: it is the same data. Typing it twice is double work and guarantees the two modules end up saying different things about the same money. Full detail in §4.1. |
+| 9 | **Nothing** about the screen — the spreadsheet is one list per day, with an Entrada and a Salida column | **One list, and an entry row that starts on ↓ Entrada · ↑ Salida · ⇄ Transferencia** (§7.1, §8.1). A first version of this design split the day into a *drawer zone* and an *arca zone*, each its own table with its own live row, and it was built that way before being replaced | The owner found the two-zone screen confusing, for specific reasons. The direction was hidden: the row's first question was an accounting category ("Venta / Proveedores / Gastos fijos"), while the operator first thinks *did money come in or go out?*. The category sat under another field's header — "Canal" in one table, "Arca" in the other. The day was split in two tables only so the night's count knew which rows were the drawer's: accounting leaking into the screen. And the arca zone's arca select defaulted to "Caja del día", the very drawer it was meant to exclude, so a row saved without touching it was counted against the drawer and jumped to the other table. The count never needed the split: it is defined by each row's arca (R-6), which one list shows with a dot. |
 
 One correction in the other direction: the business document claims internal
 transfers were recorded in the spreadsheet as plain expenses. They were not —
@@ -262,10 +263,11 @@ emptied it into the bundles.
 is one movement of $30,000.
 
 **R-6. A cash expense is charged to the arca the money physically came from.**
-Paid out of the till — the common case — it goes in the drawer zone, against
-`drawer`. Paid out of a bundle because the till was empty, typically first thing
-in the morning, it goes in the arca zone, against `main_cash`. The cashier knows
-which, because she is the one who took the bill.
+Paid out of the till — the common case — it goes against `drawer` (Efectivo ·
+Caja del día, the entry row's default). Paid out of a bundle because the till
+was empty, typically first thing in the morning, it goes against `main_cash`
+(Efectivo · Caja grande). The cashier knows which, because she is the one who
+took the bill.
 
 At closing time the drawer is emptied in two steps, in this order:
 
@@ -289,9 +291,10 @@ screen presents it in the operator's words rather than as a negative number —
 see §7.2.
 
 **The count is defined by `account`, never by the zone.** Expected drawer =
-`SUM(amount) WHERE account = 'drawer' AND business_date = D`. The zones are UI;
-what feeds the count is the arca. A USD sale is loaded in the drawer zone but
-its arca is `usd`, so it never enters the peso count.
+`SUM(amount) WHERE account = 'drawer' AND business_date = D`. Where a row sits
+on screen does not decide it; what feeds the count is the arca. A USD sale is
+loaded like any other sale but its arca is `usd`, so it never enters the peso
+count.
 
 **R-7. Deliberate treasury operations declare their arca.** Deposits, partner
 withdrawals and movements between arcas name their origin explicitly and never
@@ -493,33 +496,56 @@ being edited, never an implicit `Date.current`.
 
 ### 7.1 Loading the day
 
-Two zones. What separates them **is not frequency or amount: it is the count.**
-Whatever passes through the drawer is counted at night; everything else is not.
+One list, in load order, like the spreadsheet. What matters at night **is the
+count**: whatever passed through the drawer is counted, everything else is not.
+That is decided by each row's arca (R-6), not by where the row sits, so the
+screen does not split the day to show it. A row whose money touches the drawer
+carries a small dot, and the drawer's expected amount is the sum of the dotted
+rows.
 
-**The drawer zone** — ten to twenty rows a day. Sales and counter expenses.
-**Nobody picks an arca**: sales route by channel, expenses come out of the
-drawer. It is the only zone that feeds the count.
+Every row starts with the operator's first question — did the money come in, go
+out, or move? — and only then asks the rest:
 
-**The arca zone** — everything that does not pass through the drawer: paying a
-supplier from the bank, paying a utility bill from Mercado Pago, a deposit, a
-partner withdrawal. **Here the arca is declared**, because there is no default.
+- **Entrada** — a sale typed by hand. Descripción (optional), **Cómo pagó** and
+  Monto. The sale channel routes it to its arca (§3.3); **nobody picks an
+  arca**. Compensación is one of the channels, labelled "Compensación — no entra
+  plata", and adds a **Proveedor** field. For the admin a **Qué es** field comes
+  first, defaulting to Venta; its other option, Aporte de socio, asks **Cómo
+  entró** instead of a channel, because a contribution has no sale channel.
+- **Salida** — Descripción (optional), **Qué es**, **Cómo se pagó** and Monto.
+  Qué es is one flat list: Proveedor, each fixed-expense subcategory (Alquiler,
+  Salarios, Cargas sociales, Impuestos, Servicios, Gastos de local) and, for the
+  admin, Retiro de socio. Cómo se pagó is the spreadsheet's own `Canal` for an
+  outflow: Efectivo, Banco, Mercado Pago or USD. Only for **Efectivo** does a
+  **De qué caja** field follow — Caja del día (the default), Caja grande,
+  Remanente — because the cash pile is the one thing R-6 needs to know and only
+  for cash does it vary. The two answers name one arca: Efectivo + Caja del día
+  is `drawer`, Banco is `bank`, and so on; the server receives a single
+  `account`. Aporte de socio asks the same two questions.
+- **Transferencia** — Monto, De, A, Descripción (optional). See §7.3.
 
-This zone **is also a daily one, and the cashier loads it too**. It is the
+The screen never sends a sign. The server derives it from the category, plus
+the direction for a partner movement; Entrada and Salida only decide which
+options the row offers.
+
+Outflows are **daily work, and the cashier loads them too**. They are the
 spreadsheet's `Egresos` sheet: 414 outflows across seven months, about 59 a
 month, two or three per business day. On 03/08 there are nine — five supplier
-payments from the bank and four from Mercado Pago. So loading has to be as fast
-as the drawer zone: **a live row here too**, plus an arca column.
+payments from the bank and four from Mercado Pago. Most sales, on the other
+hand, arrive by themselves from collections (§4.1), so the row opens on
+**Salida**.
 
-Two categories are out of the cashier's reach and **appear only for admin**:
-`partner` (partners load their own movements) and `opening_balance` (one-time
-startup load). It is not friction, it is permission: they simply are not in her
-selector.
+Two categories are out of the cashier's reach. `partner` (partners load their
+own movements) **appears only for the admin**: without it the Entrada row has no
+Qué es field at all, and the Salida list has no Retiro de socio. It is not
+friction, it is permission: they simply are not in her selector.
+`opening_balance` (the one-time startup load, §7.4) is not offered on the day
+screen to anyone.
 
-Both zones live on the same day screen, one below the other. No navigation:
-open the 12th and you see everything that happened on the 12th.
+No navigation: open the 12th and you see everything that happened on the 12th.
 
-Nothing prevents the same expense from being loaded in both zones. The design
-does not fix that; the zones only make it obvious which is which.
+Nothing prevents the same expense from being loaded twice. The design does not
+fix that.
 
 ### 7.2 Closing the day
 
@@ -561,12 +587,14 @@ $300.000. A envolver: $0."* rather than show a negative number.
 
 ### 7.3 Movements between arcas
 
-A dedicated form — not the live row (§8.1): origin, destination, amount,
-description. It previews the two rows before writing them, and
-`Cash::RecordTransfer` creates both in one transaction sharing a
-`transfer_group_id`. In the day table they then appear as two visually paired
-rows, so each row stays one arca and one direction and the table remains
-one-to-one with the model.
+The entry row's third mode, **⇄ Transferencia** (§8.1): amount, origin,
+destination, description, starting on Caja grande → Banco, the everyday
+deposit. There is no preview — the row already reads as the sentence it will
+write. `Cash::RecordTransfer` creates both legs in one transaction sharing a
+`transfer_group_id` (R-2). In the day list the two legs fold into **one** row,
+"Mercado Pago → Banco", because that is how the operator thinks of it; the model
+keeps two rows, and the movement history still shows each leg with its
+counterpart (§8.4).
 
 Known recurring cases: Mercado Pago → Banco (to pay suppliers), Caja grande →
 Banco (deposits), Caja grande → Remanente (topping up change).
@@ -589,35 +617,55 @@ Four. All under `Web::Cash`, routes prefixed with `/web/cash/`.
 The everyday screen. The only one the cashier uses daily, and the one that has
 to beat Excel on speed.
 
-- **Live row at the foot of the table.** Enter saves it, a new empty one
-  appears below, focus returns to the first field. It is the Excel gesture; a
-  modal per row is slower than the spreadsheet and loses success criterion #1.
-- Columns: origin marker · description · paper number · invoice · channel ·
-  inflow · outflow.
-- Rows born from collections are mixed in, in load order, with a discreet
-  origin marker — the cashier needs to know what she does **not** have to load.
+- **The entry row sits above the list.** Its first stop is the mode control —
+  **↓ Entrada · ↑ Salida · ⇄ Transferencia**, the spreadsheet's own words, no
+  first person. It holds the focus when the page opens and after every save,
+  an edit included. While it has the focus, `E`, `S`, `T` and the arrow keys
+  switch mode and Tab moves into the fields; a letter typed into a text field
+  never switches mode. The page opens on Salida (§7.1), and the mode sticks
+  after a save: five expenses in a row stay on Salida.
+- **Each field has its own label above it** — Descripción, Qué es, Cómo pagó,
+  Proveedor, Cómo se pagó, Cómo entró, De qué caja, Monto, De, A — never under
+  a header that belongs to another field. A field that does not apply to the
+  answers given so far is hidden and disabled.
+- **Enter saves**, the row appears at the end of the list, and the form comes
+  back empty on the same mode. It is the Excel gesture; a modal per row is
+  slower than the spreadsheet and loses success criterion #1.
+- **One list, in load order.** Columns: direction glyph (↓ in, ↑ out, ⇄ moved)
+  · Descripción · Nota · Canal · Monto · drawer dot · Editar / Eliminar. It says
+  only what was written: no category text on the row, no first person.
+  - **Nota** stacks the paper numbers, each with its invoice type when there is
+    one: `3340 · A`.
+  - **Canal** always states the method. A sale shows its channel ("Compensación
+    · Cromosol" for a compensation). Anything else shows "Efectivo" for a cash
+    pile, followed by the pile in muted text unless it is the drawer
+    ("Efectivo · Caja grande"), or the arca for Banco, Mercado Pago and USD.
+  - **Monto** is signed: `−13.000,00` for an outflow, plain for an inflow, muted
+    for a transfer.
+  - **The drawer dot** marks every row whose money touches the drawer; the
+    amount to wrap is the sum of the dotted rows (R-6). A transfer is dotted
+    when either leg is the drawer.
+  - An empty day says "No hay movimientos cargados en este día." until the first
+    row arrives, and again once the last one is deleted.
+- Rows born from collections are mixed in, in load order, with a blank
+  description and a discreet **"Automático"** badge — the cashier needs to know
+  what she does **not** have to load.
+- **A transfer is one row**, "Mercado Pago → Banco" in the Canal column, with
+  the description only if one was written. Around 5 a month. It has no preview
+  (§7.3) and offers no edit or delete.
+- **Editar** replaces the row with the entry row in edit mode: prefilled, with
+  the mode shown but locked. Turning an outflow into an inflow is a different
+  fact, not a correction — delete it and load it again. **Cancelar** restores
+  the row without a request. Automatic rows, transfer legs and sealed rows
+  cannot be edited; the policy decides, and the row only asks it.
 - Right panel titled **"Ventas por canal"** — it groups by sale channel
   (Efectivo, Tarjeta, QR, Mercado Pago), not by arca — plus the **amount to
   wrap** (the drawer's net). No accumulated balances: the cashier does not see
   those. The title matters: the balance report groups by arca and shares some
   words with the channels; without the explicit label, "Efectivo" means
   different things on two screens.
-- **The arca zone sits below, also with a live row**, plus an `Arca` column.
-  It is daily loading, not exceptional (§7.1): that one column covers Cromosol,
-  Metrogas, Telecom and the ~54 single-arca movements a month. Enter saves and
-  opens the next, same as above.
-- **Movements between arcas do not go through the live row.** They need two
-  arcas and the live row has one column; a second column would sit empty 92% of
-  the time, and "origin/destination" means nothing when paying a utility bill. A
-  **"+ Movimiento entre arcas"** button opens a short form below the table:
-  Desde · Hacia · Monto · Descripción. No category field (it is implied) and no
-  sign (the direction determines it). Around 5 a month.
-- The form **previews the two rows it will write** before saving. It is the only
-  gesture in the app where one action produces two records, so it should not be
-  a surprise.
-- Once saved they are shown as **two paired rows**, one per arca, with a visual
-  link marker. The table stays a mirror of the database and needs no grouping
-  before rendering.
+- "Caja del día" is the drawer's name in every select. With one list there is
+  no table title for it to collide with.
 - The cashier navigates the whole month. Closed days are **read-only**: the
   restriction is on writing, not on visibility.
 - **One deliberate exception:** on a closed day the invoice type and number
@@ -629,10 +677,12 @@ to beat Excel on speed.
 - **Turbo Streams arrive with this screen.** The project has `turbo-rails`
   installed and Turbo Drive active, but not a single `format.turbo_stream` or
   `.turbo_stream.haml` anywhere — every form today submits in full and
-  redirects. The live row is where the pattern is introduced, so it is new work,
-  not reuse, and whatever shape it takes here is the shape the arca zone, the
-  close and the transfer form will copy. Stimulus keeps doing what it already
-  does on the screen: the amount format, the Enter key and the focus.
+  redirects. The day screen is where the pattern is introduced: a save appends
+  its row to the list, brings back a fresh entry row and repaints the sales
+  panel; an edit or a delete replaces or removes its row — all without a
+  reload. Stimulus translates the operator's answers into the parameters the
+  server takes (category, subcategory, direction, account), and keeps the
+  amount format and the focus.
 
 ### 8.2 Cierre del día
 
@@ -687,7 +737,7 @@ view, the balance report and the movement history — are the `admin`'s alone.
 | Role | Can |
 |---|---|
 | `caja` | Nothing, for now. No day view, no closing flow, no reports. |
-| `admin` | Everything: both zones of any open day, the closing flow, the whole month of day views, and the two reports. |
+| `admin` | Everything: loading any open day, the closing flow, the whole month of day views, and the two reports. |
 
 ### The cashier's access is deferred, not cancelled
 
@@ -696,7 +746,7 @@ expected back. The intended end state is:
 
 | Role | Will be able to |
 |---|---|
-| `caja` | Load movements in **both zones** of any open day, run the closing flow, view the whole month of day views. **Cannot** load `partner` or `opening_balance` categories. **Does not see** the balance report or the movement history. |
+| `caja` | Load **every kind of movement** on any open day, run the closing flow, view the whole month of day views. **Cannot** load `partner` or `opening_balance` categories. **Does not see** the balance report or the movement history. |
 | `admin` | Everything, plus the reports. |
 
 The role logic that distinguishes the two is still in place and still tested:
@@ -737,12 +787,13 @@ Explicitly, and each for a reason:
 
 None for now. The three that existed are closed:
 
-- **Movements between arcas in the day table** → two paired rows (§8.1).
+- **Movements between arcas in the day list** → one row, "Mercado Pago →
+  Banco", over the two legs the model keeps (R-2, §8.1).
 - **"Efectivo" carrying two meanings** → a labelling problem, not a grouping
   one: the day panel groups by channel and the balance report by arca. Solved
   by titling the panel "Ventas por canal" (§8.1).
-- **Whether the cashier loads in the arca zone** → yes, every day. That zone is
-  the spreadsheet's `Egresos` sheet (§7.1).
+- **Whether the cashier loads outflows paid from other arcas** → yes, every
+  day. They are the spreadsheet's `Egresos` sheet (§7.1).
 
 ---
 
@@ -788,8 +839,10 @@ the catalog in `docs/TESTING_GUIDE.md`.
 **Read-money** additions: the balance query and the per-arca balance
 derivation — unit or request specs with seeded data.
 
-System specs only where correctness depends on Stimulus: the live row's
-save-and-advance, and the live difference calculation in the closing modal.
+System specs only where correctness depends on Stimulus: the entry row's mode
+control, the fields each answer shows or disables, the translation of those
+answers into parameters, save-and-advance and the focus; and the live
+difference calculation in the closing modal.
 
 ---
 
@@ -799,7 +852,8 @@ Each slice is useful on its own.
 
 1. **Model, opening balances, Vista Día, movement loading and the daily
    close.** The daily spreadsheet dies here.
-2. **Movements between arcas, arca-zone loading, partner movements.** The
+2. **Movements between arcas, outflows that declare their arca, partner
+   movements.** The
    `Egresos` and `Ingresos` sheets die here.
 3. **Balance report and movement history.** The `Caja Grande` sheet dies here.
 4. **Compensation**, together with whatever the invoices module needs — the
