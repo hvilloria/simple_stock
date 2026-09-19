@@ -62,6 +62,10 @@ module Cash
       DailyClosing.exists?(business_date: @business_date)
     end
 
+    def future?
+      @business_date > Date.current
+    end
+
     # --- Closing modal ---------------------------------------------------
 
     def movement_count

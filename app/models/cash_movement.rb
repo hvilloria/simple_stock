@@ -119,6 +119,7 @@ class CashMovement < ApplicationRecord
   validate :channel_only_on_sales
   validate :subcategory_only_on_fixed_expenses
   validate :supplier_only_on_compensation_sales
+  validate :business_date_not_in_future
 
   scope :for_account, ->(account) { where(account: account) }
   scope :on, ->(date) { where(business_date: date) }
@@ -225,6 +226,12 @@ class CashMovement < ApplicationRecord
     elsif subcategory.present?
       errors.add(:base, "La subcategoría solo corresponde a un gasto fijo.")
     end
+  end
+
+  def business_date_not_in_future
+    return if business_date.blank? || business_date <= Date.current
+
+    errors.add(:base, "La fecha no puede ser futura: un movimiento se carga el día en que ocurre.")
   end
 
   # Cash names the supplier whose debt the compensation cancels; adjusting that

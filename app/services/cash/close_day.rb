@@ -6,7 +6,8 @@ module Cash
   # closing record — in that order, so the drawer ends the day on exactly zero
   # and the rows written here are sealed too.
   #
-  # There is no reopening: a date with a closing is refused.
+  # There is no reopening: a date with a closing is refused. Neither is a date
+  # that has not come yet; a past date left open can still be closed.
   class CloseDay
     TRANSFER_DESCRIPTION = "Cierre de caja del día"
 
@@ -61,6 +62,9 @@ module Cash
       end
       raise ValidationError, "El total de Payway no es un monto válido" if invalid_optional?(@payway_batch_total)
       raise ValidationError, "El total de Mercado Pago no es un monto válido" if invalid_optional?(@mercado_pago_total)
+      if @business_date.to_date > Date.current
+        raise ValidationError, "El día #{I18n.l(@business_date.to_date)} todavía no llegó: no se puede cerrar por adelantado"
+      end
       if DailyClosing.exists?(business_date: @business_date)
         raise ValidationError, "El día #{I18n.l(@business_date.to_date)} ya fue cerrado"
       end

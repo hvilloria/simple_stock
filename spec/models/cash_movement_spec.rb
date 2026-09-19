@@ -197,6 +197,30 @@ RSpec.describe CashMovement, type: :model do
     end
   end
 
+  describe "business date" do
+    around do |example|
+      travel_to Date.new(2026, 8, 3) do
+        example.run
+      end
+    end
+
+    it "rejects a movement dated tomorrow" do
+      movement = build(:cash_movement, business_date: Date.new(2026, 8, 4))
+      expect(movement).not_to be_valid
+      expect(movement.errors[:base]).to include(
+        "La fecha no puede ser futura: un movimiento se carga el día en que ocurre."
+      )
+    end
+
+    it "accepts a movement dated today" do
+      expect(build(:cash_movement, business_date: Date.new(2026, 8, 3))).to be_valid
+    end
+
+    it "accepts a movement dated yesterday" do
+      expect(build(:cash_movement, business_date: Date.new(2026, 8, 2))).to be_valid
+    end
+  end
+
   describe "balances" do
     let(:day) { Date.new(2026, 8, 3) }
 

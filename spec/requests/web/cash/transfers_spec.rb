@@ -114,6 +114,17 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
       }.not_to change(CashMovement, :count)
     end
 
+    it "refuses to write into a day that has not come yet" do
+      travel_to Date.new(2026, 8, 2) do
+        expect {
+          post_transfer(from: "main_cash", to: "bank", amount: "10.000,00")
+        }.not_to change(CashMovement, :count)
+      end
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("La fecha no puede ser futura")
+    end
+
     it "turns a seller away" do
       sign_in create(:user, role: "vendedor")
 

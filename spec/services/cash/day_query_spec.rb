@@ -164,6 +164,27 @@ RSpec.describe Cash::DayQuery do
       expect(query).to be_closed
     end
   end
+
+  describe "#future?" do
+    it "is true while the date has not come yet" do
+      travel_to date - 1 do
+        expect(query).to be_future
+      end
+    end
+
+    it "is false on the date itself" do
+      travel_to date do
+        expect(query).not_to be_future
+      end
+    end
+
+    it "is false once the date has passed" do
+      travel_to date + 1 do
+        expect(query).not_to be_future
+      end
+    end
+  end
+
   describe "#uncollected_notes_count" do
     it "counts only the date's pending sale notes" do
       create(:order, :pending, sale_date: date)

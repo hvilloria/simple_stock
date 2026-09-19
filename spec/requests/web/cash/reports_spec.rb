@@ -27,7 +27,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "shows the figures of the range, split by column" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(:opening_balance, account: "main_cash", business_date: Date.new(2026, 8, 20),
                                      amount: 1_000_000)
           movement(amount: 324_700, account: "drawer", channel: "cash")
@@ -43,11 +43,11 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "leaves out what falls outside the range" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 10, 6) do
           movement(business_date: Date.new(2026, 10, 5), amount: 777_777,
                    account: "drawer", channel: "cash")
 
-          get "/web/cash/reports/balance"
+          get "/web/cash/reports/balance", params: { period: "custom", from: "2026-09-01", to: "2026-09-30" }
         end
 
         expect(response.body).not_to include("777.777,00")
@@ -164,7 +164,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
     end
 
     it "puts each subcategory against the arca it was paid from" do
-      travel_to Date.new(2026, 9, 2) do
+      travel_to Date.new(2026, 9, 30) do
         movement(category: "fixed_expense", subcategory: "rent", channel: nil,
                  account: "main_cash", amount: -400_000)
         movement(category: "fixed_expense", subcategory: "taxes", channel: nil,
@@ -181,7 +181,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
     end
 
     it "closes with the totals the fixed-expenses column of each row shows" do
-      travel_to Date.new(2026, 9, 2) do
+      travel_to Date.new(2026, 9, 30) do
         movement(category: "fixed_expense", subcategory: "rent", channel: nil,
                  account: "main_cash", amount: -400_000)
         movement(category: "fixed_expense", subcategory: "utilities", channel: nil,
@@ -211,7 +211,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       before { sign_in admin }
 
       it "lists the movements of the range, showing the fine arca" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(account: "main_cash", category: "suppliers", channel: nil,
                    amount: -153_951, description: "Cromosol")
 
@@ -224,11 +224,11 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "leaves out what falls outside the range" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 10, 6) do
           movement(business_date: Date.new(2026, 10, 5), amount: 777_777,
                    account: "drawer", channel: "cash")
 
-          get "/web/cash/reports/history"
+          get "/web/cash/reports/history", params: { period: "custom", from: "2026-09-01", to: "2026-09-30" }
         end
 
         expect(rows).to be_empty
@@ -237,7 +237,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       # Filtered to one arca you only see one leg, and a large row with no
       # counterpart reads as money that evaporated.
       it "states the counterpart of a transfer leg" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           ::Cash::RecordTransfer.call(from: "drawer", to: "bank", amount: 80_000,
                                       business_date: Date.new(2026, 9, 3), user: admin)
 
@@ -249,7 +249,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "does not label an ordinary row with a counterpart" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(account: "drawer", amount: 10_000, description: "Venta del día")
 
           get "/web/cash/reports/history"
@@ -268,7 +268,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "matches every fine arca of the group the filter names" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(account: "drawer", amount: 10_000, description: "En la caja del día")
           movement(account: "main_cash", category: "suppliers", channel: nil,
                    amount: -20_000, description: "En la caja grande")
@@ -293,7 +293,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "narrows by channel" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(:compensation_sale, description: "Compensada")
           movement(:card_sale, description: "Con tarjeta")
           movement(account: "drawer", amount: 10_000, description: "En efectivo")
@@ -319,7 +319,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "names the supplier whose debt a compensation cancels" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           supplier = create(:supplier, name: "Cromosol")
           movement(:compensation_sale, supplier: supplier, description: "Compensada")
 
@@ -330,7 +330,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "leaves the supplier blank on a row that is not a compensation" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(account: "drawer", amount: 10_000, description: "Una venta")
 
           get "/web/cash/reports/history"
@@ -341,7 +341,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "narrows by category" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(:store_expense, description: "Gasto de local")
           movement(account: "drawer", amount: 10_000, description: "Una venta")
 
@@ -354,7 +354,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "narrows by description search" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(:supplier_payment, description: "Cromosol")
           movement(:supplier_payment, description: "Otro proveedor")
 
@@ -380,7 +380,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "combines the filters instead of letting one override another" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(account: "main_cash", category: "suppliers", channel: nil,
                    amount: -50_000, description: "Cromosol agosto")
           movement(:card_sale, description: "Cromosol agosto")
@@ -395,7 +395,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "paginates instead of pouring the whole history onto one page" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           25.times { |i| movement(account: "drawer", amount: 1_000 + i) }
 
           get "/web/cash/reports/history"
@@ -404,7 +404,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
         expect(rows.size).to eq(20)
         expect(response.body).to include("Siguiente")
 
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           get "/web/cash/reports/history", params: { page: 2 }
         end
 
@@ -413,7 +413,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
 
       # Editing happens on the open day and nowhere else, whoever is looking.
       it "offers no edit or delete affordance, not even to the admin" do
-        travel_to Date.new(2026, 9, 2) do
+        travel_to Date.new(2026, 9, 30) do
           movement(:store_expense)
 
           get "/web/cash/reports/history"

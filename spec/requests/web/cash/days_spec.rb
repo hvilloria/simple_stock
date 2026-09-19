@@ -503,6 +503,48 @@ RSpec.describe "Web::Cash::Days", type: :request do
     end
   end
 
+  describe "a day that has not come yet" do
+    before do
+      sign_in admin
+
+      travel_to Date.new(2026, 8, 2) do
+        get "/web/cash/days/2026-08-03"
+      end
+    end
+
+    it "still renders the list" do
+      expect(response.body).to include('id="day-entries"')
+    end
+
+    it "offers no entry form" do
+      expect(response.body).not_to include("day-entry-form")
+      expect(response.body).not_to include('data-controller="cash-entry"')
+    end
+
+    it "offers no way to close it" do
+      expect(response.body).not_to include("Cerrar el día")
+    end
+  end
+
+  describe "a past day that was left open" do
+    before do
+      sign_in admin
+
+      travel_to Date.new(2026, 8, 4) do
+        get "/web/cash/days/2026-08-03"
+      end
+    end
+
+    it "offers the entry form" do
+      expect(response.body).to include('id="day-entry-form"')
+      expect(response.body).to include('data-controller="cash-entry"')
+    end
+
+    it "offers the way to close it" do
+      expect(response.body).to include("Cerrar el día")
+    end
+  end
+
   describe "an open day" do
     before do
       sign_in admin

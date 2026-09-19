@@ -207,6 +207,35 @@ RSpec.describe Cash::CloseDay do
     end
   end
 
+  describe "the date" do
+    around do |example|
+      travel_to Date.new(2026, 8, 3) do
+        example.run
+      end
+    end
+
+    it "refuses a day that has not come yet and writes nothing" do
+      result = close(business_date: Date.new(2026, 8, 4), counted_cash: 1_000)
+
+      expect(result).to be_failure
+      expect(result.errors).to include(/todavía no llegó/)
+      expect(DailyClosing.count).to eq(0)
+      expect(CashMovement.count).to eq(0)
+    end
+
+    # A day nobody closed stays workable: it can still be closed afterwards.
+    it "closes a past day that was left open" do
+      yesterday = Date.new(2026, 8, 2)
+      sale = drawer_movement(299_700, business_date: yesterday)
+
+      result = close(business_date: yesterday, counted_cash: 299_700)
+
+      expect(result).to be_success
+      expect(DailyClosing.exists?(business_date: yesterday)).to be true
+      expect(sale.reload.daily_closing_id).to eq(result.record.id)
+    end
+  end
+
   describe "failure" do
     it "refuses a second close of the same date and writes nothing" do
       drawer_movement(299_700)

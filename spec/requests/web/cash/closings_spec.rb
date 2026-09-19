@@ -74,6 +74,15 @@ RSpec.describe "Web::Cash::Closings", type: :request do
       expect(response.body).not_to include("Esperado en el cajón")
     end
 
+    it "refuses to open the closing of a day that has not come yet" do
+      travel_to Date.new(2026, 8, 2) do
+        get_new
+      end
+
+      expect(response).to redirect_to(web_cash_day_path(date))
+      expect(flash[:alert]).to include("todavía no llegó")
+    end
+
     it "shows what the app recorded for each digital arca" do
       create(:cash_movement, :card_sale, business_date: date, amount: 54_700)
       create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 21_300)
@@ -117,6 +126,28 @@ RSpec.describe "Web::Cash::Closings", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include('id="day-entry-form"', 'id="day-entries"')
+    end
+
+    it "refuses to close a day that has not come yet and writes nothing" do
+      travel_to Date.new(2026, 8, 2) do
+        expect {
+          post_closing(counted_cash: "0,00")
+        }.not_to change(DailyClosing, :count)
+      end
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("todavía no llegó")
+    end
+
+    it "closes a past day that was left open" do
+      create(:cash_movement, business_date: date, amount: 311_700)
+
+      travel_to Date.new(2026, 8, 5) do
+        post_closing(counted_cash: "311.700,00")
+      end
+
+      expect(response).to redirect_to(web_cash_day_path(date))
+      expect(DailyClosing.exists?(business_date: date)).to be true
     end
 
     it "refuses to close an already-closed day and writes nothing" do

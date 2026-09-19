@@ -104,6 +104,27 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       }.not_to change(CashMovement, :count)
     end
 
+    it "refuses to write into a day that has not come yet" do
+      travel_to Date.new(2026, 8, 2) do
+        expect {
+          post_movement(category: "sale", channel: "cash", description: "Mañana", amount: "1.000,00")
+        }.not_to change(CashMovement, :count)
+      end
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("La fecha no puede ser futura")
+    end
+
+    it "still writes into a past day that was left open" do
+      travel_to Date.new(2026, 8, 4) do
+        expect {
+          post_movement(category: "sale", channel: "cash", description: "Ayer", amount: "1.000,00")
+        }.to change(CashMovement, :count).by(1)
+      end
+
+      expect(CashMovement.last.business_date).to eq(Date.new(2026, 8, 3))
+    end
+
     it "turns a seller away" do
       sign_in create(:user, role: "vendedor")
 

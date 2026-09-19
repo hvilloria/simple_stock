@@ -12,13 +12,13 @@
                 class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
       = link_to "Día siguiente →", web_cash_day_path(business_date + 1),
                 class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-      - unless day.closed?
+      - unless day.closed? || day.future?
         = link_to "Cerrar el día", new_web_cash_day_closing_path(business_date),
                   class: "px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition-colors"
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     .lg:col-span-2.space-y-6
-      - unless day.closed?
+      - unless day.closed? || day.future?
         = render "web/cash/entries/form", business_date: business_date, suppliers: suppliers, error: nil
       = render "web/cash/days/entries", day: day
     = render "web/cash/days/sales_by_channel", day: day

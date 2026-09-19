@@ -16,6 +16,30 @@ RSpec.describe DailyClosing, type: :model do
     it { should validate_uniqueness_of(:business_date) }
   end
 
+  describe "business date" do
+    around do |example|
+      travel_to Date.new(2026, 8, 3) do
+        example.run
+      end
+    end
+
+    it "rejects a closing dated tomorrow" do
+      closing = build(:daily_closing, business_date: Date.new(2026, 8, 4))
+      expect(closing).not_to be_valid
+      expect(closing.errors[:base]).to include(
+        "La fecha no puede ser futura: un día se cierra cuando ya llegó."
+      )
+    end
+
+    it "accepts a closing dated today" do
+      expect(build(:daily_closing, business_date: Date.new(2026, 8, 3))).to be_valid
+    end
+
+    it "accepts a closing dated yesterday" do
+      expect(build(:daily_closing, business_date: Date.new(2026, 8, 2))).to be_valid
+    end
+  end
+
   describe "verification columns" do
     it "allows both to be nil, meaning not verified" do
       closing = build(:daily_closing, payway_batch_total: nil, mercado_pago_total: nil)

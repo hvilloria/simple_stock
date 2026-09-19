@@ -19,8 +19,8 @@ module Web
 
         @business_date = business_date
         @day = ::Cash::DayQuery.new(@business_date)
-        # Only the entry row offers a supplier, and a closed day has no entry row.
-        @suppliers = supplier_options unless @day.closed?
+        # Only the entry row offers a supplier, and a closed or future day has none.
+        @suppliers = supplier_options unless @day.closed? || @day.future?
       end
 
       private

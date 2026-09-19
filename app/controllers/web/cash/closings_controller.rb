@@ -12,6 +12,11 @@ module Web
         authorize DailyClosing.new, :new?
 
         @day = ::Cash::DayQuery.new(@business_date)
+        if @day.future?
+          return redirect_to web_cash_day_path(@business_date),
+                             alert: "El día todavía no llegó: no se puede cerrar por adelantado."
+        end
+
         # The screen shows the still-open day behind the modal, entry row and all.
         @suppliers = supplier_options
       end

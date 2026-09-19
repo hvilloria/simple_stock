@@ -348,6 +348,12 @@ with the amount taken from the last Excel close. Single-use category, excluded
 from any result calculation — it is the starting position, not money that came
 in.
 
+**R-18. Nothing is dated in the future.** A movement or a closing never carries
+a business date after today; the model refuses it, so every write path — the
+entry row, collections, transfers, reversals, the close and the startup task —
+obeys it. A past day that was not closed still accepts movements and can still
+be closed: a day somebody forgot to close stays workable.
+
 ---
 
 ## 6. Data model
@@ -667,7 +673,9 @@ to beat Excel on speed.
 - "Caja del día" is the drawer's name in every select. With one list there is
   no table title for it to collide with.
 - The cashier navigates the whole month. Closed days are **read-only**: the
-  restriction is on writing, not on visibility.
+  restriction is on writing, not on visibility. A day that has not come yet
+  shows its (empty) list with no entry row and no "Cerrar el día" button
+  (R-18); a past day left open keeps both.
 - **One deliberate exception:** on a closed day the invoice type and number
   remain editable. They are sale data, not cash data — the close freezes
   `cash_movements`, not `orders`. It is the only thing that can be touched on a
