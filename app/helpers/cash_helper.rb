@@ -25,6 +25,10 @@ module CashHelper
     end
   end
 
+  def cash_holding_amount(row)
+    currency_ar(row.amount, unit: row.usd? ? "US$ " : "$ ")
+  end
+
   def cash_entry_notes(movement)
     return [] if movement.source_payment.nil?
 

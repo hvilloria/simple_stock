@@ -30,9 +30,8 @@ module Web
       def balance
         authorize CashMovement, :balance_report?
 
-        load_range
-        @rows = ::Cash::Reports::BalanceQuery.call(from: @from, to: @to)
-        @breakdown = ::Cash::Reports::FixedExpenseBreakdownQuery.new(from: @from, to: @to)
+        @on = snapshot_date
+        @holdings = ::Cash::Reports::HoldingsQuery.new(on: @on).holdings
       end
 
       def history
@@ -55,6 +54,12 @@ module Web
       end
 
       private
+
+      # Nothing is dated in the future, so a later date could show nothing new.
+      def snapshot_date
+        date = parse_date(params[:on])
+        date.nil? || date > Date.current ? Date.current : date
+      end
 
       def load_range
         @period = PERIODS.include?(params[:period]) ? params[:period] : DEFAULT_PERIOD
