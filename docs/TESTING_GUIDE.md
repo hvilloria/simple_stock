@@ -24,8 +24,8 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Customer#current_balance` / `Order#outstanding_balance` — balance formulas
 - `SalesLedger::Reports::{SummaryQuery, SalesByDateQuery, TopProductsQuery}` — report aggregates
 - `SalesLedger::ImportCsv` — imports amounts (does not create Order/Payment/StockMovement)
-- `Cash::Reports::BalanceQuery` — the balance report: every figure is a SUM over movements (opening, per-category columns, closing), and every row must reconcile arithmetically
-- `Cash::Reports::FixedExpenseBreakdownQuery` — sums fixed expenses by subcategory and reporting group; its totals must equal the column it expands, and it is a SEPARATE read of the same rows so that check can actually fail
+- `Cash::Reports::HoldingsQuery` — sums every movement of a reporting group up to a date into one holding; dollars must never mix into the peso groups
+- `Cash::Reports::MonthQuery` — sums a month's sales and fixed expenses; dollars must stay out of both peso totals, and a reversal must count as a negative sale, not be excluded
 
 Out of scope on purpose: `Inventory::AdjustStock` / `Inventory::MarkDelivered` — quantity/delivery, not money; stock has its own critical rule (see `CLAUDE.md`).
 

@@ -50,6 +50,7 @@ from it, the departure is deliberate and listed here.
 | 7 | The category is called "Transferencia interna" | The category's label is **"Movimiento entre arcas"**, in the reports and the history. The day screen's third mode reads **"⇄ Entre arcas"** for the same reason (§8.1) | "Transferencia" already means a collection channel in this business. Two meanings for one word confuse the operator on day one. |
 | 8 | **Nothing** — the document never mentions the app's sales module, and assumes the cashier types every sale by hand into the cash book | **Every `Payment` generates its own `CashMovement`.** A collection made in the app appears in the day's cash book on its own, with nobody re-entering it | The app already records every collection with method, amount and date: it is the same data. Typing it twice is double work and guarantees the two modules end up saying different things about the same money. Full detail in §4.1. |
 | 9 | **Nothing** about the screen — the spreadsheet is one list per day, with an Entrada and a Salida column | **One list, and an entry row that starts on ↓ Entrada · ↑ Salida · ⇄ Entre arcas** (§7.1, §8.1). A first version of this design split the day into a *drawer zone* and an *arca zone*, each its own table with its own live row, and it was built that way before being replaced | The owner found the two-zone screen confusing, for specific reasons. The direction was hidden: the row's first question was an accounting category ("Venta / Proveedores / Gastos fijos"), while the operator first thinks *did money come in or go out?*. The category sat under another field's header — "Canal" in one table, "Arca" in the other. The day was split in two tables only so the night's count knew which rows were the drawer's: accounting leaking into the screen. And the arca zone's arca select defaulted to "Caja del día", the very drawer it was meant to exclude, so a row saved without touching it was counted against the drawer and jumped to the other table. The count never needed the split: it is defined by each row's arca (R-6), which one list shows with a dot. |
+| 10 | **Nothing** — the business document never separates these two questions | A nine-column **Balance general** (opening balance · sales · suppliers · fixed expenses · partner · between arcas · discrepancies · closing, over a date range) was built and then **replaced by a snapshot** (§8.3) plus a month block on the dashboard | It mixed two questions read in different time frames — how much money there is, read at a moment, and how the month is going, read over a period — which forced a date range and nine columns to reach the one figure that mattered. The owner found it unfriendly and said partner, between arcas, discrepancies and the opening balance did not belong on it. |
 
 One correction in the other direction: the business document claims internal
 transfers were recorded in the spreadsheet as plain expenses. They were not —
@@ -321,10 +322,10 @@ cash inflows minus the day's cash outflows. If it differs, R-11 applies and the
 amount to wrap is the amount counted.
 
 **R-13. The cash arca is verified against the balance report.** The owner
-filters a date range and compares the closing balance against the physical
-pile. He chooses the cadence — weekly, fortnightly, monthly. The system imposes
-none and offers no counting workflow. A difference is recorded as an ordinary
-movement with category `cash_discrepancy`.
+picks a date and compares the holdings against the physical pile, at whatever
+cadence he chooses — weekly, fortnightly, monthly. The system imposes none and
+offers no counting workflow. A difference is recorded as an ordinary movement
+with category `cash_discrepancy`.
 
 **R-14. Supplier offset.** See §3.3 `compensation`.
 
@@ -483,8 +484,8 @@ two channels or in several instalments.
 
 All return a `Result`, per the project pattern.
 
-Reports are query objects, not services: `Cash::Reports::BalanceQuery` (§8.3)
-and the filtered movement list (§8.4).
+Reports are query objects, not services: `Cash::Reports::HoldingsQuery` and
+`Cash::Reports::MonthQuery` (§8.3), and the filtered movement list (§8.4).
 
 ### 6.6 Timezone
 
@@ -700,19 +701,35 @@ typeable fields in the whole screen; only one is required.
 
 ### 8.3 Balance general
 
-The replacement for the `Caja Grande` sheet. Pure report — no actions.
+A snapshot, not a report over time. It answers one question — how much money
+is there, and where — at a single date, defaulting to today. R-18 means
+nothing is ever dated in the future, so the date field cannot be pushed past
+today.
 
-- Date range with presets: week · fortnight · month · custom.
-- One row per **reporting group** (Efectivo, Banco, Mercado Pago, USD).
-- Columns: opening balance · sales · suppliers · fixed expenses · partner ·
-  between arcas · discrepancies · closing balance. **Every row reconciles
-  arithmetically**; a row that does not is a bug, not something to audit by
-  hand.
-- Columns are named after the categories, never "income/expense" — a deposit is
-  money changing place, not an expense.
-- Fixed expenses expands to a breakdown by subcategory and arca.
-- No grand total: USD stands alone, in dollars.
+- One date field, no range.
+- Four holdings, one per **reporting group** (Efectivo, Banco, Mercado Pago,
+  Dólares), each the `SUM(amount)` of every movement of that group up to and
+  including the date.
+- No total: Dólares is shown as `US$`, never mixed into a peso sum.
+- Partner movements, movements between arcas and count discrepancies are not
+  broken out into their own columns — they are inside the four figures, same
+  as any other movement of their arca. §8.4 is where their rows are seen.
 - Admin only.
+
+The dashboard carries the other question the balance report used to mix in —
+how the month is going. An admin-only "Caja de \<mes\>" block shows:
+
+- **Vendido** — everything sold in the month, invoiced or not. The peso total,
+  then one line per reporting group (Efectivo, Banco, Mercado Pago), then
+  **Compensación** on its own line when there is one, because it is a sale
+  that reached no arca. A dollar sale is shown apart, as `US$`, never added to
+  the peso total.
+- **Gastos fijos** — the peso total, then only the subcategories that had
+  spending that month, largest first. A fixed expense paid in dollars is shown
+  apart, as `US$`, never added to the peso total.
+
+The block navigates by month, previous and next, and the next link does not
+go past the current month.
 
 ### 8.4 Historial de movimientos
 
