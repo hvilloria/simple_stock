@@ -8,6 +8,7 @@ module Web
     # writes it.
     class TransfersController < ApplicationController
       include CurrencyParser
+      include SupplierOptions
 
       before_action :set_business_date
 
@@ -23,11 +24,10 @@ module Web
         return refuse_closed_day if day_closed?
 
         result = ::Cash::RecordTransfer.call(**transfer_params)
-        return render_result(result) if result.failure?
+        return refuse(result.errors.join(", ")) if result.failure?
 
-        @legs = result.record
-        @day = ::Cash::DayQuery.new(@business_date)
-        render :create
+        @entry = ::Cash::DayQuery.entry_for(result.record)
+        render_create
       end
 
       private
@@ -50,6 +50,19 @@ module Web
         @error  = result.errors.join(", ") if result.failure?
         @fields = params.slice(:business_date, :from, :to, :amount, :description).permit!.to_h.symbolize_keys
         render :preview, status: result.failure? ? :unprocessable_entity : :ok
+      end
+
+      # The fresh entry form comes back on Transferencia, with the error when
+      # there is one.
+      def render_create(status: :ok)
+        @suppliers = supplier_options
+        @day = ::Cash::DayQuery.new(@business_date)
+        render :create, status: status
+      end
+
+      def refuse(message)
+        @error = message
+        render_create(status: :unprocessable_entity)
       end
 
       def transfer_params

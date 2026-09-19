@@ -43,8 +43,28 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       post_movement(category: "sale", channel: "cash", description: "Venta mostrador", amount: "1.000,00")
 
       expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-      expect(response.body).to include('action="append"', 'target="drawer-rows"')
-      expect(response.body).to include('target="drawer-live-row"')
+      expect(response.body).to include('action="append"', 'target="day-entries"')
+      expect(response.body).to include('action="replace"', 'target="day-entry-form"')
+    end
+
+    it "never answers with the ids of the two zones it replaced" do
+      post_movement(category: "sale", channel: "cash", description: "Venta mostrador", amount: "1.000,00")
+      post_movement(category: "suppliers", account: "bank", description: "Cromosol", amount: "1.000,00")
+
+      %w[drawer-rows drawer-live-row arca-rows arca-live-row].each do |old_id|
+        expect(response.body).not_to include(old_id)
+      end
+    end
+
+    it "brings the form back on the mode it was saved in" do
+      post_movement(category: "sale", channel: "cash", description: "Venta mostrador", amount: "1.000,00")
+      expect(response.body).to include('data-cash-entry-mode-value="in"')
+
+      post_movement(category: "partner", direction: "contribution", account: "bank", description: "Aporte", amount: "1.000,00")
+      expect(response.body).to include('data-cash-entry-mode-value="in"')
+
+      post_movement(category: "fixed_expense", subcategory: "rent", account: "bank", description: "Alquiler", amount: "1.000,00")
+      expect(response.body).to include('data-cash-entry-mode-value="out"')
     end
 
     it "refuses an amount that is not a number and writes nothing" do
@@ -184,12 +204,12 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       expect(movement.amount).to eq(-400_000)
     end
 
-    it "answers with a stream that appends to the arca zone and refreshes its live row" do
+    it "answers with a stream that appends to the one list and refreshes the form" do
       post_arca_movement(category: "suppliers", description: "Cromosol", amount: "153.951,00")
 
-      expect(response.body).to include('action="append"', 'target="arca-rows"')
-      expect(response.body).to include('target="arca-live-row"')
-      expect(response.body).not_to include('target="drawer-live-row"')
+      expect(response.body).to include('action="append"', 'target="day-entries"')
+      expect(response.body).to include('target="day-entry-form"')
+      expect(response.body).to include("Banco")
     end
 
     it "leaves the amount to wrap untouched when the arca is not the drawer" do
@@ -204,8 +224,8 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       movement = CashMovement.last
       expect(movement.account).to eq("drawer")
       expect(movement).to be_drawer_zone
-      expect(response.body).to include('action="append"', 'target="drawer-rows"')
-      expect(response.body).to include('target="arca-live-row"')
+      expect(response.body).to include('action="append"', 'target="day-entries"')
+      expect(response.body).to include("Cuenta en el cajón")
     end
 
     it "moves the amount to wrap when the arca is the drawer" do
@@ -244,11 +264,12 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       }.not_to change(CashMovement, :count)
     end
 
-    it "keeps the error on the arca live row" do
+    it "keeps the error on the entry form" do
       post_arca_movement(category: "suppliers", description: "Cromosol", amount: "0,00")
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include('target="arca-live-row"')
+      expect(response.body).to include('target="day-entry-form"')
+      expect(response.body).not_to include('target="day-entries"')
       expect(response.body).to include("El monto no puede ser cero.")
     end
 
@@ -257,12 +278,44 @@ RSpec.describe "Web::Cash::Movements", type: :request do
         create(:cash_movement, :supplier_payment, business_date: Date.new(2026, 8, 3), user: admin)
       end
 
-      it "opens a form row that offers the arca" do
+      it "opens the entry form on Salida, locked, with the method and pile prefilled from the arca" do
         get "/web/cash/movements/#{movement.id}/edit",
             headers: { "Accept" => "text/vnd.turbo-stream.html" }
 
-        expect(response.body).to include('name="account"')
-        expect(response.body).to include("Banco")
+        form = Nokogiri::HTML(response.body).at("#entry_#{movement.id}")
+        salida = form.at("[data-cash-entry-target='group'][data-mode='out']")
+        expect(form["data-cash-entry-mode-value"]).to eq("out")
+        expect(form.css("[data-cash-entry-target='mode']").map { |b| b.key?("disabled") }.uniq).to eq([ true ])
+        expect(form.at("input[type='hidden'][name='account']")["value"]).to eq("bank")
+        expect(form.at("input[type='hidden'][name='category']")["value"]).to eq("suppliers")
+        expect(salida.at("[data-cash-entry-target='method'] option[selected]")["value"]).to eq("bank")
+        expect(salida.at("[data-cash-entry-target='pile']").key?("disabled")).to be(true)
+        expect(salida.at("[data-cash-entry-target='kind'] option[selected]")["value"]).to eq("suppliers")
+      end
+
+      it "prefills a cash outflow's pile" do
+        movement.update!(account: "main_cash")
+
+        get "/web/cash/movements/#{movement.id}/edit",
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        form = Nokogiri::HTML(response.body).at("#entry_#{movement.id}")
+        salida = form.at("[data-cash-entry-target='group'][data-mode='out']")
+        expect(salida.at("[data-cash-entry-target='method'] option[selected]")["value"]).to eq("cash")
+        expect(salida.at("[data-cash-entry-target='pile'] option[selected]")["value"]).to eq("main_cash")
+        expect(salida.at("[data-cash-entry-target='pile']").key?("disabled")).to be(false)
+      end
+
+      it "prefills a fixed expense as the one Qué es option that carries its subcategory" do
+        movement.update!(category: "fixed_expense", subcategory: "taxes")
+
+        get "/web/cash/movements/#{movement.id}/edit",
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        form = Nokogiri::HTML(response.body).at("#entry_#{movement.id}")
+        salida = form.at("[data-cash-entry-target='group'][data-mode='out']")
+        expect(salida.at("[data-cash-entry-target='kind'] option[selected]")["value"]).to eq("fixed_expense:taxes")
+        expect(form.at("input[type='hidden'][name='subcategory']")["value"]).to eq("taxes")
       end
 
       it "corrects the arca in place" do
@@ -321,8 +374,24 @@ RSpec.describe "Web::Cash::Movements", type: :request do
             headers: { "Accept" => "text/vnd.turbo-stream.html" }
 
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-        expect(response.body).to include('action="replace"', %(target="cash_movement_#{movement.id}"))
+        expect(response.body).to include('action="replace"', %(target="entry_#{movement.id}"))
         expect(response.body).to include("Venta mostrador")
+      end
+
+      it "prefills the form on Entrada, locked, and carries the row it replaces for Cancelar" do
+        get "/web/cash/movements/#{movement.id}/edit",
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        form = Nokogiri::HTML(response.body).at("#entry_#{movement.id}")
+        expect(form["data-cash-entry-mode-value"]).to eq("in")
+        expect(form.css("[data-cash-entry-target='mode']").map { |b| b.key?("disabled") }.uniq).to eq([ true ])
+        expect(form.at("form")["action"]).to eq("/web/cash/movements/#{movement.id}")
+        expect(form.at("[data-cash-entry-target='group'][data-mode='in']").key?("disabled")).to be(false)
+        expect(form.at("[data-cash-entry-target='group'][data-mode='out']").key?("disabled")).to be(true)
+        expect(form.at("input[name='amount']:not([disabled])")["value"]).to eq("324.700,00")
+        expect(form.at("[data-cash-entry-target='channel'] option[selected]")["value"]).to eq("cash")
+        expect(form.at("input[type='hidden'][name='account']").key?("disabled")).to be(true)
+        expect(form.at("template[data-cash-entry-target='original']").inner_html).to include("Venta mostrador")
       end
 
       it "refuses to open a form on a closed day" do
@@ -375,8 +444,9 @@ RSpec.describe "Web::Cash::Movements", type: :request do
                                  description: "Venta corregida", amount: "1.000,00")
 
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-        expect(response.body).to include('action="replace"', %(target="cash_movement_#{movement.id}"))
+        expect(response.body).to include('action="replace"', %(target="entry_#{movement.id}"))
         expect(response.body).to include("Venta corregida")
+        expect(response.body).to include('target="sales-by-channel"')
       end
 
       it "refuses an amount that is not a number and leaves the row untouched" do
@@ -467,7 +537,8 @@ RSpec.describe "Web::Cash::Movements", type: :request do
         delete_movement(movement)
 
         expect(response.media_type).to eq("text/vnd.turbo-stream.html")
-        expect(response.body).to include('action="remove"', %(target="cash_movement_#{id}"))
+        expect(response.body).to include('action="remove"', %(target="entry_#{id}"))
+        expect(response.body).to include('target="sales-by-channel"')
       end
 
       it "refuses a day that was closed in another tab" do
@@ -582,10 +653,11 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       expect(response).to redirect_to(authenticated_root_path)
     end
 
-    it "offers the direction alongside the category it belongs to" do
+    it "offers the partner in both directions, the direction carried by a hidden parameter" do
       get "/web/cash/days/2026-08-03"
 
-      expect(response.body).to include('value="withdrawal"', 'value="contribution"')
+      expect(response.body).to include("Retiro de socio", "Aporte de socio")
+      expect(response.body).to include('type="hidden" name="direction"')
     end
   end
 
@@ -625,7 +697,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     it "offers the supplier in the drawer live row, which the cash sale then leaves unsent" do
       get "/web/cash/days/2026-08-03"
 
-      expect(response.body).to include("cash-live-row-target=\"supplier\"", "Cromosol")
+      expect(response.body).to include("cash-entry-target=\"supplier\"", "Cromosol")
 
       expect {
         post_movement(category: "sale", channel: "cash", description: "Venta mostrador", amount: "1.000,00")
@@ -654,8 +726,101 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       get "/web/cash/movements/#{movement.id}/edit",
           headers: { "Accept" => "text/vnd.turbo-stream.html" }
 
-      expect(response.body).to include("cash-live-row-target=\"supplier\"")
-      expect(response.body).to include(%(selected="selected" value="#{supplier.id}"))
+      form = Nokogiri::HTML(response.body).at("#entry_#{movement.id}")
+      supplier_select = form.at("[data-cash-entry-target='supplier']")
+      expect(supplier_select.at("option[selected]")["value"]).to eq(supplier.id.to_s)
+      expect(supplier_select.key?("disabled")).to be(false)
+      expect(form.at("[data-cash-entry-target='channel'] option[selected]")["value"]).to eq("compensation")
+    end
+  end
+
+  # What the entry form posts for each answer the operator can give. The
+  # hidden inputs travel on every row, so a field that does not apply arrives
+  # blank rather than missing.
+  describe "the parameter contract" do
+    let!(:supplier) { create(:supplier, name: "Pinturerías Rex") }
+
+    def out_params(kind, account)
+      category, subcategory = kind.split(":")
+      { category: category, subcategory: subcategory.to_s,
+        direction: category == "partner" ? "withdrawal" : "", account: account }
+    end
+
+    sale_rows = CashMovement::CHANNEL_LABELS.keys.map do |channel|
+      [ "Entrada · Venta · #{channel}",
+        { category: "sale", subcategory: "", direction: "", channel: channel },
+        { category: "sale", subcategory: nil, channel: channel,
+          account: CashMovement::CHANNEL_ACCOUNTS[channel], sign: 1, supplier: channel == "compensation" } ]
+    end
+
+    contribution_rows = CashMovement::ACCOUNT_LABELS.keys.map do |account|
+      [ "Entrada · Aporte de socio · #{account}",
+        { category: "partner", subcategory: "", direction: "contribution", account: account },
+        { category: "partner", subcategory: nil, channel: nil, account: account, sign: 1, supplier: false } ]
+    end
+
+    out_kinds = [ "suppliers", "partner" ] + CashMovement::SUBCATEGORY_LABELS.keys.map { |key| "fixed_expense:#{key}" }
+    out_rows = out_kinds.product(CashMovement::ACCOUNT_LABELS.keys).map do |kind, account|
+      category, subcategory = kind.split(":")
+      [ "Salida · #{kind} · #{account}",
+        kind,
+        { category: category, subcategory: subcategory, channel: nil, account: account, sign: -1, supplier: false },
+        account ]
+    end
+
+    (sale_rows + contribution_rows).each do |label, params, stored|
+      it "stores #{label}" do
+        params = params.merge(supplier_id: supplier.id) if stored[:supplier]
+
+        expect {
+          post_movement(params.merge(description: "Fila", amount: "1.000,00"))
+        }.to change(CashMovement, :count).by(1)
+
+        movement = CashMovement.last
+        expect(movement.slice(:category, :subcategory, :channel, :account).symbolize_keys)
+          .to eq(stored.slice(:category, :subcategory, :channel, :account))
+        expect(movement.amount).to eq(1_000 * stored[:sign])
+        expect(movement.supplier).to eq(stored[:supplier] ? supplier : nil)
+        expect(response.body).to include('action="append"', 'target="day-entries"')
+      end
+    end
+
+    out_rows.each do |label, kind, stored, account|
+      it "stores #{label}" do
+        expect {
+          post_movement(out_params(kind, account).merge(description: "Fila", amount: "1.000,00"))
+        }.to change(CashMovement, :count).by(1)
+
+        movement = CashMovement.last
+        expect(movement.slice(:category, :subcategory, :channel, :account).symbolize_keys)
+          .to eq(stored.slice(:category, :subcategory, :channel, :account))
+        expect(movement.amount).to eq(1_000 * stored[:sign])
+        expect(movement.supplier).to be_nil
+        expect(response.body).to include('action="append"', 'target="day-entries"')
+      end
+    end
+
+    it "saves the form exactly as the server renders it, with no script: a supplier paid in cash from the till" do
+      get "/web/cash/days/#{date}"
+
+      form = Nokogiri::HTML(response.body).at("#day-entry-form form[action='/web/cash/movements']")
+      enabled = form.css("input[name], select[name]").reject do |field|
+        field.key?("disabled") || field.ancestors("fieldset").any? { |fieldset| fieldset.key?("disabled") }
+      end
+      params = enabled.to_h do |field|
+        value = field.name == "select" ? (field.at("option[selected]") || field.at("option"))["value"] : field["value"]
+        [ field["name"], value.to_s ]
+      end
+
+      post "/web/cash/movements",
+           params: params.merge("description" => "Cromosol", "amount" => "1.000,00"),
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      movement = CashMovement.last
+      expect(movement.category).to eq("suppliers")
+      expect(movement.account).to eq("drawer")
+      expect(movement.amount).to eq(-1_000)
+      expect(movement.description).to eq("Cromosol")
     end
   end
 end

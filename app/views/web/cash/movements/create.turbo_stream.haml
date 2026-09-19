@@ -1,17 +1,9 @@
-- if @movement.present?
-  - if @movement.drawer_zone?
-    = turbo_stream.append "drawer-rows" do
-      = render "web/cash/movements/row", movement: @movement, editable: true
-  - else
-    = turbo_stream.append "arca-rows" do
-      = render "web/cash/movements/arca_row", movement: @movement, editable: true
+- if @entry.present?
+  = turbo_stream.append "day-entries" do
+    = render "web/cash/entries/entry", entry: @entry, editable: true
 
-- if @zone == :arca
-  = turbo_stream.replace "arca-live-row" do
-    = render "web/cash/movements/arca_live_row", error: @error, autofocus: true
-- else
-  = turbo_stream.replace "drawer-live-row" do
-    = render "web/cash/movements/live_row", error: @error, suppliers: @suppliers
+= turbo_stream.replace "day-entry-form" do
+  = render "web/cash/entries/form", business_date: @business_date, suppliers: @suppliers, error: @error, mode: @mode
 
 = turbo_stream.replace "sales-by-channel" do
   = render "web/cash/days/sales_by_channel", day: @day

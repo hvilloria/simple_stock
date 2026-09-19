@@ -50,7 +50,8 @@ RSpec.describe "Caja - cierre del día", type: :system do
     expect(page).to have_css("section", text: "298.700,00")
     expect(page).to have_content("El día tiene 2 movimientos.")
     # The day itself is still on the page, behind the modal.
-    expect(page).to have_css("#drawer-rows tr", count: 2)
+    expect(page).to have_css("#day-entries tr", count: 2)
+    expect(page).to have_css("#day-entry-form", visible: :all)
   end
 
   it "reveals the note only while the count differs from the expectation" do
@@ -91,12 +92,14 @@ RSpec.describe "Caja - cierre del día", type: :system do
     click_button "Cerrar día"
 
     expect(page).to have_content("Día cerrado.")
-    expect(page).to have_css("#drawer-rows tr", count: 4)
-    expect(page).to have_css("#drawer-rows tr", text: "Faltó vuelto de la mañana")
-    expect(page).to have_css("#drawer-rows tr", text: "8.700,00")
+    # The sale, the expense, the discrepancy, and the closing transfer folded
+    # into one row.
+    expect(page).to have_css("#day-entries tr", count: 4)
+    expect(page).to have_css("#day-entries tr", text: "Faltó vuelto de la mañana")
+    expect(page).to have_css("#day-entries tr", text: "8.700,00")
 
-    transfer = find("#drawer-rows tr", text: "Cierre de caja del día")
-    expect(transfer).to have_content("Entre arcas")
+    transfer = find("#day-entries tr", text: "Cierre de caja del día")
+    expect(transfer).to have_content("Caja del día → Caja grande")
     expect(transfer).to have_content("290.000,00")
 
     expect(page).to have_css("#sales-by-channel", text: "0,00")

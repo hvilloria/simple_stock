@@ -29,6 +29,15 @@ RSpec.describe "Web::Cash::Closings", type: :request do
       expect(response.body).to include("El día tiene 2 movimientos.")
     end
 
+    it "renders the open day behind the modal, list and entry form included" do
+      movement = create(:cash_movement, business_date: date, description: "Mostrador")
+
+      get_new
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('id="day-entry-form"', 'id="day-entries"', %(id="entry_#{movement.id}"))
+    end
+
     it "warns about the day's uncollected sale notes" do
       create(:order, :pending, :invoice_b, sale_date: date)
 
@@ -107,6 +116,7 @@ RSpec.describe "Web::Cash::Closings", type: :request do
       }.not_to change(DailyClosing, :count)
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include('id="day-entry-form"', 'id="day-entries"')
     end
 
     it "refuses to close an already-closed day and writes nothing" do

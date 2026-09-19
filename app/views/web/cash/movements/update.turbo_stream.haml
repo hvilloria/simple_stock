@@ -1,19 +1,5 @@
--# A correction that changes the arca can move the row across zones, and a row
--# cannot be replaced into a table it no longer belongs to.
-- if @zone_changed
-  = turbo_stream.remove dom_id(@movement)
-  - if @movement.drawer_zone?
-    = turbo_stream.append "drawer-rows" do
-      = render "web/cash/movements/row", movement: @movement, editable: true
-  - else
-    = turbo_stream.append "arca-rows" do
-      = render "web/cash/movements/arca_row", movement: @movement, editable: true
-- else
-  = turbo_stream.replace dom_id(@movement) do
-    - if @movement.drawer_zone?
-      = render "web/cash/movements/row", movement: @movement, editable: true
-    - else
-      = render "web/cash/movements/arca_row", movement: @movement, editable: true
+= turbo_stream.replace "entry_#{@movement.id}" do
+  = render "web/cash/entries/entry", entry: @entry, editable: true
 
 = turbo_stream.replace "sales-by-channel" do
   = render "web/cash/days/sales_by_channel", day: @day

@@ -14,6 +14,22 @@ module Cash
       def amount = movements.first.amount.abs
     end
 
+    # A saved movement or transfer is rendered as one row of the list without
+    # re-reading the whole day.
+    def self.entry_for(movements)
+      movements = movements.sort_by { |movement| movement.outflow? ? 0 : 1 }
+
+      Entry.new(kind: kind_of(movements.first), movements: movements,
+                counts_in_drawer: movements.any?(&:drawer_account?))
+    end
+
+    def self.kind_of(movement)
+      return :move if movement.transfer?
+
+      movement.inflow? ? :in : :out
+    end
+    private_class_method :kind_of
+
     def initialize(business_date)
       @business_date = business_date
     end
@@ -23,11 +39,11 @@ module Cash
     def entries
       CashMovement
         .on(@business_date)
-        .includes(source_payment: :orders)
+        .includes(:supplier, source_payment: :orders)
         .order(:created_at, :id)
         .group_by { |movement| movement.transfer_group_id || movement.id }
         .values
-        .map { |movements| build_entry(movements) }
+        .map { |movements| self.class.entry_for(movements) }
     end
 
     def drawer_movements
@@ -90,21 +106,6 @@ module Cash
 
     def mercado_pago_recorded_total
       sales_by_channel["mercado_pago"] || 0
-    end
-
-    private
-
-    def build_entry(movements)
-      movements = movements.sort_by { |movement| movement.outflow? ? 0 : 1 }
-
-      Entry.new(kind: kind_of(movements.first), movements: movements,
-                counts_in_drawer: movements.any?(&:drawer_account?))
-    end
-
-    def kind_of(movement)
-      return :move if movement.transfer?
-
-      movement.inflow? ? :in : :out
     end
   end
 end

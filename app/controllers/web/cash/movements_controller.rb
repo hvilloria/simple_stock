@@ -13,9 +13,8 @@ module Web
         deny_forbidden_category!
 
         @business_date = Date.parse(params[:business_date])
-        @zone = arca_submission? ? :arca : :drawer
-        # Only the drawer live row offers a supplier; the arca zone has none.
-        @suppliers = supplier_options if @zone == :drawer
+        @mode = submitted_mode
+        @suppliers = supplier_options
         return refuse("El día está cerrado.") if day_closed?
         return refuse("Esa categoría no se carga en esta zona.") unless zone_category?
         return refuse("Indicá si el socio retira o aporta.") unless partner_direction?
@@ -38,7 +37,7 @@ module Web
 
         return refuse(result.errors.join(", ")) if result.failure?
 
-        @movement = result.record
+        @entry = ::Cash::DayQuery.entry_for([ result.record ])
         @day = ::Cash::DayQuery.new(@business_date)
         render :create
       end
@@ -48,8 +47,7 @@ module Web
         authorize @movement, :update?
         return refuse_closed_day if day_closed?
 
-        @suppliers = supplier_options if @movement.drawer_zone?
-        render :edit
+        render_edit
       end
 
       def update
@@ -64,7 +62,6 @@ module Web
         return refuse_edit("El monto no es un número.") if amount.nil?
         return refuse_edit("El monto no puede ser cero.") if zero_amount?(amount)
 
-        drawer_zone_before = @movement.drawer_zone?
         saved = @movement.update(
           amount: amount,
           category: params[:category],
@@ -77,7 +74,7 @@ module Web
 
         return refuse_edit(@movement.errors.full_messages.join(", ")) unless saved
 
-        @zone_changed = @movement.drawer_zone? != drawer_zone_before
+        @entry = ::Cash::DayQuery.entry_for([ @movement ])
         @day = ::Cash::DayQuery.new(@business_date)
         render :update
       end
@@ -113,6 +110,13 @@ module Web
       # she filled in wrong; the redirect says so.
       def deny_forbidden_category!
         raise Pundit::NotAuthorizedError if policy(CashMovement).forbidden_category?(params[:category])
+      end
+
+      # The fresh form comes back on the mode the row was loaded in.
+      def submitted_mode
+        inflow = params[:category] == "sale" ||
+                 (params[:category] == "partner" && params[:direction] == "contribution")
+        inflow ? "in" : "out"
       end
 
       def partner_direction?
@@ -168,16 +172,23 @@ module Web
       end
 
       # A rejected correction keeps the form row on screen, with the reason, the
-      # way a rejected load keeps the live row.
+      # way a rejected load keeps the entry form.
       def refuse_edit(message)
         @error = message
         @movement.restore_attributes
-        @suppliers = supplier_options if @movement.drawer_zone?
-        render :edit, status: :unprocessable_entity
+        render_edit(status: :unprocessable_entity)
+      end
+
+      # The form carries the row it replaces, so the operator can back out of
+      # a correction without reloading the day.
+      def render_edit(status: :ok)
+        @suppliers = supplier_options
+        @entry = ::Cash::DayQuery.entry_for([ @movement ])
+        render :edit, status: status
       end
 
       # The day can close in another tab while this screen is open. There is no
-      # live row to hang the message on once it is closed, so the screen reloads.
+      # entry form to hang the message on once it is closed, so the screen reloads.
       def refuse_closed_day
         flash[:alert] = "El día está cerrado."
         redirect_to web_cash_day_path(@business_date)

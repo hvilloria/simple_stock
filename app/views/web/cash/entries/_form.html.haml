@@ -1,0 +1,140 @@
+- movement = local_assigns[:movement]
+- edit = movement.present?
+- fields = cash_entry_fields(movement: movement, mode: local_assigns.fetch(:mode, "out"))
+- mode = fields[:mode]
+- in_fields = mode == "in" ? fields : cash_entry_fields(mode: "in")
+- out_fields = mode == "out" ? fields : cash_entry_fields(mode: "out")
+- key = edit ? "entry_#{movement.id}" : "day-entry"
+- partner = policy(CashMovement).categories_for(:arca).include?("partner")
+- stimulus = { controller: "cash-entry", "cash-entry-mode-value": mode, "cash-entry-edit-value": edit.to_s }
+- label_text = "block text-xs font-medium text-slate-500 mb-1"
+- control = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+- refresh = "change->cash-entry#refresh"
+- submit = "px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg"
+
+- body = capture do
+  .flex.gap-1{ role: "group", aria: { label: "Qué movimiento es" } }
+    - [ [ "in", "↓ Entrada" ], [ "out", "↑ Salida" ], [ "move", "⇄ Transferencia" ] ].each do |button_mode, text|
+      %button{ type: "button", disabled: edit, aria: { pressed: (button_mode == mode).to_s },
+               data: { "cash-entry-target": "mode", mode: button_mode,
+                       action: "click->cash-entry#select keydown->cash-entry#key" },
+               class: "px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-300 text-slate-600 aria-pressed:bg-slate-700 aria-pressed:border-slate-700 aria-pressed:text-white disabled:opacity-60" }= text
+
+  = form_with url: edit ? web_cash_movement_path(movement) : web_cash_movements_path,
+              method: edit ? :patch : :post, id: "#{key}-movement-form" do
+    = hidden_field_tag :business_date, business_date, id: "#{key}-business-date"
+    = hidden_field_tag :category, fields[:category], id: "#{key}-category", data: { "cash-entry-target": "category" }
+    = hidden_field_tag :subcategory, fields[:subcategory], id: "#{key}-subcategory", data: { "cash-entry-target": "subcategory" }
+    = hidden_field_tag :direction, fields[:direction], id: "#{key}-direction", data: { "cash-entry-target": "direction" }
+    = hidden_field_tag :account, fields[:account], id: "#{key}-account", disabled: fields[:account].nil?,
+                       data: { "cash-entry-target": "account" }
+
+    - in_sale = in_fields[:kind] == "sale"
+    - in_partner = in_fields[:kind] == "partner"
+    %fieldset.mt-3{ hidden: mode != "in", disabled: mode != "in", data: { "cash-entry-target": "group", mode: "in" } }
+      .flex.flex-wrap.items-end.gap-3
+        - if partner
+          %label.block.w-40
+            %span{ class: label_text } Qué es
+            %select{ id: "#{key}-in-kind", class: control, data: { "cash-entry-target": "kind", action: refresh } }
+              = options_for_select([ [ "Venta", "sale" ], [ "Aporte de socio", "partner" ] ], in_fields[:kind])
+        %label.block.flex-1.min-w-40
+          %span{ class: label_text } Descripción
+          = text_field_tag :description, in_fields[:description], id: "#{key}-in-description",
+                           placeholder: "Opcional", autocomplete: "off", class: control
+        %label.block.w-52{ hidden: !in_sale }
+          %span{ class: label_text } Cómo pagó
+          = select_tag :channel, options_for_select(cash_channel_options, in_fields[:channel]),
+                       id: "#{key}-channel", disabled: !in_sale, class: control,
+                       data: { "cash-entry-target": "channel", action: refresh }
+        - show_supplier = in_sale && in_fields[:channel] == "compensation"
+        %label.block.w-48{ hidden: !show_supplier }
+          %span{ class: label_text } Proveedor
+          = select_tag :supplier_id, options_for_select(suppliers, in_fields[:supplier_id]),
+                       include_blank: true, id: "#{key}-supplier", disabled: !show_supplier, class: control,
+                       data: { "cash-entry-target": "supplier" }
+        %label.block.w-40{ hidden: !in_partner }
+          %span{ class: label_text } Cómo entró
+          %select{ id: "#{key}-in-method", disabled: !in_partner, class: control, data: { "cash-entry-target": "method", action: refresh } }
+            = options_for_select(cash_method_options, in_fields[:method])
+        - in_pile = in_partner && in_fields[:method] == "cash"
+        %label.block.w-40{ hidden: !in_pile }
+          %span{ class: label_text } De qué caja
+          %select{ id: "#{key}-in-pile", disabled: !in_pile, class: control, data: { "cash-entry-target": "pile", action: refresh } }
+            = options_for_select(cash_pile_options, in_fields[:pile])
+        %label.block.w-36
+          %span{ class: label_text } Monto
+          = text_field_tag :amount, in_fields[:amount], id: "#{key}-in-amount", placeholder: "0,00", autocomplete: "off",
+                           class: "#{control} text-right",
+                           data: { controller: "currency-input",
+                                   action: "blur->currency-input#format focus->currency-input#unformat" }
+        = submit_tag "Guardar", id: "#{key}-in-submit", class: submit
+
+    - out_cash = out_fields[:method] == "cash"
+    %fieldset.mt-3{ hidden: mode != "out", disabled: mode != "out", data: { "cash-entry-target": "group", mode: "out" } }
+      .flex.flex-wrap.items-end.gap-3
+        %label.block.flex-1.min-w-40
+          %span{ class: label_text } Descripción
+          = text_field_tag :description, out_fields[:description], id: "#{key}-out-description",
+                           placeholder: "Opcional", autocomplete: "off", class: control
+        %label.block.w-44
+          %span{ class: label_text } Qué es
+          %select{ id: "#{key}-out-kind", class: control, data: { "cash-entry-target": "kind", action: refresh } }
+            = options_for_select(cash_outflow_kind_options(partner: partner), out_fields[:kind])
+        %label.block.w-40
+          %span{ class: label_text } Cómo se pagó
+          %select{ id: "#{key}-out-method", class: control, data: { "cash-entry-target": "method", action: refresh } }
+            = options_for_select(cash_method_options, out_fields[:method])
+        %label.block.w-40{ hidden: !out_cash }
+          %span{ class: label_text } De qué caja
+          %select{ id: "#{key}-out-pile", disabled: !out_cash, class: control, data: { "cash-entry-target": "pile", action: refresh } }
+            = options_for_select(cash_pile_options, out_fields[:pile])
+        %label.block.w-36
+          %span{ class: label_text } Monto
+          = text_field_tag :amount, out_fields[:amount], id: "#{key}-out-amount", placeholder: "0,00", autocomplete: "off",
+                           class: "#{control} text-right",
+                           data: { controller: "currency-input",
+                                   action: "blur->currency-input#format focus->currency-input#unformat" }
+        = submit_tag "Guardar", id: "#{key}-out-submit", class: submit
+
+  - unless edit
+    = form_with url: web_cash_transfers_path, id: "day-entry-transfer-form" do
+      = hidden_field_tag :business_date, business_date, id: "day-entry-transfer-business-date"
+      %fieldset.mt-3{ hidden: mode != "move", disabled: mode != "move", data: { "cash-entry-target": "group", mode: "move" } }
+        .flex.flex-wrap.items-end.gap-3
+          %label.block.w-36
+            %span{ class: label_text } Monto
+            = text_field_tag :amount, nil, id: "day-entry-move-amount", placeholder: "0,00", autocomplete: "off",
+                             class: "#{control} text-right",
+                             data: { controller: "currency-input",
+                                     action: "blur->currency-input#format focus->currency-input#unformat" }
+          %label.block.w-40
+            %span{ class: label_text } De
+            = select_tag :from, options_for_select(CashMovement::ACCOUNT_LABELS.invert, "main_cash"),
+                         id: "day-entry-move-from", class: control
+          %label.block.w-40
+            %span{ class: label_text } A
+            = select_tag :to, options_for_select(CashMovement::ACCOUNT_LABELS.invert, "bank"),
+                         id: "day-entry-move-to", class: control
+          %label.block.flex-1.min-w-40
+            %span{ class: label_text } Descripción
+            = text_field_tag :description, nil, id: "day-entry-move-description",
+                             placeholder: "Opcional", autocomplete: "off", class: control
+          = submit_tag "Guardar", id: "day-entry-move-submit", class: submit
+
+  - if edit
+    .mt-2
+      = link_to "Cancelar", web_cash_day_path(business_date),
+                data: { "cash-entry-target": "cancel", action: "click->cash-entry#cancel" },
+                class: "text-xs text-slate-500 hover:text-slate-700"
+    %template{ data: { "cash-entry-target": "original" } }
+      = render "web/cash/entries/entry", entry: local_assigns.fetch(:entry), editable: true
+
+  - if error.present?
+    %p.mt-2.text-sm.text-red-700= error
+
+- if edit
+  %tr{ id: key, data: stimulus }
+    %td.px-4.py-3.bg-slate-50{ colspan: 7 }= body
+- else
+  #day-entry-form.bg-white.border.border-slate-200.rounded-lg.p-4{ data: stimulus }= body

@@ -34,18 +34,30 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
       expect(legs.map(&:business_date).uniq).to eq([ Date.new(2026, 8, 3) ])
     end
 
-    it "puts each leg in the zone its arca belongs to" do
-      post_transfer(from: "drawer", to: "main_cash", amount: "10.000,00", description: "Cierre")
+    it "appends one folded row to the list, never two" do
+      post_transfer(from: "mercado_pago", to: "bank", amount: "400.000,00")
 
-      expect(response.body).to include('target="drawer-rows"')
-      expect(response.body).to include('target="arca-rows"')
+      legs = CashMovement.order(:id).last(2)
+      expect(response.body.scan('target="day-entries"').size).to eq(1)
+      expect(response.body).to include(%(id="entry_#{legs.first.id}"), "Mercado Pago → Banco", "⇄")
+      expect(response.body).not_to include(%(id="entry_#{legs.last.id}"))
     end
 
-    it "puts both legs in the arca zone when no arca is the drawer" do
+    it "marks the folded row when one leg is the drawer" do
+      post_transfer(from: "drawer", to: "main_cash", amount: "10.000,00", description: "Cierre")
+
+      expect(response.body).to include("Caja del día → Caja grande", "Cuenta en el cajón")
+    end
+
+    it "brings the form back on Transferencia and repaints the sales panel" do
       post_transfer(from: "main_cash", to: "bank", amount: "10.000,00", description: "Depósito")
 
-      expect(response.body).not_to include('target="drawer-rows"')
-      expect(response.body.scan('target="arca-rows"').size).to eq(2)
+      expect(response.body).to include('action="replace"', 'target="day-entry-form"')
+      expect(response.body).to include('data-cash-entry-mode-value="move"')
+      expect(response.body).to include('target="sales-by-channel"')
+      %w[drawer-rows drawer-live-row arca-rows arca-live-row].each do |old_id|
+        expect(response.body).not_to include(old_id)
+      end
     end
 
     it "refuses a transfer between the same arca and writes nothing" do
@@ -55,6 +67,8 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("arcas distintas")
+      expect(response.body).to include('target="day-entry-form"')
+      expect(response.body).not_to include('target="day-entries"')
     end
 
     it "refuses an unknown arca and writes nothing" do
@@ -187,8 +201,8 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
     it "offers the transfer form on an open day" do
       get "/web/cash/days/#{date}"
 
-      expect(response.body).to include("Movimiento entre arcas")
-      expect(response.body).to include("transfer-panel")
+      expect(response.body).to include("⇄ Transferencia")
+      expect(response.body).to include('action="/web/cash/transfers"')
     end
 
     it "offers no transfer form on a closed day" do
@@ -196,7 +210,8 @@ RSpec.describe "Web::Cash::Transfers", type: :request do
 
       get "/web/cash/days/#{date}"
 
-      expect(response.body).not_to include("transfer-panel")
+      expect(response.body).not_to include("⇄ Transferencia")
+      expect(response.body).not_to include('action="/web/cash/transfers"')
     end
   end
 end
