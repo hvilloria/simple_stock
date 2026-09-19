@@ -67,6 +67,9 @@
     .flex.items-center.gap-2.text-sm
       %span.text-slate-500 Mes actual
 
+- if @cash_month_query
+  = render "cash_month", month: @cash_month, query: @cash_month_query
+
 -# Secondary content grid
 -if current_user.caja? || current_user.admin?
   .grid.grid-cols-1.lg:grid-cols-2.gap-6

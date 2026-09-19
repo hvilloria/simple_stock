@@ -6,6 +6,7 @@ module CashHelper
   INVOICE_TYPE_LABELS = { "a" => "A", "b" => "B" }.freeze
   CASH_PILES = CashMovement::REPORTING_GROUPS.fetch("efectivo")
   PAYMENT_METHODS = %w[cash bank mercado_pago usd].freeze
+  MONTH_NAMES = %w[enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre].freeze
 
   def cash_entry_glyph(entry)
     ENTRY_GLYPHS.fetch(entry.kind)
@@ -27,6 +28,24 @@ module CashHelper
 
   def cash_holding_amount(row)
     currency_ar(row.amount, unit: row.usd? ? "US$ " : "$ ")
+  end
+
+  def cash_month_name(month)
+    MONTH_NAMES.fetch(month.month - 1)
+  end
+
+  # The dashboard's month travels as YYYY-MM; there is no next link past the
+  # current month.
+  def cash_month_param(month)
+    month.strftime("%Y-%m")
+  end
+
+  def cash_next_month(month)
+    month.next_month unless month >= Date.current.beginning_of_month
+  end
+
+  def cash_month_figure(amount, usd: false)
+    currency_ar_int(amount, unit: usd ? "US$ " : "$ ")
   end
 
   def cash_entry_notes(movement)
