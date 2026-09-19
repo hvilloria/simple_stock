@@ -5,8 +5,29 @@ module Cash
   # column: the drawer zone is every sale plus whatever was paid out of the
   # till, and the arca zone is the rest.
   class DayQuery
+    # One row of the day's list: a single movement, or a transfer's two legs
+    # with the outflow leg first.
+    Entry = Struct.new(:kind, :movements, :counts_in_drawer, keyword_init: true) do
+      def movement = movements.first
+      def from = movements.first.account
+      def to = movements.last.account
+      def amount = movements.first.amount.abs
+    end
+
     def initialize(business_date)
       @business_date = business_date
+    end
+
+    # The whole day in load order. The kind is read off the stored sign; the
+    # server already decided it.
+    def entries
+      CashMovement
+        .on(@business_date)
+        .includes(source_payment: :orders)
+        .order(:created_at, :id)
+        .group_by { |movement| movement.transfer_group_id || movement.id }
+        .values
+        .map { |movements| build_entry(movements) }
     end
 
     def drawer_movements
@@ -69,6 +90,21 @@ module Cash
 
     def mercado_pago_recorded_total
       sales_by_channel["mercado_pago"] || 0
+    end
+
+    private
+
+    def build_entry(movements)
+      movements = movements.sort_by { |movement| movement.outflow? ? 0 : 1 }
+
+      Entry.new(kind: kind_of(movements.first), movements: movements,
+                counts_in_drawer: movements.any?(&:drawer_account?))
+    end
+
+    def kind_of(movement)
+      return :move if movement.transfer?
+
+      movement.inflow? ? :in : :out
     end
   end
 end
