@@ -10,18 +10,11 @@ module Web
       def create
         authorize @order, :collect?, policy_class: PaymentOnAccountPolicy
 
-        amount   = parse_amount(params[:amount_to_settle]).to_d
-        discount = params[:discount_percent].to_i
-        cash_raw = amount - (amount * discount / 100).round(2)
-        # Discounted cash collections round to the NEAREST hundred (must match
-        # Payments::CollectOnAccount#cash_to_collect so validation passes).
-        cash     = discount.positive? ? ::Payments::CashRounding.round_to_nearest_hundred(cash_raw) : cash_raw
-
         result = ::Payments::CollectOnAccount.call(
           order:            @order,
-          amount_to_settle: amount,
-          discount_percent: discount,
-          tenders:          [ { payment_method: params[:payment_method], amount: cash } ]
+          amount_to_settle: parse_amount(params[:amount_to_settle]),
+          discount_percent: params[:discount_percent].to_i,
+          tenders:          parsed_tenders
         )
 
         if result.success?
@@ -38,6 +31,20 @@ module Web
         @order = Order.on_account.find(params[:payments_on_account_id])
       end
 
+      # Tenders arrive as `tenders[0][payment_method]=cash&tenders[0][amount]=1.500,00`.
+      # Their sum must match the cash to collect; the service enforces that.
+      def parsed_tenders
+        rows = params[:tenders]
+        return [] if rows.blank?
+
+        rows.to_unsafe_h.values.filter_map do |row|
+          amount = parse_amount(row[:amount])
+          next if amount <= 0
+          { payment_method: row[:payment_method], amount: amount }
+        end
+      end
+
+      # Strip Argentine formatting (1.500,00 -> 1500.00) before to_f.
       def parse_amount(raw)
         raw.to_s.gsub(".", "").tr(",", ".").to_f
       end

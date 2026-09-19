@@ -114,13 +114,9 @@ module Payments
           payment_method: method,
           payment_date:   @payment_date
         )
-        rows.each do |row|
-          PaymentAllocation.create!(
-            payment: payment,
-            order:   @order,
-            amount:  row[:amount].to_f
-          )
-        end
+        # One allocation per method: payment_allocations is unique on
+        # (payment_id, order_id), so repeated rows of the same method collapse.
+        PaymentAllocation.create!(payment: payment, order: @order, amount: total)
       end
     end
   end

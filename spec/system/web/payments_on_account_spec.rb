@@ -17,6 +17,9 @@ require "rails_helper"
 #
 # Because the order is fully delivered before settling, the Task 15
 # soft-confirm dialog must NOT fire.
+#
+# A second example covers splitting a partial collection across two payment
+# methods: the amounts only become editable once a second tender row exists.
 
 RSpec.describe "Pagos a cuenta", type: :system do
   include Warden::Test::Helpers
@@ -59,12 +62,33 @@ RSpec.describe "Pagos a cuenta", type: :system do
     expect(page).to have_content("2 / 2 ítems")
 
     click_link "Cobrar →"
-    select "Efectivo", from: "payment_method"
-    fill_in "amount_to_settle", with: "1000"
+    select "Efectivo", from: "tenders[0][payment_method]"
+    fill_in "amount_to_settle", with: "1000", fill_options: { clear: :backspace }
     click_button "Registrar cobro"
     expect(page).to have_content("Cobro registrado")
 
     expect(order.reload.outstanding_balance).to eq(0)
     expect(order.status).to eq("confirmed")
+  end
+
+  it "splits a partial collection across two payment methods" do
+    visit new_web_payments_on_account_payment_path(order)
+
+    # currency-input unformats on focus, which drops Capybara's select-all;
+    # backspacing clears the field regardless.
+    fill_in "amount_to_settle", with: "500", fill_options: { clear: :backspace }
+    click_button "+ Agregar método"
+
+    rows = all("[data-on-account-payment-target='tenderRow']")
+    rows[0].find("input").set("300", clear: :backspace)
+    within(rows[1]) { select "Banco Transferencia" }
+    rows[1].find("input").set("200", clear: :backspace)
+
+    click_button "Registrar cobro"
+    expect(page).to have_content("Cobro registrado")
+
+    order.reload
+    expect(order.outstanding_balance).to eq(500)
+    expect(order.payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
   end
 end
