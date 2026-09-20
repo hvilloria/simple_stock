@@ -25,7 +25,8 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `SalesLedger::Reports::{SummaryQuery, SalesByDateQuery, TopProductsQuery}` — report aggregates
 - `SalesLedger::ImportCsv` — imports amounts (does not create Order/Payment/StockMovement)
 - `Cash::Reports::HoldingsQuery` — sums every movement of a reporting group up to a date into one holding; dollars must never mix into the peso groups
-- `Cash::Reports::MonthQuery` — sums a month's sales and fixed expenses; dollars must stay out of both peso totals, and a reversal must count as a negative sale, not be excluded
+- `Cash::Reports::MonthQuery` — sums a month's sales and lists its fixed expenses one by one, the two totals read off that same list; dollars must stay out of both peso totals, and a reversal must count as a negative sale, not be excluded
+- `Cash::Reports::MovementsQuery#totals` — sums the filter the history is showing, not the page; dollars are their own pair of figures and never enter the peso sum
 
 Out of scope on purpose: `Inventory::AdjustStock` / `Inventory::MarkDelivered` — quantity/delivery, not money; stock has its own critical rule (see `CLAUDE.md`).
 

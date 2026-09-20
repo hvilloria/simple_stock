@@ -724,9 +724,17 @@ how the month is going. An admin-only "Caja de \<mes\>" block shows:
   **Compensación** on its own line when there is one, because it is a sale
   that reached no arca. A dollar sale is shown apart, as `US$`, never added to
   the peso total.
-- **Gastos fijos** — the peso total, then only the subcategories that had
-  spending that month, largest first. A fixed expense paid in dollars is shown
-  apart, as `US$`, never added to the peso total.
+- **Gastos fijos** — the peso total, then **every fixed expense of the month,
+  one per line**, newest first, in a list that scrolls inside the block: the
+  day, the description (the rubro when none was written), the rubro in muted
+  text and the amount. Totals by subcategory answered "how much on services"
+  but never "was it the light or the internet", which is the question being
+  asked; the rubro rides beside each line instead. The total and the list are
+  read off the same rows, so they cannot disagree. A fixed expense paid in
+  dollars is in the list with its `US$` amount and counted apart from the peso
+  total. Each line links to Vista Día of its date — the only place a movement
+  is edited — and "Ver todos" opens §8.4 filtered to that month and to Gastos
+  fijos.
 
 The block navigates by month, previous and next, and the next link does not
 go past the current month.
@@ -743,6 +751,11 @@ the rows behind it are.
 - Rows of category `internal_transfer` state their counterpart ("hacia Banco",
   "desde Caja del día"). Filtered to one arca you only see one leg, and without
   that the large rows look like money that evaporated.
+- **The foot sums the filter, not the page.** Entrada and Salida each carry
+  their total for everything the filters left, so a filter cut into three pages
+  still adds up to one figure; dollars get their own line and never enter the
+  peso sum. It is the answer to "how much were the fixed expenses in August",
+  which used to be done in the head.
 - Read-only, always. Editing happens on the open day and nowhere else.
 - Admin only.
 

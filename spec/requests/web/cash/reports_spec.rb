@@ -329,6 +329,61 @@ RSpec.describe "Web::Cash::Reports", type: :request do
 
         expect(response.body).to include("No hay movimientos con esos filtros")
       end
+
+      # The point of the foot is the filter, not the page: a filter cut into
+      # three pages still adds up to one figure.
+      describe "the total of the filter" do
+        def total(name)
+          Nokogiri::HTML(response.body).at("#movement-totals [data-total=#{name}]")&.text&.strip
+        end
+
+        it "adds up the whole filter and not just the page on screen" do
+          travel_to Date.new(2026, 9, 30) do
+            30.times { movement(amount: 10_000) }
+            movement(:store_expense, amount: -13_000)
+
+            get "/web/cash/reports/history"
+          end
+
+          expect(rows.size).to eq(20)
+          expect(total("inflow")).to eq("300.000,00")
+          expect(total("outflow")).to eq("13.000,00")
+        end
+
+        it "adds up what the filters left" do
+          travel_to Date.new(2026, 9, 30) do
+            movement(amount: 10_000)
+            movement(:store_expense, amount: -13_000)
+
+            get "/web/cash/reports/history", params: { category: "fixed_expense" }
+          end
+
+          expect(total("inflow")).to eq("0,00")
+          expect(total("outflow")).to eq("13.000,00")
+        end
+
+        it "adds the dollars up on their own line, never into the pesos" do
+          travel_to Date.new(2026, 9, 30) do
+            movement(amount: 10_000)
+            movement(account: "usd", channel: "usd", amount: 500)
+
+            get "/web/cash/reports/history"
+          end
+
+          expect(total("inflow")).to eq("10.000,00")
+          expect(total("usd_inflow")).to eq("US$ 500,00")
+        end
+
+        it "leaves the dollar line out when the filter has none" do
+          travel_to Date.new(2026, 9, 30) do
+            movement(amount: 10_000)
+
+            get "/web/cash/reports/history"
+          end
+
+          expect(total("usd_inflow")).to be_nil
+        end
+      end
     end
 
     context "as the cashier" do

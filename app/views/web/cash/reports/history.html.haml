@@ -90,6 +90,19 @@
               %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.text-slate-900= movement.inflow? ? number_ar(movement.amount) : ""
               %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.text-slate-900= movement.outflow? ? number_ar(movement.amount.abs) : ""
 
+        -# The foot sums the filter, not the page: a filter cut into three pages
+        -# still adds up to one figure.
+        %tfoot#movement-totals.border-t-2.border-slate-300.bg-slate-50
+          %tr
+            %td.px-4.py-3.text-sm.font-semibold.text-slate-900{ colspan: 6 } Total del filtro
+            %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.font-semibold.text-slate-900{ data: { total: "inflow" } }= number_ar(@totals.inflow)
+            %td.px-4.py-3.whitespace-nowrap.text-right.text-sm.font-semibold.text-slate-900{ data: { total: "outflow" } }= number_ar(@totals.outflow)
+          - if @totals.usd?
+            %tr
+              %td.px-4.py-2.text-sm.text-slate-600{ colspan: 6 } En dólares
+              %td.px-4.py-2.whitespace-nowrap.text-right.text-sm.text-slate-900{ data: { total: "usd_inflow" } }= currency_ar(@totals.usd_inflow, unit: "US$ ")
+              %td.px-4.py-2.whitespace-nowrap.text-right.text-sm.text-slate-900{ data: { total: "usd_outflow" } }= currency_ar(@totals.usd_outflow, unit: "US$ ")
+
   - else
     .bg-white.border.border-slate-200.rounded-lg.p-16.text-center
       .inline-flex.w-20.h-20.rounded-full.bg-slate-100.items-center.justify-center.text-4xl.mb-4

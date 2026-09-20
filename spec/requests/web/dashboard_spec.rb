@@ -22,6 +22,10 @@ RSpec.describe "Web::Dashboard", type: :request do
     block.at("[data-figure=#{name}]").text.strip
   end
 
+  def fixed_rows
+    block.css("[data-fixed-expense]")
+  end
+
   describe "GET /web/dashboard" do
     before do
       movement(amount: 300_000)
@@ -44,8 +48,39 @@ RSpec.describe "Web::Dashboard", type: :request do
       expect(figure("sold_compensation")).to eq("$ 661.188")
       expect(figure("sold_usd")).to eq("US$ 500")
       expect(figure("fixed_total")).to eq("$ 900.000")
-      expect(figure("fixed_salaries")).to eq("$ 900.000")
       expect(figure("fixed_usd")).to eq("US$ 2.300")
+    end
+
+    it "lists the month's fixed expenses one per line, newest first, each linking to its day" do
+      movement(:store_expense, subcategory: "utilities", amount: -62_400,
+               description: "Edesur", business_date: Date.new(2026, 9, 10))
+
+      sign_in admin
+      get web_dashboard_path
+
+      rows = fixed_rows
+      expect(rows.size).to eq(3)
+      expect(rows.first.text).to include("Edesur", "Servicios", "62.400")
+      expect(rows.first.at("a")["href"]).to eq(web_cash_day_path(Date.new(2026, 9, 10)))
+      expect(rows.map(&:text).join).to include("Alquiler", "US$ 2.300")
+    end
+
+    it "sends the whole month's fixed expenses to the filtered history" do
+      sign_in admin
+      get web_dashboard_path
+
+      expect(block.at("a[data-fixed-expenses-all]")["href"]).to eq(
+        web_cash_movement_history_path(category: "fixed_expense", period: "custom",
+                                       from: "2026-09-01", to: "2026-09-30")
+      )
+    end
+
+    it "says so when the month has no fixed expenses" do
+      sign_in admin
+      get web_dashboard_path(month: "2026-08")
+
+      expect(fixed_rows).to be_empty
+      expect(block.text).to include("No hay gastos fijos cargados en agosto")
     end
 
     it "does not show the block to a cashier, who still sees her dashboard" do

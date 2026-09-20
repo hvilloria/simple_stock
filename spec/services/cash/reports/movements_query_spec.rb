@@ -158,6 +158,51 @@ RSpec.describe Cash::Reports::MovementsQuery do
     end
   end
 
+  # Dollars never enter a peso sum, so the foot of the history carries two
+  # figures at most: what the pesos add up to and what the dollars do.
+  describe "the totals of a filter" do
+    def totals(**filters)
+      described_class.new(from: from, to: to, **filters).totals
+    end
+
+    it "adds the filtered rows up into entrada and salida, both positive" do
+      movement(amount: 10_000)
+      movement(amount: 20_000)
+      movement(:store_expense, amount: -13_000)
+
+      expect(totals.inflow).to eq(30_000)
+      expect(totals.outflow).to eq(13_000)
+    end
+
+    it "adds up what the filter left, not the whole range" do
+      movement(amount: 10_000)
+      movement(:store_expense, amount: -13_000)
+
+      expect(totals(category: "fixed_expense").inflow).to eq(0)
+      expect(totals(category: "fixed_expense").outflow).to eq(13_000)
+    end
+
+    it "keeps dollars out of the peso figures" do
+      movement(account: "usd", channel: "usd", amount: 500)
+      movement(:store_expense, account: "usd", amount: -2_300)
+      movement(amount: 10_000)
+
+      expect(totals.inflow).to eq(10_000)
+      expect(totals.outflow).to eq(0)
+      expect(totals.usd_inflow).to eq(500)
+      expect(totals.usd_outflow).to eq(2_300)
+      expect(totals.usd?).to be(true)
+    end
+
+    it "reads zero when the filter matches nothing" do
+      movement(amount: 10_000)
+
+      expect(totals(category: "partner").inflow).to eq(0)
+      expect(totals(category: "partner").outflow).to eq(0)
+      expect(totals(category: "partner").usd?).to be(false)
+    end
+  end
+
   # The paper-number column reads through the source payment, the transfer
   # counterpart through the shared transfer_group_id and the supplier column
   # through the compensation's supplier, so a page of rows must cost the same
@@ -183,6 +228,13 @@ RSpec.describe Cash::Reports::MovementsQuery do
       3.times { transfer_pair }
 
       expect(round_trips).to eq(few)
+    end
+
+    it "adds the whole filter up in two queries, however many rows it holds" do
+      12.times { movement(amount: 10_000) }
+      movement(:store_expense, account: "usd", amount: -2_300)
+
+      expect(capture_sql { described_class.new(from: from, to: to).totals }.size).to eq(2)
     end
 
     def transfer_pair

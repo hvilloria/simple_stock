@@ -45,12 +45,12 @@ module Web
         @group_options = GROUP_OPTIONS
         @channel_options = CHANNEL_OPTIONS
         @category_options = CATEGORY_OPTIONS
-        @pagy, @movements = pagy(
-          ::Cash::Reports::MovementsQuery.call(
-            from: @from, to: @to, group: @group, channel: @channel,
-            category: @category, search: @search
-          )
+        query = ::Cash::Reports::MovementsQuery.new(
+          from: @from, to: @to, group: @group, channel: @channel,
+          category: @category, search: @search
         )
+        @totals = query.totals
+        @pagy, @movements = pagy(query.relation)
       end
 
       private

@@ -26,14 +26,33 @@ module Cash
         @search = search.to_s.strip
       end
 
+      Totals = Struct.new(:inflow, :outflow, :usd_inflow, :usd_outflow, keyword_init: true) do
+        def usd? = !usd_inflow.zero? || !usd_outflow.zero?
+      end
+
       def call = relation
 
       # A relation and not an array: the controller paginates it, so the page
       # is cut in SQL rather than in Ruby.
       def relation
+        filtered.includes(:supplier, :transfer_legs, source_payment: :orders)
+                .order(business_date: :desc, created_at: :desc, id: :desc)
+      end
+
+      # The foot of the screen sums the filter, not the page on screen. Dollars
+      # get their own pair of figures: they never enter a peso sum.
+      def totals
+        inflows  = sums_by_account(0..)
+        outflows = sums_by_account(..0)
+
+        Totals.new(inflow: pesos(inflows), outflow: -pesos(outflows),
+                   usd_inflow: usd(inflows), usd_outflow: -usd(outflows))
+      end
+
+      private
+
+      def filtered
         scoped = CashMovement.between(@from, @to)
-                             .includes(:supplier, :transfer_legs, source_payment: :orders)
-                             .order(business_date: :desc, created_at: :desc, id: :desc)
         scoped = scoped.where(account: accounts) if accounts
         scoped = scoped.where(channel: @channel) if channel?
         scoped = scoped.where(category: @category) if category?
@@ -41,7 +60,14 @@ module Cash
         scoped
       end
 
-      private
+      # An amount is never zero, so a range open at zero is one side of the ledger.
+      def sums_by_account(amounts)
+        filtered.where(amount: amounts).group(:account).sum(:amount)
+      end
+
+      # A compensation lands in no arca, and it is in pesos like any other sale.
+      def pesos(sums) = sums.except("usd").values.sum
+      def usd(sums) = sums.fetch("usd", 0)
 
       # An unknown group narrows nothing rather than returning an empty screen:
       # a typed URL is not a reason to hide the history.

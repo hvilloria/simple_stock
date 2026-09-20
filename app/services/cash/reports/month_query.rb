@@ -3,12 +3,12 @@
 module Cash
   module Reports
     # How one month is going: what was sold and what went on fixed expenses.
-    # Figures are positive. Dollars are reported apart, never added to pesos.
+    # Sales are read as totals, fixed expenses one by one. Figures are positive.
+    # Dollars are reported apart, never added to pesos.
     class MonthQuery
       PESO_GROUPS = CashMovement::REPORTING_GROUPS.keys - %w[usd]
 
       Line = Struct.new(:key, :label, :amount, keyword_init: true)
-      Sum = Struct.new(:category, :group, :subcategory, :amount)
 
       def initialize(month:)
         @month = month
@@ -25,42 +25,25 @@ module Cash
       def sold_usd = sold["usd"]
       def sold_total = sold_by_group.sum(&:amount) + sold_compensation
 
-      def fixed_by_subcategory
-        @fixed_by_subcategory ||= fixed_pesos
-                                  .reject { |_, amount| amount.zero? }
-                                  .sort_by { |_, amount| -amount }
-                                  .map do |subcategory, amount|
-                                    Line.new(key: subcategory, label: CashMovement.subcategory_label(subcategory),
-                                             amount: amount)
-                                  end
+      # The list and the two totals read the same rows, so they cannot disagree.
+      def fixed_expenses
+        @fixed_expenses ||= CashMovement.where(business_date: @month.all_month, category: "fixed_expense")
+                                        .order(business_date: :desc, id: :desc)
+                                        .to_a
       end
 
-      def fixed_usd = -sums.select { |sum| fixed?(sum) && sum.group == "usd" }.sum(&:amount)
-      def fixed_total = fixed_by_subcategory.sum(&:amount)
+      def fixed_usd = -fixed_expenses.select { |row| row.account == "usd" }.sum(&:amount)
+      def fixed_total = -fixed_expenses.reject { |row| row.account == "usd" }.sum(&:amount)
 
       private
 
       def sold
-        @sold ||= totals_by(:group) { |sum| sum.category == "sale" }
-      end
-
-      def fixed_pesos
-        totals_by(:subcategory) { |sum| fixed?(sum) && sum.group != "usd" }.transform_values(&:-@)
-      end
-
-      def fixed?(sum) = sum.category == "fixed_expense"
-
-      def totals_by(attribute, &filter)
-        sums.select(&filter).each_with_object(Hash.new(0)) { |sum, totals| totals[sum[attribute]] += sum.amount }
-      end
-
-      def sums
-        @sums ||= CashMovement
-                  .where(business_date: @month.all_month, category: %w[sale fixed_expense])
-                  .group(:category, :account, :subcategory)
+        @sold ||= CashMovement
+                  .where(business_date: @month.all_month, category: "sale")
+                  .group(:account)
                   .sum(:amount)
-                  .map do |(category, account, subcategory), amount|
-                    Sum.new(category, account && CashMovement.reporting_group_for(account), subcategory, amount)
+                  .each_with_object(Hash.new(0)) do |(account, amount), totals|
+                    totals[account && CashMovement.reporting_group_for(account)] += amount
                   end
       end
     end

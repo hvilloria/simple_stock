@@ -48,6 +48,19 @@ module CashHelper
     currency_ar_int(amount, unit: usd ? "US$ " : "$ ")
   end
 
+  # With no description written, the rubro is the only name the expense has.
+  def cash_fixed_expense_title(movement)
+    movement.description.presence || CashMovement.subcategory_label(movement.subcategory)
+  end
+
+  def cash_fixed_expense_rubro(movement)
+    CashMovement.subcategory_label(movement.subcategory) if movement.description.present?
+  end
+
+  def cash_fixed_expense_amount(movement)
+    cash_month_figure(movement.amount.abs, usd: movement.account == "usd")
+  end
+
   def cash_entry_notes(movement)
     return [] if movement.source_payment.nil?
 

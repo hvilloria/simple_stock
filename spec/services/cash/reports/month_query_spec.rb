@@ -91,9 +91,9 @@ RSpec.describe Cash::Reports::MonthQuery do
   end
 
   describe "fixed expenses" do
-    it "reads zero and no subcategory for a month without fixed expenses" do
+    it "reads zero and lists nothing for a month without fixed expenses" do
       expect(query.fixed_total).to eq(0)
-      expect(query.fixed_by_subcategory).to be_empty
+      expect(query.fixed_expenses).to be_empty
       expect(query.fixed_usd).to eq(0)
     end
 
@@ -103,25 +103,22 @@ RSpec.describe Cash::Reports::MonthQuery do
       expect(query.fixed_total).to eq(13_000)
     end
 
-    it "lists only the subcategories with spending, largest first" do
-      fixed_expense("store_expenses", -13_000)
-      fixed_expense("salaries", -900_000, account: "bank")
-      fixed_expense("salaries", -100_000, account: "main_cash")
-      fixed_expense("utilities", -45_000, account: "mercado_pago")
+    it "lists every fixed expense of the month, newest first" do
+      first  = fixed_expense("salaries", -900_000, account: "bank", business_date: Date.new(2026, 8, 5))
+      second = fixed_expense("salaries", -100_000, account: "main_cash", business_date: Date.new(2026, 8, 5))
+      later  = fixed_expense("utilities", -45_000, account: "mercado_pago", business_date: Date.new(2026, 8, 12))
 
-      lines = query.fixed_by_subcategory
-      expect(lines.map(&:label)).to eq([ "Sueldos", "Servicios", "Gastos de local" ])
-      expect(lines.map(&:amount)).to eq([ 1_000_000, 45_000, 13_000 ])
-      expect(query.fixed_total).to eq(1_058_000)
+      expect(query.fixed_expenses).to eq([ later, second, first ])
+      expect(query.fixed_total).to eq(1_045_000)
     end
 
-    it "reports a fixed expense paid in dollars apart and never adds it to the peso total" do
-      fixed_expense("rent", -2_300, account: "usd")
-      fixed_expense("salaries", -900_000, account: "bank")
+    it "lists a fixed expense paid in dollars but never adds it to the peso total" do
+      dollars = fixed_expense("rent", -2_300, account: "usd")
+      pesos   = fixed_expense("salaries", -900_000, account: "bank")
 
+      expect(query.fixed_expenses).to contain_exactly(dollars, pesos)
       expect(query.fixed_usd).to eq(2_300)
       expect(query.fixed_total).to eq(900_000)
-      expect(query.fixed_by_subcategory.map(&:label)).to eq([ "Sueldos" ])
     end
 
     it "ignores fixed expenses outside the month and movements of other categories" do
@@ -130,10 +127,11 @@ RSpec.describe Cash::Reports::MonthQuery do
       movement(amount: 100_000)
 
       expect(query.fixed_total).to eq(0)
+      expect(query.fixed_expenses).to be_empty
     end
   end
 
-  it "reads the whole month in a single query" do
+  it "reads the whole month in two queries: the sales it sums, the fixed expenses it lists" do
     movement(account: "drawer", channel: "cash", amount: 299_700)
     movement(:card_sale)
     movement(account: "mercado_pago", channel: "mercado_pago", amount: 110_000)
@@ -150,13 +148,13 @@ RSpec.describe Cash::Reports::MonthQuery do
     figures = nil
     queries = capture_sql do
       figures = [ query.sold_total, query.sold_by_group.map(&:amount), query.sold_compensation,
-                  query.sold_usd, query.fixed_total, query.fixed_by_subcategory.map(&:amount),
+                  query.sold_usd, query.fixed_total, query.fixed_expenses.map { |row| row.amount.abs },
                   query.fixed_usd ]
     end
 
-    expect(queries.size).to eq(1)
+    expect(queries.size).to eq(2)
     expect(figures).to eq([ 1_195_588, [ 369_700, 54_700, 110_000 ], 661_188,
-                            500, 913_000, [ 900_000, 13_000 ], 2_300 ])
+                            500, 913_000, [ 2_300, 13_000, 900_000 ], 2_300 ])
   end
 
   def capture_sql

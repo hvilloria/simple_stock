@@ -32,3 +32,4 @@ en:
   date:
     formats:
       friendly: "%-d %b %Y"
+      day_month: "%-d %b"
