@@ -108,6 +108,40 @@ RSpec.describe Payments::CollectOnAccount do
       expect(order.status).to eq("confirmed")
     end
 
+    it "splits a collection across methods, one Payment per method" do
+      result = described_class.call(
+        order: order, amount_to_settle: 400, discount_percent: 0,
+        tenders: [
+          { payment_method: "cash", amount: 250 },
+          { payment_method: "bank_transfer", amount: 150 }
+        ]
+      )
+
+      expect(result).to be_success
+      expect(order.reload.outstanding_balance).to eq(600)
+      expect(order.payment_allocations.sum(:amount)).to eq(400)
+      payments = order.payment_allocations.map(&:payment).uniq
+      expect(payments.size).to eq(2)
+      expect(payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
+    end
+
+    # payment_allocations is unique on (payment_id, order_id): two rows of the
+    # same method must land in a single allocation, not raise RecordNotUnique.
+    it "collapses repeated rows of the same method into one allocation" do
+      result = described_class.call(
+        order: order, amount_to_settle: 400, discount_percent: 0,
+        tenders: [
+          { payment_method: "cash", amount: 250 },
+          { payment_method: "cash", amount: 150 }
+        ]
+      )
+
+      expect(result).to be_success
+      expect(order.payment_allocations.count).to eq(1)
+      expect(order.payment_allocations.sum(:amount)).to eq(400)
+      expect(order.payments.map(&:payment_method)).to eq([ "cash" ])
+    end
+
     it "rejects a non on_account order" do
       immediate = create(:order, :pending, order_type: "immediate",
                          total_amount: 100, original_total_amount: 100)

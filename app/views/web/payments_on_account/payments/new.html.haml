@@ -52,13 +52,35 @@
               data: { "on-account-payment-target": "amount", controller: "currency-input", action: "blur->currency-input#format focus->currency-input#unformat input->on-account-payment#recalculate" },
               class: "w-44 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right bg-white"
 
-        -# Payment method
+        -# Payment methods (one row per tender)
         .bg-white.border.border-slate-200.rounded-2xl.p-5
-          %h3.text-sm.font-semibold.text-slate-900.mb-3 Forma de pago
-          = select_tag :payment_method,
-              options_for_select(Payment.method_options, "cash"),
-              data: { "on-account-payment-target": "tenderMethod", action: "change->on-account-payment#recalculate" },
-              class: "w-full px-3 py-2 border border-slate-300 rounded-xl text-sm"
+          .flex.items-baseline.justify-between.mb-1
+            %h3.text-sm.font-semibold.text-slate-900 Forma de pago
+            %span.text-xs.text-slate-500 Podés dividir el cobro en varios métodos
+          %p.text-xs.text-slate-500.mb-3 Con un solo método el monto es el total a cobrar
+
+          .space-y-2{ data: { "on-account-payment-target": "tenderRows" } }
+            .flex.gap-2.items-center{ data: { "on-account-payment-target": "tenderRow" } }
+              = select_tag "tenders[0][payment_method]",
+                  options_for_select(Payment.method_options, "cash"),
+                  data: { "on-account-payment-target": "tenderMethod",
+                          action: "change->on-account-payment#recalculate" },
+                  class: "flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm"
+              = text_field_tag "tenders[0][amount]", nil,
+                  placeholder: "0,00",
+                  readonly: true,
+                  data: { "on-account-payment-target": "tenderAmount",
+                          controller: "currency-input",
+                          action: "blur->currency-input#format focus->currency-input#unformat input->on-account-payment#recalculate" },
+                  class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right bg-slate-50 text-slate-500"
+              %button{ type: "button",
+                       data: { action: "click->on-account-payment#removeTender" },
+                       class: "text-slate-400 hover:text-red-500 text-lg px-1" } ×
+
+          %button{ type: "button",
+                   data: { action: "click->on-account-payment#addTender" },
+                   class: "mt-3 w-full text-xs text-slate-600 hover:text-slate-900 border border-dashed border-slate-300 rounded-xl py-2" }
+            + Agregar método
 
         -# Discount
         .bg-white.border.border-slate-200.rounded-2xl.p-5
@@ -89,10 +111,17 @@
           .flex.justify-between.font-semibold.text-slate-900
             %span A cobrar
             %span{ data: { "on-account-payment-target": "cashToCollect" } } $ 0,00
+          .flex.justify-between.text-slate-600
+            %span Suma de pagos
+            %span{ data: { "on-account-payment-target": "paidLine" } } $ 0,00
+          .flex.justify-between.font-medium
+            %span.text-slate-600 Por pagar
+            %span{ data: { "on-account-payment-target": "diffLine" } } $ 0,00
           .border-t.border-slate-200.my-2
           .flex.justify-between.font-medium
             %span.text-slate-600 Saldo después
             %span.text-slate-900{ data: { "on-account-payment-target": "balanceAfter" } } $ 0,00
 
         = f.submit "Registrar cobro",
-            class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer"
+            data: { "on-account-payment-target": "submitButton" },
+            class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
