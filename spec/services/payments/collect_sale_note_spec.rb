@@ -166,6 +166,25 @@ RSpec.describe Payments::CollectSaleNote do
       expect(payments.size).to eq(2)
       expect(payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
     end
+
+    # payment_allocations is unique on (payment_id, order_id): two rows of the
+    # same method must land in a single allocation, not raise RecordNotUnique.
+    it "collapses repeated rows of the same method into one allocation" do
+      result = described_class.call(
+        user: cashier,
+        order: order,
+        discount_percent: 0,
+        tenders: [
+          { payment_method: "cash", amount: 600 },
+          { payment_method: "cash", amount: 400 }
+        ]
+      )
+
+      expect(result).to be_success
+      expect(order.payment_allocations.count).to eq(1)
+      expect(order.payment_allocations.sum(:amount)).to eq(1000)
+      expect(order.payments.map(&:payment_method)).to eq([ "cash" ])
+    end
   end
 
   describe "cash movements" do
