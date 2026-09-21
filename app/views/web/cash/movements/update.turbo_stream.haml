@@ -1,0 +1,5 @@
+= turbo_stream.replace "entry_#{@movement.id}" do
+  = render "web/cash/entries/entry", entry: @entry, editable: true
+
+= turbo_stream.replace "sales-by-channel" do
+  = render "web/cash/days/sales_by_channel", day: @day

@@ -11,6 +11,7 @@ module Web
         authorize @order, :collect?, policy_class: PaymentOnAccountPolicy
 
         result = ::Payments::CollectOnAccount.call(
+          user:             current_user,
           order:            @order,
           amount_to_settle: parse_amount(params[:amount_to_settle]),
           discount_percent: params[:discount_percent].to_i,

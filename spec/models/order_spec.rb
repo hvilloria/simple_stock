@@ -9,6 +9,7 @@ RSpec.describe Order, type: :model do
   describe 'enums' do
     it { is_expected.to define_enum_for(:status).with_values(pending: 'pending', confirmed: 'confirmed', cancelled: 'cancelled').backed_by_column_of_type(:string).with_suffix }
     it { is_expected.to define_enum_for(:order_type).with_values(immediate: 'immediate', credit: 'credit', on_account: 'on_account').backed_by_column_of_type(:string).with_suffix }
+    it { is_expected.to define_enum_for(:invoice_type).with_values(a: 'a', b: 'b', none: 'none').backed_by_column_of_type(:string).with_suffix }
   end
 
   describe 'status enum' do
@@ -697,6 +698,53 @@ RSpec.describe Order, type: :model do
 
     it "builds select options as [label, value] pairs" do
       expect(Order.type_options).to include([ "Cuenta corriente", "credit" ])
+    end
+  end
+
+  describe "invoice_type / invoice_number" do
+    it "defaults to nil on a freshly created order, distinct from the 'none' state" do
+      order = create(:order)
+      expect(order.invoice_type).to be_nil
+      expect(order.invoice_number).to be_nil
+    end
+
+    it "requires invoice_number when invoice_type is a" do
+      order = build(:order, invoice_type: "a", invoice_number: nil)
+      expect(order).not_to be_valid
+      expect(order.errors[:invoice_number]).to be_present
+    end
+
+    it "requires invoice_number when invoice_type is b" do
+      order = build(:order, invoice_type: "b", invoice_number: nil)
+      expect(order).not_to be_valid
+      expect(order.errors[:invoice_number]).to be_present
+    end
+
+    it "accepts invoice_number when invoice_type is a" do
+      order = build(:order, :invoice_a)
+      expect(order).to be_valid
+    end
+
+    it "rejects invoice_number when invoice_type is none" do
+      order = build(:order, invoice_type: "none", invoice_number: "0001-00000001")
+      expect(order).not_to be_valid
+      expect(order.errors[:invoice_number]).to be_present
+    end
+
+    it "accepts a blank invoice_number when invoice_type is none" do
+      order = build(:order, :no_invoice)
+      expect(order).to be_valid
+    end
+
+    it "rejects an invoice_number given without an invoice_type" do
+      order = build(:order, invoice_type: nil, invoice_number: "0001-00000001")
+      expect(order).not_to be_valid
+      expect(order.errors[:invoice_type]).to be_present
+    end
+
+    it "accepts a nil invoice_type with no invoice_number" do
+      order = build(:order, invoice_type: nil, invoice_number: nil)
+      expect(order).to be_valid
     end
   end
 end

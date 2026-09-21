@@ -1,6 +1,16 @@
 {
   "ignored_warnings": [
     {
+      "warning_type": "Cross-Site Scripting",
+      "warning_code": 2,
+      "fingerprint": "b93237c9eedf4be2a0fcbb87107b4c47bf67326617acbd9eb298ffaa75c85642",
+      "check_name": "CrossSiteScripting",
+      "message": "Unescaped model attribute",
+      "file": "app/views/web/cash/entries/_entry.html.haml",
+      "line": 4,
+      "note": "The class comes from CashHelper::ENTRY_GLYPH_CLASSES, a frozen hash of three literal Tailwind classes fetched by the entry's direction; fetch raises on anything else. No request data reaches it, and the model attribute Brakeman cannot resolve is the direction, not the string."
+    },
+    {
       "warning_type": "Unmaintained Dependency",
       "warning_code": 120,
       "fingerprint": "d84924377155b41e094acae7404ec2e521629d86f97b0ff628e3d1b263f8101c",

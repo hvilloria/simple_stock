@@ -74,5 +74,15 @@ Rails.application.routes.draw do
         get :supplier_invoices
       end
     end
+
+    namespace :cash do
+      resources :days, only: [ :index, :show ], param: :business_date do
+        resource :closing, only: [ :new, :create ], controller: "closings"
+      end
+      resources :movements, only: [ :create, :edit, :update, :destroy ]
+      resources :transfers, only: [ :create ]
+      get "reports/balance", to: "reports#balance", as: :balance_report
+      get "reports/history", to: "reports#history", as: :movement_history
+    end
   end
 end

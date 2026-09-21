@@ -1,0 +1,57 @@
+- next_month = cash_next_month(month)
+
+#cash-month.bg-white.border.border-slate-200.rounded-lg.mb-6
+  .px-6.py-4.border-b.border-slate-200
+    .flex.items-center.justify-between
+      %h3.text-base.font-semibold.text-slate-900= "Caja de #{cash_month_name(month)}"
+      .flex.items-center.gap-4.text-sm
+        = link_to "← #{cash_month_name(month.prev_month)}", web_dashboard_path(month: cash_month_param(month.prev_month)),
+                  rel: "prev", class: "text-slate-600 hover:text-slate-900"
+        - if next_month
+          = link_to "#{cash_month_name(next_month)} →", web_dashboard_path(month: cash_month_param(next_month)),
+                    rel: "next", class: "text-slate-600 hover:text-slate-900"
+
+  .grid.grid-cols-1.md:grid-cols-2.divide-y.md:divide-y-0.md:divide-x.divide-slate-100
+    .p-6
+      %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Vendido
+      %p.text-3xl.font-bold.text-slate-900.tabular-nums{ data: { figure: "sold_total" } }= cash_month_figure(query.sold_total)
+      %dl.mt-4.space-y-2.text-sm
+        - query.sold_by_group.each do |line|
+          .flex.items-center.justify-between
+            %dt.text-slate-600= line.label
+            %dd.text-slate-900.tabular-nums{ data: { figure: "sold_#{line.key}" } }= cash_month_figure(line.amount)
+        - unless query.sold_compensation.zero?
+          .flex.items-center.justify-between
+            %dt.text-slate-600 Compensación
+            %dd.text-slate-900.tabular-nums{ data: { figure: "sold_compensation" } }= cash_month_figure(query.sold_compensation)
+        - unless query.sold_usd.zero?
+          .flex.items-center.justify-between.pt-2.border-t.border-slate-100
+            %dt.text-slate-600 Dólares, aparte
+            %dd.text-slate-900.tabular-nums{ data: { figure: "sold_usd" } }= cash_month_figure(query.sold_usd, usd: true)
+
+    .p-6
+      .flex.items-start.justify-between.gap-4
+        %div
+          %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wide.mb-2 Gastos fijos
+          %p.text-3xl.font-bold.text-slate-900.tabular-nums{ data: { figure: "fixed_total" } }= cash_month_figure(query.fixed_total)
+        = link_to "Ver todos →", web_cash_movement_history_path(category: "fixed_expense", period: "custom", from: month.beginning_of_month, to: month.end_of_month),
+                  data: { fixed_expenses_all: true }, class: "text-sm text-slate-600 hover:text-slate-900 whitespace-nowrap"
+
+      - unless query.fixed_usd.zero?
+        .mt-3.flex.items-center.justify-between.text-sm
+          %span.text-slate-600 Dólares, aparte
+          %span.text-slate-900.tabular-nums{ data: { figure: "fixed_usd" } }= cash_month_figure(query.fixed_usd, usd: true)
+
+      - if query.fixed_expenses.any?
+        %ul.mt-4.max-h-60.overflow-y-auto.divide-y.divide-slate-100.text-sm
+          - query.fixed_expenses.each do |expense|
+            %li{ data: { fixed_expense: expense.id } }
+              = link_to web_cash_day_path(expense.business_date), class: "flex items-center gap-3 py-2 hover:bg-slate-50 transition-colors" do
+                %span.w-14.shrink-0.text-slate-500.tabular-nums= l(expense.business_date, format: :day_month)
+                %span.flex-1.text-slate-900
+                  = cash_fixed_expense_title(expense)
+                  - if cash_fixed_expense_rubro(expense)
+                    %span.text-slate-400= "· #{cash_fixed_expense_rubro(expense)}"
+                %span.text-slate-900.tabular-nums.whitespace-nowrap= cash_fixed_expense_amount(expense)
+      - else
+        %p.mt-4.text-sm.text-slate-500= "No hay gastos fijos cargados en #{cash_month_name(month)}."

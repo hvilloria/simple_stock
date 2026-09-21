@@ -89,6 +89,7 @@ module Web
       authorize @order, policy_method
       result = Sales::CancelOrder.call(
         order: @order,
+        user: current_user,
         reason: params[:reason] || "Anulada desde interfaz"
       )
 

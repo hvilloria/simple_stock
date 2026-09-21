@@ -27,6 +27,12 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
 
       expect(response).to redirect_to(web_payments_on_account_path(order))
       expect(order.reload.outstanding_balance).to eq(600)
+
+      movement = CashMovement.sole
+      expect(movement.user).to eq(caja)
+      expect(movement.account).to eq("drawer")
+      expect(movement.amount).to eq(400)
+      expect(movement.description).to eq("Cobro a cuenta — Nota #{order.paper_number} — #{order.contact_name}")
     end
 
     it "splits a collection across several payment methods" do

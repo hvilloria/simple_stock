@@ -1,0 +1,25 @@
+- content_for :page_title, "Balance general"
+
+.container.mx-auto.px-6.py-6
+  .flex.flex-col.md:flex-row.md:items-end.md:justify-between.gap-4.mb-6
+    %div
+      %h1.text-3xl.font-bold.text-slate-900 Balance general
+      %p.text-sm.text-slate-600.mt-1 Cuánta plata hay, y dónde.
+
+    = form_with url: web_cash_balance_report_path, method: :get, data: { controller: "filter-form" }, class: "flex items-center gap-2" do
+      = label_tag :on, "al", class: "text-sm text-slate-600"
+      = date_field_tag :on, @on,
+                       max: Date.current,
+                       class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm",
+                       data: { action: "change->filter-form#submit" }
+
+  #holdings.grid.grid-cols-1.sm:grid-cols-2.lg:grid-cols-4.gap-4
+    - @holdings.each do |row|
+      .bg-white.border.border-slate-200.rounded-lg.p-5{ data: { group: row.group } }
+        %p.text-xs.font-medium.text-slate-500.uppercase.tracking-wider{ data: { label: true } }= row.label
+        %p.mt-2.text-2xl.font-bold.tabular-nums{ class: row.amount.zero? ? "text-slate-400" : "text-slate-900", data: { amount: true } }= cash_holding_amount(row)
+
+  %p.text-xs.text-slate-500.mt-4
+    Sin total: los dólares no se suman a los pesos. Cada número ya incluye aportes y retiros de socio, movimientos entre arcas y diferencias de arqueo;
+    = link_to "el historial", web_cash_movement_history_path, class: "underline hover:text-slate-700"
+    muestra las filas detrás.

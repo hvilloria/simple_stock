@@ -6,17 +6,19 @@ module Payments
 
     TOLERANCE = 0.01
 
-    def self.call(customer:, payment_date:, allocations:, notes: nil)
+    def self.call(customer:, payment_date:, allocations:, user:, notes: nil)
       new(
         customer: customer,
         payment_date: payment_date,
         allocations: allocations,
+        user: user,
         notes: notes
       ).call
     end
 
-    def initialize(customer:, payment_date:, allocations:, notes: nil)
+    def initialize(customer:, payment_date:, allocations:, user:, notes: nil)
       @customer = customer
+      @user = user
       @payment_date = payment_date || Date.current
       @notes = notes
       @allocations = Array(allocations).map { |row| row.to_h.symbolize_keys }
@@ -47,6 +49,8 @@ module Payments
               amount: row[:amount].to_f
             )
           end
+
+          record_in_cash!(payment)
 
           payments << payment
         end
@@ -111,6 +115,23 @@ module Payments
           raise ValidationError, "La orden ##{order.id} no es una venta a crédito activa"
         end
       end
+    end
+
+    def record_in_cash!(payment)
+      result = Cash::RecordSaleFromPayment.call(
+        payment:     payment,
+        user:        @user,
+        description: cash_description
+      )
+
+      raise ValidationError, result.errors.join(", ") if result.failure?
+    end
+
+    # One payment can settle several orders, so the text names the account
+    # holder and no note number. Which orders it paid is a structural fact of
+    # the payment's allocations, not something to restate in prose.
+    def cash_description
+      @cash_description ||= [ "Cobranza cta. cte.", @customer.name.presence ].compact.join(" — ")
     end
 
     def grouped_by_method

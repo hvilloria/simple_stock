@@ -1,0 +1,3 @@
+= turbo_stream.replace "entry_#{@movement.id}" do
+  = render "web/cash/entries/form", business_date: @business_date, suppliers: @suppliers, error: @error,
+                                    movement: @movement, entry: @entry

@@ -76,6 +76,8 @@ RSpec.configure do |config|
 
   # Include Devise helpers for request specs
   config.include Devise::Test::IntegrationHelpers, type: :request
+
+  config.include ActiveSupport::Testing::TimeHelpers
 end
 
 # When the browser runs in its own container, Capybara must serve the app on an

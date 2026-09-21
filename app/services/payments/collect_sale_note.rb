@@ -14,20 +14,27 @@ module Payments
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
-    def self.call(order:, tenders:, discount_percent: 0, payment_date: Date.current)
+    def self.call(order:, tenders:, user:, discount_percent: 0, payment_date: Date.current,
+                  invoice_type: nil, invoice_number: nil)
       new(
         order: order,
         tenders: tenders,
+        user: user,
         discount_percent: discount_percent,
-        payment_date: payment_date
+        payment_date: payment_date,
+        invoice_type: invoice_type,
+        invoice_number: invoice_number
       ).call
     end
 
-    def initialize(order:, tenders:, discount_percent:, payment_date:)
+    def initialize(order:, tenders:, user:, discount_percent:, payment_date:, invoice_type: nil, invoice_number: nil)
       @order            = order
+      @user             = user
       @tenders          = Array(tenders).map { |t| t.to_h.symbolize_keys }
       @discount_percent = discount_percent.to_i
       @payment_date     = payment_date || Date.current
+      @invoice_type     = invoice_type.presence
+      @invoice_number   = invoice_number.presence
     end
 
     def call
@@ -35,6 +42,7 @@ module Payments
 
       ActiveRecord::Base.transaction do
         apply_discount!
+        assign_invoice!
         create_payments_and_allocations!
         @order.refresh_status_from_balance!
 
@@ -105,6 +113,14 @@ module Payments
       @order.update!(total_amount: effective_total)
     end
 
+    # A nil invoice_type means "nobody decided yet" and is a valid outcome; only
+    # an explicit choice touches the order.
+    def assign_invoice!
+      return if @invoice_type.nil? && @invoice_number.nil?
+
+      @order.update!(invoice_type: @invoice_type, invoice_number: @invoice_number)
+    end
+
     def create_payments_and_allocations!
       @tenders.group_by { |t| t[:payment_method] }.each do |method, rows|
         total = rows.sum { |r| r[:amount].to_f }
@@ -117,7 +133,15 @@ module Payments
         # One allocation per method: payment_allocations is unique on
         # (payment_id, order_id), so repeated rows of the same method collapse.
         PaymentAllocation.create!(payment: payment, order: @order, amount: total)
+
+        record_in_cash!(payment)
       end
+    end
+
+    def record_in_cash!(payment)
+      result = Cash::RecordSaleFromPayment.call(payment: payment, user: @user)
+
+      raise ValidationError, result.errors.join(", ") if result.failure?
     end
   end
 end

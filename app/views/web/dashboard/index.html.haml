@@ -67,6 +67,9 @@
     .flex.items-center.gap-2.text-sm
       %span.text-slate-500 Mes actual
 
+- if @cash_month_query
+  = render "cash_month", month: @cash_month, query: @cash_month_query
+
 -# Secondary content grid
 -if current_user.caja? || current_user.admin?
   .grid.grid-cols-1.lg:grid-cols-2.gap-6
@@ -96,30 +99,30 @@
           .px-6.py-8.text-center
             %p.text-sm.text-slate-500 No hay ventas recientes
     
-  -# Products with critical stock
-  .bg-white.border.border-slate-200.rounded-lg
-    .px-6.py-4.border-b.border-slate-200
-      .flex.items-center.justify-between
-        %h3.text-base.font-semibold.text-slate-900 Stock Crítico
-        = link_to "Ver todos →", web_products_path(low_stock: true), class: "text-sm text-slate-600 hover:text-slate-900"
-    .divide-y.divide-slate-100
-      - if @low_stock_products.any?
-        - @low_stock_products.each do |product|
-          .px-6.py-4.hover:bg-slate-50.transition-colors
-            .flex.items-center.justify-between
-              .flex-1
-                %p.text-sm.font-medium.text-slate-900.mb-1= product.name
-                %p.text-xs.text-slate-500= product.sku
-              .text-right
-                - if product.current_stock == 0
-                  %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-red-100.text-red-800
-                    ✕
-                    Sin stock
-                - else
-                  %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-800
-                    ⚠
-                    = "#{product.current_stock} #{'unidad'.pluralize(product.current_stock)}"
-      - else
-        .px-6.py-8.text-center
-          .text-3xl.mb-2 ✓
-          %p.text-sm.text-slate-500 Todo el stock está en niveles normales
+    -# Products with critical stock
+    .bg-white.border.border-slate-200.rounded-lg
+      .px-6.py-4.border-b.border-slate-200
+        .flex.items-center.justify-between
+          %h3.text-base.font-semibold.text-slate-900 Stock Crítico
+          = link_to "Ver todos →", web_products_path(low_stock: true), class: "text-sm text-slate-600 hover:text-slate-900"
+      .divide-y.divide-slate-100
+        - if @low_stock_products.any?
+          - @low_stock_products.each do |product|
+            .px-6.py-4.hover:bg-slate-50.transition-colors
+              .flex.items-center.justify-between
+                .flex-1
+                  %p.text-sm.font-medium.text-slate-900.mb-1= product.name
+                  %p.text-xs.text-slate-500= product.sku
+                .text-right
+                  - if product.current_stock == 0
+                    %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-red-100.text-red-800
+                      ✕
+                      Sin stock
+                  - else
+                    %span.inline-flex.items-center.gap-1.px-2.5.py-1.rounded-md.text-xs.font-medium.bg-amber-100.text-amber-800
+                      ⚠
+                      = "#{product.current_stock} #{'unidad'.pluralize(product.current_stock)}"
+        - else
+          .px-6.py-8.text-center
+            .text-3xl.mb-2 ✓
+            %p.text-sm.text-slate-500 Todo el stock está en niveles normales

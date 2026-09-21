@@ -17,9 +17,24 @@ module Web
       @low_stock_products = Product.with_low_stock
                                    .order(:current_stock)
                                    .limit(10)
+
+      load_cash_month if policy(CashMovement).balance_report?
     end
 
     private
+
+    def load_cash_month
+      current = Date.current.beginning_of_month
+      month = parse_month(params[:month])
+      @cash_month = month.nil? || month > current ? current : month
+      @cash_month_query = ::Cash::Reports::MonthQuery.new(month: @cash_month)
+    end
+
+    def parse_month(value)
+      Date.strptime(value, "%Y-%m") if value.present?
+    rescue Date::Error, TypeError
+      nil
+    end
 
     def calculate_sales_today
       Order.active

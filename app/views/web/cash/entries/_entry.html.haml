@@ -1,0 +1,39 @@
+- movement = entry.movement
+
+%tr{ id: "entry_#{movement.id}", class: "hover:bg-slate-50 transition-colors" }
+  %td.pl-4.py-3.text-base{ class: cash_entry_glyph_class(entry) }= cash_entry_glyph(entry)
+  %td.px-4.py-3.text-sm.text-slate-900
+    .flex.items-center.gap-2
+      %span= movement.description
+      - if movement.automatic?
+        %span.inline-flex.items-center.rounded.bg-slate-100.px-1.5.py-0.5.text-xs.font-medium.text-slate-500 Automático
+  %td.px-4.py-3.text-sm.text-slate-600.font-mono.whitespace-nowrap
+    - cash_entry_notes(movement).each do |note|
+      %div= note
+  %td.px-4.py-3.text-sm.text-slate-600
+    - if entry.kind == :move
+      = "#{CashMovement.account_label(entry.from)} → #{CashMovement.account_label(entry.to)}"
+    - elsif movement.sale_category?
+      = CashMovement.channel_label(movement.channel)
+      - if movement.compensation_channel?
+        %span= "· #{movement.supplier.name}"
+    - elsif cash_pile?(movement.account)
+      Efectivo
+      - unless movement.drawer_account?
+        %span.text-slate-400= "· #{CashMovement.account_label(movement.account)}"
+    - else
+      = CashMovement.account_label(movement.account)
+  %td.px-4.py-3.text-sm.text-right.whitespace-nowrap{ class: entry.kind == :move ? "text-slate-400" : "text-slate-900" }
+    = cash_entry_amount(entry)
+  %td.py-3.text-center
+    - if entry.counts_in_drawer
+      %span.inline-block.h-2.w-2.rounded-full.bg-slate-500{ title: "Cuenta en el cajón", role: "img", aria: { label: "Cuenta en el cajón" } }
+  %td.px-4.py-3.text-right
+    -# `editable` is the day's fact; the policy owns the row's.
+    - if editable && policy(movement).update?
+      .flex.items-center.justify-end.gap-2
+        = link_to "Editar", edit_web_cash_movement_path(movement), data: { turbo_stream: true },
+                  class: "text-sm font-medium text-slate-600 hover:text-slate-900"
+        = button_to "Eliminar", web_cash_movement_path(movement), method: :delete,
+                    form: { data: { turbo_confirm: "¿Eliminar este movimiento?" } },
+                    class: "text-sm font-medium text-slate-500 hover:text-red-700"

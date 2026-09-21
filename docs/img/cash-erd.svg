@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 470" width="920"
+     role="img" aria-label="Entity-relationship diagram of the cash module">
+  <style>
+    svg { color: #1A1D23; }
+    @media (prefers-color-scheme: dark) { svg { color: #E7E9EC; } }
+    text { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; fill: currentColor; }
+    text.s { font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif; }
+    rect, line, polyline, path { vector-effect: non-scaling-stroke; }
+  </style>
+
+  <defs>
+    <marker id="many" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto">
+      <path d="M 11 1 L 1 6 L 11 11 M 1 6 L 11 6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    </marker>
+    <marker id="one" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="12" markerHeight="12" orient="auto">
+      <path d="M 6 1.5 L 6 10.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    </marker>
+  </defs>
+
+  <!-- orders -->
+  <rect x="30" y="20" width="200" height="108" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <line x1="30" y1="46" x2="230" y2="46" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <text x="42" y="38" font-size="12.5" font-weight="600">orders</text>
+  <text x="42" y="62" font-size="10.5" opacity="0.65">PK  id</text>
+  <text x="42" y="78" font-size="10.5" opacity="0.5">    …</text>
+  <text x="42" y="94" font-size="10.5" font-weight="600">    invoice_type</text>
+  <text x="42" y="110" font-size="10.5" font-weight="600">    invoice_number</text>
+
+  <!-- payment_allocations -->
+  <rect x="30" y="172" width="200" height="92" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <line x1="30" y1="198" x2="230" y2="198" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <text x="42" y="190" font-size="12.5" font-weight="600">payment_allocations</text>
+  <text x="42" y="214" font-size="10.5" opacity="0.65">PK  id</text>
+  <text x="42" y="230" font-size="10.5" opacity="0.65">FK  payment_id</text>
+  <text x="42" y="246" font-size="10.5" opacity="0.65">FK  order_id</text>
+
+  <!-- payments -->
+  <rect x="30" y="308" width="200" height="108" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <line x1="30" y1="334" x2="230" y2="334" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <text x="42" y="326" font-size="12.5" font-weight="600">payments</text>
+  <text x="42" y="350" font-size="10.5" opacity="0.65">PK  id</text>
+  <text x="42" y="366" font-size="10.5" opacity="0.65">    amount</text>
+  <text x="42" y="382" font-size="10.5" opacity="0.65">    payment_method</text>
+  <text x="42" y="398" font-size="10.5" opacity="0.65">    payment_date</text>
+
+  <!-- cash_movements -->
+  <rect x="340" y="112" width="256" height="244" rx="4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+  <line x1="340" y1="140" x2="596" y2="140" stroke="currentColor" stroke-width="1.9"/>
+  <text x="352" y="132" font-size="13" font-weight="600">cash_movements</text>
+  <text x="352" y="158" font-size="10.5">PK  id</text>
+  <text x="352" y="174" font-size="10.5">    business_date    date</text>
+  <text x="352" y="190" font-size="10.5">    account          string</text>
+  <text x="352" y="206" font-size="10.5">    amount           decimal</text>
+  <text x="352" y="222" font-size="10.5">    category         string</text>
+  <text x="352" y="238" font-size="10.5">    subcategory      string</text>
+  <text x="352" y="254" font-size="10.5">    channel          string</text>
+  <text x="352" y="270" font-size="10.5">    description      string</text>
+  <text x="352" y="286" font-size="10.5">    transfer_group_id uuid</text>
+  <text x="352" y="302" font-size="10.5">FK  daily_closing_id</text>
+  <text x="352" y="318" font-size="10.5">FK  source_payment_id</text>
+  <text x="352" y="334" font-size="10.5">FK  user_id</text>
+
+  <!-- daily_closings -->
+  <rect x="680" y="66" width="212" height="172" rx="4" fill="none" stroke="currentColor" stroke-width="1.9"/>
+  <line x1="680" y1="94" x2="892" y2="94" stroke="currentColor" stroke-width="1.9"/>
+  <text x="692" y="86" font-size="13" font-weight="600">daily_closings</text>
+  <text x="692" y="112" font-size="10.5">PK  id</text>
+  <text x="692" y="128" font-size="10.5">UQ  business_date</text>
+  <text x="692" y="144" font-size="10.5">    expected_cash</text>
+  <text x="692" y="160" font-size="10.5">    counted_cash</text>
+  <text x="692" y="176" font-size="10.5">    payway_batch_total</text>
+  <text x="692" y="192" font-size="10.5">    mercado_pago_total</text>
+  <text x="692" y="208" font-size="10.5">FK  user_id</text>
+  <text x="692" y="224" font-size="10.5">    closed_at</text>
+
+  <!-- users -->
+  <rect x="680" y="316" width="212" height="92" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <line x1="680" y1="342" x2="892" y2="342" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6"/>
+  <text x="692" y="334" font-size="12.5" font-weight="600">users</text>
+  <text x="692" y="358" font-size="10.5" opacity="0.65">PK  id</text>
+  <text x="692" y="374" font-size="10.5" opacity="0.65">    name</text>
+  <text x="692" y="390" font-size="10.5" opacity="0.65">    role</text>
+
+  <!-- relaciones -->
+  <g fill="none" stroke="currentColor" stroke-width="1.4">
+    <line x1="130" y1="128" x2="130" y2="170" marker-start="url(#one)" marker-end="url(#many)"/>
+    <line x1="130" y1="308" x2="130" y2="266" marker-start="url(#one)" marker-end="url(#many)"/>
+    <polyline points="230,362 285,362 285,250 338,250" marker-start="url(#one)" marker-end="url(#many)"/>
+    <polyline points="678,152 640,152 640,180 598,180" marker-start="url(#one)" marker-end="url(#many)"/>
+    <polyline points="678,362 636,362 636,330 598,330" marker-start="url(#one)" marker-end="url(#many)"/>
+    <line x1="786" y1="314" x2="786" y2="240" marker-start="url(#one)" marker-end="url(#many)"/>
+  </g>
+
+  <text class="s" x="138" y="153" font-size="10.5">collected through</text>
+  <text class="s" x="138" y="292" font-size="10.5">split into</text>
+  <text class="s" x="243" y="253" font-size="10.5">generates</text>
+  <text class="s" x="606" y="146" font-size="10.5">seals</text>
+  <text class="s" x="606" y="352" font-size="10.5">loads</text>
+  <text class="s" x="794" y="282" font-size="10.5">closes</text>
+
+  <g font-size="9.5" opacity="0.6">
+    <text x="106" y="146">1</text>
+    <text x="106" y="166">N</text>
+    <text x="106" y="304">1</text>
+    <text x="106" y="278">N</text>
+    <text x="236" y="376">1</text>
+    <text x="316" y="243">0..N</text>
+    <text x="660" y="146">1</text>
+    <text x="606" y="192">0..N</text>
+    <text x="660" y="356">1</text>
+    <text x="606" y="322">N</text>
+    <text x="770" y="308">1</text>
+    <text x="770" y="252">N</text>
+  </g>
+
+  <path d="M 352 344 C 320 372, 380 396, 420 396" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.75"/>
+  <text class="s" x="428" y="400" font-size="10.5" opacity="0.8">a movement between arcas = 2 rows sharing one transfer_group_id</text>
+</svg>

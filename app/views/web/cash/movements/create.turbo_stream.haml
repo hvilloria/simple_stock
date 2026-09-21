@@ -1,0 +1,9 @@
+- if @entry.present?
+  = turbo_stream.append "day-entries" do
+    = render "web/cash/entries/entry", entry: @entry, editable: true
+
+= turbo_stream.replace "day-entry-form" do
+  = render "web/cash/entries/form", business_date: @business_date, suppliers: @suppliers, error: @error, mode: @mode
+
+= turbo_stream.replace "sales-by-channel" do
+  = render "web/cash/days/sales_by_channel", day: @day
