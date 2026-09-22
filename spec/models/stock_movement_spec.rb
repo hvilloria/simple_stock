@@ -101,4 +101,24 @@ RSpec.describe StockMovement, type: :model do
       expect(movement.outbound?).to be false
     end
   end
+
+  describe "an order line as reference" do
+    let!(:location) { create(:stock_location) }
+
+    it "accepts an order line as its reference" do
+      line = create(:order_item, product: create(:product), quantity: 1, unit_price: 100)
+      movement = build(:stock_movement, :sale, product: line.product, stock_location: location, reference: line)
+
+      expect(movement).to be_valid
+      expect(line.stock_movements).to include(movement.tap(&:save!))
+    end
+
+    it "still refuses a reference of another kind" do
+      movement = build(:stock_movement, product: create(:product), stock_location: location)
+      movement.reference_type = "Customer"
+      movement.reference_id = 1
+
+      expect(movement).not_to be_valid
+    end
+  end
 end

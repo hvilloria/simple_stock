@@ -19,7 +19,15 @@ export default class extends Controller {
     "summaryDiscountSection",
     "summaryEarlyDueDate",
     "summaryDiscountPct",
-    "summaryDiscountedAmount"
+    "summaryDiscountedAmount",
+    "amountCaption",
+    "stockTitle",
+    "stockNote",
+    "stockList",
+    "zeroCostModal",
+    "zeroCostTitle",
+    "zeroCostList",
+    "zeroCostSummary"
   ]
   
   static values = { 
@@ -27,6 +35,9 @@ export default class extends Controller {
   }
 
   connect() {
+    this.zeroCostLines = []
+    this.zeroCostConfirmed = false
+
     console.log("Invoice form controller connected")
     
     // Calculate initial date if values already exist
@@ -79,21 +90,77 @@ export default class extends Controller {
     return value.replace(/\./g, '').replace(/,/g, '.')
   }
 
-  // CRITICAL: Clean before submitting the form
+  // Runs on the form's `submit` event: cleans the AR-formatted amounts, and
+  // holds the submission once when a line is free so the operator confirms it.
   handleFormSubmit(event) {
-    // Clean amount field
+    if (this.zeroCostLines.length > 0 && !this.zeroCostConfirmed) {
+      event.preventDefault()
+      this.openZeroCostModal()
+      return
+    }
+
     if (this.hasAmountTarget && this.amountTarget.value) {
-      const cleanValue = this.cleanAmountValue(this.amountTarget.value)
-      this.amountTarget.value = cleanValue
-      console.log('Amount enviado:', cleanValue)
+      this.amountTarget.value = this.cleanAmountValue(this.amountTarget.value)
     }
-    
-    // Clean exchange rate field
+
     if (this.hasExchangeRateInputTarget && this.exchangeRateInputTarget.value) {
-      const cleanValue = this.cleanAmountValue(this.exchangeRateInputTarget.value)
-      this.exchangeRateInputTarget.value = cleanValue
-      console.log('Exchange rate enviado:', cleanValue)
+      this.exchangeRateInputTarget.value = this.cleanAmountValue(this.exchangeRateInputTarget.value)
     }
+  }
+
+  // ========== PRODUCT LINES ==========
+
+  linesChanged(event) {
+    const { lines, total, units, products, zeroCostLines } = event.detail
+    this.zeroCostLines = zeroCostLines
+    this.zeroCostConfirmed = false
+
+    if (lines.length > 0) {
+      if (!this.amountTarget.readOnly) this.typedAmount = this.amountTarget.value
+      this.amountTarget.readOnly = true
+      this.amountTarget.classList.add("bg-slate-50", "text-slate-600")
+      this.amountTarget.value = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total)
+      this.amountCaptionTarget.textContent = "Calculado desde los productos. Quitá todas las líneas para escribirlo a mano."
+      this.stockTitleTarget.textContent = `Suma stock: ${units} ${units === 1 ? "unidad" : "unidades"} en ${products} ${products === 1 ? "producto" : "productos"}`
+      this.stockNoteTarget.textContent = "El stock se suma al registrar. El costo promedio no cambia."
+      this.stockListTarget.innerHTML = lines.map(line =>
+        `<li class="flex justify-between"><span>${line.name}</span><span>+${line.quantity}</span></li>`
+      ).join("")
+      this.stockListTarget.classList.remove("hidden")
+    } else {
+      if (this.amountTarget.readOnly) this.amountTarget.value = this.typedAmount || ""
+      this.amountTarget.readOnly = false
+      this.amountTarget.classList.remove("bg-slate-50", "text-slate-600")
+      this.amountCaptionTarget.textContent = "Monto total de la factura (formato: 1.500.000,50)"
+      this.stockTitleTarget.textContent = "Sin productos: no mueve stock"
+      this.stockNoteTarget.textContent = "Se registra solo la factura, con el monto que escribas."
+      this.stockListTarget.innerHTML = ""
+      this.stockListTarget.classList.add("hidden")
+    }
+
+    this.updateSummary()
+  }
+
+  openZeroCostModal() {
+    const count = this.zeroCostLines.length
+    const checked = this.element.querySelector('input[name="currency"]:checked')
+    const symbol = checked && checked.value === "USD" ? "US$" : "$"
+    this.zeroCostTitleTarget.textContent = `${count} ${count === 1 ? "línea" : "líneas"} con costo 0`
+    this.zeroCostListTarget.innerHTML = this.zeroCostLines.map(line =>
+      `<li class="flex justify-between"><span>${line.name}</span><span>${line.quantity} ${line.quantity === 1 ? "unidad" : "unidades"} · ${symbol} 0,00</span></li>`
+    ).join("")
+    this.zeroCostSummaryTarget.textContent = `${this.stockTitleTarget.textContent}. Monto de la factura: ${symbol} ${this.amountTarget.value}.`
+    this.zeroCostModalTarget.classList.remove("hidden")
+  }
+
+  closeZeroCostModal() {
+    this.zeroCostModalTarget.classList.add("hidden")
+  }
+
+  confirmZeroCost() {
+    this.zeroCostConfirmed = true
+    this.closeZeroCostModal()
+    this.element.requestSubmit()
   }
 
   // ========== DATE CALCULATION ==========
@@ -249,6 +316,9 @@ export default class extends Controller {
 
   // Called when the currency changes
   toggleExchangeRate() {
+    const checked = this.element.querySelector('input[name="currency"]:checked')
+    this.element.dispatchEvent(new CustomEvent("currency-changed", { detail: { currency: checked ? checked.value : "ARS" }, bubbles: true }))
+
     const currencyUsd = document.getElementById('currency_usd')
     const currencyArs = document.getElementById('currency_ars')
     

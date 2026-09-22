@@ -1,6 +1,7 @@
 class OrderItem < ApplicationRecord
   belongs_to :order
   belongs_to :product, -> { with_deleted }
+  has_many :stock_movements, as: :reference, dependent: :nullify
 
   validates :quantity, numericality: { greater_than: 0 }
   # unit_price may be NULL in sales-lite mode

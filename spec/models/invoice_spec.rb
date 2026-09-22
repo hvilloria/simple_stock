@@ -86,8 +86,24 @@ RSpec.describe Invoice, type: :model do
     it { is_expected.to validate_presence_of(:due_date) }
     it { is_expected.to validate_presence_of(:amount) }
 
-    it "validates amount is greater than 0" do
+    it "validates amount is greater than 0 when the invoice has no items" do
       invoice = build(:invoice, :simple_mode, amount: 0)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:amount]).to be_present
+    end
+
+    # An invoice with lines takes its amount from them and may sum to zero
+    # (a warranty replacement); the lines are built before the save, so the
+    # guard must see them in memory.
+    it "accepts an amount of 0 when lines are built in memory" do
+      invoice = build(:invoice, :simple_mode, amount: 0, supplier: create(:supplier))
+      invoice.invoice_items.build(product: create(:product), quantity: 1, unit_cost: 0)
+      expect(invoice).to be_valid
+    end
+
+    it "still rejects a negative amount when lines exist" do
+      invoice = build(:invoice, :simple_mode, amount: -1)
+      invoice.invoice_items.build(product: create(:product), quantity: 1, unit_cost: 0)
       expect(invoice).not_to be_valid
       expect(invoice.errors[:amount]).to be_present
     end

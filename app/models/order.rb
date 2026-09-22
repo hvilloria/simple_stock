@@ -108,6 +108,11 @@ class Order < ApplicationRecord
     update!(total_amount: order_items.sum("quantity * unit_price"))
   end
 
+  # What this sale took off the shelf, line by line.
+  def sale_movements
+    StockMovement.where(reference_type: "OrderItem", reference_id: order_items.select(:id))
+  end
+
   # Real NOMINAL discount (sum of the per-item discounts). It does NOT include the
   # nearest-100 rounding applied to the total to pay — that goes in #rounding_amount.
   def discount_amount

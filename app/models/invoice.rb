@@ -26,7 +26,8 @@ class Invoice < ApplicationRecord
   validates :invoice_number, presence: true, unless: :has_items?
   validates :due_date, presence: true, unless: :has_items?
   validates :amount, presence: true, unless: :has_items?
-  validates :amount, numericality: { greater_than: 0 }, if: -> { !has_items? && amount.present? }
+  validates :amount, numericality: { greater_than: 0 }, if: -> { amount_required? && amount.present? }
+  validates :amount, numericality: { greater_than_or_equal_to: 0 }, if: -> { !has_items? && !amount_required? && amount.present? }
 
   # === FULL MODE VALIDATIONS (has_items: true) ===
   # Validate invoice_items only after creating the invoice (not during create)
@@ -228,6 +229,12 @@ class Invoice < ApplicationRecord
   end
 
   private
+
+  # An amount-only invoice carries a typed amount that must be positive. An
+  # invoice with lines takes its amount from them and may sum to zero.
+  def amount_required?
+    !has_items? && invoice_items.empty?
+  end
 
   def usd_currency?
     currency == "USD"

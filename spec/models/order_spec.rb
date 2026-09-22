@@ -747,4 +747,21 @@ RSpec.describe Order, type: :model do
       expect(order).to be_valid
     end
   end
+
+  describe "#sale_movements" do
+    let!(:location) { create(:stock_location) }
+
+    it "gathers the movements that reference the order's lines, and nothing else" do
+      order = create(:order, :on_account, total_amount: 100, original_total_amount: 100)
+      line  = create(:order_item, order: order, product: create(:product), quantity: 1, unit_price: 100)
+      other = create(:order_item, order: create(:order, :on_account, total_amount: 100, original_total_amount: 100),
+                     product: create(:product), quantity: 1, unit_price: 100)
+      mine   = create(:stock_movement, :sale, product: line.product, stock_location: location, reference: line)
+      theirs = create(:stock_movement, :sale, product: other.product, stock_location: location, reference: other)
+      create(:stock_movement, product: line.product, stock_location: location, reference: order)
+
+      expect(order.sale_movements).to contain_exactly(mine)
+      expect(order.sale_movements).not_to include(theirs)
+    end
+  end
 end

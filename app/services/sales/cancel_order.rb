@@ -15,7 +15,7 @@ module Sales
 
       ActiveRecord::Base.transaction do
         cancel_order
-        # reverse_stock_movements, commented out until we have a updated stock.
+        restore_stock
         reverse_cash_movements
         destroy_associated_allocations
 
@@ -42,18 +42,11 @@ module Sales
       @order.update!(status: "cancelled", settled_on: nil)
     end
 
-    def reverse_stock_movements
-      stock_location = StockLocation.first!
-
-      @order.order_items.each do |item|
-        result = Inventory::AdjustStock.call(
-          product: item.product,
-          stock_location: stock_location,
-          movement_type: "adjustment",
-          quantity: item.quantity,
-          reference: @order,
-          note: @reason || "Order ##{@order.id} cancellation"
-        )
+    # Back on the shelf goes what each line's own movements say is out: an
+    # undelivered on_account line took nothing and gives nothing back.
+    def restore_stock
+      @order.order_items.each do |line|
+        result = Inventory::RestoreLineStock.call(order_item: line, note: @reason.presence || "Cancelación nota #{@order.paper_number}")
 
         raise ValidationError, result.errors.join(", ") if result.failure?
       end

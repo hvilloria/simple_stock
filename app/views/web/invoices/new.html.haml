@@ -19,7 +19,7 @@
         %h4.font-semibold.text-red-800.mb-1 Error
         %p.text-sm.text-red-700= flash[:alert]
 
-  = form_with url: web_invoices_path, method: :post, local: true, data: { controller: "invoice-form", action: "turbo:submit-start->invoice-form#handleFormSubmit" } do |f|
+  = form_with url: web_invoices_path, method: :post, local: true, data: { controller: "invoice-form", action: "submit->invoice-form#handleFormSubmit lines-changed->invoice-form#linesChanged" } do |f|
     
     .grid.grid-cols-1.lg:grid-cols-3.gap-6
       
@@ -38,7 +38,7 @@
                 %div{ data: { invoice_form_target: "paymentTermInfo" }, style: "display: none;" }
               
               = select_tag :supplier_id, 
-                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0", "data-early-payment-days": "0", "data-early-payment-discount": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0, "data-early-payment-days": s.early_payment_days || 0, "data-early-payment-discount": s.early_payment_discount_percentage || 0 }] }), 
+                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0", "data-early-payment-days": "0", "data-early-payment-discount": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0, "data-early-payment-days": s.early_payment_days || 0, "data-early-payment-discount": s.early_payment_discount_percentage || 0 }] }, params[:supplier_id]),
                           class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                           required: true,
                           data: { invoice_form_target: "supplier", action: "change->invoice-form#onSupplierChange" }
@@ -48,7 +48,7 @@
             -# Invoice number
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Número de Factura
-              = text_field_tag :invoice_number, nil,
+              = text_field_tag :invoice_number, params[:invoice_number],
                               placeholder: "Ej: FAC-001234",
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true
@@ -59,13 +59,13 @@
               %label.block.text-sm.font-medium.text-gray-700.mb-3 Moneda
               .grid.grid-cols-2.gap-4
                 %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_ars_label" }
-                  = radio_button_tag :currency, 'ARS', true, id: "currency_ars", data: { action: "change->invoice-form#toggleExchangeRate" }
+                  = radio_button_tag :currency, 'ARS', params[:currency].blank? || params[:currency] == 'ARS', id: "currency_ars", data: { action: "change->invoice-form#toggleExchangeRate" }
                   .flex-1
                     %p.font-medium.text-gray-900 🇦🇷 ARS
                     %p.text-xs.text-gray-500 Pesos argentinos
                 
                 %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_usd_label" }
-                  = radio_button_tag :currency, 'USD', false, id: "currency_usd", data: { action: "change->invoice-form#toggleExchangeRate" }
+                  = radio_button_tag :currency, 'USD', params[:currency] == 'USD', id: "currency_usd", data: { action: "change->invoice-form#toggleExchangeRate" }
                   .flex-1
                     %p.font-medium.text-gray-900 💵 USD
                     %p.text-xs.text-gray-500 Dólares estadounidenses
@@ -73,7 +73,7 @@
             -# Exchange rate (only if USD)
             %div{ id: "exchange_rate_field", data: { invoice_form_target: "exchangeRateField" }, style: "display: none;" }
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo de Cambio
-              = text_field_tag :exchange_rate, nil,
+              = text_field_tag :exchange_rate, @exchange_rate_value,
                               placeholder: "Ej: 1.200,00",
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               data: { invoice_form_target: "exchangeRateInput", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
@@ -82,17 +82,17 @@
             -# Invoice amount
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Monto Total
-              = text_field_tag :amount, nil, 
+              = text_field_tag :amount, @amount_value,
                               placeholder: "0,00", 
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold", 
                               required: true, 
                               data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount input->invoice-form#updateSummary" }
-              %p.text-xs.text-gray-500.mt-1 Monto total de la factura (formato: 1.500.000,50)
+              %p.text-xs.text-gray-500.mt-1{ data: { invoice_form_target: "amountCaption" } } Monto total de la factura (formato: 1.500.000,50)
             
             -# Invoice date
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Factura
-              = date_field_tag :purchase_date, Date.current,
+              = date_field_tag :purchase_date, params[:purchase_date].presence || Date.current,
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true,
                               data: { invoice_form_target: "purchaseDate", action: "change->invoice-form#onPurchaseDateChange" }
@@ -100,7 +100,7 @@
             -# Due date
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Vencimiento Normal
-              = date_field_tag :due_date, 30.days.from_now.to_date,
+              = date_field_tag :due_date, params[:due_date].presence || 30.days.from_now.to_date,
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true,
                               data: { invoice_form_target: "dueDate", action: "change->invoice-form#updateSummaryDates" }
@@ -120,7 +120,7 @@
             %div
               %label.block.text-sm.font-medium.text-slate-700.mb-2
                 Vencimiento con descuento
-              = date_field_tag :early_payment_due_date, nil,
+              = date_field_tag :early_payment_due_date, params[:early_payment_due_date],
                               class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
                               data: { invoice_form_target: "earlyPaymentDueDate", action: "change->invoice-form#updateSummaryDates" }
               %p.text-xs.text-slate-500.mt-1
@@ -129,11 +129,24 @@
             %div
               %label.block.text-sm.font-medium.text-slate-700.mb-2
                 Porcentaje de descuento
-              = text_field_tag :early_payment_discount_percentage, nil,
+              = text_field_tag :early_payment_discount_percentage, params[:early_payment_discount_percentage],
                               placeholder: "5",
                               class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
                               data: { invoice_form_target: "earlyPaymentDiscount", action: "input->invoice-form#updateSummary" }
               %p.text-xs.text-slate-500.mt-1 Porcentaje de descuento (sin el símbolo %)
+
+        -# CARD - Products (optional): lines drive the stock and the amount
+        .bg-white.border.border-slate-200.rounded-lg.p-6{ data: { controller: "invoice-lines", invoice_lines_initial_items_value: (@submitted_items || []).to_json, action: "product-selected->invoice-lines#addProduct currency-changed@document->invoice-lines#currencyChanged" } }
+          .flex.items-center.gap-2.mb-2
+            %h3.text-lg.font-semibold.text-gray-900 Productos
+            %span.text-sm.text-slate-500{ data: { invoice_lines_target: "counter" } } opcional
+          %p.text-sm.text-slate-600.mb-4 Si cargás los productos de la factura, la factura suma ese stock y el monto se calcula solo.
+
+          %div{ data: { controller: "product-search", product_search_url_value: search_web_products_path, product_search_dim_out_of_stock_value: "false", action: "click@window->product-search#clickOutside" }, class: "mb-4 relative" }
+            %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { product_search_target: "input", action: "input->product-search#search" } }
+            %div{ data: { product_search_target: "results" }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
+
+          %div{ data: { invoice_lines_target: "lines" } }
 
         -# CARD 3 - Notes
         .bg-white.border.border-slate-200.rounded-lg.p-6
@@ -141,7 +154,7 @@
 
           %div
             %label.block.text-sm.font-medium.text-gray-700.mb-2 Notas (Opcional)
-            = text_area_tag :notes, nil,
+            = text_area_tag :notes, params[:notes],
                           rows: 3,
                           placeholder: "Información adicional sobre la factura...",
                           class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
@@ -151,15 +164,11 @@
         .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
           %h3.text-lg.font-semibold.text-gray-900.mb-6 Resumen
 
-          -# Simple mode info
-          .bg-blue-50.border.border-blue-200.rounded-lg.p-4.mb-4
-            .flex.items-start.gap-3
-              %span.text-2xl ℹ️
-              .flex-1
-                %p.text-sm.font-medium.text-blue-900 Modo Simple
-                %p.text-xs.text-blue-700.mt-1 
-                  Registramos solo la factura sin detalle de productos.
-                  El stock NO se actualiza.
+          -# What registering will do (follows the lines)
+          .rounded-lg.border.border-slate-200.bg-slate-50.p-4.mb-4
+            %p.text-sm.font-medium.text-slate-900{ data: { invoice_form_target: "stockTitle" } } Sin productos: no mueve stock
+            %p.text-xs.text-slate-500.mt-1{ data: { invoice_form_target: "stockNote" } } Se registra solo la factura, con el monto que escribas.
+            %ul.mt-2.space-y-1.text-xs.text-slate-600.tabular-nums.hidden{ data: { invoice_form_target: "stockList" } }
 
           .space-y-3.mb-6
             .flex.justify-between.text-sm
@@ -196,21 +205,11 @@
                   %span.font-medium.text-emerald-700 Monto final
                   %span.font-bold.text-emerald-800{ data: { invoice_form_target: "summaryDiscountedAmount" } } —
 
-          .border-t.border-gray-200.py-4
-            %h4.text-sm.font-semibold.text-gray-900.mb-3 Qué NO hace este registro:
-            
-            .space-y-2
-              .flex.items-start.gap-2.text-sm
-                %span.text-red-500 ✗
-                %span.text-gray-600 No actualiza stock de productos
-              
-              .flex.items-start.gap-2.text-sm
-                %span.text-red-500 ✗
-                %span.text-gray-600 No recalcula costos promedio
-
           .border-t.border-gray-200.pt-4
             = submit_tag "Registrar Factura", 
                         class: "w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white text-base font-semibold rounded-lg shadow-sm transition-colors"
 
           .mt-4.text-center
             %p.text-xs.text-gray-500 La factura quedará pendiente de pago hasta que la marques como pagada
+
+    = render "zero_cost_modal"

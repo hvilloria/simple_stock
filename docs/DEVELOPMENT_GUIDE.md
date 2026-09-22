@@ -120,6 +120,7 @@ These rules must NEVER be violated:
 * Always use `StockMovement`
 * No negative stock allowed
 * Stock = sum of movements
+* A sale takes `min(quantity, current_stock)` — never below zero, and never refused for stock; what comes back on cancel is what actually left
 
 ---
 
@@ -147,7 +148,7 @@ These rules must NEVER be violated:
 ### Purchases
 
 * Purchases create positive stock movements
-* Must recalculate weighted average cost
+* Weighted average cost recalculation is **deferred** (decision of 2026-09-21): invoices registered with lines keep each line's `unit_cost` but leave `product.cost_unit` untouched
 * Currency handling must be consistent
 
 ---

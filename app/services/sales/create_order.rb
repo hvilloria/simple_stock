@@ -2,15 +2,11 @@ module Sales
   # Sales::CreateOrder
   #
   # Creates a sale note (Order) in `pending` status. Vendor-facing entry point:
-  # no payments, no discount, no stock movements (stock changes are not applied
-  # at sale time today).
+  # no payments, no discount. The goods leave the shelf with the note for an
+  # immediate or credit sale; an on_account line leaves only when delivered.
   #
-  # Modes:
-  #   - LIVE (default): validates stock availability
-  #   - FROM_PAPER:     requires paper_number, skips stock validation
-  #
-  # unit_price must be > 0 in all modes. The entered price is written
-  # back to product.price_unit inside the transaction.
+  # unit_price must be > 0. The entered price is written back to
+  # product.price_unit inside the transaction.
   class CreateOrder
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
@@ -93,15 +89,6 @@ module Sales
         raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
         raise ValidationError, "El precio debe ser mayor a cero" unless item.unit_price.to_f > 0
       end
-
-      return if @source == "from_paper"
-
-      @items.each do |item|
-        product = Product.find(item.product_id)
-        if product.current_stock < item.quantity
-          raise ValidationError, "Insufficient stock for #{product.name}. Available: #{product.current_stock}"
-        end
-      end
     end
 
     def create_order
@@ -131,7 +118,7 @@ module Sales
         product     = Product.find(item.product_id)
         final_price = item.unit_price
 
-        OrderItem.create!(
+        order_item = OrderItem.create!(
           order:            @order,
           product:          product,
           quantity:         item.quantity,
@@ -141,7 +128,19 @@ module Sales
         )
 
         product.update!(price_unit: final_price)
+        take_from_shelf(order_item) if leaves_the_shelf?(order_item)
       end
+    end
+
+    # An immediate or credit sale hands the goods over with the note; an
+    # on_account line leaves the shelf only when it is delivered.
+    def leaves_the_shelf?(order_item)
+      @order_type != "on_account" || order_item.delivered_at.present?
+    end
+
+    def take_from_shelf(order_item)
+      result = Inventory::DeductLineStock.call(order_item: order_item, note: "Nota #{@paper_number}")
+      raise ValidationError, result.errors.join(", ") if result.failure?
     end
   end
 end

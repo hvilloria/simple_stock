@@ -34,6 +34,11 @@ RSpec.describe PaymentOnAccountPolicy do
       cancelled = build(:order, :on_account, :cancelled)
       expect(described_class.new(user, cancelled).edit_item?).to be false
     end
+
+    it "forbids deliver on a cancelled order" do
+      cancelled = build(:order, :on_account, :cancelled)
+      expect(described_class.new(user, cancelled).deliver?).to be false
+    end
   end
 
   context "caja" do

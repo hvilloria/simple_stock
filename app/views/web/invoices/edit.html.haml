@@ -45,15 +45,22 @@
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                         required: true
 
-        -# Amount
+        -# Amount: owned by the lines when there are any
         %div
           = f.label :amount, "Monto Total", class: "block text-sm font-medium text-gray-700 mb-2"
-          = f.text_field :amount,
-                        value: number_with_precision(@invoice.amount, precision: 2, delimiter: '.', separator: ','),
-                        placeholder: "0,00",
-                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold",
-                        required: true,
-                        data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
+          - if @invoice.invoice_items.any?
+            = f.text_field :amount,
+                          value: number_with_precision(@invoice.amount, precision: 2, delimiter: '.', separator: ','),
+                          readonly: true,
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl bg-slate-50 text-slate-600 text-lg font-semibold"
+            %p.text-xs.text-gray-500.mt-1 Calculado desde los productos; no se edita.
+          - else
+            = f.text_field :amount,
+                          value: number_with_precision(@invoice.amount, precision: 2, delimiter: '.', separator: ','),
+                          placeholder: "0,00",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all text-lg font-semibold",
+                          required: true,
+                          data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
 
         -# Currency (readonly - cannot be changed)
         %div
@@ -151,6 +158,14 @@
           = f.text_area :notes,
                        rows: 3,
                        class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all resize-none"
+
+    - if @invoice.invoice_items.any?
+      .bg-white.border.border-slate-200.rounded-lg.p-6
+        .flex.items-center.justify-between.mb-4
+          %h3.text-lg.font-semibold.text-gray-900 Productos
+          %span.text-sm.text-slate-500= "#{@invoice.invoice_items.size} #{'producto'.pluralize(@invoice.invoice_items.size)} · #{invoice_units_label(@invoice)}"
+        = render "lines_table", invoice: @invoice
+        %p.mt-3.text-xs.text-slate-500 Las líneas no se editan. Si la factura está mal cargada, cancelala y registrala de nuevo.
 
     -# Buttons
     .flex.items-center.gap-4

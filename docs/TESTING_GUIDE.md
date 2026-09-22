@@ -12,7 +12,9 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Payments::AllocatePayment` — per-order amounts + `item_discounts`
 - `Payments::CollectSaleNote` — 0/5/10 cash-only discount, multi-tender
 - `Payments::CollectOnAccount` — `amount_to_settle`, discount, lowers `total_amount`
-- `Invoices::CreateSimpleInvoice` / `MarkAsPaid` / `ProcessPayment` — amounts + `AppliedCredit`
+- `Invoices::CreateInvoice` — the typed `amount`, and per-line `quantity` + `unit_cost` that become the amount and the stock; the hostile-input case is a unit cost of `"abc"`, which must be refused and never read as a free line
+- `Invoices::CancelInvoice` — the floored stock reversal (no input to attack; what it must get right is the floor and the transaction)
+- `Invoices::MarkAsPaid` / `ProcessPayment` — amounts + `AppliedCredit`
 - Credit notes CRUD — `amount`, `exchange_rate`
 - `Cash::RecordMovement` — signed `amount`, arca and category routing
 - `Cash::RecordSaleFromPayment` — copies a `Payment`'s amount into a sale movement and routes it to an arca (its amount comes from the persisted payment, so the hostile-input case belongs to the collection flow upstream)
@@ -28,7 +30,7 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Cash::Reports::MonthQuery` — sums a month's sales and lists its fixed expenses one by one, the two totals read off that same list; dollars must stay out of both peso totals, and a reversal must count as a negative sale, not be excluded
 - `Cash::Reports::MovementsQuery#totals` — sums the filter the history is showing, not the page; dollars are their own pair of figures and never enter the peso sum
 
-Out of scope on purpose: `Inventory::AdjustStock` / `Inventory::MarkDelivered` — quantity/delivery, not money; stock has its own critical rule (see `CLAUDE.md`).
+Out of scope on purpose: `Inventory::AdjustStock` / `MarkDelivered` / `DeductLineStock` / `RestoreLineStock` — quantity/delivery, not money; stock has its own critical rule (see `CLAUDE.md`).
 
 > This catalog is derived from WORKING_CONTEXT's active-services list — verify each entry against code when it changes. The Builder adds a new entry here whenever a feature introduces a new money flow (see `AGENTS.md` → "Testing Rules" → Responsibilities). It is a helper for completeness, not the gate that decides a test layer — the decision tree does that.
 
