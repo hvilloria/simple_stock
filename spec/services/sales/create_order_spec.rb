@@ -1,10 +1,17 @@
 require 'rails_helper'
 
+RSpec::Matchers.define_negated_matcher :not_change, :change
+
 RSpec.describe Sales::CreateOrder do
   let!(:stock_location) { create(:stock_location) }
   let(:user) { create(:user) }
   let(:customer_with_credit) { create(:customer, customer_type: "workshop", has_credit_account: true) }
   let(:customer_without_credit) { create(:customer, has_credit_account: false) }
+
+  def stock!(product, quantity)
+    create(:stock_movement, product: product, stock_location: stock_location, quantity: quantity, movement_type: "purchase")
+    product.recalculate_current_stock!
+  end
 
   describe '.call' do
     context 'with valid immediate order' do
@@ -221,69 +228,111 @@ RSpec.describe Sales::CreateOrder do
       end
     end
 
-    context 'with insufficient stock' do
-      let(:product) { create(:product, current_stock: 50, price_unit: 100) }
+    context 'stock leaves the shelf with the note' do
+      let(:product) { create(:product, current_stock: 0, price_unit: 100) }
 
-      it 'returns failure result' do
+      def sell(quantity, order_type: 'immediate', source: 'live', customer: customer_with_credit)
+        described_class.call(
+          customer: customer,
+          items: [ { product_id: product.id, quantity: quantity, unit_price: 100 } ],
+          order_type: order_type,
+          source: source,
+          paper_number: '0001',
+          user: user
+        )
+      end
+
+      it 'takes the whole line when the shelf covers it' do
+        stock!(product, 3)
+
+        result = sell(2)
+
+        expect(result.success?).to be true
+        expect(product.reload.current_stock).to eq(1)
+        expect(result.record.sale_movements.pluck(:quantity)).to eq([ -2 ])
+      end
+
+      it 'takes only what is there and still registers the sale' do
+        stock!(product, 3)
+
+        result = sell(5)
+
+        expect(result.success?).to be true
+        expect(product.reload.current_stock).to eq(0)
+        expect(result.record.sale_movements.pluck(:quantity)).to eq([ -3 ])
+      end
+
+      it 'registers a sale with nothing on the shelf and writes no movement' do
+        result = nil
+        expect { result = sell(5) }.not_to change(StockMovement, :count)
+
+        expect(result.success?).to be true
+        expect(product.reload.current_stock).to eq(0)
+      end
+
+      it 'never refuses a live sale for stock any more' do
+        stock!(product, 1)
+
+        result = sell(100, source: 'live')
+
+        expect(result.success?).to be true
+        expect(result.errors).to be_empty
+      end
+
+      it 'takes the goods for a sale loaded from paper too' do
+        stock!(product, 4)
+
+        result = sell(3, source: 'from_paper')
+
+        expect(result.success?).to be true
+        expect(product.reload.current_stock).to eq(1)
+        expect(result.record.sale_movements.pluck(:quantity)).to eq([ -3 ])
+      end
+
+      it 'takes the goods for a credit sale too' do
+        stock!(product, 4)
+
+        result = sell(3, order_type: 'credit')
+
+        expect(result.success?).to be true
+        expect(product.reload.current_stock).to eq(1)
+      end
+
+      it 'deducts two lines of the same product in sequence' do
+        stock!(product, 3)
+
         result = described_class.call(
           customer: customer_with_credit,
-          items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
+          items: [ { product_id: product.id, quantity: 2, unit_price: 100 },
+                   { product_id: product.id, quantity: 2, unit_price: 100 } ],
           order_type: 'immediate',
           paper_number: '0001',
           user: user
         )
 
+        expect(result.success?).to be true
+        expect(product.reload.current_stock).to eq(0)
+        expect(result.record.sale_movements.order(:id).pluck(:quantity)).to eq([ -2, -1 ])
+      end
+
+      it 'names the note on the movement' do
+        stock!(product, 1)
+
+        sell(1)
+
+        expect(StockMovement.last.note).to eq("Nota 0001")
+      end
+
+      it 'rolls the whole sale back when a deduction fails' do
+        stock!(product, 3)
+        allow(Inventory::DeductLineStock).to receive(:call)
+          .and_return(Result.new(success?: false, record: nil, errors: [ "Error adjusting stock" ]))
+
+        result = nil
+        expect { result = sell(1) }.to not_change(Order, :count).and not_change(OrderItem, :count)
+          .and not_change(StockMovement, :count)
         expect(result.success?).to be false
-        expect(result.errors).to include(/Insufficient stock/)
-        expect(result.record).to be_nil
-      end
-
-      it 'does not create order' do
-        expect {
-          described_class.call(
-            customer: customer_with_credit,
-            items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'immediate',
-            paper_number: '0001',
-            user: user
-          )
-        }.not_to change(Order, :count)
-      end
-
-      it 'does not create order items' do
-        expect {
-          described_class.call(
-            customer: customer_with_credit,
-            items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'immediate',
-            paper_number: '0001',
-            user: user
-          )
-        }.not_to change(OrderItem, :count)
-      end
-
-      it 'does not create stock movements' do
-        expect {
-          described_class.call(
-            customer: customer_with_credit,
-            items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'immediate',
-            paper_number: '0001',
-            user: user
-          )
-        }.not_to change(StockMovement, :count)
-      end
-
-      it 'does not reduce product stock' do
-        expect {
-          described_class.call(
-            customer: customer_with_credit,
-            items: [ { product_id: product.id, quantity: 100, unit_price: 100 } ],
-            order_type: 'immediate',
-            paper_number: '0001',
-            user: user
-          )
-        }.not_to change { product.reload.current_stock }
+        expect(result.errors).to include("Error adjusting stock")
       end
     end
 
@@ -404,7 +453,7 @@ RSpec.describe Sales::CreateOrder do
         expect(result.record.sale_date).to eq(sale_date)
       end
 
-      it 'skips stock validation (allows selling with zero stock)' do
+      it 'sells with zero stock, like every source' do
         zero_stock_product = create(:product, current_stock: 0, price_unit: 100)
 
         result = described_class.call(
@@ -421,24 +470,18 @@ RSpec.describe Sales::CreateOrder do
     end
 
     context 'transaction rollback' do
-      it 'rolls back everything on stock validation error' do
-        product_with_low_stock = create(:product, current_stock: 1)
+      it 'rolls back everything on a validation error' do
+        product = create(:product, current_stock: 0)
 
-        initial_order_count = Order.count
-        initial_item_count = OrderItem.count
-        initial_movement_count = StockMovement.count
-
-        described_class.call(
-          customer: customer_with_credit,
-          items: [ { product_id: product_with_low_stock.id, quantity: 10, unit_price: 100 } ],
-          order_type: 'immediate',
-          paper_number: '0001',
-          user: user
-        )
-
-        expect(Order.count).to eq(initial_order_count)
-        expect(OrderItem.count).to eq(initial_item_count)
-        expect(StockMovement.count).to eq(initial_movement_count)
+        expect {
+          described_class.call(
+            customer: customer_with_credit,
+            items: [ { product_id: product.id, quantity: 10, unit_price: 0 } ],
+            order_type: 'immediate',
+            paper_number: '0001',
+            user: user
+          )
+        }.to not_change(Order, :count).and not_change(OrderItem, :count).and not_change(StockMovement, :count)
       end
     end
 
@@ -529,6 +572,30 @@ RSpec.describe Sales::CreateOrder do
 
       expect(result).to be_success
       expect(result.record.order_items.first.delivered_at).to be_nil
+    end
+
+    it "takes only the lines the customer takes right away" do
+      taken = create(:product, current_stock: 0, price_unit: 100)
+      left  = create(:product, current_stock: 0, price_unit: 100)
+      stock!(taken, 5)
+      stock!(left, 5)
+
+      result = described_class.call(
+        customer: Customer.mostrador,
+        order_type: "on_account",
+        paper_number: "OA-003",
+        contact_name: "Juan Pérez",
+        contact_phone: "11 5555 1234",
+        items: [ { product_id: taken.id, quantity: 2, unit_price: 100 },
+                 { product_id: left.id, quantity: 2, unit_price: 100 } ],
+        delivered_product_ids: [ taken.id ],
+        user: user
+      )
+
+      expect(result).to be_success
+      expect(taken.reload.current_stock).to eq(3)
+      expect(left.reload.current_stock).to eq(5)
+      expect(result.record.sale_movements.count).to eq(1)
     end
 
     it "fails when contact is missing" do

@@ -1,5 +1,15 @@
 # Invoices with items + stock reactivation — Design
 
+> **Status (2026-09-21):** revalidated against the code, decision by decision,
+> and split in two. The invoice half is designed in
+> `2026-09-21-stock-reactivation-invoices-design.md` (branch
+> `feat-34_stock-reactivation`); the sales half is part 2, designed in
+> `2026-09-22-stock-reactivation-sales-design.md`, which **replaces decision D**:
+> stock leaves at creation for immediate and credit sales, and at delivery,
+> line by line, for pagos a cuenta.
+> The decisions below remain the source; that document records what held,
+> what changed since July, and what the wireframes added.
+
 **Pendiente #2:** "feature -> load invoices with products in them that impact
 the stock, it will change the WORKING_CONTEXT.md file .. also keep in mind that
 with soft deletion prob the stock movement now needs to change."

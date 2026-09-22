@@ -12,7 +12,8 @@ class PaymentOnAccountPolicy < ApplicationPolicy
   end
 
   def deliver?
-    (user.vendedor? || user.admin?) && record.on_account_order_type?
+    (user.vendedor? || user.admin?) && record.on_account_order_type? &&
+      !record.cancelled_status?
   end
 
   def edit_item?

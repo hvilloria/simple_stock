@@ -1,6 +1,8 @@
 require "rails_helper"
 
-RSpec.describe Invoices::CreateSimpleInvoice do
+RSpec::Matchers.define_negated_matcher :not_change, :change
+
+RSpec.describe Invoices::CreateInvoice do
   let!(:supplier) { create(:supplier) }
 
   describe ".call" do
@@ -316,6 +318,181 @@ RSpec.describe Invoices::CreateSimpleInvoice do
         expect(result.success?).to be true
         expect(result.record.early_payment_due_date).to eq(Date.new(2026, 1, 20))
         expect(result.record.early_payment_discount_percentage).to eq(3)
+      end
+    end
+
+    context "error shape" do
+      # The Result contract is a flat array of strings. Array#join flattens a
+      # nested array, so the controller's output would not reveal the nesting.
+      it "returns a flat array of messages on a model validation failure" do
+        invalid = Invoice.new
+        invalid.errors.add(:base, "Boom")
+        allow_any_instance_of(Invoice).to receive(:save!).and_raise(ActiveRecord::RecordInvalid.new(invalid))
+
+        result = described_class.call(
+          supplier: supplier,
+          invoice_number: "FAC-002",
+          amount: 5000,
+          currency: "USD",
+          exchange_rate: 1200,
+          purchase_date: Date.current,
+          due_date: 30.days.from_now
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to eq([ "Boom" ])
+      end
+    end
+
+    context "with product lines" do
+      let!(:location) { create(:stock_location) }
+      let(:filter)  { create(:product, name: "Filtro de aceite", current_stock: 0) }
+      # Seeded through a movement: current_stock is recalculated as the sum of
+      # the movements, so a factory column alone would vanish on the first one.
+      let(:pads) do
+        create(:product, name: "Pastillas", current_stock: 0).tap do |product|
+          Inventory::AdjustStock.call(product: product, stock_location: location,
+                                      movement_type: "purchase", quantity: 2)
+        end
+      end
+
+      def call_with(items, amount: nil, **overrides)
+        described_class.call(
+          **{ supplier: supplier, invoice_number: "FAC-100", amount: amount, currency: "ARS",
+              purchase_date: Date.current, due_date: 30.days.from_now, items: items }.merge(overrides)
+        )
+      end
+
+      it "stores the sum of the lines as the amount and ignores the submitted one" do
+        result = call_with(
+          [ { product_id: filter.id, quantity: 10, unit_cost: 4500 },
+            { product_id: pads.id, quantity: 4, unit_cost: 21_000 } ],
+          amount: 1
+        )
+
+        expect(result.success?).to be true
+        invoice = result.record
+        expect(invoice.amount).to eq(129_000)
+        expect(invoice.has_items).to be false
+        expect(invoice.invoice_items.count).to eq(2)
+        expect(Invoice.simple_mode.pending_payment).to include(invoice)
+      end
+
+      it "adds each line's quantity to stock through purchase movements referencing the invoice" do
+        result = call_with([ { product_id: filter.id, quantity: 10, unit_cost: 4500 },
+                             { product_id: pads.id, quantity: 4, unit_cost: 21_000 } ])
+
+        invoice = result.record
+        expect(filter.reload.current_stock).to eq(10)
+        expect(pads.reload.current_stock).to eq(6)
+        movements = invoice.stock_movements.order(:id)
+        expect(movements.map(&:movement_type)).to eq(%w[purchase purchase])
+        expect(movements.map(&:quantity)).to eq([ 10, 4 ])
+        expect(movements.map(&:stock_location)).to all(eq(location))
+      end
+
+      it "writes one movement per line, so the same product on two lines moves twice" do
+        result = call_with([ { product_id: filter.id, quantity: 3, unit_cost: 4500 },
+                             { product_id: filter.id, quantity: 2, unit_cost: 4000 } ])
+
+        expect(result.record.invoice_items.count).to eq(2)
+        expect(result.record.amount).to eq(21_500)
+        expect(filter.reload.current_stock).to eq(5)
+      end
+
+      it "ignores rows without a product or without a positive quantity" do
+        result = call_with([ { product_id: filter.id, quantity: 10, unit_cost: 4500 },
+                             { product_id: "", quantity: 5, unit_cost: 100 },
+                             { product_id: pads.id, quantity: 0, unit_cost: 21_000 },
+                             { product_id: pads.id, quantity: "", unit_cost: 21_000 } ])
+
+        expect(result.success?).to be true
+        expect(result.record.invoice_items.count).to eq(1)
+        expect(result.record.amount).to eq(45_000)
+        expect(pads.reload.current_stock).to eq(2)
+      end
+
+      it "reads a blank unit cost as zero and still moves the stock" do
+        result = call_with([ { product_id: filter.id, quantity: 2, unit_cost: "" } ])
+
+        expect(result.success?).to be true
+        expect(result.record.amount).to eq(0)
+        expect(result.record.invoice_items.first.unit_cost).to eq(0)
+        expect(filter.reload.current_stock).to eq(2)
+      end
+
+      it "accepts string keys, the shape params arrive in" do
+        result = call_with([ { "product_id" => filter.id.to_s, "quantity" => "2", "unit_cost" => "4500" } ])
+
+        expect(result.success?).to be true
+        expect(result.record.amount).to eq(9_000)
+      end
+
+      it "rejects a negative unit cost" do
+        result = call_with([ { product_id: filter.id, quantity: 1, unit_cost: -1 } ])
+
+        expect(result.success?).to be false
+        expect(result.errors).to include("Unit cost cannot be negative")
+        expect(filter.reload.current_stock).to eq(0)
+      end
+
+      it "rejects an unparseable unit cost instead of reading it as free" do
+        result = call_with([ { product_id: filter.id, quantity: 1, unit_cost: nil } ])
+
+        expect(result.success?).to be false
+        expect(result.errors).to include("Unit cost is not a number")
+        expect(Invoice.count).to eq(0)
+      end
+
+      it "rejects a product that does not exist" do
+        result = call_with([ { product_id: 999_999, quantity: 1, unit_cost: 100 } ])
+
+        expect(result.success?).to be false
+        expect(result.errors).to include("Product not found: 999999")
+      end
+
+      it "does not require a typed amount when there are complete lines" do
+        result = call_with([ { product_id: filter.id, quantity: 1, unit_cost: 100 } ], amount: nil)
+
+        expect(result.success?).to be true
+      end
+
+      it "still requires a positive amount when every row is incomplete" do
+        result = call_with([ { product_id: filter.id, quantity: 0, unit_cost: 100 } ], amount: nil)
+
+        expect(result.success?).to be false
+        expect(result.errors).to include("Amount must be greater than zero")
+      end
+
+      it "refuses a bad header without writing anything" do
+        expect {
+          result = call_with([ { product_id: filter.id, quantity: 10, unit_cost: 4500 } ],
+                             due_date: Date.current - 1)
+          expect(result.success?).to be false
+        }.to not_change(Invoice, :count)
+          .and not_change(InvoiceItem, :count)
+          .and not_change(StockMovement, :count)
+        expect(filter.reload.current_stock).to eq(0)
+      end
+
+      it "rolls everything back when a stock movement fails" do
+        allow(Inventory::AdjustStock).to receive(:call)
+          .and_return(Result.new(success?: false, record: nil, errors: [ "Error adjusting stock" ]))
+
+        expect {
+          result = call_with([ { product_id: filter.id, quantity: 10, unit_cost: 4500 } ])
+          expect(result.success?).to be false
+          expect(result.errors).to include("Error adjusting stock")
+        }.to not_change(Invoice, :count).and not_change(InvoiceItem, :count)
+      end
+
+      it "sets the supplier's early-payment terms and applies the discount to the sum" do
+        discounting = create(:supplier, :with_early_payment_discount)
+        result = call_with([ { product_id: filter.id, quantity: 10, unit_cost: 4500 } ], supplier: discounting)
+
+        invoice = result.record
+        expect(invoice.early_payment_discount_percentage).to eq(5)
+        expect(invoice.amount_with_discount).to eq(42_750)
       end
     end
   end

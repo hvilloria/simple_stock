@@ -520,7 +520,7 @@ create_inv = ->(supplier, amount, purchase_date, due_date, opts = {}) do
   num = "SF-#{format('%04d', inv_seq)}"
   inv_seq += 1
 
-  result = Invoices::CreateSimpleInvoice.call(
+  result = Invoices::CreateInvoice.call(
     supplier:                          supplier,
     invoice_number:                    num,
     amount:                            amount,
@@ -605,7 +605,7 @@ create_inv.(supplier_germany,  269_815.92, today - 8,  today + 42)
   num = "SF-#{format('%04d', inv_seq)}"
   inv_seq += 1
 
-  result = Invoices::CreateSimpleInvoice.call(
+  result = Invoices::CreateInvoice.call(
     supplier:      sup,
     invoice_number: num,
     amount:        amount,

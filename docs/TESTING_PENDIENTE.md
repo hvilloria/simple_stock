@@ -20,7 +20,7 @@ They all have a request spec, but none attack the parsing edge with hostile valu
 - [ ] **`Payments::AllocatePayment`** — POST `/web/customers/:id/payments`, hostile `amount` + per-item `discounts`. (`spec/requests/web/customers/payments_spec.rb`)
 - [ ] **`Payments::CollectSaleNote`** — complete: today it only covers the decimal-comma case `"200,00"`; missing thousands `"1.500.000,50"`, negative, `"abc"`, empty in `tenders[][amount]`. (`spec/requests/web/sale_notes/payments_spec.rb`)
 - [ ] **`Payments::CollectOnAccount`** — hostile `amount_to_settle` / `discount_percent` **+** the cash-only rule at the controller level (today only tested in the service spec). (`spec/requests/web/payments_on_account/payments_spec.rb`)
-- [ ] **`Invoices::CreateSimpleInvoice`** — POST `/web/invoices`, hostile `amount` via `parse_amount`. (`spec/requests/invoices_spec.rb`)
+- [ ] **`Invoices::CreateInvoice`** — POST `/web/invoices`, hostile `amount` via `parse_amount`. (`spec/requests/invoices_spec.rb`)
 - [ ] **Credit notes create** — complete: AR-format already covered; missing negative/`"abc"`/empty + hostile `exchange_rate`. (`spec/controllers/web/credit_notes_controller_spec.rb`)
 
 ## 🔴 P2 — MISSING coverage (nothing today)
@@ -28,7 +28,7 @@ They all have a request spec, but none attack the parsing edge with hostile valu
 - [ ] **`Inventory::AdjustStock`** — no service spec **nor** request spec. Create `spec/services/inventory/adjust_stock_spec.rb` (movement created + effect of `recalculate_current_stock!` + failures) and a request spec for `Web::Products::StockMovementsController#create` (purchase/sale/adjustment sign, `quantity=0` / invalid type → 422).
 - [ ] **Invoice cancel** (`Web::InvoicesController#cancel`) — no coverage. Request spec: pending → `cancelled` + redirect/notice; non-pending → rejected, status intact.
 - [ ] **Credit notes `update` / `destroy`** — no request spec; the `parse_amount` path of update is untested. PATCH with hostile `amount`/`exchange_rate` + DELETE happy path.
-- [ ] **`Sales::CancelOrder` restock** — assertions in `skip`/`xit` ("stock movements temporarily disabled"); the restock is not verified. Re-enable/rewrite when the restock is active. (`spec/services/sales/cancel_order_spec.rb`)
+- [ ] **`Purchasing::CreatePurchase` / `CancelPurchase` stock** — assertions still in `skip` ("stock movements temporarily disabled") although both services do write movements through `Inventory::AdjustStock`. Rewrite them to what the services do today. (`spec/services/purchasing/{create,cancel}_purchase_spec.rb`)
 
 ## 🟡 P3 — Calculation correctness on read-money (reports)
 

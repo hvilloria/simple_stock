@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = ["input", "results"]
-  static values = { url: String }
+  static values = { url: String, dimOutOfStock: { type: Boolean, default: true } }
 
   connect() {
     this.timeout = null
@@ -68,7 +68,7 @@ export default class extends Controller {
 
       return `
         <div 
-          class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${product.current_stock <= 0 ? 'opacity-50' : ''}"
+          class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${this.dimOutOfStockValue && product.current_stock <= 0 ? 'opacity-50' : ''}"
           data-action="click->product-search#selectProduct"
           data-product='${JSON.stringify(product)}'
         >

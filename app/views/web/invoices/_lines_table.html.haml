@@ -1,0 +1,23 @@
+%table#invoice-lines.w-full.text-sm.tabular-nums
+  %thead.text-xs.uppercase.tracking-wider.text-slate-500
+    %tr
+      %th.py-2.text-left.font-medium Producto
+      %th.py-2.text-right.font-medium Cantidad
+      %th.py-2.text-right.font-medium= "Costo unit. (#{invoice.currency == 'USD' ? 'US$' : '$'})"
+      %th.py-2.text-right.font-medium Subtotal
+  %tbody.divide-y.divide-slate-100
+    - invoice.invoice_items.includes(:product).each do |item|
+      %tr
+        %td.py-2
+          %span.font-mono.text-xs.text-slate-500= item.product.sku
+          %br
+          = item.product.name
+          - if item.product.brand.present?
+            %span.text-slate-400= "· #{item.product.brand}"
+        %td.py-2.text-right= item.quantity
+        %td.py-2.text-right= number_ar(item.unit_cost)
+        %td.py-2.text-right= number_ar(item.subtotal)
+  %tfoot.border-t-2.border-slate-200.font-semibold
+    %tr
+      %td.py-2{ colspan: 3 } Total
+      %td.py-2.text-right= "#{invoice.currency == 'USD' ? 'US$' : '$'} #{number_ar(invoice.amount)}"

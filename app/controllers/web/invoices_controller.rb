@@ -88,7 +88,7 @@ module Web
     def create
       authorize Invoice, :create?
 
-      result = Invoices::CreateSimpleInvoice.call(
+      result = Invoices::CreateInvoice.call(
         supplier: find_supplier,
         invoice_number: params[:invoice_number],
         amount: parse_amount(params[:amount]),
@@ -98,14 +98,19 @@ module Web
         due_date: parse_date(params[:due_date]),
         notes: params[:notes],
         early_payment_due_date: parse_optional_date(params[:early_payment_due_date]),
-        early_payment_discount_percentage: parse_optional_integer(params[:early_payment_discount_percentage])
+        early_payment_discount_percentage: parse_optional_integer(params[:early_payment_discount_percentage]),
+        items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
       if result.success?
         redirect_to web_invoice_path(result.record), notice: "Factura registrada exitosamente."
       else
         flash.now[:alert] = result.errors.join(", ")
-        @invoice = Invoice.new
+        @submitted_items = submitted_items
+        # The form cleans these two fields before posting, so the re-render has
+        # to give them back Argentine-formatted or the retry cleans them twice.
+        @amount_value        = helpers.number_ar(parse_amount(params[:amount])) if params[:amount].present?
+        @exchange_rate_value = helpers.number_ar(parse_amount(params[:exchange_rate])) if params[:exchange_rate].present?
         load_suppliers
         render :new, status: :unprocessable_entity
       end
@@ -130,6 +135,8 @@ module Web
 
       # Parse values in Argentine format
       update_params = invoice_update_params
+      # The lines own the amount; a value typed around the read-only field is ignored.
+      update_params.delete(:amount) if @invoice.invoice_items.any?
       update_params[:amount] = parse_amount(update_params[:amount]) if update_params[:amount].present?
       update_params[:exchange_rate] = parse_amount(update_params[:exchange_rate]) if update_params[:exchange_rate].present?
 
@@ -170,15 +177,12 @@ module Web
     def cancel
       authorize @invoice
 
-      unless @invoice.pending_status?
-        redirect_to web_invoice_path(@invoice), alert: "Solo se pueden cancelar facturas pendientes."
-        return
-      end
+      result = Invoices::CancelInvoice.call(invoice: @invoice)
 
-      if @invoice.update(status: "cancelled")
+      if result.success?
         redirect_to web_invoices_path, notice: "Factura cancelada exitosamente."
       else
-        redirect_to web_invoice_path(@invoice), alert: "Error al cancelar la factura."
+        redirect_to web_invoice_path(@invoice), alert: result.errors.join(", ")
       end
     end
 
@@ -236,6 +240,31 @@ module Web
 
     def find_supplier
       Supplier.find(params[:supplier_id])
+    end
+
+    # Lines arrive as `items[0][product_id]=…&items[0][quantity]=…`. The raw
+    # unit cost is kept for the re-render; the service gets the parsed one.
+    # Anything that is not a hash of rows is ignored instead of raising.
+    def submitted_items
+      @submitted_items_memo ||=
+        if params[:items].blank? || !params[:items].respond_to?(:to_unsafe_h)
+          []
+        else
+          params[:items].to_unsafe_h.values.filter_map do |row|
+            next unless row.is_a?(Hash)
+
+            { product_id: row[:product_id].to_s, sku: row[:sku].to_s, name: row[:name].to_s, brand: row[:brand].to_s,
+              quantity: row[:quantity].to_i, unit_cost: row[:unit_cost].to_s }
+          end
+        end
+    end
+
+    # Blank means free; anything that is not a number stays nil so the
+    # service refuses it instead of reading it as zero.
+    def unit_cost_param(raw)
+      return "" if raw.to_s.strip.empty?
+
+      decimal_string_from(raw)
     end
 
     def parse_date(date_string)

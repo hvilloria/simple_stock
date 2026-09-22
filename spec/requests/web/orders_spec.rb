@@ -349,6 +349,25 @@ RSpec.describe "Web::Orders", type: :request do
       expect(response.body).to include("Pieza histórica")
     end
 
+    it "shows the movements the sale's lines took off the shelf" do
+      create(:stock_movement, product: product, stock_location: stock_location, quantity: 10,
+             movement_type: "purchase")
+      product.recalculate_current_stock!
+      order = Sales::CreateOrder.call(
+        customer: customer_with_credit,
+        items: [ { product_id: product.id, quantity: 2, unit_price: 100 } ],
+        order_type: "immediate",
+        paper_number: "SHOWMOV",
+        user: vendedor
+      ).record
+
+      get web_order_path(order)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("Sin movimientos de stock registrados")
+      expect(response.body).to include(stock_location.name)
+    end
+
     it "calls a collected sale 'Cobrada'" do
       order = create(:order, paper_number: "SHOW1", total_amount: 100,
                      original_total_amount: 100)

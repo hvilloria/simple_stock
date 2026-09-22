@@ -1,13 +1,21 @@
 require 'rails_helper'
 
+RSpec::Matchers.define_negated_matcher :not_change, :change
+
 RSpec.describe Sales::CancelOrder do
   let(:user) { create(:user) }
   let(:customer) { create(:customer, customer_type: "workshop", has_credit_account: true) }
-  let(:product) { create(:product, current_stock: 50, price_unit: 100) }
+  let(:product) { create(:product, current_stock: 0, price_unit: 100) }
   let(:stock_location) { create(:stock_location) }
+
+  def stock!(product, quantity)
+    create(:stock_movement, product: product, stock_location: stock_location, quantity: quantity, movement_type: "purchase")
+    product.recalculate_current_stock!
+  end
 
   before do
     stock_location
+    stock!(product, 50)
   end
 
   describe '.call' do
@@ -40,49 +48,53 @@ RSpec.describe Sales::CancelOrder do
         expect(order.reload.settled_on).to be_nil
       end
 
-      it 'restores product stock' do
-        skip "stock movements temporarily disabled"
-        order # Create order first (reduces stock by 5)
-        initial_stock = product.reload.current_stock
+      it 'puts back on the shelf what the sale took' do
+        order
+        expect(product.reload.current_stock).to eq(45)
 
         expect {
           described_class.call(order: order, user: user)
-        }.to change { product.reload.current_stock }.by(5)
+        }.to change { product.reload.current_stock }.from(45).to(50)
       end
 
-      it 'creates positive stock movements' do
-        skip "stock movements temporarily disabled"
-        order # Create order first
+      it 'writes one positive adjustment per line, referencing the line' do
+        described_class.call(order: order, user: user)
 
-        result = described_class.call(order: order, user: user)
-
-        # Find the adjustment movement (last one created)
-        adjustment_movement = StockMovement.where(movement_type: 'adjustment').last
-        expect(adjustment_movement.product).to eq(product)
-        expect(adjustment_movement.quantity).to eq(5) # Positive (reversal)
+        restore = StockMovement.where(movement_type: 'adjustment').last
+        expect(restore.product).to eq(product)
+        expect(restore.quantity).to eq(5)
+        expect(restore.reference).to eq(order.order_items.first)
+        expect(order.order_items.first.stock_movements.sum(:quantity)).to eq(0)
       end
 
       it 'accepts reason parameter' do
-        skip "stock movements temporarily disabled"
-        result = described_class.call(
-          order: order,
-          user: user,
-          reason: 'Customer requested cancellation'
-        )
+        result = described_class.call(order: order, user: user, reason: 'Customer requested cancellation')
 
         expect(result.success?).to be true
-
-        # Check the note in stock movement
-        adjustment_movement = StockMovement.where(movement_type: 'adjustment').last
-        expect(adjustment_movement.note).to eq('Customer requested cancellation')
+        expect(StockMovement.where(movement_type: 'adjustment').last.note).to eq('Customer requested cancellation')
       end
 
-      it 'uses default reason when not provided' do
-        skip "stock movements temporarily disabled"
-        result = described_class.call(order: order, user: user)
+      it 'names the note when no reason is given' do
+        described_class.call(order: order, user: user)
 
-        adjustment_movement = StockMovement.where(movement_type: 'adjustment').last
-        expect(adjustment_movement.note).to include("Order ##{order.id} cancellation")
+        expect(StockMovement.where(movement_type: 'adjustment').last.note).to eq("Cancelación nota L-2001")
+      end
+
+      it 'names the note when the reason is blank' do
+        described_class.call(order: order, user: user, reason: '')
+
+        expect(StockMovement.where(movement_type: 'adjustment').last.note).to eq("Cancelación nota L-2001")
+      end
+
+      it 'gives back only what the floor let the sale take' do
+        product.stock_movements.destroy_all
+        stock!(product, 2)
+        order
+        expect(product.reload.current_stock).to eq(0)
+
+        described_class.call(order: order, user: user)
+
+        expect(product.reload.current_stock).to eq(2)
       end
     end
 
@@ -229,12 +241,16 @@ RSpec.describe Sales::CancelOrder do
         expect(result.errors).to include('Este cobro ya fue revertido')
         expect(order.reload.status).to eq('pending')
         expect(order.payment_allocations.count).to eq(1)
+        expect(product.reload.current_stock).to eq(45)
+        expect(order.sale_movements.sum(:quantity)).to eq(-5)
         expect(CashMovement.where(source_payment_id: payment.id).count).to eq(1)
       end
     end
 
     context 'with multiple items' do
-      let(:product2) { create(:product, current_stock: 30, price_unit: 50) }
+      before { stock!(product2, 30) }
+
+      let(:product2) { create(:product, current_stock: 0, price_unit: 50) }
       let(:multi_item_order) do
         result = Sales::CreateOrder.call(
           customer: customer,
@@ -250,8 +266,7 @@ RSpec.describe Sales::CancelOrder do
       end
 
       it 'restores stock for all products' do
-        skip "stock movements temporarily disabled"
-        multi_item_order # Create order
+        multi_item_order
 
         expect {
           described_class.call(order: multi_item_order, user: user)
@@ -259,14 +274,54 @@ RSpec.describe Sales::CancelOrder do
           .and change { product2.reload.current_stock }.by(2)
       end
 
-      it 'creates adjustment movements for all items' do
-        skip "stock movements temporarily disabled"
-        multi_item_order # Create order
-        initial_count = StockMovement.where(movement_type: 'adjustment').count
+      it 'writes one adjustment per line' do
+        multi_item_order
 
-        described_class.call(order: multi_item_order, user: user)
+        expect {
+          described_class.call(order: multi_item_order, user: user)
+        }.to change { StockMovement.where(movement_type: 'adjustment').count }.by(2)
+      end
+    end
 
-        expect(StockMovement.where(movement_type: 'adjustment').count).to eq(initial_count + 2)
+    context 'on_account with a partial delivery' do
+      let(:kept)  { create(:product, current_stock: 0, price_unit: 100) }
+      let(:taken) { create(:product, current_stock: 0, price_unit: 100) }
+
+      it 'gives back only the lines that were delivered' do
+        stock!(kept, 5)
+        stock!(taken, 5)
+        order = Sales::CreateOrder.call(
+          customer: Customer.mostrador, order_type: 'on_account', paper_number: 'OA-9',
+          contact_name: 'Juan', contact_phone: '11 5555 1234', user: user,
+          items: [ { product_id: taken.id, quantity: 2, unit_price: 100 },
+                   { product_id: kept.id, quantity: 2, unit_price: 100 } ],
+          delivered_product_ids: [ taken.id ]
+        ).record
+        expect(taken.reload.current_stock).to eq(3)
+
+        expect(described_class.call(order: order, user: user).success?).to be true
+
+        expect(taken.reload.current_stock).to eq(5)
+        expect(kept.reload.current_stock).to eq(5)
+        expect(StockMovement.where(movement_type: 'adjustment').count).to eq(1)
+      end
+
+      it 'gives nothing back for a line whose delivery was undone' do
+        stock!(kept, 5)
+        order = Sales::CreateOrder.call(
+          customer: Customer.mostrador, order_type: 'on_account', paper_number: 'OA-10',
+          contact_name: 'Juan', contact_phone: '11 5555 1234', user: user,
+          items: [ { product_id: kept.id, quantity: 2, unit_price: 100 } ]
+        ).record
+        line = order.order_items.first
+
+        Inventory::MarkDelivered.call(order: order, order_item_ids: [ line.id ], delivered: true)
+        Inventory::MarkDelivered.call(order: order, order_item_ids: [ line.id ], delivered: false)
+        expect(kept.reload.current_stock).to eq(5)
+
+        expect {
+          expect(described_class.call(order: order, user: user).success?).to be true
+        }.to not_change(StockMovement, :count).and not_change { kept.reload.current_stock }
       end
     end
 
@@ -348,15 +403,16 @@ RSpec.describe Sales::CancelOrder do
         result.record
       end
 
-      xit 'rolls back order status change if stock adjustment fails' do
+      it 'rolls back order status change if the stock restore fails' do
         initial_status = order.status
 
-        allow(Inventory::AdjustStock).to receive(:call).and_return(
+        allow(Inventory::RestoreLineStock).to receive(:call).and_return(
           Result.new(success?: false, record: nil, errors: [ 'Stock adjustment failed' ])
         )
 
-        described_class.call(order: order, user: user)
+        result = described_class.call(order: order, user: user)
 
+        expect(result.success?).to be false
         expect(order.reload.status).to eq(initial_status)
       end
     end
