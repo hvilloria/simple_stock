@@ -75,7 +75,7 @@ class Order < ApplicationRecord
 
   scope :search_contact, ->(q) {
     next all if q.blank?
-    where("contact_name ILIKE :q OR contact_phone ILIKE :q", q: "%#{q.strip}%")
+    where("unaccent(contact_name) ILIKE unaccent(:q) OR contact_phone ILIKE :q", q: "%#{q.strip}%")
   }
   scope :pending,   -> { where(status: "pending") }
   scope :confirmed, -> { where(status: "confirmed") }
