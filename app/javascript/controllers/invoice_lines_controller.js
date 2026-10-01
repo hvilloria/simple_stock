@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { escapeHtml } from "helpers/html_escape"
 
 // The Productos card of the invoice form: keeps the lines, renders them with
 // the hidden inputs the server reads, and tells the form what changed.
@@ -131,12 +132,12 @@ export default class extends Controller {
     const rows = this.lines.map((line, i) => `
       <tr data-line-index="${i}" class="${this.complete(line) ? "" : "opacity-50"}">
         <td class="py-2 pr-3">
-          <span class="font-mono text-xs text-slate-500">${line.sku}</span><br>
-          <span class="text-slate-900">${line.name}</span>${line.brand ? ` <span class="text-slate-400">· ${line.brand}</span>` : ""}
+          <span class="font-mono text-xs text-slate-500">${escapeHtml(line.sku)}</span><br>
+          <span class="text-slate-900">${escapeHtml(line.name)}</span>${line.brand ? ` <span class="text-slate-400">· ${escapeHtml(line.brand)}</span>` : ""}
           <input type="hidden" name="items[${i}][product_id]" value="${line.product_id}">
-          <input type="hidden" name="items[${i}][sku]" value="${line.sku}">
-          <input type="hidden" name="items[${i}][name]" value="${line.name}">
-          <input type="hidden" name="items[${i}][brand]" value="${line.brand || ""}">
+          <input type="hidden" name="items[${i}][sku]" value="${escapeHtml(line.sku)}">
+          <input type="hidden" name="items[${i}][name]" value="${escapeHtml(line.name)}">
+          <input type="hidden" name="items[${i}][brand]" value="${escapeHtml(line.brand)}">
           <input type="hidden" name="items[${i}][quantity]" value="${line.quantity}" data-field="quantity">
           <input type="hidden" name="items[${i}][unit_cost]" value="${line.unit_cost === null ? "" : this.formatAmount(line.unit_cost)}" data-field="unit_cost">
         </td>

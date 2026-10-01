@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
   static targets = ["input", "results"]
@@ -51,7 +52,8 @@ export default class extends Controller {
       return
     }
 
-    const html = products.map(product => {
+    this.products = products
+    const html = products.map((product, index) => {
       const stockBadge = product.current_stock <= 0 
         ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium">Sin stock</span>'
         : product.current_stock < 5
@@ -64,13 +66,13 @@ export default class extends Controller {
         ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">Aftermarket</span>'
         : ''
       
-      const originText = product.origin ? `🌍 ${product.origin}` : ''
+      const originText = product.origin ? `🌍 ${escapeHtml(product.origin)}` : ''
 
       return `
         <div 
           class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${this.dimOutOfStockValue && product.current_stock <= 0 ? 'opacity-50' : ''}"
           data-action="click->product-search#selectProduct"
-          data-product='${JSON.stringify(product)}'
+          data-index="${index}"
         >
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
@@ -78,13 +80,13 @@ export default class extends Controller {
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
-                <span class="font-mono text-xs text-gray-500 font-semibold">${product.sku}</span>
+                <span class="font-mono text-xs text-gray-500 font-semibold">${escapeHtml(product.sku)}</span>
                 ${stockBadge}
                 ${typeBadge}
               </div>
-              <p class="font-semibold text-gray-900 text-sm truncate">${product.name}</p>
+              <p class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(product.name)}</p>
               <div class="flex items-center gap-2 text-xs text-gray-600 mt-1">
-                ${product.brand ? `<span>${product.brand}</span>` : ''}
+                ${product.brand ? `<span>${escapeHtml(product.brand)}</span>` : ''}
                 ${product.brand && originText ? '<span>•</span>' : ''}
                 ${originText ? `<span>${originText}</span>` : ''}
                 <span>•</span>
@@ -101,7 +103,7 @@ export default class extends Controller {
   }
 
   selectProduct(event) {
-    const product = JSON.parse(event.currentTarget.dataset.product)
+    const product = this.products[parseInt(event.currentTarget.dataset.index)]
 
     const customEvent = new CustomEvent('product-selected', {
       detail: { product },
