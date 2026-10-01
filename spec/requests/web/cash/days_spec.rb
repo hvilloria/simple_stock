@@ -42,17 +42,33 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(response).to redirect_to("/web/cash/days/#{Date.current}")
     end
 
-    it "shows the sales-by-channel panel with a channel's total and the amount to wrap" do
+    it "shows the day's sales per arca group, their total and the amount to wrap" do
       create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 324_700)
+      create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 100_000)
       create(:cash_movement, :store_expense, business_date: date)
 
       get "/web/cash/days/2026-08-03"
 
-      expect(response.body).to include("Ventas por canal")
-      expect(response.body).to include("Efectivo")
-      expect(response.body).to include("324.700,00")
-      expect(response.body).to include("Monto a fajar")
-      expect(response.body).to include("311.700,00")
+      panel = Nokogiri::HTML(response.body).at_css("#sales-by-channel")
+      expect(panel.text).to include("Ventas del día")
+      expect(panel.at_css("[data-sales-total]").text).to include("424.700,00")
+      expect(panel.at_css("[data-group='efectivo']").text).to include("Efectivo", "324.700,00")
+      expect(panel.at_css("[data-group='mercado_pago']").text).to include("Mercado Pago", "100.000,00")
+      expect(panel.at_css("[data-group='banco']").text).to include("Banco", "0,00")
+      expect(panel.text).to include("Monto a fajar", "311.700,00")
+    end
+
+    it "lists dollar and compensation sales apart from the peso total" do
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 1_000)
+      create(:cash_movement, business_date: date, channel: "usd", account: "usd", amount: 50)
+      create(:cash_movement, :compensation_sale, business_date: date)
+
+      get "/web/cash/days/2026-08-03"
+
+      panel = Nokogiri::HTML(response.body).at_css("#sales-by-channel")
+      expect(panel.at_css("[data-sales-total]").text).to include("1.000,00")
+      expect(panel.at_css("[data-channel='usd']").text).to include("US$ 50,00")
+      expect(panel.at_css("[data-channel='compensation']").text).to include("Compensación", "661.188,00")
     end
   end
 
@@ -321,7 +337,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
            headers: { "Accept" => "text/vnd.turbo-stream.html" }
 
       expect(response.body).to include('target="sales-by-channel"')
-      expect(response.body).to include("Ventas por canal")
+      expect(response.body).to include("Ventas del día")
     end
   end
 

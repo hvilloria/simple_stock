@@ -138,6 +138,53 @@ RSpec.describe Cash::DayQuery do
     end
   end
 
+  describe "#sales_by_group" do
+    it "adds up each channel into the arca group it lands in" do
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 239_900)
+      create(:cash_movement, :card_sale, business_date: date)
+      create(:cash_movement, business_date: date, channel: "qr", account: "bank", amount: 10_000)
+      create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 459_000)
+
+      expect(query.sales_by_group).to include("efectivo" => 239_900, "banco" => 64_700, "mercado_pago" => 459_000)
+    end
+
+    it "leaves out compensation sales, which reach no arca" do
+      create(:cash_movement, :compensation_sale, business_date: date)
+
+      expect(query.sales_by_group.values).to all(be_zero)
+    end
+
+    it "is zero for a group with no sales" do
+      expect(query.sales_by_group["banco"]).to eq(0)
+    end
+  end
+
+  describe "#peso_sales_total" do
+    it "adds the three peso groups and keeps dollars apart" do
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 239_900)
+      create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 459_000)
+      create(:cash_movement, business_date: date, channel: "usd", account: "usd", amount: 100)
+      create(:cash_movement, :compensation_sale, business_date: date)
+
+      expect(query.peso_sales_total).to eq(698_900)
+    end
+  end
+
+  describe "#peso_sales_share" do
+    it "is each group's percentage of the peso total" do
+      create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 25_000)
+      create(:cash_movement, business_date: date, channel: "mercado_pago", account: "mercado_pago", amount: 75_000)
+
+      expect(query.peso_sales_share("efectivo")).to eq(25)
+      expect(query.peso_sales_share("mercado_pago")).to eq(75)
+      expect(query.peso_sales_share("banco")).to eq(0)
+    end
+
+    it "is zero on a day with no peso sales" do
+      expect(query.peso_sales_share("efectivo")).to eq(0)
+    end
+  end
+
   describe "#amount_to_wrap" do
     it "is the drawer's net for the day, expenses included" do
       create(:cash_movement, business_date: date, channel: "cash", account: "drawer", amount: 324_700)
