@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { escapeHtml } from "helpers/html_escape"
 import { roundToNearestHundred } from "helpers/cash_rounding"
 
 export default class extends Controller {
@@ -195,12 +196,12 @@ export default class extends Controller {
 
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1">
-            <span class="font-mono text-xs text-gray-500 font-semibold">${item.sku}</span>
+            <span class="font-mono text-xs text-gray-500 font-semibold">${escapeHtml(item.sku)}</span>
             ${item.product_type === 'oem' ? '<span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">OEM</span>' : ''}
             ${item.product_type === 'aftermarket' ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">ALT</span>' : ''}
           </div>
-          <h4 class="font-semibold text-gray-900 text-sm truncate">${item.name}</h4>
-          <p class="text-xs text-gray-500 mt-0.5">${item.brand || ''} ${item.origin ? '• ' + item.origin : ''}</p>
+          <h4 class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(item.name)}</h4>
+          <p class="text-xs text-gray-500 mt-0.5">${escapeHtml(item.brand)} ${item.origin ? '• ' + escapeHtml(item.origin) : ''}</p>
           <input type="hidden" name="purchase_items[][product_id]" value="${item.product_id}" />
           <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
           <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />

@@ -118,6 +118,12 @@ RSpec.describe Cash::Reports::MovementsQuery do
       expect(result(search: "cromo")).to eq([ cromosol ])
     end
 
+    it "ignores accents in the description" do
+      plugs = movement(:supplier_payment, description: "Compra de bujías")
+
+      expect(result(search: "bujias")).to eq([ plugs ])
+    end
+
     it "leaves a row with no description out of a search" do
       movement(account: "drawer", amount: 10_000, description: nil)
 

@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
   static targets = ["panel", "items", "count", "createButton", "backdrop", "cartTotal"]
@@ -77,8 +78,8 @@ export default class extends Controller {
     this.itemsTarget.innerHTML = this.cartItems.map((item, index) => `
       <div class="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0">
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-slate-900 truncate">${item.name}</p>
-          <p class="text-xs text-slate-500">${item.sku} · Stock: ${item.current_stock}</p>
+          <p class="text-sm font-semibold text-slate-900 truncate">${escapeHtml(item.name)}</p>
+          <p class="text-xs text-slate-500">${escapeHtml(item.sku)} · Stock: ${item.current_stock}</p>
           <p class="text-xs text-slate-600 mt-0.5">${this.formatMoney(item.price_unit)} c/u</p>
         </div>
         <input

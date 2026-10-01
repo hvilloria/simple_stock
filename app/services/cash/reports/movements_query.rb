@@ -56,7 +56,7 @@ module Cash
         scoped = scoped.where(account: accounts) if accounts
         scoped = scoped.where(channel: @channel) if channel?
         scoped = scoped.where(category: @category) if category?
-        scoped = scoped.where("description ILIKE ?", "%#{escaped_search}%") if @search.present?
+        scoped = scoped.where("unaccent(description) ILIKE unaccent(?)", "%#{escaped_search}%") if @search.present?
         scoped
       end
 

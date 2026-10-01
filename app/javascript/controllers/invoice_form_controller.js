@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
   static targets = [
@@ -124,7 +125,7 @@ export default class extends Controller {
       this.stockTitleTarget.textContent = `Suma stock: ${units} ${units === 1 ? "unidad" : "unidades"} en ${products} ${products === 1 ? "producto" : "productos"}`
       this.stockNoteTarget.textContent = "El stock se suma al registrar. El costo promedio no cambia."
       this.stockListTarget.innerHTML = lines.map(line =>
-        `<li class="flex justify-between"><span>${line.name}</span><span>+${line.quantity}</span></li>`
+        `<li class="flex justify-between"><span>${escapeHtml(line.name)}</span><span>+${line.quantity}</span></li>`
       ).join("")
       this.stockListTarget.classList.remove("hidden")
     } else {
@@ -147,7 +148,7 @@ export default class extends Controller {
     const symbol = checked && checked.value === "USD" ? "US$" : "$"
     this.zeroCostTitleTarget.textContent = `${count} ${count === 1 ? "línea" : "líneas"} con costo 0`
     this.zeroCostListTarget.innerHTML = this.zeroCostLines.map(line =>
-      `<li class="flex justify-between"><span>${line.name}</span><span>${line.quantity} ${line.quantity === 1 ? "unidad" : "unidades"} · ${symbol} 0,00</span></li>`
+      `<li class="flex justify-between"><span>${escapeHtml(line.name)}</span><span>${line.quantity} ${line.quantity === 1 ? "unidad" : "unidades"} · ${symbol} 0,00</span></li>`
     ).join("")
     this.zeroCostSummaryTarget.textContent = `${this.stockTitleTarget.textContent}. Monto de la factura: ${symbol} ${this.amountTarget.value}.`
     this.zeroCostModalTarget.classList.remove("hidden")

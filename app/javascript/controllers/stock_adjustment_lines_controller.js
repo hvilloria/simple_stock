@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { escapeHtml } from "helpers/html_escape"
 
 const MAX_COUNT = 1000000
 
@@ -80,10 +81,6 @@ export default class extends Controller {
     return difference > 0 ? `+${difference}` : `−${Math.abs(difference)}`
   }
 
-  escape(value) {
-    return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
-  }
-
   render() {
     if (this.lines.length === 0) {
       this.linesTarget.innerHTML = `
@@ -97,17 +94,17 @@ export default class extends Controller {
     const rows = this.lines.map((line, i) => `
       <tr data-line-index="${i}">
         <td class="py-2 pr-3 font-mono text-xs text-slate-500">
-          ${this.escape(line.sku)}
-          <input type="hidden" name="lines[${i}][product_id]" value="${this.escape(line.product_id)}">
+          ${escapeHtml(line.sku)}
+          <input type="hidden" name="lines[${i}][product_id]" value="${escapeHtml(line.product_id)}">
         </td>
         <td class="py-2 pr-3 text-slate-900">
-          ${this.escape(line.name)}${line.brand ? ` <span class="text-slate-400">· ${this.escape(line.brand)}</span>` : ""}
+          ${escapeHtml(line.name)}${line.brand ? ` <span class="text-slate-400">· ${escapeHtml(line.brand)}</span>` : ""}
         </td>
         <td class="py-2 text-right tabular-nums text-slate-600">${line.current_stock}</td>
         <td class="py-2 text-right">
-          <input type="number" min="0" max="${MAX_COUNT}" step="1" name="lines[${i}][counted]" value="${this.escape(line.counted)}"
+          <input type="number" min="0" max="${MAX_COUNT}" step="1" name="lines[${i}][counted]" value="${escapeHtml(line.counted)}"
                  data-index="${i}" data-action="input->stock-adjustment-lines#updateCounted"
-                 aria-label="Stock real de ${this.escape(line.name)}"
+                 aria-label="Stock real de ${escapeHtml(line.name)}"
                  class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-right">
         </td>
         <td class="py-2 text-right tabular-nums text-slate-700" data-difference>${this.differenceLabel(line)}</td>

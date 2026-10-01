@@ -297,6 +297,31 @@ RSpec.describe Product, type: :model do
     end
   end
 
+  describe '.search' do
+    let!(:plug)   { create(:product, sku: 'BUJ-1180', name: 'Bujías iridium', brand: 'NGK') }
+    let!(:pinion) { create(:product, sku: 'PIN-0042', name: 'Piñón de distribución', brand: 'Citroën') }
+    let!(:belt)   { create(:product, sku: 'COR-0310', name: 'Correa', brand: 'Gates') }
+
+    it 'finds a name written with accents from a query without them' do
+      expect(Product.search('bujias')).to contain_exactly(plug)
+      expect(Product.search('pinon')).to contain_exactly(pinion)
+    end
+
+    it 'finds a name written without accents from a query with them' do
+      plain = create(:product, sku: 'BUJ-2000', name: 'Bujia simple', brand: 'Bosch')
+
+      expect(Product.search('bujía')).to contain_exactly(plug, plain)
+    end
+
+    it 'ignores accents in the brand too' do
+      expect(Product.search('citroen')).to contain_exactly(pinion)
+    end
+
+    it 'still matches the SKU, whatever the case' do
+      expect(Product.search('cor-03')).to contain_exactly(belt)
+    end
+  end
+
   describe '#low_stock?' do
     it 'returns true when stock is less than 5' do
       product = build(:product, current_stock: 4)

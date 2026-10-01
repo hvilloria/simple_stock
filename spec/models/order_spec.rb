@@ -519,6 +519,12 @@ RSpec.describe Order, type: :model do
       expect(Order.search_contact("1111")).to contain_exactly(a)
     end
 
+    it "ignores accents in the contact name" do
+      jose = create(:order, :on_account, contact_name: "José Muñoz", contact_phone: "11 3333 4444")
+
+      expect(Order.search_contact("jose munoz")).to contain_exactly(jose)
+    end
+
     it "returns all when query is blank" do
       expect(Order.search_contact("").count).to eq(Order.count)
     end
