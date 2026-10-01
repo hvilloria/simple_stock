@@ -21,7 +21,12 @@
 #   3. Total: suma de renglones Σ(qty×unit_price) (lo hace Sales::CreateOrder);
 #      se ignora ticket_total_amount. El pago es por ese mismo monto.
 #
-# Otros: source=from_paper (no valida stock), paper_number=ticket_number,
+# Stock: this task creates its sales through Sales::CreateOrder, which now takes
+#   the goods off the shelf (one sale movement per line). It already ran once in
+#   production and is not meant to run again: a re-run against a stocked database
+#   would deduct that stock a second time.
+#
+# Otros: source=from_paper, paper_number=ticket_number,
 #   customer=Customer.mostrador, fecha del ticket = la de la primera fila,
 #   idempotente (saltea ticket cuyo paper_number ya existe como Order).
 

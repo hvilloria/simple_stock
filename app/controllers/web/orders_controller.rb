@@ -21,7 +21,7 @@ module Web
     def show
       authorize @order
       @order_items = @order.order_items.includes(:product)
-      @stock_movements = @order.stock_movements.includes(:product, :stock_location).order(created_at: :desc)
+      @stock_movements = @order.sale_movements.includes(:product, :stock_location).order(created_at: :desc)
     end
 
     def new
@@ -90,7 +90,7 @@ module Web
       result = Sales::CancelOrder.call(
         order: @order,
         user: current_user,
-        reason: params[:reason] || "Anulada desde interfaz"
+        reason: params[:reason].presence || "Anulada desde interfaz"
       )
 
       if result.success?
@@ -152,7 +152,7 @@ module Web
     end
 
     def load_order
-      @order = Order.includes(order_items: :product, stock_movements: [ :product, :stock_location ], payment_allocations: :payment).find(params[:id])
+      @order = Order.includes(order_items: :product, payment_allocations: :payment).find(params[:id])
     end
 
     def parse_items

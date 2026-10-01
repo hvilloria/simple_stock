@@ -154,9 +154,13 @@
                         = l(movement.created_at, format: :short)
                     
                     -# Reference
-                    - if movement.reference.present?
+                    - if movement.user.present?
+                      %p.text-sm.text-slate-600 #{movement.user.name} · #{movement.note}
+                    - elsif movement.reference.present?
                       %p.text-sm.text-slate-600
-                        - if movement.reference_type == 'Order'
+                        - if movement.reference_type == 'OrderItem'
+                          Nota #{movement.reference.order.paper_number}
+                        - elsif movement.reference_type == 'Order'
                           Order ##{movement.reference_id}
                         - elsif movement.reference_type == 'Invoice'
                           Invoice ##{movement.reference_id}
@@ -200,6 +204,10 @@
             %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800
               ✕
               Sin Stock
+
+        - if policy(@product).adjust_stock?
+          .text-center.mb-6
+            = link_to "Ajustar stock", new_web_stock_adjustment_path(product_id: @product.id), class: "btn-secondary"
         
         -# Separator
         .border-t.border-slate-200.my-6

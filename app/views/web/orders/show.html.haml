@@ -251,8 +251,6 @@
                     %td.px-6.py-3.whitespace-nowrap.text-center
                       - if movement.sale_movement_type?
                         %span.inline-flex.px-2.py-1.rounded.text-xs.font-medium.bg-red-100.text-red-800 Venta
-                      - elsif movement.purchase_movement_type?
-                        %span.inline-flex.px-2.py-1.rounded.text-xs.font-medium.bg-green-100.text-green-800 Compra
                       - else
                         %span.inline-flex.px-2.py-1.rounded.text-xs.font-medium.bg-gray-100.text-gray-700 Ajuste
                     

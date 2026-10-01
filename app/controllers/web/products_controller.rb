@@ -17,7 +17,7 @@ module Web
       @recent_movements = @product.stock_movements
                                   .order(created_at: :desc)
                                   .limit(10)
-                                  .includes(:stock_location, :reference)
+                                  .includes(:stock_location, :reference, :user)
     end
 
     def new

@@ -65,7 +65,12 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
   end
 
   describe "POST deliver" do
+    let!(:location) { create(:stock_location) }
+
     it "lets a vendedor mark an item delivered" do
+      create(:stock_movement, product: product, stock_location: location, quantity: 4, movement_type: "purchase")
+      product.recalculate_current_stock!
+
       sign_in vendedor
       post deliver_web_payments_on_account_path(open_order),
            params: { order_item_ids: [ open_order.order_items.first.id ] }
@@ -78,6 +83,19 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       post deliver_web_payments_on_account_path(open_order),
            params: { order_item_ids: [ open_order.order_items.first.id ] }
       expect(open_order.order_items.first.reload.delivered_at).to be_nil
+    end
+
+    it "takes the delivered lines off the shelf" do
+      create(:stock_movement, product: product, stock_location: location, quantity: 4, movement_type: "purchase")
+      product.recalculate_current_stock!
+      line = open_order.order_items.first
+
+      sign_in vendedor
+      post deliver_web_payments_on_account_path(open_order), params: { order_item_ids: [ line.id ] }
+
+      expect(response).to redirect_to(web_payments_on_account_path(open_order))
+      expect(line.reload.delivered_at).to be_present
+      expect(product.reload.current_stock).to eq(3)
     end
   end
 end

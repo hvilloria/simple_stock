@@ -3,6 +3,7 @@ class StockMovement < ApplicationRecord
   belongs_to :product, -> { with_deleted }
   belongs_to :stock_location
   belongs_to :reference, polymorphic: true, optional: true
+  belongs_to :user, optional: true
 
   # Enums
   enum :movement_type, {
@@ -15,7 +16,7 @@ class StockMovement < ApplicationRecord
   validates :quantity, presence: true
   validates :movement_type, presence: true
   validates :stock_location, presence: true
-  validates :reference_type, inclusion: { in: %w[Order Invoice] }, if: -> { reference_id.present? }
+  validates :reference_type, inclusion: { in: %w[Order Invoice OrderItem] }, if: -> { reference_id.present? }
 
   def inbound?
     quantity.positive?
