@@ -1,0 +1,38 @@
+- content_for :page_title, "Ajuste de stock"
+
+.max-w-5xl.mx-auto
+  .mb-6
+    %h1.text-2xl.font-semibold.text-slate-900 Ajuste de stock
+    %p.text-sm.text-slate-600.mt-1 Cargá cuántas unidades hay ahora en el local. La diferencia se guarda como ajuste.
+
+  = form_with url: web_stock_adjustments_path, method: :post, local: true,
+              data: { controller: "stock-adjustment-lines",
+                      stock_adjustment_lines_initial_lines_value: @lines.to_json,
+                      action: "product-selected->stock-adjustment-lines#addProduct" } do
+    - if params[:product_id].present?
+      = hidden_field_tag :product_id, params[:product_id]
+
+    .bg-white.border.border-slate-200.rounded-lg.p-6.mb-6
+      .flex.items-center.justify-between.mb-4
+        %h3.text-lg.font-semibold.text-slate-900 Productos
+        %span.text-sm.text-slate-500{ data: { stock_adjustment_lines_target: "counter" } } ninguno
+
+      %div{ data: { controller: "product-search", product_search_url_value: search_web_products_path, product_search_dim_out_of_stock_value: "false", action: "click@window->product-search#clickOutside" }, class: "mb-4 relative" }
+        %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { product_search_target: "input", action: "input->product-search#search keydown.enter->stock-adjustment-lines#preventEnter" } }
+        %div{ data: { product_search_target: "results" }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
+
+      %div{ data: { stock_adjustment_lines_target: "lines" } }
+
+    .bg-white.border.border-slate-200.rounded-lg.p-6
+      = label_tag :note, "Motivo", class: "block text-sm font-medium text-slate-700 mb-2"
+      = text_field_tag :note, @note,
+                       placeholder: "Ej.: conteo de fin de mes, rotura en depósito",
+                       autocomplete: "off",
+                       class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                       data: { stock_adjustment_lines_target: "note", action: "input->stock-adjustment-lines#refresh" }
+      .flex.flex-wrap.items-center.justify-between.gap-3.mt-4
+        %span.text-sm.text-slate-500 Guardado por: #{current_user.name}
+        .flex.items-center.gap-2
+          = link_to "Cancelar", @back_path, class: "btn-secondary"
+          = submit_tag "Guardar ajuste", class: "btn-primary disabled:opacity-40 disabled:cursor-not-allowed",
+                       disabled: true, data: { stock_adjustment_lines_target: "submit" }

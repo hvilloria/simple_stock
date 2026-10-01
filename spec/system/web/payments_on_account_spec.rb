@@ -25,8 +25,9 @@ RSpec.describe "Pagos a cuenta", type: :system do
   include Warden::Test::Helpers
 
   let(:admin)     { create(:user, role: "admin") }
-  let(:product_a) { create(:product, price_unit: 500) }
-  let(:product_b) { create(:product, price_unit: 500) }
+  let!(:location) { create(:stock_location) }
+  let(:product_a) { create(:product, price_unit: 500, current_stock: 0) }
+  let(:product_b) { create(:product, price_unit: 500, current_stock: 0) }
 
   let!(:order) do
     o = create(:order, :on_account,
@@ -40,6 +41,8 @@ RSpec.describe "Pagos a cuenta", type: :system do
   end
 
   before do
+    create(:stock_movement, product: product_b, stock_location: location, quantity: 4, movement_type: "purchase")
+    product_b.recalculate_current_stock!
     driven_by :selenium_chrome_headless, screen_size: [ 1400, 900 ]
     login_as(admin, scope: :user)
   end

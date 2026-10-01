@@ -138,4 +138,51 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(Product.exists?(target.id)).to be(true)
     end
   end
+
+  describe "GET /web/products/:id — stock movements" do
+    let!(:location) { create(:stock_location) }
+
+    it "names the sale note behind a sale movement" do
+      order = create(:order, :on_account, paper_number: "3340", total_amount: 100, original_total_amount: 100)
+      line  = create(:order_item, order: order, product: product, quantity: 1, unit_price: 100)
+      create(:stock_movement, :sale, product: product, stock_location: location, reference: line)
+
+      sign_in admin
+      get "/web/products/#{product.id}"
+
+      expect(response.body).to include("Nota 3340")
+    end
+
+    it "names the admin and the reason behind a stock adjustment" do
+      counter = create(:user, :admin, name: "Hosward")
+      create(:stock_movement, product: product, stock_location: location, quantity: -3,
+                              movement_type: "adjustment", note: "Conteo de fin de mes", user: counter)
+
+      sign_in admin
+      get "/web/products/#{product.id}"
+
+      expect(response.body).to include("Hosward · Conteo de fin de mes")
+    end
+
+    it "keeps showing the note of an adjustment nobody signed" do
+      create(:stock_movement, product: product, stock_location: location, quantity: 1,
+                              movement_type: "adjustment", note: "Anulación nota 3301")
+
+      sign_in admin
+      get "/web/products/#{product.id}"
+
+      expect(response.body).to include("Anulación nota 3301")
+      expect(response.body).not_to include("· Anulación nota 3301")
+    end
+
+    it "offers the adjustment page to an admin only" do
+      sign_in admin
+      get "/web/products/#{product.id}"
+      expect(response.body).to include(new_web_stock_adjustment_path(product_id: product.id))
+
+      sign_in vendedor
+      get "/web/products/#{product.id}"
+      expect(response.body).not_to include(new_web_stock_adjustment_path(product_id: product.id))
+    end
+  end
 end

@@ -27,8 +27,8 @@ Rails.application.routes.draw do
       collection do
         get :search
       end
-      resources :stock_movements, only: [ :new, :create ], module: :products
     end
+    resources :stock_adjustments, only: [ :new, :create ]
 
     resources :orders, only: [ :index, :show, :new, :create ] do
       post :cancel, on: :member

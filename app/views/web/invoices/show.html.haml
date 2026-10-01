@@ -71,7 +71,8 @@
             %span.text-2xl.font-bold.text-gray-900
               = @invoice.currency
               = number_ar(@invoice.total_amount)
-            -
+            - if @invoice.invoice_items.any?
+              %span.ml-2.text-xs.text-slate-500= "calculado desde #{@invoice.invoice_items.size} #{'producto'.pluralize(@invoice.invoice_items.size)}"
 
           - if @invoice.eligible_for_discount?
             .flex.items-start.gap-3
@@ -112,6 +113,14 @@
             .flex.items-start.gap-3
               %span.text-gray-500.w-40.flex-shrink-0 Fecha de Pago:
               %span.text-gray-900= @invoice.paid_at.to_date.strftime("%d/%m/%Y")
+
+      -# Products card (only when the invoice carries lines)
+      - if @invoice.invoice_items.any?
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          .flex.items-center.justify-between.mb-4
+            %h3.text-lg.font-semibold.text-gray-900 Productos
+            %span.text-sm.text-slate-500= "Suma #{invoice_units_label(@invoice)} al stock"
+          = render "lines_table", invoice: @invoice
 
       -# Notes card (if any)
       - if @invoice.notes.present?
@@ -171,7 +180,7 @@
 
             = button_to cancel_web_invoice_path(@invoice),
                        method: :patch,
-                       data: { turbo_confirm: "¿Estás seguro de cancelar esta factura?" },
+                       form: { data: { turbo_confirm: invoice_cancel_confirmation(@invoice) } },
                        class: "w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors" do
               ✗ Cancelar Factura
 

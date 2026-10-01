@@ -1,0 +1,15 @@
+-# Second look at the lines that cost nothing; opened by invoice-form only then.
+.hidden.fixed.inset-0.z-50.flex.items-center.justify-center{ class: "bg-black/50", data: { invoice_form_target: "zeroCostModal" } }
+  .bg-white.rounded-lg.p-6.max-w-md.w-full.mx-4
+    %h3.text-lg.font-semibold.text-gray-900.mb-4 Confirmar registro
+
+    .rounded-lg.border.border-slate-200.bg-slate-50.p-3.mb-4
+      %p.text-sm.font-medium.text-slate-900{ data: { invoice_form_target: "zeroCostTitle" } }
+      %ul.mt-2.space-y-1.text-sm.text-slate-700.tabular-nums{ data: { invoice_form_target: "zeroCostList" } }
+      %p.mt-2.text-xs.text-slate-500 Si es una garantía o una bonificación, está bien. Si te olvidaste el costo, volvé a revisar.
+
+    %p.text-sm.text-slate-600.mb-4{ data: { invoice_form_target: "zeroCostSummary" } }
+
+    .flex.items-center.gap-3
+      %button.flex-1.px-4.py-2.border.border-slate-300.text-slate-700.font-semibold.rounded-lg.hover:bg-slate-50.transition-colors{ type: "button", data: { action: "click->invoice-form#closeZeroCostModal" } } Volver a revisar
+      %button.flex-1.px-4.py-2.bg-slate-700.hover:bg-slate-800.text-white.font-semibold.rounded-lg.transition-colors{ type: "button", data: { action: "click->invoice-form#confirmZeroCost" } } Registrar

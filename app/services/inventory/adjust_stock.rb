@@ -1,6 +1,6 @@
 module Inventory
   class AdjustStock
-    def self.call(product:, stock_location:, movement_type:, quantity:, reference: nil, note: nil, allow_negative: false)
+    def self.call(product:, stock_location:, movement_type:, quantity:, reference: nil, note: nil, allow_negative: false, user: nil)
       new(
         product:        product,
         stock_location: stock_location,
@@ -8,11 +8,12 @@ module Inventory
         quantity:       quantity,
         reference:      reference,
         note:           note,
-        allow_negative: allow_negative
+        allow_negative: allow_negative,
+        user:           user
       ).call
     end
 
-    def initialize(product:, stock_location:, movement_type:, quantity:, reference:, note:, allow_negative: false)
+    def initialize(product:, stock_location:, movement_type:, quantity:, reference:, note:, allow_negative: false, user: nil)
       @product        = product
       @stock_location = stock_location
       @movement_type  = movement_type.to_sym
@@ -20,6 +21,7 @@ module Inventory
       @reference      = reference
       @note           = note
       @allow_negative = allow_negative
+      @user           = user
     end
 
     def call
@@ -71,7 +73,8 @@ module Inventory
         quantity:       @quantity,
         movement_type:  @movement_type,
         reference:      reference_value,
-        note:           note_value
+        note:           note_value,
+        user:           @user
       )
     end
 
