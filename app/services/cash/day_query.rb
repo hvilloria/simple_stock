@@ -3,6 +3,8 @@
 module Cash
   # Everything the day screen reads.
   class DayQuery
+    PESO_SALE_GROUPS = %w[efectivo mercado_pago banco].freeze
+
     # One row of the day's list: a single movement, or a transfer's two legs
     # with the outflow leg first.
     Entry = Struct.new(:kind, :movements, :counts_in_drawer, keyword_init: true) do
@@ -46,6 +48,25 @@ module Cash
 
     def sales_by_channel
       @sales_by_channel ||= CashMovement.on(@business_date).sales.group(:channel).sum(:amount)
+    end
+
+    # The day's sales folded into the arca group each channel lands in.
+    # Compensation reaches no arca, so it is left out.
+    def sales_by_group
+      @sales_by_group ||= sales_by_channel.each_with_object(Hash.new(0)) do |(channel, amount), sums|
+        account = CashMovement.account_for_channel(channel)
+        sums[CashMovement.reporting_group_for(account)] += amount if account
+      end
+    end
+
+    def peso_sales_total
+      sales_by_group.values_at(*PESO_SALE_GROUPS).sum
+    end
+
+    def peso_sales_share(group)
+      return 0 unless peso_sales_total.positive?
+
+      (sales_by_group[group] * 100 / peso_sales_total).clamp(0, 100).to_f.round(1)
     end
 
     def amount_to_wrap

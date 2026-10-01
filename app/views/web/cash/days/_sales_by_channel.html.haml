@@ -1,22 +1,40 @@
 .bg-white.border.border-slate-200.rounded-lg.overflow-hidden{ id: "sales-by-channel" }
-  .px-4.py-3.border-b.border-slate-200
-    %h2.text-sm.font-semibold.text-slate-900 Ventas por canal
+  .px-4.pt-4.pb-3
+    %h2.text-xs.font-medium.uppercase.tracking-wide.text-slate-500 Ventas del día
+    %p.text-2xl.font-bold.text-slate-900.mt-1.tabular-nums{ data: { sales_total: true } }= number_ar(day.peso_sales_total)
+    .flex.h-2.rounded-full.overflow-hidden.mt-3.bg-slate-100
+      - Cash::DayQuery::PESO_SALE_GROUPS.each do |group|
+        %div{ class: cash_sale_group_fill_class(group), style: "width: #{day.peso_sales_share(group)}%" }
 
-  - sales = day.sales_by_channel
-  - if sales.present?
-    .divide-y.divide-slate-100
-      - sales.each do |channel, amount|
-        .flex.items-center.justify-between.px-4.py-2
-          %span.text-sm.text-slate-600= CashMovement.channel_label(channel)
-          %span.text-sm.text-slate-900= number_ar(amount)
-  - else
-    .px-4.py-6.text-center
-      %p.text-sm.text-slate-500 No hay ventas cargadas en este día.
+  .divide-y.divide-slate-100.border-t.border-slate-200
+    - Cash::DayQuery::PESO_SALE_GROUPS.each do |group|
+      - amount = day.sales_by_group[group]
+      .px-4.py-2.5{ data: { group: group } }
+        .flex.items-center.justify-between
+          %span.flex.items-center.gap-2.text-sm.font-medium{ class: cash_sale_group_text_class(group) }
+            %span.w-2.h-2.rounded-full{ class: cash_sale_group_fill_class(group) }
+            = CashMovement::REPORTING_GROUP_LABELS.fetch(group)
+          %span.text-sm.tabular-nums{ class: amount.zero? ? "text-slate-400" : "text-slate-900" }= number_ar(amount)
+        - if (hint = cash_sale_group_hint(group))
+          %p.text-xs.text-slate-400.mt-0.5.pl-4= hint
+
+    - if (usd = day.sales_by_channel["usd"])
+      .flex.items-center.justify-between.px-4.py-2.5{ data: { channel: "usd" } }
+        %span.text-sm.text-slate-600 USD
+        %span.text-sm.text-slate-900.tabular-nums= currency_ar(usd, unit: "US$ ")
+
+    - if (compensation = day.sales_by_channel["compensation"])
+      .px-4.py-2.5{ data: { channel: "compensation" } }
+        .flex.items-center.justify-between
+          %span.text-sm.text-slate-600= CashMovement.channel_label("compensation")
+          %span.text-sm.text-slate-900.tabular-nums= number_ar(compensation)
+        %p.text-xs.text-slate-400.mt-0.5 No entra plata: no suma al total.
 
   .px-4.py-3.bg-slate-50.border-t.border-slate-200
     .flex.items-center.justify-between
       %span.text-sm.font-medium.text-slate-700 Monto a fajar
       %span.text-sm.font-semibold.text-slate-900= number_ar([ day.amount_to_wrap, 0 ].max)
+    %p.text-xs.text-slate-500.mt-1 Efectivo que queda en el cajón (ventas en efectivo menos salidas del cajón).
     - if day.amount_to_wrap.negative?
       %p.text-xs.text-slate-500.mt-1
         = "El cajón no alcanzó: los fajos pusieron #{number_ar(day.amount_to_wrap.abs)}."

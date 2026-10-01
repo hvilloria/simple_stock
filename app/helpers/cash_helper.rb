@@ -6,7 +6,10 @@ module CashHelper
   INVOICE_TYPE_LABELS = { "a" => "A", "b" => "B" }.freeze
   CASH_PILES = CashMovement::REPORTING_GROUPS.fetch("efectivo")
   PAYMENT_METHODS = %w[cash bank mercado_pago usd].freeze
-  MONTH_NAMES = %w[enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre].freeze
+  SALE_GROUP_TEXT_CLASSES = { "efectivo" => "text-emerald-600", "mercado_pago" => "text-sky-500", "banco" => "text-blue-800" }.freeze
+  SALE_GROUP_FILL_CLASSES = { "efectivo" => "bg-emerald-500", "mercado_pago" => "bg-sky-400", "banco" => "bg-blue-800" }.freeze
+  SALE_GROUP_HINTS = { "banco" => "Tarjeta · QR · Transferencia" }.freeze
+  MONTH_NAMES =%w[enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre].freeze
 
   def cash_entry_glyph(entry)
     ENTRY_GLYPHS.fetch(entry.kind)
@@ -29,6 +32,10 @@ module CashHelper
   def cash_holding_amount(row)
     currency_ar(row.amount, unit: row.usd? ? "US$ " : "$ ")
   end
+
+  def cash_sale_group_text_class(group) = SALE_GROUP_TEXT_CLASSES.fetch(group)
+  def cash_sale_group_fill_class(group) = SALE_GROUP_FILL_CLASSES.fetch(group)
+  def cash_sale_group_hint(group) = SALE_GROUP_HINTS[group]
 
   def cash_month_name(month)
     MONTH_NAMES.fetch(month.month - 1)
