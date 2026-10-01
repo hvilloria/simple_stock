@@ -11,7 +11,7 @@
         %p.text-xs.text-slate-500 Sistema de Gestión
   
   -# Navigation
-  %nav.flex-1.px-3.py-4.space-y-1
+  %nav.flex-1.min-h-0.overflow-y-auto.px-3.py-4.space-y-1
     = link_to web_dashboard_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{controller_name == 'dashboard' ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
       %span.text-base 📊
       %span Dashboard
