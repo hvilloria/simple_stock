@@ -1,0 +1,21 @@
+- content_for :page_title, "Cobro ##{@payment.id}"
+- back_date = payment_back_date(@payment)
+
+.container.mx-auto.px-6.py-6.max-w-5xl
+  = link_to "← Caja del #{back_date.strftime('%d/%m/%Y')}", web_cash_day_path(back_date),
+            class: "text-sm text-slate-600 hover:text-slate-900"
+
+  .mt-2.mb-6
+    %h1.text-2xl.font-bold.text-slate-900= payment_title(@payment)
+    %p.text-sm.text-slate-500.mt-1= payment_subtitle(@payment)
+
+  - if (reversal = @payment.reversal_movement)
+    .mb-6.p-4.rounded-lg.border.border-slate-200.bg-white
+      %p.text-sm.text-slate-700= "Este cobro se revirtió el #{reversal.business_date.strftime('%d/%m/%Y')} porque se anuló la venta."
+
+  .grid.grid-cols-1.lg:grid-cols-3.gap-6
+    .lg:col-span-2.space-y-6
+      = render "web/payments/invoice", payment: @payment, open: @form_open, error: @error,
+                                       invoice_type: @invoice_type, invoice_number: @invoice_number
+      = render "web/payments/allocations", payment: @payment
+    = render "web/payments/cash_movements", payment: @payment

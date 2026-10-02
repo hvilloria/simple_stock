@@ -14,8 +14,6 @@ module Web
           order:            @note,
           user:             current_user,
           discount_percent: params[:discount_percent].to_i,
-          invoice_type:     params[:invoice_type],
-          invoice_number:   params[:invoice_number],
           tenders:          parsed_tenders
         )
 

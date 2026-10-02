@@ -98,8 +98,8 @@ RSpec.describe "Web::Cash::Days", type: :request do
     end
 
     def automatic_sale
-      payment = create(:payment, amount: 20_000)
-      order = create(:order, :invoice_a, customer: payment.customer, paper_number: "3340", total_amount: 20_000)
+      payment = create(:payment, amount: 20_000, invoice_type: "a", invoice_number: "0001-00001234")
+      order = create(:order, customer: payment.customer, paper_number: "3340", total_amount: 20_000)
       create(:payment_allocation, payment: payment, order: order, amount: 20_000)
       create(:cash_movement, business_date: date, source_payment: payment, amount: 20_000)
     end
@@ -182,9 +182,15 @@ RSpec.describe "Web::Cash::Days", type: :request do
         undotted.each { |movement| expect(drawer_dot?(movement)).to be(false), "#{movement.description} has a dot" }
       end
 
-      it "shows each note a collection settled with its invoice type, and marks the row automatic" do
-        expect(row_text(collected)).to include("3340 · A", "Automático")
+      it "shows a collection's notes, its own invoice and the automatic badge" do
+        expect(row_text(collected)).to include("3340", "A · 0001-00001234", "Automático")
+        expect(row_text(collected)).not_to include("3340 · A")
         expect(row_text(cash_sale)).not_to include("Automático")
+      end
+
+      it "links a collection's row to its payment, and leaves typed rows alone" do
+        expect(row(collected)["onclick"]).to include("/web/payments/#{collected.source_payment_id}")
+        expect(row(cash_sale)["onclick"]).to be_nil
       end
 
       it "says only what was written: no category, no filler, no first person" do
@@ -196,6 +202,16 @@ RSpec.describe "Web::Cash::Days", type: :request do
         expect(text).not_to include("Moví")
         expect(text).to include("Mostrador", "Cromosol", "Bolsas", "Julio", "Juan retira", "Juan pone", "Canje")
       end
+    end
+
+    it "offers to invoice an unbilled collection" do
+      unbilled = create(:cash_movement, business_date: date, amount: 5_000,
+                                        source_payment: create(:payment, amount: 5_000))
+
+      get "/web/cash/days/#{date}"
+
+      link = row(unbilled).at_css("a[href='/web/payments/#{unbilled.source_payment_id}?facturar=1']")
+      expect(link&.text).to eq("Facturar")
     end
 
     it "marks a transfer that left or reached the till" do

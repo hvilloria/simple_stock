@@ -1,0 +1,13 @@
+.bg-white.border.border-slate-200.rounded-lg.p-4.self-start
+  %h2.text-sm.font-semibold.text-slate-900.mb-3 Movimientos de caja
+  - if payment.cash_movements.empty?
+    %p.text-sm.text-slate-500 Sin movimiento de caja
+  - else
+    .space-y-3
+      - payment.cash_movements.each do |movement|
+        %div
+          .flex.items-center.justify-between.text-sm
+            = link_to movement.business_date.strftime("%d/%m/%Y"), web_cash_day_path(movement.business_date),
+                      class: "text-slate-700 underline hover:text-slate-900"
+            %span.text-slate-900= number_ar(movement.amount)
+          %p.text-xs.text-slate-500= payment_movement_status(movement)

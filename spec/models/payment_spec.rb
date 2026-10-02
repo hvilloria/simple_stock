@@ -101,4 +101,61 @@ RSpec.describe Payment, type: :model do
       end
     end
   end
+
+  describe "invoice" do
+    it "is unbilled when born" do
+      payment = create(:payment)
+
+      expect(payment).not_to be_billed
+      expect(payment.invoice_label).to be_nil
+    end
+
+    it "accepts A or B with a number" do
+      expect(build(:payment, invoice_type: "b", invoice_number: "1452")).to be_valid
+    end
+
+    it "requires a number for A or B" do
+      payment = build(:payment, invoice_type: "a", invoice_number: nil)
+
+      expect(payment).not_to be_valid
+      expect(payment.errors[:invoice_number]).to include("es obligatorio para facturas tipo A o B")
+    end
+
+    it "refuses a number on a payment marked with no invoice" do
+      payment = build(:payment, invoice_type: "none", invoice_number: "1452")
+
+      expect(payment).not_to be_valid
+      expect(payment.errors[:invoice_number]).to include("debe estar vacío cuando no hay factura")
+    end
+
+    it "refuses a number with no invoice type" do
+      payment = build(:payment, invoice_type: nil, invoice_number: "1452")
+
+      expect(payment).not_to be_valid
+      expect(payment.errors[:invoice_type]).to include("debe indicarse antes de cargar un número de factura")
+    end
+
+    it "labels what was billed" do
+      expect(build(:payment, :invoice_b, invoice_number: "1452").invoice_label).to eq("Factura B · 1452")
+      expect(build(:payment, :no_invoice).invoice_label).to eq("Sin factura")
+    end
+  end
+
+  describe "cash movements" do
+    let(:payment) { create(:payment) }
+
+    it "knows its original movement and its reversal" do
+      original = create(:cash_movement, source_payment: payment, amount: 10_000)
+      reversal = create(:cash_movement, source_payment: payment, amount: -10_000)
+
+      expect(payment.cash_movements).to eq([ original, reversal ])
+      expect(payment.original_cash_movement).to eq(original)
+      expect(payment.reversal_movement).to eq(reversal)
+    end
+
+    it "has none when it predates the cash module" do
+      expect(payment.original_cash_movement).to be_nil
+      expect(payment.reversal_movement).to be_nil
+    end
+  end
 end

@@ -1,0 +1,34 @@
+# frozen_string_literal: true
+
+module PaymentsHelper
+  def payment_title(payment)
+    "Cobro · #{Payment.method_label(payment.payment_method)} · #{number_ar(payment.amount)}"
+  end
+
+  def payment_subtitle(payment)
+    collector = payment.original_cash_movement&.user
+    [
+      payment.payment_date.strftime("%d/%m/%Y"),
+      payment.customer.name,
+      ("cobrado por #{collector.name}" if collector)
+    ].compact.join(" · ")
+  end
+
+  def payment_back_date(payment)
+    payment.original_cash_movement&.business_date || payment.payment_date
+  end
+
+  def payment_order_label(order)
+    [ Order.type_label(order.order_type), (order.contact_name if order.on_account_order_type?) ]
+      .compact.join(" — ")
+  end
+
+  def payment_movement_status(movement)
+    state =
+      if movement.reversal? then "Reversión"
+      elsif movement.sealed? then "Día cerrado"
+      else "Día abierto"
+      end
+    "#{CashMovement.account_label(movement.account)} · #{state}"
+  end
+end

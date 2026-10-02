@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_09_30_130000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_01_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -174,10 +174,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_30_130000) do
     t.string "contact_phone"
     t.bigint "user_id", null: false
     t.date "settled_on"
-    t.string "invoice_type"
-    t.string "invoice_number"
     t.index ["customer_id"], name: "index_orders_on_customer_id"
-    t.index ["invoice_type"], name: "index_orders_on_invoice_type"
     t.index ["order_type"], name: "index_orders_on_order_type"
     t.index ["paper_number"], name: "index_orders_on_paper_number"
     t.index ["sale_date"], name: "index_orders_on_sale_date"
@@ -206,6 +203,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_30_130000) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "invoice_type"
+    t.string "invoice_number"
     t.index ["customer_id"], name: "index_payments_on_customer_id"
     t.index ["payment_date"], name: "index_payments_on_payment_date"
   end

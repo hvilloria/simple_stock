@@ -39,29 +39,43 @@ RSpec.describe "Web::Cash::Closings", type: :request do
     end
 
     it "warns about the day's uncollected sale notes" do
-      create(:order, :pending, :invoice_b, sale_date: date)
+      create(:order, :pending, sale_date: date)
 
       get_new
 
       expect(response.body).to include("1 nota de pedido sin cobrar")
     end
 
-    it "warns about the day's sales with no invoice type assigned" do
-      create(:order, sale_date: date, invoice_type: nil)
+    it "lists the day's unbilled collections, each with a link to invoice it, and still lets the day close" do
+      payment = create(:payment, payment_method: "mercado_pago", amount: 264_100)
+      order = create(:order, customer: payment.customer, paper_number: "4429", total_amount: 264_100)
+      create(:payment_allocation, payment: payment, order: order, amount: 264_100)
+      create(:cash_movement, business_date: date, source_payment: payment, channel: "mercado_pago",
+                             account: "mercado_pago", amount: 264_100)
 
       get_new
 
-      expect(response.body).to include("1 venta sin tipo de factura asignado")
+      expect(response.body).to include("1 cobro sin facturar", "4429 · Mercado Pago · 264.100,00")
+      expect(response.body).to include("/web/payments/#{payment.id}?facturar=1")
+      expect(response.body).to include("No impide cerrar")
     end
 
-    it "shows neither warning when the day is complete" do
-      create(:order, :invoice_b, sale_date: date)
-      create(:order, :pending, :invoice_b, sale_date: date + 1)
+    it "says nothing about invoices when every collection is billed" do
+      payment = create(:payment, invoice_type: "none")
+      create(:cash_movement, business_date: date, source_payment: payment, amount: payment.amount)
+
+      get_new
+
+      expect(response.body).not_to include("sin facturar")
+    end
+
+    it "shows no uncollected-notes warning when the day is complete" do
+      create(:order, sale_date: date)
+      create(:order, :pending, sale_date: date + 1)
 
       get_new
 
       expect(response.body).not_to include("sin cobrar")
-      expect(response.body).not_to include("sin tipo de factura")
     end
 
     it "never shows a negative expectation" do

@@ -52,6 +52,8 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :payments, only: [ :show, :update ]
+
     resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do
       collection do
         get :debtors

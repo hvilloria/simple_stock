@@ -31,11 +31,17 @@
                 %p.text-sm.text-amber-800
                   = "Quedan #{@day.uncollected_notes_count} #{'nota'.pluralize(@day.uncollected_notes_count)} de pedido sin cobrar de este día."
                 %p.text-xs.text-amber-700.mt-1 No impide cerrar: el talonario también se usa para presupuestos.
-            - if @day.sales_without_invoice_type_count.positive?
+            - unbilled = @day.unbilled_payments.to_a
+            - if unbilled.any?
               .mt-2.p-3.rounded-lg.bg-amber-50.border.border-amber-200
                 %p.text-sm.text-amber-800
-                  = "Hay #{@day.sales_without_invoice_type_count} #{'venta'.pluralize(@day.sales_without_invoice_type_count)} sin tipo de factura asignado."
-                %p.text-xs.text-amber-700.mt-1 No impide cerrar: se puede completar mañana sin reabrir el día.
+                  = "Hay #{unbilled.size} #{'cobro'.pluralize(unbilled.size)} sin facturar."
+                %ul.mt-2.space-y-1
+                  - unbilled.each do |payment|
+                    %li.flex.items-center.justify-between.text-sm.text-amber-800
+                      %span= [ payment.orders.map(&:paper_number).sort.join(", "), Payment.method_label(payment.payment_method), number_ar(payment.amount) ].join(" · ")
+                      = link_to "Facturar", web_payment_path(payment, facturar: 1), class: "font-medium underline"
+                %p.text-xs.text-amber-700.mt-1 No impide cerrar: se puede facturar después sin reabrir el día.
 
           -# 2. Drawer count
           %section.pt-5.border-t.border-slate-200
