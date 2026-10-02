@@ -9,7 +9,7 @@ module Web
     end
 
     def show
-      @order = Order.on_account.includes(:user, order_items: :product).find(params[:id])
+      @order = Order.on_account.includes(:user, order_items: :product, payment_allocations: :payment).find(params[:id])
       authorize @order, :show?, policy_class: PaymentOnAccountPolicy
 
       policy = PaymentOnAccountPolicy.new(current_user, @order)

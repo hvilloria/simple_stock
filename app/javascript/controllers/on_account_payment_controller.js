@@ -1,16 +1,17 @@
 import { Controller } from "@hotwired/stimulus"
 import { roundToNearestHundred } from "helpers/cash_rounding"
 
-// Drives the on_account collect form: amount-to-settle + per-event cash-only
-// discount, split across one or more tenders. A single tender always covers the
-// whole cash to collect, so it stays in sync and read-only; from two rows on,
-// the cashier splits the amounts and the sum must match.
+// Drives the on_account collect form. Caja enters what the customer hands
+// over, per method; the summary shows how far that lowers the debt. With a
+// cash-only discount the cash is grossed up by the discount and rounded to the
+// peso, and the exact amount that settles the balance settles it. Mirrors
+// Payments::CollectOnAccount, which has the last word.
 export default class extends Controller {
   static targets = [
-    "amount", "discount", "discountHelper",
-    "tenderRows", "tenderRow", "tenderMethod", "tenderAmount",
-    "settleLine", "discountLine", "cashToCollect", "paidLine", "diffLine",
-    "balanceAfter", "submitButton"
+    "discount", "discountHelper",
+    "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "settleAllButton",
+    "receivedLine", "discountRow", "discountLabel", "discountLine",
+    "resultRows", "settledLine", "balanceAfter", "excessNotice", "submitButton"
   ]
   static values = { balance: Number, pendingDelivery: Boolean }
 
@@ -20,43 +21,39 @@ export default class extends Controller {
   }
 
   recalculate() {
-    const amount     = this.parse(this.amountTarget.value)
-    const single     = this.tenderRowTargets.length === 1
     const hasNonCash = this._readTenders().some(t => t.method !== "cash")
+    this.discountTarget.disabled = hasNonCash
+    if (hasNonCash) this.discountTarget.value = "0"
+    this.discountHelperTarget.classList.toggle("hidden", !hasNonCash)
 
-    if (hasNonCash) {
-      this.discountTarget.value = "0"
-      this.discountTarget.disabled = true
-      this.discountHelperTarget.classList.remove("hidden")
-    } else {
-      this.discountTarget.disabled = false
-      this.discountHelperTarget.classList.add("hidden")
-    }
+    const discount = this._discount()
+    const received = this._readTenders().reduce((sum, t) => sum + t.amount, 0)
+    const settleAll = this._settleAllCash(discount)
+    const settled = this._settled(received, discount, settleAll)
+    const excess = settled > this.balanceValue + 0.001
 
-    const discount = parseInt(this.discountTarget.value, 10) || 0
-    const cashRaw = amount - Math.round(amount * discount) / 100
-    // Discounted cash collections round to the nearest hundred (matches backend).
-    const cash = discount > 0 ? roundToNearestHundred(cashRaw) : cashRaw
-    // The discount shown is always the exact nominal percentage — never rounded.
-    // Only the cash to collect (the total/result) gets the hundred rounding.
-    const discountValue = discount > 0 ? amount * discount / 100 : 0
+    this.settleAllButtonTarget.textContent = `Saldar todo: cobrar ${this.format(settleAll)}`
+    this.receivedLineTarget.textContent = this.format(received)
+    this.discountRowTarget.hidden = discount === 0 || excess
+    this.discountLabelTarget.textContent = `Descuento ${discount}% en efectivo`
+    this.discountLineTarget.textContent = this.format(settled - received)
+    this.settledLineTarget.textContent = this.format(settled)
+    this.balanceAfterTarget.textContent = this.format(this.balanceValue - settled)
 
-    this._syncTenderInputs(single, cash)
+    this.resultRowsTarget.hidden = excess
+    this.excessNoticeTarget.hidden = !excess
+    const withDiscount = discount > 0 ? ` con ${discount}%` : ""
+    this.excessNoticeTarget.textContent =
+      `Es más de lo que debe. Para saldar todo${withDiscount} corresponde cobrar ${this.format(settleAll)}`
 
-    const paid = this._readTenders().reduce((sum, t) => sum + t.amount, 0)
-    const diff = +(cash - paid).toFixed(2)
+    this.submitButtonTarget.disabled = received <= 0 || excess
+  }
 
-    this.settleLineTarget.textContent = this.format(amount)
-    this.discountLineTarget.textContent = `−${this.format(discountValue)}`
-    this.cashToCollectTarget.textContent = this.format(cash)
-    this.paidLineTarget.textContent = this.format(paid)
-    this.diffLineTarget.textContent = this.format(diff)
-    this.balanceAfterTarget.textContent = this.format(this.balanceValue - amount)
-
-    const settled = Math.abs(diff) < 0.01
-    this.diffLineTarget.classList.toggle("text-emerald-600", settled)
-    this.diffLineTarget.classList.toggle("text-red-600", !settled)
-    this.submitButtonTarget.disabled = !settled
+  settleAll(event) {
+    event.preventDefault()
+    const first = this.tenderAmountTargets[0]
+    first.value = this._fmtPlain(this._settleAllCash(this._discount()))
+    this.recalculate()
   }
 
   addTender(event) {
@@ -79,24 +76,32 @@ export default class extends Controller {
   }
 
   confirmSettle(event) {
-    const amount = this.parse(this.amountTarget.value)
-    const settlesNow = (this.balanceValue - amount) <= 0
-    if (settlesNow && this.pendingDeliveryValue) {
+    const received = this._readTenders().reduce((sum, t) => sum + t.amount, 0)
+    const discount = this._discount()
+    const settled = this._settled(received, discount, this._settleAllCash(discount))
+    if (this.balanceValue - settled <= 0 && this.pendingDeliveryValue) {
       if (!window.confirm("La operación queda pagada pero faltan productos por entregar. ¿Confirmar?")) {
         event.preventDefault()
       }
     }
   }
 
-  // With one tender there is nothing to split: mirror the cash to collect and
-  // lock the field. With two or more, every row becomes editable.
-  _syncTenderInputs(single, cash) {
-    this.tenderAmountTargets.forEach((input, index) => {
-      input.readOnly = single
-      input.classList.toggle("bg-slate-50", single)
-      input.classList.toggle("text-slate-500", single)
-      if (single && index === 0) input.value = this._fmtPlain(cash)
-    })
+  _discount() {
+    return parseInt(this.discountTarget.value, 10) || 0
+  }
+
+  _settleAllCash(discount) {
+    if (discount === 0) return this.balanceValue
+    return Math.min(
+      roundToNearestHundred(this.balanceValue * (100 - discount) / 100),
+      this.balanceValue
+    )
+  }
+
+  _settled(received, discount, settleAll) {
+    if (Math.abs(received - settleAll) < 0.005) return this.balanceValue
+    if (discount === 0) return received
+    return Math.round(received * 100 / (100 - discount))
   }
 
   _readTenders() {

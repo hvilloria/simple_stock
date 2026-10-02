@@ -66,7 +66,7 @@ RSpec.describe "Pagos a cuenta", type: :system do
 
     click_link "Cobrar →"
     select "Efectivo", from: "tenders[0][payment_method]"
-    fill_in "amount_to_settle", with: "1000", fill_options: { clear: :backspace }
+    find("[data-on-account-payment-target='tenderAmount']").set("1000", clear: :backspace)
     click_button "Registrar cobro"
     expect(page).to have_content("Cobro registrado")
 
@@ -77,12 +77,11 @@ RSpec.describe "Pagos a cuenta", type: :system do
   it "splits a partial collection across two payment methods" do
     visit new_web_payments_on_account_payment_path(order)
 
-    # currency-input unformats on focus, which drops Capybara's select-all;
-    # backspacing clears the field regardless.
-    fill_in "amount_to_settle", with: "500", fill_options: { clear: :backspace }
     click_button "+ Agregar método"
 
     rows = all("[data-on-account-payment-target='tenderRow']")
+    # currency-input unformats on focus, which drops Capybara's select-all;
+    # backspacing clears the field regardless.
     rows[0].find("input").set("300", clear: :backspace)
     within(rows[1]) { select "Banco Transferencia" }
     rows[1].find("input").set("200", clear: :backspace)
@@ -93,5 +92,27 @@ RSpec.describe "Pagos a cuenta", type: :system do
     order.reload
     expect(order.outstanding_balance).to eq(500)
     expect(order.payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
+  end
+
+  it "shows how far the cash lowers the debt with the cash discount, and offers to settle it all" do
+    big = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
+                 total_amount: 1_704_400, original_total_amount: 1_704_400)
+    create(:order_item, order: big, product: create(:product), quantity: 1, unit_price: 1_704_400)
+
+    visit new_web_payments_on_account_payment_path(big)
+    find("[data-on-account-payment-target='tenderAmount']").set("800000", clear: :backspace)
+    select "10%", from: "discount_percent"
+
+    expect(page).to have_css("[data-on-account-payment-target='settledLine']", text: "888.889")
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "815.511")
+
+    click_button "Saldar todo"
+    expect(find("[data-on-account-payment-target='tenderAmount']").value).to eq("1.534.000,00")
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "0,00")
+
+    find("[data-on-account-payment-target='tenderAmount']").set("2000000", clear: :backspace)
+    expect(page).to have_content("Es más de lo que debe. Para saldar todo con 10% corresponde cobrar $ 1.534.000,00")
+    expect(page).to have_no_css("[data-on-account-payment-target='discountRow']", visible: :visible)
+    expect(page).to have_button("Registrar cobro", disabled: true)
   end
 end

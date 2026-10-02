@@ -344,6 +344,18 @@ RSpec.describe Order, type: :model do
     end
   end
 
+  describe "#discounts_total" do
+    it "is what the cash discounts took off the original total" do
+      order = build(:order, original_total_amount: 1_704_400, total_amount: 1_615_511)
+      expect(order.discounts_total).to eq(88_889)
+    end
+
+    it "is zero when nothing was discounted" do
+      order = build(:order, original_total_amount: 1000, total_amount: 1000)
+      expect(order.discounts_total).to eq(0)
+    end
+  end
+
   describe "#rounding_amount" do
     let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
     let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }

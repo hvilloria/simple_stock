@@ -11,10 +11,14 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
   end
 
   describe "GET new" do
-    it "pre-fills the amount with the outstanding balance so the discount engages immediately" do
+    it "asks for what caja receives, empty, with a shortcut to settle the balance" do
       sign_in caja
       get new_web_payments_on_account_payment_path(order)
-      expect(response.body).to include('value="1.000,00"')
+
+      expect(response.body).not_to include("amount_to_settle")
+      expect(response.body).to include("¿Cuánto recibís?")
+      expect(Nokogiri::HTML(response.body).at_css("input[name='tenders[0][amount]']")["value"]).to be_blank
+      expect(response.body).to include("Saldar todo")
     end
   end
 
@@ -22,7 +26,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "lets caja collect a partial payment" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "400" } } }
 
       expect(response).to redirect_to(web_payments_on_account_path(order))
@@ -38,7 +42,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "splits a collection across several payment methods" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "250" },
                                 "1" => { payment_method: "bank_transfer", amount: "150" } } }
 
@@ -52,7 +56,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "ignores blank tender rows left behind by the form" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "400" },
                                 "1" => { payment_method: "bank_transfer", amount: "" } } }
 
@@ -60,26 +64,25 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(order.reload.payments.map(&:payment_method)).to eq([ "cash" ])
     end
 
-    it "collects the discounted cash rounded to the nearest hundred" do
-      big = create(:order, :on_account, total_amount: 710_775, original_total_amount: 710_775)
-      create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775)
+    it "takes the cash received and lowers the debt by it grossed up by the discount" do
+      big = create(:order, :on_account, customer: Customer.mostrador,
+                   total_amount: 1_704_400, original_total_amount: 1_704_400)
+      create(:order_item, order: big, product: create(:product), quantity: 1, unit_price: 1_704_400)
 
       sign_in caja
       post web_payments_on_account_payment_path(big),
-           params: { amount_to_settle: "710775", discount_percent: "10",
-                     tenders: { "0" => { payment_method: "cash", amount: "639.700,00" } } }
+           params: { discount_percent: "10",
+                     tenders: { "0" => { payment_method: "cash", amount: "800.000,00" } } }
 
       expect(response).to redirect_to(web_payments_on_account_path(big))
-      big.reload
-      expect(big.payment_allocations.sum(:amount)).to eq(639_700) # 639.697,5 → 639.700
-      expect(big.total_amount).to eq(639_700)                      # shop absorbs the effective discount
-      expect(big.outstanding_balance).to eq(0)
+      expect(big.reload.outstanding_balance).to eq(815_511)
+      expect(big.payment_allocations.sum(:amount)).to eq(800_000)
     end
 
     it "accepts Argentine formatted amounts" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "1.000,00", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "1.000,00" } } }
 
       expect(response).to redirect_to(web_payments_on_account_path(order))
@@ -89,7 +92,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "rejects a non-numeric tender amount" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "abc" } } }
 
       expect(response).to have_http_status(:unprocessable_entity)
@@ -99,19 +102,8 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "rejects a negative tender amount" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "-400" } } }
-
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(order.reload.outstanding_balance).to eq(1000)
-    end
-
-    it "rejects tenders that do not add up to the cash to collect" do
-      sign_in caja
-      post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
-                     tenders: { "0" => { payment_method: "cash", amount: "250" },
-                                "1" => { payment_method: "bank_transfer", amount: "100" } } }
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(order.reload.outstanding_balance).to eq(1000)
@@ -120,26 +112,28 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "rejects a discount when a tender is not cash" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "500", discount_percent: "10",
+           params: { discount_percent: "10",
                      tenders: { "0" => { payment_method: "bank_transfer", amount: "450" } } }
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(order.reload.outstanding_balance).to eq(1000)
     end
 
-    it "re-renders on invalid collection" do
+    it "re-renders with the amount to settle when the cash exceeds what is owed" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "5000", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "5000" } } }
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Es más de lo que debe. Para saldar todo corresponde cobrar $ 1.000,00")
+      expect(order.reload.outstanding_balance).to eq(1000)
     end
 
     it "forbids vendedor from collecting" do
       sign_in vendedor
       post web_payments_on_account_payment_path(order),
-           params: { amount_to_settle: "400", discount_percent: "0",
+           params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "400" } } }
       expect(order.reload.outstanding_balance).to eq(1000)
     end
