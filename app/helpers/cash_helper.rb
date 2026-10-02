@@ -3,7 +3,6 @@
 module CashHelper
   ENTRY_GLYPHS = { in: "↓", out: "↑", move: "⇄" }.freeze
   ENTRY_GLYPH_CLASSES = { in: "text-emerald-600", out: "text-red-600", move: "text-slate-400" }.freeze
-  INVOICE_TYPE_LABELS = { "a" => "A", "b" => "B" }.freeze
   CASH_PILES = CashMovement::REPORTING_GROUPS.fetch("efectivo")
   PAYMENT_METHODS = %w[cash bank mercado_pago usd].freeze
   SALE_GROUP_TEXT_CLASSES = { "efectivo" => "text-emerald-600", "mercado_pago" => "text-sky-500", "banco" => "text-blue-800" }.freeze
@@ -68,12 +67,20 @@ module CashHelper
     cash_month_figure(movement.amount.abs, usd: movement.account == "usd")
   end
 
-  def cash_entry_notes(movement)
-    return [] if movement.source_payment.nil?
+  # The invoice cell of a cash row. nil means the collection is still unbilled.
+  def cash_entry_invoice(movement)
+    payment = movement.source_payment
+    return "—" if payment.nil? || movement.reversal? || payment.reversal_movement.present?
+    return nil unless payment.billed?
+    return "S/F" if payment.none_invoice_type?
 
-    movement.source_payment.orders.sort_by(&:paper_number).map do |order|
-      [ order.paper_number, INVOICE_TYPE_LABELS[order.invoice_type] ].compact.join(" · ")
-    end
+    "#{payment.invoice_type.upcase} · #{payment.invoice_number}"
+  end
+
+  def cash_entry_link(movement)
+    return nil unless movement.automatic?
+
+    "if (!event.target.closest('a, button, form')) window.location='#{web_payment_path(movement.source_payment_id)}'"
   end
 
   def cash_pile?(account)

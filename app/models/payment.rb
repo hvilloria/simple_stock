@@ -5,6 +5,8 @@ class Payment < ApplicationRecord
   belongs_to :customer
   has_many :allocations, class_name: "PaymentAllocation", dependent: :destroy
   has_many :orders, through: :allocations
+  has_many :cash_movements, -> { order(:id) }, foreign_key: :source_payment_id,
+           inverse_of: :source_payment, dependent: nil
 
   # Constants
   # Official payment methods — single source of truth (labels + UI options).
@@ -21,6 +23,14 @@ class Payment < ApplicationRecord
 
   PAYMENT_METHODS = PAYMENT_METHOD_LABELS.keys.freeze
 
+  INVOICE_TYPE_LABELS = {
+    "a"    => "Factura A",
+    "b"    => "Factura B",
+    "none" => "Sin factura"
+  }.freeze
+
+  enum :invoice_type, { a: "a", b: "b", none: "none" }, suffix: true
+
   def self.method_label(key)
     PAYMENT_METHOD_LABELS.fetch(key.to_s, key.to_s.humanize)
   end
@@ -33,8 +43,33 @@ class Payment < ApplicationRecord
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :payment_method, presence: true, inclusion: { in: PAYMENT_METHODS }
   validates :payment_date, presence: true
+  validate :invoice_number_matches_invoice_type
 
   # Scopes
   scope :by_customer, ->(customer) { where(customer: customer) }
   scope :recent, -> { order(payment_date: :desc, created_at: :desc) }
+
+  def billed? = invoice_type.present?
+
+  def invoice_label
+    return nil unless billed?
+    return INVOICE_TYPE_LABELS.fetch("none") if none_invoice_type?
+
+    "#{INVOICE_TYPE_LABELS.fetch(invoice_type)} · #{invoice_number}"
+  end
+
+  def original_cash_movement = cash_movements.find(&:inflow?)
+  def reversal_movement = cash_movements.find(&:reversal?)
+
+  private
+
+  def invoice_number_matches_invoice_type
+    if %w[a b].include?(invoice_type) && invoice_number.blank?
+      errors.add(:invoice_number, "es obligatorio para facturas tipo A o B")
+    elsif invoice_type == "none" && invoice_number.present?
+      errors.add(:invoice_number, "debe estar vacío cuando no hay factura")
+    elsif invoice_type.nil? && invoice_number.present?
+      errors.add(:invoice_type, "debe indicarse antes de cargar un número de factura")
+    end
+  end
 end

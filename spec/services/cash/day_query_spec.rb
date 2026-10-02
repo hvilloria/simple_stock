@@ -242,13 +242,27 @@ RSpec.describe Cash::DayQuery do
     end
   end
 
-  describe "#sales_without_invoice_type_count" do
-    it "counts the date's active sales with no invoice type, ignoring cancelled ones" do
-      create(:order, sale_date: date, invoice_type: nil)
-      create(:order, :cancelled, sale_date: date, invoice_type: nil)
-      create(:order, :invoice_b, sale_date: date)
+  describe "#unbilled_payments" do
+    def collected(on: date, **attrs)
+      payment = create(:payment, **attrs)
+      create(:cash_movement, business_date: on, source_payment: payment, amount: payment.amount)
+      payment
+    end
 
-      expect(query.sales_without_invoice_type_count).to eq(1)
+    it "lists the date's collections nobody invoiced yet" do
+      unbilled = collected
+      collected(invoice_type: "b", invoice_number: "1452")
+      collected(invoice_type: "none")
+      collected(on: date + 1)
+
+      expect(query.unbilled_payments).to eq([ unbilled ])
+    end
+
+    it "leaves out a reversed collection" do
+      reversed = collected
+      create(:cash_movement, business_date: date + 1, source_payment: reversed, amount: -reversed.amount)
+
+      expect(query.unbilled_payments).to be_empty
     end
   end
 

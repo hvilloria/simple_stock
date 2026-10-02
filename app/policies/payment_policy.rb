@@ -18,7 +18,7 @@ class PaymentPolicy < ApplicationPolicy
   end
 
   def update?
-    false  # Payments are not edited
+    show?  # Caja and admin record or correct the invoice
   end
 
   def destroy?

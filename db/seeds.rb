@@ -799,6 +799,20 @@ cobrar_nota.("4429", [ mercado_pago.(264_100) ])
 cobrar_nota.("4430", [ mercado_pago.(44_900) ])
 pagar_del_cajon.(302_800, "PAGO DM RE-896441 RE-242795")
 
+# Invoiced the way the spreadsheet shows it; 4411 and 4429 stay unbilled.
+facturas_b = { "4420" => "1450", "4382" => "1451", "4421" => "1452", "4242" => "1453",
+               "4426" => "1454", "4430" => "1456" }
+CashMovement.on(hoy).where("amount > 0").where.not(source_payment_id: nil)
+            .includes(source_payment: :orders).each do |movimiento|
+  pago = movimiento.source_payment
+  nota = pago.orders.map(&:paper_number).min
+  next if %w[4411 4429].include?(nota)
+
+  tipo, numero = pago.payment_method == "cash" ? [ "none", nil ] : [ "b", facturas_b.fetch(nota) ]
+  seed_or_raise.("factura #{nota}", Payments::AssignInvoice.call(payment: pago, invoice_type: tipo,
+                                                                 invoice_number: numero))
+end
+
 dia = Cash::DayQuery.new(hoy)
 puts "✅ Día #{hoy.strftime('%d/%m/%Y')} abierto: #{CashMovement.on(hoy).count} movimientos | " \
      "ventas $#{dia.sales_by_channel.values.sum.to_i} | a fajar $#{dia.amount_to_wrap.to_i}"

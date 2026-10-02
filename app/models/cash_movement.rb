@@ -159,6 +159,9 @@ class CashMovement < ApplicationRecord
   # Born from a collection rather than typed on the day screen.
   def automatic? = source_payment_id.present?
 
+  # The mirror Cash::ReversePayment writes when a sale is cancelled.
+  def reversal? = sale_category? && automatic? && outflow?
+
   # Written as one half of a Cash::RecordTransfer pair; its twin carries the
   # same transfer_group_id.
   def transfer? = transfer_group_id.present?

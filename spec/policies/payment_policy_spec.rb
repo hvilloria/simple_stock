@@ -44,4 +44,22 @@ RSpec.describe PaymentPolicy do
       expect(subject.create?).to be true
     end
   end
+
+  describe "#show? and #update?" do
+    it "lets caja and admin see and invoice a payment" do
+      %i[caja admin].each do |role|
+        policy = described_class.new(build(:user, role), payment)
+
+        expect(policy.show?).to be(true)
+        expect(policy.update?).to be(true)
+      end
+    end
+
+    it "keeps the seller out" do
+      policy = described_class.new(build(:user, :vendedor), payment)
+
+      expect(policy.show?).to be(false)
+      expect(policy.update?).to be(false)
+    end
+  end
 end

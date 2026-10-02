@@ -39,7 +39,7 @@ module Cash
     def entries
       CashMovement
         .on(@business_date)
-        .includes(:supplier, source_payment: :orders)
+        .includes(:supplier, source_payment: [ :orders, :cash_movements ])
         .order(:created_at, :id)
         .group_by { |movement| movement.transfer_group_id || movement.id }
         .values
@@ -98,8 +98,16 @@ module Cash
       Order.immediate.pending.by_sale_date(@business_date).count
     end
 
-    def sales_without_invoice_type_count
-      Order.active.by_sale_date(@business_date).where(invoice_type: nil).count
+    # The date's collections still waiting for an invoice. A reversed one has
+    # nothing left to invoice.
+    def unbilled_payments
+      collected_today = CashMovement.on(@business_date).where("amount > 0").select(:source_payment_id)
+      reversed = CashMovement.sales.where("amount < 0").where.not(source_payment_id: nil).select(:source_payment_id)
+
+      Payment.where(invoice_type: nil, id: collected_today)
+             .where.not(id: reversed)
+             .includes(:orders)
+             .order(:id)
     end
 
     # The Payway terminal only settles card sales; QR and transfers share the

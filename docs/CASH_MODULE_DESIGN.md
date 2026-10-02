@@ -362,13 +362,7 @@ be closed: a day somebody forgot to close stays workable.
 Two new tables, two new columns. **Every money movement is a row of
 `cash_movements`** — no satellite tables.
 
-### 6.1 ERD
-
-![Cash module ERD](img/cash-erd.svg)
-
-*Solid stroke: new tables. Dashed stroke: tables that already exist. `PK`
-primary key, `FK` foreign key, `UQ` unique index; the crow's foot marks the
-"many" side of each relationship.*
+### 6.1 Relationships
 
 | Relationship | Cardinality | What it means |
 |---|---|---|
@@ -448,12 +442,12 @@ question is "on how many days did the Payway batch differ from what we
 recorded?". If unverified days stored zero, they would read as perfect days
 nobody actually checked.
 
-### 6.4 Added to `orders`
+### 6.4 Added to `payments`
 
 | Column | Type | Holds |
 |---|---|---|
-| `invoice_type` | `string`, **nullable** | `a` · `b` · `none`. Null while nobody has assigned it. |
-| `invoice_number` | `string` | Present when `invoice_type` is `a` or `b`. |
+| `payments.invoice_type` | `string`, **nullable** | `a` · `b` · `none`. Null while nobody has assigned it. |
+| `payments.invoice_number` | `string` | Present when `invoice_type` is `a` or `b`. |
 
 **Four states, not three.** `none` means "it was decided this carries no
 invoice" — the `Uno` of the spreadsheet. `NULL` means "nobody has said yet". If
@@ -461,16 +455,19 @@ invoice" — the `Uno` of the spreadsheet. `NULL` means "nobody has said yet". I
 invoice and there would be no way to know which ones nobody looked at. Same
 criterion as the closing's verification columns: empty is not zero.
 
-The vendor creates the note **with no invoice type**: at that moment he does not
-know whether it will be A, B or none. The cashier assigns it when collecting and
-issuing the invoice, on the collection screen.
+A collection is born **with no invoice type**: when the money comes in nobody
+knows yet whether it will be A, B or none. The cashier assigns it later, from
+the collection's own page, once the invoice is issued — not on the collection
+screen.
 
 These replace two spreadsheet columns at once: "Tipo de factura" and "Tipo de
 venta" (whose only observed value, `Uno`, means "no invoice").
 
-They live on `orders` rather than `cash_movements` because they are the fiscal
-identity of the **sale**: one invoice per sale, even when it is collected across
-two channels or in several instalments.
+They live on the payment because the shop invoices each collection — and each
+tender of a collection — separately, and the invoice is recorded from the
+collection's page, not when collecting. A sale collected across two tenders or
+in several instalments carries one invoice per payment, written only by
+`Payments::AssignInvoice`.
 
 ### 6.5 Services
 
@@ -563,12 +560,13 @@ Four steps, in one modal.
    sidebar badge, scoped by date). It informs; it does not validate — the paper
    pad is also used for quotes.
 
-   The same block warns if there are **sales of the day with no invoice type
-   assigned**. It does not block either: if the invoice has not been issued
-   yet, the only effect of a block would be somebody entering an arbitrary
-   value in order to close. The close seals `cash_movements`, not `orders`, so
-   the invoice type can be filled in the next day without violating R-8 or
-   reopening anything.
+   The same block warns "Hay N cobros sin facturar" — the **collections of the
+   day with no invoice type assigned** — and lists them, each linking to the
+   collection's page. It does not block either: if the invoice has not been
+   issued yet, the only effect of a block would be somebody entering an
+   arbitrary value in order to close. The close seals `cash_movements`, not
+   `payments`, so the invoice can be filled in the next day without violating
+   R-8 or reopening anything.
 2. **Drawer count.** The app shows the expected amount. The cashier counts and
    **types what she counted** — always, whether it matches or not. There is no
    "it matches" button: a button gets pressed without counting.
@@ -639,10 +637,13 @@ to beat Excel on speed.
   back empty on the same mode. It is the Excel gesture; a modal per row is
   slower than the spreadsheet and loses success criterion #1.
 - **One list, in load order.** Columns: direction glyph (↓ in, green; ↑ out, red; ⇄ moved, grey — direction is meaning, so it is one of the few places semantic colour is spent)
-  · Descripción · Nota · Canal · Monto · drawer dot · Editar / Eliminar. It says
+  · Descripción · Nota · Canal · Factura · Monto · drawer dot · Editar / Eliminar. It says
   only what was written: no category text on the row, no first person.
-  - **Nota** stacks the paper numbers, each with its invoice type when there is
-    one: `3340 · A`.
+  - **Nota** stacks the paper numbers only: `3340`.
+  - **Factura** shows the collection's invoice: `B · 1452`, `S/F` when it was
+    decided there is none, a **Facturar** link while nobody has said, and `—` on
+    rows with no collection behind them. Rows with a collection link to
+    `web/payments#show`, where the invoice is assigned.
   - **Canal** always states the method. A sale shows its channel ("Compensación
     · Cromosol" for a compensation). Anything else shows "Efectivo" for a cash
     pile, followed by the pile in muted text unless it is the drawer
@@ -678,10 +679,10 @@ to beat Excel on speed.
   shows its (empty) list with no entry row and no "Cerrar el día" button
   (R-18); a past day left open keeps both.
 - **One deliberate exception:** on a closed day the invoice type and number
-  remain editable. They are sale data, not cash data — the close freezes
-  `cash_movements`, not `orders`. It is the only thing that can be touched on a
-  sealed day, and it is worth writing down before it shows up as a surprise
-  during implementation.
+  remain editable. They are collection data, not cash data — the close freezes
+  `cash_movements`, not `payments`. It is the only thing that can be touched on
+  a sealed day, and it is implemented on the collection's page
+  (`web/payments#show` / `update`).
 - Reuses `currency-input` (AR format).
 - **Turbo Streams arrive with this screen.** The project has `turbo-rails`
   installed and Turbo Drive active, but not a single `format.turbo_stream` or

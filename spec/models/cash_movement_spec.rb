@@ -409,6 +409,16 @@ RSpec.describe CashMovement, type: :model do
     end
   end
 
+  describe "#reversal?" do
+    it "is a collection's negative mirror" do
+      payment = create(:payment)
+
+      expect(build(:cash_movement, source_payment: payment, amount: -1_000)).to be_reversal
+      expect(build(:cash_movement, source_payment: payment, amount: 1_000)).not_to be_reversal
+      expect(build(:cash_movement, :store_expense)).not_to be_reversal
+    end
+  end
+
   describe "reporting groups" do
     it "puts every arca in exactly one group, and only real arcas in a group" do
       grouped_accounts = described_class::REPORTING_GROUPS.values.flatten

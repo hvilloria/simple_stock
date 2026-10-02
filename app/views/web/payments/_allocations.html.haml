@@ -1,0 +1,18 @@
+.bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+  .px-5.py-3.border-b.border-slate-200
+    %h2.text-sm.font-semibold.text-slate-900 Notas que cubre
+  %table.min-w-full.divide-y.divide-slate-100
+    %thead.bg-slate-50
+      %tr
+        %th.px-5.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Nota
+        %th.px-3.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Tipo de venta
+        %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Total nota
+        %th.px-5.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Aplicado
+    %tbody.divide-y.divide-slate-100
+      - payment.allocations.each do |allocation|
+        - order = allocation.order
+        %tr
+          %td.px-5.py-2.text-sm.font-mono= link_to order.paper_number, web_order_path(order), class: "text-slate-700 underline hover:text-slate-900"
+          %td.px-3.py-2.text-sm.text-slate-600= payment_order_label(order)
+          %td.px-3.py-2.text-sm.text-right.text-slate-900= number_ar(order.total_amount)
+          %td.px-5.py-2.text-sm.text-right.text-slate-900= number_ar(allocation.amount)
