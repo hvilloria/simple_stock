@@ -449,7 +449,6 @@ crear_pac = lambda do |contacto:, entregados_idx: [], cobrar_fraccion: nil|
     if monto.positive?
       Payments::CollectOnAccount.call(
         order: order,
-        amount_to_settle: monto,
         discount_percent: 0,
         tenders: [ { payment_method: "cash", amount: monto } ],
         payment_date: fecha.to_date,
@@ -736,7 +735,7 @@ end
 
 cobrar_a_cuenta = lambda do |order, amount, payment_date: hoy|
   seed_or_raise.("cobro a cuenta #{order.paper_number}", Payments::CollectOnAccount.call(
-    order: order, amount_to_settle: amount, user: cashier_user, payment_date: payment_date,
+    order: order, user: cashier_user, payment_date: payment_date,
     tenders: [ { payment_method: "mercado_pago", amount: amount } ]
   ))
 end

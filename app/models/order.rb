@@ -89,6 +89,11 @@ class Order < ApplicationRecord
     total_amount - payment_allocations.sum(:amount)
   end
 
+  # What cash discounts took off the original total.
+  def discounts_total
+    original_total_amount - total_amount
+  end
+
   def from_paper?
     source == "from_paper"
   end

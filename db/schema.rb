@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_01_130000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_02_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -190,6 +190,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_01_130000) do
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "discount_amount", precision: 10, scale: 2, default: "0.0", null: false
     t.index ["order_id"], name: "index_payment_allocations_on_order_id"
     t.index ["payment_id", "order_id"], name: "index_payment_allocations_on_payment_id_and_order_id", unique: true
     t.index ["payment_id"], name: "index_payment_allocations_on_payment_id"

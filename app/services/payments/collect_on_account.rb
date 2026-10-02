@@ -3,22 +3,19 @@
 module Payments
   # Collects a partial, repeatable payment on an on_account sale.
   #
-  # Rules:
-  #   - Order must be on_account and not cancelled.
-  #   - amount_to_settle in (0, outstanding_balance].
-  #   - discount_percent in {0, 5, 10}; if > 0 every tender must be cash.
-  #   - Tenders sum to amount_to_settle * (1 - discount/100).
-  #   - The discount lowers total_amount (absorbed by the shop), not the debt.
+  # Caja enters what the customer hands over; the debt drops by that amount,
+  # or, with a cash-only discount, by the amount grossed up by the discount and
+  # rounded to the peso. Cash equal to the amount that settles the whole
+  # balance (balance × (1 − discount), nearest hundred) settles it exactly.
+  # The discount lowers total_amount; the allocation records the cash received.
   class CollectOnAccount
     include Payments::CashRounding
 
-    TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
 
-    def self.call(order:, amount_to_settle:, tenders:, user:, discount_percent: 0, payment_date: Date.current)
+    def self.call(order:, tenders:, user:, discount_percent: 0, payment_date: Date.current)
       new(
         order: order,
-        amount_to_settle: amount_to_settle,
         tenders: tenders,
         user: user,
         discount_percent: discount_percent,
@@ -26,10 +23,9 @@ module Payments
       ).call
     end
 
-    def initialize(order:, amount_to_settle:, tenders:, user:, discount_percent:, payment_date:)
+    def initialize(order:, tenders:, user:, discount_percent:, payment_date:)
       @order            = order
       @user             = user
-      @amount_to_settle = amount_to_settle.to_d
       @tenders          = Array(tenders).map { |t| t.to_h.symbolize_keys }
       @discount_percent = discount_percent.to_i
       @payment_date     = payment_date || Date.current
@@ -68,19 +64,10 @@ module Payments
         raise ValidationError, "Descuento inválido (0, 5 o 10)"
       end
 
-      if @amount_to_settle <= 0
-        raise ValidationError, "El monto a cancelar debe ser mayor a cero"
-      end
-
-      if @amount_to_settle > @order.outstanding_balance
-        raise ValidationError, "El monto a cancelar supera el saldo pendiente"
-      end
-
       raise ValidationError, "Debe incluir al menos un pago" if @tenders.empty?
 
       @tenders.each do |t|
-        amount = t[:amount].to_f
-        raise ValidationError, "El monto debe ser mayor a cero" if amount <= 0
+        raise ValidationError, "El monto debe ser mayor a cero" unless t[:amount].to_d.positive?
         unless Payment::PAYMENT_METHODS.include?(t[:payment_method])
           raise ValidationError, "Método de pago inválido: #{t[:payment_method]}"
         end
@@ -90,36 +77,60 @@ module Payments
         raise ValidationError, "Descuento solo permitido si el cobro es en efectivo"
       end
 
-      tender_sum = @tenders.sum { |t| t[:amount].to_d }
-      if (tender_sum - cash_to_collect).abs > TOLERANCE
-        raise ValidationError,
-              format("La suma de los pagos ($%.2f) debe coincidir con el efectivo a cobrar ($%.2f)",
-                     tender_sum, cash_to_collect)
-      end
+      raise ValidationError, excess_message if settled > balance
     end
 
-    def discount_value
-      @discount_value ||= (@amount_to_settle * @discount_percent / 100).round(2)
+    def received
+      @received ||= @tenders.sum { |t| t[:amount].to_d }
     end
 
-    def cash_to_collect
-      @cash_to_collect ||= begin
-        raw = (@amount_to_settle - discount_value).round(2)
-        @discount_percent.positive? ? round_to_nearest_hundred(raw) : raw
-      end
+    def balance
+      @balance ||= @order.outstanding_balance
+    end
+
+    def factor
+      1 - (@discount_percent.to_d / 100)
+    end
+
+    def settle_all_cash
+      @settle_all_cash ||=
+        if @discount_percent.positive?
+          [ round_to_nearest_hundred(balance * factor), balance ].min
+        else
+          balance
+        end
+    end
+
+    # What this collection takes off the debt.
+    def settled
+      @settled ||=
+        if received == settle_all_cash then balance
+        elsif @discount_percent.zero? then received
+        else (received / factor).round(0)
+        end
+    end
+
+    def discount
+      settled - received
+    end
+
+    def excess_message
+      amount = ActiveSupport::NumberHelper.number_to_currency(
+        settle_all_cash, unit: "$ ", separator: ",", delimiter: ".", precision: 2
+      )
+      with = @discount_percent.positive? ? " con #{@discount_percent}%" : ""
+      "Es más de lo que debe. Para saldar todo#{with} corresponde cobrar #{amount}"
     end
 
     def apply_discount!
-      # Lower total_amount by the EFFECTIVE discount (settle − rounded cash) so the
-      # balance closes exactly against the nearest-hundred allocation.
-      effective_discount = @amount_to_settle - cash_to_collect
-      return if effective_discount.zero?
-      @order.update!(total_amount: @order.total_amount - effective_discount)
+      return if discount.zero?
+
+      @order.update!(total_amount: @order.total_amount - discount)
     end
 
     def create_payments_and_allocations!
       @tenders.group_by { |t| t[:payment_method] }.each do |method, rows|
-        total = rows.sum { |r| r[:amount].to_f }
+        total = rows.sum { |r| r[:amount].to_d }
         payment = Payment.create!(
           customer:       @order.customer,
           amount:         total,
@@ -128,7 +139,9 @@ module Payments
         )
         # One allocation per method: payment_allocations is unique on
         # (payment_id, order_id), so repeated rows of the same method collapse.
-        PaymentAllocation.create!(payment: payment, order: @order, amount: total)
+        # A discount only exists on an all-cash collection, so it lands here.
+        PaymentAllocation.create!(payment: payment, order: @order, amount: total,
+                                  discount_amount: method == "cash" ? discount : 0)
 
         record_in_cash!(payment)
       end

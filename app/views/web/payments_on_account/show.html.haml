@@ -48,28 +48,35 @@
 
       .bg-white.border.border-slate-200.rounded-2xl.p-5
         %h3.text-sm.font-semibold.text-slate-900.mb-3 Historial de cobros
-        - if @order.payments.any?
-          %table.w-full.text-sm
+        - if @order.payment_allocations.any?
+          %table.w-full.text-sm{ data: { history: true } }
             %thead
               %tr.text-slate-500.text-left
                 %th.py-1.5.font-medium.border-b.border-slate-100 Fecha
                 %th.py-1.5.font-medium.border-b.border-slate-100 Método
-                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Monto
+                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Recibido
+                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Bajó la deuda
             %tbody
-              - @order.payments.sort_by(&:payment_date).each do |payment|
+              - @order.payment_allocations.sort_by { |a| a.payment.payment_date }.each do |allocation|
+                - percent = payment_allocation_discount_percent(allocation)
                 %tr
-                  %td.py-2.text-slate-600= l(payment.payment_date, format: :default)
-                  %td.py-2= payment_method_label(payment.payment_method)
-                  %td.py-2.text-right= number_to_currency(payment.amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-slate-600= l(allocation.payment.payment_date, format: :default)
+                  %td.py-2= [ payment_method_label(allocation.payment.payment_method), ("#{percent}%" if percent) ].compact.join(" · ")
+                  %td.py-2.text-right= number_to_currency(allocation.amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right= number_to_currency(allocation.amount + allocation.discount_amount, unit: "$", separator: ",", delimiter: ".")
         - else
           %p.text-sm.text-slate-500 Sin cobros todavía.
 
     .bg-white.border.border-slate-200.rounded-2xl.p-5.h-fit
       %h3.text-sm.font-semibold.text-slate-900.mb-3 Resumen
-      .space-y-1.5.text-sm
+      .space-y-1.5.text-sm{ data: { summary: true } }
         .flex.justify-between.text-slate-600
-          %span Total acordado
-          %span= number_to_currency(@order.total_amount, unit: "$", separator: ",", delimiter: ".")
+          %span Total de la venta
+          %span= number_to_currency(@order.original_total_amount, unit: "$", separator: ",", delimiter: ".")
+        - if @order.discounts_total.positive?
+          .flex.justify-between.text-slate-600
+            %span Descuentos
+            %span= "−#{number_to_currency(@order.discounts_total, unit: '$', separator: ',', delimiter: '.')}"
         .flex.justify-between.text-slate-600
           %span Pagado
           %span= number_to_currency(@order.total_amount - @order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")

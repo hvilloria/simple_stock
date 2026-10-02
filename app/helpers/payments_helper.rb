@@ -31,4 +31,11 @@ module PaymentsHelper
       end
     "#{CashMovement.account_label(movement.account)} · #{state}"
   end
+
+  # The cash discount a collection carried, as a whole percentage; nil when none.
+  def payment_allocation_discount_percent(allocation)
+    return nil unless allocation.discount_amount.positive?
+
+    (allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)).round
+  end
 end

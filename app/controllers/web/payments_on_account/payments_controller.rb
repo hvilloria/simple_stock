@@ -13,7 +13,6 @@ module Web
         result = ::Payments::CollectOnAccount.call(
           user:             current_user,
           order:            @order,
-          amount_to_settle: parse_amount(params[:amount_to_settle]),
           discount_percent: params[:discount_percent].to_i,
           tenders:          parsed_tenders
         )
@@ -33,7 +32,6 @@ module Web
       end
 
       # Tenders arrive as `tenders[0][payment_method]=cash&tenders[0][amount]=1.500,00`.
-      # Their sum must match the cash to collect; the service enforces that.
       def parsed_tenders
         rows = params[:tenders]
         return [] if rows.blank?
