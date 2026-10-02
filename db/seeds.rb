@@ -3,7 +3,10 @@
 # Clean only in development
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
-  [ Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
+  # Sealed cash movements refuse destroy by design; the dev reset skips the guard.
+  CashMovement.delete_all
+  DailyClosing.delete_all
+  [ PaymentAllocation, Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
     Invoice, StockMovement, Customer, Supplier, StockLocation, User ].each(&:destroy_all)
   # Product is soft-deleted (acts_as_paranoid), so destroy_all would leave ghost
   # rows that pile up on every re-seed. Hard-delete all rows (incl. already
@@ -52,6 +55,7 @@ end
 
 # User associated with the seed orders (feat_14: Order#user is mandatory)
 seller_user = User.find_by(role: "vendedor") || User.first!
+cashier_user = User.find_by(role: "caja") || User.first!
 
 # ============================================
 # 1. STOCK LOCATION
@@ -238,7 +242,9 @@ PRODUCTOS_REALES.each do |categoria, nombres|
 
     # Calculate price in ARS
     exchange_rate = rand(1150..1250)
-    price_ars = (cost_usd * exchange_rate * price_multiplier * rand(1.3..1.9)).round(0)
+    # Counter prices land between 10.000 and 500.000, mostly round thousands.
+    price_ars = (cost_usd * exchange_rate * price_multiplier).clamp(10_000, 500_000)
+    price_ars = rand(100) < 70 ? (price_ars / 1_000).round * 1_000 : (price_ars / 100).round * 100
 
     # Generate a valid physical location: [aisle 1-9][side I/D][position 0-9][level 0-9]
     # 80% of the products have a location, 20% unassigned
@@ -326,14 +332,30 @@ puts "\n💰 Creando ventas (esto puede tardar un poco)..."
 ventas_exitosas = 0
 sale_counter = 1
 
+# Counter-sized amounts: a multiple of 100, usually a round thousand.
+monto_redondo = lambda do |min, max|
+  monto = rand(min..max)
+  rand(100) < 70 ? (monto / 1_000.0).round * 1_000 : (monto / 100.0).round * 100
+end
+
+# A sale note's total is picked first (80% under 100.000, the rest up to
+# 500.000) and then split across single-unit lines.
+items_para_nota = lambda do
+  chica = rand(100) < 80
+  total = chica ? monto_redondo.(10_000, 99_000) : monto_redondo.(100_000, 500_000)
+  pesos = Array.new(chica ? rand(1..2) : rand(1..4)) { rand(1..10) }
+  partes = pesos[0...-1].map { |peso| (total * peso / pesos.sum / 100) * 100 }
+  partes << total - partes.sum
+
+  productos.sample(partes.size).zip(partes).map do |producto, precio|
+    { product_id: producto.id, quantity: 1, unit_price: precio }
+  end
+end
+
 # 45 counter sales
 45.times do
   fecha = rand(7).days.ago + rand(24).hours
-  productos_venta = productos.sample(rand(1..4))
-
-  items = productos_venta.map do |producto|
-    { product_id: producto.id, quantity: rand(1..5), unit_price: producto.price_unit }
-  end
+  items = items_para_nota.()
 
   result = Sales::CreateOrder.call(
     customer: mostrador,
@@ -358,11 +380,7 @@ end
 5.times do
   fecha = rand(7).days.ago + rand(24).hours
   cliente = clientes_con_credito.sample
-  productos_venta = productos.sample(rand(2..5))
-
-  items = productos_venta.map do |producto|
-    { product_id: producto.id, quantity: rand(2..8), unit_price: producto.price_unit }
-  end
+  items = items_para_nota.()
 
   result = Sales::CreateOrder.call(
     customer: cliente,
@@ -400,12 +418,9 @@ contactos_pac = [
 
 pac_creados = 0
 
-crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobrar_fraccion: nil|
-  fecha = rand(10).days.ago + rand(24).hours
-  productos_venta = productos.sample(cantidad_productos)
-  items = productos_venta.map do |producto|
-    { product_id: producto.id, quantity: rand(1..3), unit_price: producto.price_unit }
-  end
+crear_pac = lambda do |contacto:, entregados_idx: [], cobrar_fraccion: nil|
+  fecha = (1 + rand(10)).days.ago.beginning_of_day + rand(24).hours
+  items = items_para_nota.()
 
   result = Sales::CreateOrder.call(
     customer: mostrador,
@@ -417,7 +432,7 @@ crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobra
     source: "from_paper",
     contact_name: contacto[:name],
     contact_phone: contacto[:phone],
-    delivered_product_ids: entregados_idx.map { |i| productos_venta[i].id }
+    delivered_product_ids: entregados_idx.filter_map { |i| items[i]&.dig(:product_id) }
   )
   sale_counter += 1
 
@@ -437,7 +452,8 @@ crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobra
         amount_to_settle: monto,
         discount_percent: 0,
         tenders: [ { payment_method: "cash", amount: monto } ],
-        payment_date: fecha.to_date
+        payment_date: fecha.to_date,
+        user: cashier_user
       )
     end
   end
@@ -449,15 +465,15 @@ crear_pac = lambda do |contacto:, cantidad_productos:, entregados_idx: [], cobra
 end
 
 # Deposit paid, nothing delivered (waiting for the part)
-crear_pac.(contacto: contactos_pac[0], cantidad_productos: 3, entregados_idx: [], cobrar_fraccion: 0.3)
+crear_pac.(contacto: contactos_pac[0], entregados_idx: [], cobrar_fraccion: 0.3)
 # Partially delivered, with outstanding balance
-crear_pac.(contacto: contactos_pac[1], cantidad_productos: 3, entregados_idx: [ 0, 1 ], cobrar_fraccion: 0.5)
+crear_pac.(contacto: contactos_pac[1], entregados_idx: [ 0, 1 ], cobrar_fraccion: 0.5)
 # Fully paid but one item still to be picked up (stays open)
-crear_pac.(contacto: contactos_pac[2], cantidad_productos: 2, entregados_idx: [ 0 ], cobrar_fraccion: 1.0)
+crear_pac.(contacto: contactos_pac[2], entregados_idx: [ 0 ], cobrar_fraccion: 1.0)
 # Just created: partial initial delivery, no collections
-crear_pac.(contacto: contactos_pac[3], cantidad_productos: 2, entregados_idx: [ 0 ], cobrar_fraccion: nil)
+crear_pac.(contacto: contactos_pac[3], entregados_idx: [ 0 ], cobrar_fraccion: nil)
 # Just created: nothing delivered, nothing paid
-crear_pac.(contacto: contactos_pac[4], cantidad_productos: 4, entregados_idx: [], cobrar_fraccion: nil)
+crear_pac.(contacto: contactos_pac[4], entregados_idx: [], cobrar_fraccion: nil)
 
 puts "✅ #{pac_creados} pagos a cuenta creados (abiertos: #{Order.open_on_account.length})"
 
@@ -476,7 +492,7 @@ clientes_con_credito.each do |cliente|
 
   metodo = %w[cash bank_transfer bank_card].sample
   monto_total = (saldo_total * rand(0.3..0.7)).round(2)
-  fecha_pago = rand(3).days.ago.to_date
+  fecha_pago = (1 + rand(3)).days.ago.to_date
 
   restante = monto_total
   allocations = []
@@ -495,7 +511,8 @@ clientes_con_credito.each do |cliente|
     customer: cliente,
     payment_date: fecha_pago,
     allocations: allocations,
-    notes: "Pago parcial - #{metodo}"
+    notes: "Pago parcial - #{metodo}",
+    user: cashier_user
   )
 
   if result.success?
@@ -679,6 +696,112 @@ puts "   - USA:     1 nota  ARS ($209.317,83)"
 puts "   - Germany: 2 notas (ARS $174.652,47 + USD $198,36)"
 puts "   - Taiwan:  1 nota  ARS ($54.891,62)"
 puts "   - Brazil:  1 nota  ARS ($89.534,18)"
+
+# ============================================
+# 9.5 CASH DAY (today)
+# ============================================
+# Replays a real day of the cash book on Date.current, through the same
+# services caja uses, so the day screen always has a full, open day to work on.
+puts "\n🧾 Cargando el día de caja de hoy..."
+
+hoy = Date.current
+
+seed_or_raise = lambda do |label, result|
+  raise "Seeds de caja: #{label} — #{result.errors.join(', ')}" if result.failure?
+
+  result.record
+end
+
+# Single-unit lines priced so each note adds up to the amount on paper.
+crear_nota = lambda do |paper_number:, precios:, order_type: "immediate", customer: mostrador,
+                        sale_date: hoy, contact_name: nil, contact_phone: nil|
+  items = productos.sample(precios.size).zip(precios).map do |producto, precio|
+    { product_id: producto.id, quantity: 1, unit_price: precio }
+  end
+
+  seed_or_raise.("nota #{paper_number}", Sales::CreateOrder.call(
+    customer: customer, user: seller_user, items: items, order_type: order_type,
+    paper_number: paper_number, channel: "counter", source: "from_paper", sale_date: sale_date,
+    contact_name: contact_name, contact_phone: contact_phone
+  ))
+end
+
+cobrar_nota = lambda do |paper_number, tenders, precios: nil, discount_percent: 0|
+  precios ||= [ tenders.sum { |t| t[:amount] } ]
+  order = crear_nota.(paper_number: paper_number, precios: precios)
+  seed_or_raise.("cobro #{paper_number}", Payments::CollectSaleNote.call(
+    order: order, tenders: tenders, user: cashier_user, discount_percent: discount_percent, payment_date: hoy
+  ))
+end
+
+cobrar_a_cuenta = lambda do |order, amount, payment_date: hoy|
+  seed_or_raise.("cobro a cuenta #{order.paper_number}", Payments::CollectOnAccount.call(
+    order: order, amount_to_settle: amount, user: cashier_user, payment_date: payment_date,
+    tenders: [ { payment_method: "mercado_pago", amount: amount } ]
+  ))
+end
+
+transferir = lambda do |amount, description: nil|
+  seed_or_raise.("transferencia", Cash::RecordTransfer.call(
+    from: "mercado_pago", to: "bank", amount: amount, business_date: hoy, user: cashier_user,
+    description: description
+  ))
+end
+
+pagar_del_cajon = lambda do |amount, description|
+  seed_or_raise.(description, Cash::RecordMovement.call(
+    business_date: hoy, account: "drawer", amount: -amount, category: "suppliers",
+    description: description, user: cashier_user
+  ))
+end
+
+efectivo = ->(amount) { { payment_method: "cash", amount: amount } }
+mercado_pago = ->(amount) { { payment_method: "mercado_pago", amount: amount } }
+
+admin_user = User.find_by(role: "admin") || User.first!
+{ "main_cash" => 2_500_000, "change_fund" => 103_300, "mercado_pago" => 1_500_000, "bank" => 800_000 }
+  .each do |account, amount|
+    seed_or_raise.("saldo inicial #{account}", Cash::RecordMovement.call(
+      business_date: hoy - 30, account: account, amount: amount, category: "opening_balance",
+      description: "Saldo inicial", user: admin_user
+    ))
+  end
+
+jorge = FactoryBot.create(:customer, :with_credit, name: "Jorge Almaraz", phone: "11-5678-4411")
+nota_jorge = crear_nota.(paper_number: "4411", precios: [ 32_000 ], order_type: "credit",
+                         customer: jorge, sale_date: hoy - 5)
+nota_diego = crear_nota.(paper_number: "4242", precios: [ 42_840, 35_000, 68_200, 27_160 ],
+                         order_type: "on_account", sale_date: hoy - 14,
+                         contact_name: "DIEGO", contact_phone: "11-6452-4796")
+nota_walter = crear_nota.(paper_number: "4426", precios: [ 75_000, 45_000 ], order_type: "on_account",
+                          sale_date: hoy - 3, contact_name: "Walter", contact_phone: "11-6123-4426")
+cobrar_a_cuenta.(nota_diego, 80_000, payment_date: hoy - 14)
+
+# Today, in the order caja loaded it.
+seed_or_raise.("cobranza 4411", Payments::AllocatePayment.call(
+  customer: jorge, payment_date: hoy, user: cashier_user,
+  allocations: [ { order_id: nota_jorge.id, amount: 32_000, payment_method: "cash" } ]
+))
+cobrar_nota.("4419", [ efectivo.(34_200) ])
+transferir.(900_000)
+cobrar_nota.("4382", [ mercado_pago.(84_200) ])
+cobrar_nota.("4420", [ mercado_pago.(45_000) ])
+cobrar_nota.("4381", [ efectivo.(16_700) ])
+cobrar_nota.("4421", [ efectivo.(150_000), mercado_pago.(186_600) ])
+cobrar_a_cuenta.(nota_diego, 93_200)
+cobrar_nota.("4424", [ efectivo.(7_000) ])
+cobrar_a_cuenta.(nota_walter, 50_000)
+transferir.(180_000, description: "BALANCE")
+pagar_del_cajon.(33_500, "COMPRA DE PIPETA EN SIR MOTOR")
+cobrar_nota.("4427", [ efectivo.(104_400) ], precios: [ 116_000 ], discount_percent: 10)
+cobrar_nota.("4428", [ efectivo.(15_000) ])
+cobrar_nota.("4429", [ mercado_pago.(264_100) ])
+cobrar_nota.("4430", [ mercado_pago.(44_900) ])
+pagar_del_cajon.(302_800, "PAGO DM RE-896441 RE-242795")
+
+dia = Cash::DayQuery.new(hoy)
+puts "✅ Día #{hoy.strftime('%d/%m/%Y')} abierto: #{CashMovement.on(hoy).count} movimientos | " \
+     "ventas $#{dia.sales_by_channel.values.sum.to_i} | a fajar $#{dia.amount_to_wrap.to_i}"
 
 # ============================================
 # 10. FINAL STATISTICS
