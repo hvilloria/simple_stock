@@ -82,28 +82,31 @@ end
 
 # When the browser runs in its own container, Capybara must serve the app on an
 # interface that container can reach, and point the driver at the remote node
-# instead of launching a local Chrome. Without SELENIUM_REMOTE_URL nothing here
-# applies and system specs use a locally installed browser as before.
+# instead of launching a local Chrome.
 if ENV["SELENIUM_REMOTE_URL"].present?
-  require "selenium/webdriver"
-
   Capybara.server_host = "0.0.0.0"
   Capybara.server_port = 3006
   Capybara.app_host = "#{ENV.fetch('CAPYBARA_APP_HOST')}:#{Capybara.server_port}"
+end
 
-  Capybara.register_driver :selenium_chrome_headless do |app|
-    options = Selenium::WebDriver::Chrome::Options.new
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--window-size=1400,900")
+# Rails ignores `driven_by`'s screen_size for drivers it does not register
+# itself, so the window is fixed here; without it a local headless Chrome
+# starts at 800x600.
+require "selenium/webdriver"
 
-    Capybara::Selenium::Driver.new(
-      app,
-      browser: :remote,
-      url: ENV.fetch("SELENIUM_REMOTE_URL"),
-      options: options
-    )
+Capybara.register_driver :selenium_chrome_headless do |app|
+  options = Selenium::WebDriver::Chrome::Options.new
+  options.add_argument("--headless=new")
+  options.add_argument("--no-sandbox")
+  options.add_argument("--window-size=1400,900")
+
+  browser = if ENV["SELENIUM_REMOTE_URL"].present?
+    { browser: :remote, url: ENV.fetch("SELENIUM_REMOTE_URL") }
+  else
+    { browser: :chrome }
   end
+
+  Capybara::Selenium::Driver.new(app, **browser, options: options)
 end
 
 # Shoulda Matchers configuration
