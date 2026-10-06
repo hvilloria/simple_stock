@@ -36,7 +36,7 @@
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo
               .grid.grid-cols-2.md:grid-cols-4.gap-2
                 - Invoice.expense_type_options.each do |label, key|
-                  %label{ class: "flex items-center justify-center gap-2 px-3 py-2 border border-slate-300 rounded-lg cursor-pointer text-sm text-slate-700 has-[:checked]:border-slate-700 has-[:checked]:bg-slate-50 has-[:checked]:font-semibold" }
+                  %label{ class: "flex items-center justify-center gap-2 px-3 py-2 border border-slate-300 rounded-lg cursor-pointer text-sm text-slate-700 has-[:checked]:border-slate-700 has-[:checked]:bg-slate-50 has-[:checked]:font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-slate-500" }
                     = radio_button_tag :expense_type, key, (params[:expense_type].presence || "supplier") == key,
                                        class: "sr-only",
                                        data: { action: "change->invoice-form#expenseTypeChanged" }

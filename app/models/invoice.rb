@@ -189,6 +189,19 @@ class Invoice < ApplicationRecord
     BigDecimal(due.to_s).round(2)
   end
 
+  # True when a paid invoice left no cash movement because its credits covered
+  # what it owed on the paid date (legacy invoices have no movement either, but
+  # their credits only covered part of it).
+  def paid_with_credits_only?
+    return false unless paid_status? && paid_at && cash_movement_id.nil?
+
+    credited = applied_credits.includes(:credit_note).sum do |applied|
+      note = applied.credit_note
+      note.currency == "USD" ? (applied.amount * note.exchange_rate.to_d).round(2) : applied.amount
+    end
+    credited.positive? && credited >= amount_due_ars(paid_at.to_date)
+  end
+
   # === APPLIED CREDITS METHODS ===
 
   # Total credits already applied to this invoice (ARS)

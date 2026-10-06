@@ -1,6 +1,6 @@
 - movement = entry.movement
 
-%tr{ id: "entry_#{movement.id}", class: [ "hover:bg-slate-50 transition-colors", ("cursor-pointer" if movement.automatic?) ], **{ onclick: cash_entry_link(movement) }.compact }
+%tr{ id: "entry_#{movement.id}", class: [ "hover:bg-slate-50 transition-colors", ("cursor-pointer" if cash_entry_link(movement)) ], **{ onclick: cash_entry_link(movement) }.compact }
   %td.pl-4.py-3.text-base{ class: cash_entry_glyph_class(entry) }= cash_entry_glyph(entry)
   %td.px-4.py-3.text-sm.text-slate-900
     .flex.items-center.gap-2.flex-wrap

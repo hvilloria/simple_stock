@@ -121,7 +121,7 @@ module Invoices
           break if owed <= 0
 
           rate = credit_note_rate(credit_note)
-          native = [ remaining, (owed / rate).round(2) ].min
+          native = [ remaining, (owed / rate).round(2, BigDecimal::ROUND_CEILING) ].min
           next if native <= 0
 
           pesos = [ (native * rate).round(2), owed ].min

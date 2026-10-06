@@ -439,6 +439,25 @@ RSpec.describe "Web::Invoices", type: :request do
     end
   end
 
+  describe "index credit cards under the type filter" do
+    let(:afip) { create(:supplier, name: "AFIP") }
+
+    before do
+      create(:credit_note, supplier: supplier, amount: 5_000)
+      create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", invoice_number: "TAX-9")
+    end
+
+    it "shows the available credit when the type is supplier or unset" do
+      get web_invoices_path
+      expect(response.body).to include("5.000,00")
+    end
+
+    it "shows no credit under a type that credit notes do not apply to" do
+      get web_invoices_path, params: { expense_type: "taxes" }
+      expect(response.body).not_to include("5.000,00")
+    end
+  end
+
   describe "invoice page payment" do
     let(:afip) { create(:supplier, name: "AFIP") }
     let(:invoice) do
@@ -458,6 +477,34 @@ RSpec.describe "Web::Invoices", type: :request do
       get web_invoice_path(invoice)
       expect(response.body).to include("desde Caja grande")
       expect(response.body).to include(web_cash_day_path(Date.current.to_s))
+    end
+
+    it "says no money left when credit notes covered the invoice" do
+      credit = create(:credit_note, supplier: afip, amount: 300_000)
+      invoice.update!(expense_type: "supplier")
+      Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current,
+                                 user: create(:user, :admin), credit_note_ids: [ credit.id ])
+      get web_invoice_path(invoice)
+      expect(response.body).to include("con notas de crédito · no salió plata")
+    end
+
+    it "says no money left when a USD note rounded up to cover the invoice" do
+      invoice.update!(expense_type: "supplier", amount: 1_000)
+      credit = create(:credit_note, :usd, supplier: afip, amount: 1, exchange_rate: 1200)
+      Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current,
+                                 user: create(:user, :admin), credit_note_ids: [ credit.id ])
+      get web_invoice_path(invoice)
+      expect(response.body).to include("no salió plata")
+    end
+
+    it "does not claim that no money left for a legacy invoice paid partly with credits" do
+      credit = create(:credit_note, supplier: afip, amount: 5_000)
+      invoice.update!(expense_type: "supplier")
+      AppliedCredit.create!(credit_note: credit, invoice: invoice, amount: 5_000, applied_at: Date.current)
+      invoice.update!(status: "paid", paid_at: Date.current)
+      get web_invoice_path(invoice)
+      expect(response.body).to include("Pagada el #{Date.current.strftime('%d/%m/%Y')}")
+      expect(response.body).not_to include("no salió plata")
     end
 
     it "shows only the date for an invoice paid before invoices wrote outflows" do

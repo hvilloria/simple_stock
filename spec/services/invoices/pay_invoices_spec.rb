@@ -106,6 +106,41 @@ RSpec.describe Invoices::PayInvoices do
     expect(AppliedCredit.last.amount).to eq(100)
   end
 
+  describe "a USD credit note that covers an ARS invoice" do
+    it "writes no outflow when the note rounds to the whole invoice" do
+      invoice = pending_invoice(supplier: supplier, amount: 1_000, number: "U1")
+      credit  = create(:credit_note, :usd, supplier: supplier, amount: 1, exchange_rate: 1200)
+
+      result = nil
+      expect { result = pay([ invoice ], credit_note_ids: [ credit.id ]) }.not_to change(CashMovement, :count)
+
+      expect(result.success?).to be true
+      expect(invoice.reload).to have_attributes(status: "paid", cash_movement_id: nil)
+      expect(AppliedCredit.last.amount).to eq(BigDecimal("0.84"))
+      expect(credit.reload.remaining_balance).to eq(BigDecimal("0.16"))
+    end
+
+    it "writes no outflow for an amount that does not divide by the rate" do
+      invoice = pending_invoice(supplier: supplier, amount: 123_457, number: "U2")
+      credit  = create(:credit_note, :usd, supplier: supplier, amount: 103, exchange_rate: 1200)
+
+      expect { pay([ invoice ], credit_note_ids: [ credit.id ]) }.not_to change(CashMovement, :count)
+      expect(invoice.reload.status).to eq("paid")
+    end
+
+    it "spreads one note across two invoices and pays only the rest in cash" do
+      first  = pending_invoice(supplier: supplier, amount: 1_000, number: "U3")
+      second = pending_invoice(supplier: supplier, amount: 1_500, number: "U4")
+      credit = create(:credit_note, :usd, supplier: supplier, amount: 2, exchange_rate: 1200)
+
+      result = pay([ first, second ], credit_note_ids: [ credit.id ])
+
+      expect(AppliedCredit.order(:id).pluck(:amount)).to eq([ BigDecimal("0.84"), BigDecimal("1.16") ])
+      expect(credit.reload.remaining_balance).to eq(0)
+      expect(result.record.amount).to eq(-108)
+    end
+  end
+
   it "marks the invoices paid without an outflow when credits cover everything" do
     invoice = pending_invoice(supplier: supplier, amount: 20_000, number: "SF 1")
     credit  = create(:credit_note, supplier: supplier, amount: 50_000)

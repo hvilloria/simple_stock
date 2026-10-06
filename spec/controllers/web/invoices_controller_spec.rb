@@ -627,6 +627,21 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
       end
     end
 
+    context "when credit notes cover the whole invoice" do
+      it "tells that no money left any arca" do
+        invoice = create(:invoice, :simple_mode, supplier: supplier, status: "pending", amount: 10_000,
+                         currency: "ARS", due_date: Date.current.beginning_of_week(:monday))
+        credit = create(:credit_note, supplier: supplier, amount: 10_000)
+
+        post mark_supplier_paid_web_invoices_path, params: {
+          invoice_ids: [ invoice.id ], credit_note_ids: [ credit.id ], period: "this_week",
+          payment_date: Date.current.to_s, account: "main_cash"
+        }
+
+        expect(flash[:notice]).to include("No salió plata de ninguna arca.")
+      end
+    end
+
     context "with no invoice_ids sent" do
       it "redirects with alert" do
         post mark_supplier_paid_web_invoices_path, params: {

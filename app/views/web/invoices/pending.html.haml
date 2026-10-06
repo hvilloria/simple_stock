@@ -131,7 +131,7 @@
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
             - cn_json           = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
-            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.invoice_number, amount: i.amount_due_ars(Date.current).to_f } }.to_json
+            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.invoice_number, full: BigDecimal(i.total_amount_ars.to_s).round(2).to_f, discounted: BigDecimal(i.amount_with_discount_ars.to_s).round(2).to_f, deadline: i.early_payment_due_date&.iso8601.to_s } }.to_json
 
             -# Supplier main row
             %tr.bg-slate-50.hover:bg-slate-100.transition-colors{ data: { group_supplier: data[:supplier].name, group_type: data[:expense_type] } }
@@ -173,7 +173,6 @@
                          data: { supplier_id: data[:supplier].id,
                                  supplier_name: data[:supplier].name,
                                  group_label: "#{data[:supplier].name} · #{Invoice.expense_type_label(data[:expense_type])}",
-                                 invoices_total: data[:invoices_amount_with_discount].to_f,
                                  invoices_list: invoices_list_json,
                                  credit_notes: cn_json },
                          onclick: "openPaymentModal(this)" }
@@ -283,7 +282,8 @@
         = date_field_tag :payment_date, Date.current,
                         max: Date.current,
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                        required: true
+                        required: true,
+                        onchange: "refreshPaymentAmounts()"
 
       .flex.items-center.gap-3
         %button.cursor-pointer.flex-1.px-4.py-2.border.border-slate-300.text-slate-700.font-semibold.rounded-lg.hover:bg-slate-50.transition-colors{ type: "button", onclick: "closePaymentModal()" }
@@ -301,23 +301,17 @@
     const title     = document.getElementById('modalTitle');
     const cnSection = document.getElementById('creditNotesSection');
     const cnList    = document.getElementById('creditNotesList');
-    const invList   = document.getElementById('modalInvoicesList');
 
-    const invoicesTotal = parseFloat(btn.dataset.invoicesTotal);
     const invoicesList  = JSON.parse(btn.dataset.invoicesList || '[]');
     const creditNotes   = JSON.parse(btn.dataset.creditNotes  || '[]');
 
-    window.currentSupplierData = { invoicesTotal, invoiceIds: invoicesList.map(inv => inv.id) };
+    window.currentSupplierData = { invoices: invoicesList, invoiceIds: invoicesList.map(inv => inv.id) };
 
     title.textContent = `Pagar · ${btn.dataset.groupLabel}`;
 
-    // Render invoice list with number + amount per row
-    invList.innerHTML = invoicesList.map(inv => `
-      <div class="flex justify-between items-center">
-        <span class="text-sm font-mono text-slate-700">${escapeHtml(inv.number)}</span>
-        <span class="text-sm text-slate-600">${formatARS(inv.amount)}</span>
-      </div>
-    `).join('');
+    const dateField = document.getElementById('payment_date');
+    dateField.value = dateField.max;
+    renderInvoiceAmounts();
 
     const period = #{@selected_period.to_json};
     form.action  = `/web/invoices/mark_supplier_paid?period=${period}`;
@@ -344,17 +338,15 @@
           </div>
         </label>
       `).join('');
-
-      document.getElementById('modalInvoicesTotal').textContent  = formatARS(invoicesTotal);
-      document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(0);
     } else {
       cnSection.style.display = 'none';
+      cnList.innerHTML = '';
     }
 
     const showBreakdown = creditNotes.length > 0 ? 'flex' : 'none';
     document.getElementById('modalInvoicesTotalRow').style.display  = showBreakdown;
     document.getElementById('modalCreditsAppliedRow').style.display = showBreakdown;
-    document.getElementById('modalNetTotal').textContent            = formatARS(invoicesTotal);
+    recalculateNet();
 
     form.querySelectorAll('input[name="account"]').forEach(radio => { radio.checked = false; });
     refreshPaymentOrigin();
@@ -369,10 +361,39 @@
       origin ? `Sale de ${origin.closest('label').textContent.trim()}` : 'Sale de —';
   }
 
+  window.paymentDate = function paymentDate() {
+    return document.getElementById('payment_date').value;
+  }
+
+  // Same rule as the server: the discounted amount holds through the deadline.
+  window.invoiceDueOn = function invoiceDueOn(inv, date) {
+    return inv.deadline && date && date <= inv.deadline ? inv.discounted : inv.full;
+  }
+
+  window.invoicesTotalOn = function invoicesTotalOn(date) {
+    return window.currentSupplierData.invoices.reduce((sum, inv) => sum + invoiceDueOn(inv, date), 0);
+  }
+
+  window.renderInvoiceAmounts = function renderInvoiceAmounts() {
+    const date = paymentDate();
+    document.getElementById('modalInvoicesList').innerHTML = window.currentSupplierData.invoices.map(inv => `
+      <div class="flex justify-between items-center">
+        <span class="text-sm font-mono text-slate-700">${escapeHtml(inv.number)}</span>
+        <span class="text-sm text-slate-600">${formatARS(invoiceDueOn(inv, date))}</span>
+      </div>
+    `).join('');
+  }
+
+  window.refreshPaymentAmounts = function refreshPaymentAmounts() {
+    if (!window.currentSupplierData) return;
+    renderInvoiceAmounts();
+    recalculateNet();
+  }
+
   window.recalculateNet = function recalculateNet() {
     if (!window.currentSupplierData) return;
 
-    const invoicesTotal = window.currentSupplierData.invoicesTotal;
+    const invoicesTotal = invoicesTotalOn(paymentDate());
     const checkboxes    = document.querySelectorAll('#creditNotesList input[type="checkbox"]');
     let remaining       = invoicesTotal;
     let totalApplied    = 0;
@@ -417,6 +438,7 @@
       }
     });
 
+    document.getElementById('modalInvoicesTotal').textContent  = formatARS(invoicesTotal);
     document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(totalApplied);
     document.getElementById('modalNetTotal').textContent       = formatARS(Math.max(0, invoicesTotal - totalApplied));
   }

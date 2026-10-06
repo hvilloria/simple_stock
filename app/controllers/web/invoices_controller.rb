@@ -35,9 +35,12 @@ module Web
       @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars(include_discount: true) }
 
       # Available credits (filtered only by supplier, not by invoice search)
-      credit_notes_scope = CreditNote.includes(:applied_credits)
-                                      .for_supplier(@selected_supplier)
-                                      .available
+      # Credit notes only apply to supplier invoices, so another type shows none.
+      credit_notes_scope = if non_supplier_type?(@expense_type)
+        CreditNote.none
+      else
+        CreditNote.includes(:applied_credits).for_supplier(@selected_supplier).available
+      end
 
       @total_credit_amount = credit_notes_scope.sum { |cn| cn.remaining_balance_ars }
       # Count only notes with available balance (excludes those already applied/exhausted)
@@ -216,8 +219,12 @@ module Web
       @suppliers = Supplier.order(:name)
     end
 
+    def non_supplier_type?(expense_type)
+      Invoice::EXPENSE_TYPE_LABELS.key?(expense_type) && expense_type != "supplier"
+    end
+
     def payment_notice(movement)
-      return "Pagada con notas de crédito: no salió plata." if movement.nil?
+      return "No salió plata de ninguna arca." if movement.nil?
 
       "Salió $ #{helpers.number_ar(movement.amount.abs)} de #{CashMovement.account_label(movement.account)}."
     end

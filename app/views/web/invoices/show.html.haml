@@ -204,7 +204,7 @@
                 %p.text-xs.text-slate-500= "Pagada junto con #{siblings.map(&:invoice_number).join(', ')}"
               = link_to "Ver en la caja del #{movement.business_date.strftime('%d/%m')} →", web_cash_day_path(movement.business_date.to_s),
                         class: "text-sm text-slate-600 underline hover:text-slate-900"
-            - elsif @invoice.applied_credits.any?
+            - elsif @invoice.paid_with_credits_only?
               %p.text-sm.text-slate-700= "Pagada el #{@invoice.paid_at.to_date.strftime('%d/%m/%Y')} con notas de crédito · no salió plata"
             - else
               %p.text-sm.text-slate-700= "Pagada el #{@invoice.paid_at.to_date.strftime('%d/%m/%Y')}"

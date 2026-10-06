@@ -4,6 +4,7 @@
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
   # Sealed cash movements refuse destroy by design; the dev reset skips the guard.
+  Invoice.update_all(cash_movement_id: nil)
   CashMovement.delete_all
   DailyClosing.delete_all
   [ PaymentAllocation, Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
