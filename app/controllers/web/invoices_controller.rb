@@ -151,24 +151,15 @@ module Web
     def mark_as_paid
       authorize @invoice
 
-      payment_date = parse_date(params[:payment_date]) || Date.current
-      apply_discount = params[:apply_discount] == "true"
-
-      # Validate discount
-      if apply_discount && !@invoice.eligible_for_discount?(payment_date)
-        redirect_to web_invoice_path(@invoice),
-                    alert: "El descuento ya expiró. No se puede aplicar."
-        return
-      end
-
-      result = Invoices::MarkAsPaid.call(
-        invoice: @invoice,
-        payment_date: payment_date,
-        apply_discount: apply_discount
+      result = Invoices::PayInvoices.call(
+        invoices: [ @invoice ],
+        account: params[:account],
+        payment_date: parse_date(params[:payment_date]) || Date.current,
+        user: current_user
       )
 
       if result.success?
-        redirect_to web_invoice_path(@invoice), notice: "Factura marcada como pagada."
+        redirect_to web_invoice_path(@invoice), notice: payment_notice(result.record)
       else
         redirect_to web_invoice_path(@invoice), alert: result.errors.join(", ")
       end
@@ -198,21 +189,17 @@ module Web
         return
       end
 
-      payment_date = params[:payment_date].present? ? Date.parse(params[:payment_date]) : Date.current
-
-      credit_note_ids = Array(params[:credit_note_ids]).map(&:to_i).reject(&:zero?)
-
-      result = Invoices::ProcessPayment.call(
-        invoices:        invoices,
-        credit_note_ids: credit_note_ids,
-        payment_date:    payment_date
+      result = Invoices::PayInvoices.call(
+        invoices: invoices,
+        account: params[:account],
+        payment_date: parse_date(params[:payment_date]) || Date.current,
+        user: current_user,
+        credit_note_ids: Array(params[:credit_note_ids])
       )
-
-      supplier_name = invoices.first&.supplier&.name
 
       if result.success?
         redirect_to pending_web_invoices_path(period: period),
-                    notice: "#{invoices.count} factura(s) de #{supplier_name} marcada(s) como pagada(s)."
+                    notice: "#{invoices.count} factura(s) de #{invoices.first.supplier.name} pagada(s). #{payment_notice(result.record)}"
       else
         redirect_to pending_web_invoices_path(period: period), alert: result.errors.join(", ")
       end
@@ -222,6 +209,12 @@ module Web
 
     def load_suppliers
       @suppliers = Supplier.order(:name)
+    end
+
+    def payment_notice(movement)
+      return "Pagada con notas de crédito: no salió plata." if movement.nil?
+
+      "Salió $ #{helpers.number_ar(movement.amount.abs)} de #{CashMovement.account_label(movement.account)}."
     end
 
     STATUS_FILTERS = %w[pending paid cancelled].freeze

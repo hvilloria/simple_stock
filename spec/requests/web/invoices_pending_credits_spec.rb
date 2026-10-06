@@ -4,7 +4,7 @@ require "rails_helper"
 
 # Tests for POST /web/invoices/mark_supplier_paid.
 # The controller receives explicit invoice_ids and credit_note_ids — no amounts.
-# ProcessPayment distributes NC balances across invoices internally.
+# PayInvoices distributes NC balances across invoices internally.
 
 RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type: :request do
   include Devise::Test::IntegrationHelpers
@@ -29,7 +29,8 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
       invoice_ids:     Array(invoice_ids),
       credit_note_ids: credit_note_ids,
       period:          "this_week",
-      payment_date:    payment_date.to_s
+      payment_date:    payment_date.to_s,
+      account:         "main_cash"
     }
   end
 
@@ -43,6 +44,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     it "marks the invoice as paid" do
       post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(invoice.reload.paid_status?).to be true
+      expect(CashMovement.last).to have_attributes(account: "main_cash", amount: -50_000, category: "suppliers")
     end
 
     it "exhausts the credit note balance" do
@@ -145,7 +147,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
   # ─────────────────────────────────────────────────────────────────
   # Scenario 5: 2 invoices ($60k + $40k), NC $80k — automatic distribution
-  # ProcessPayment distributes internally:
+  # PayInvoices distributes internally:
   #   FAC-A: applies min(80k, 60k) = 60k → remaining NC = 20k
   #   FAC-B: applies min(20k, 40k) = 20k → remaining NC = 0
   # ─────────────────────────────────────────────────────────────────
