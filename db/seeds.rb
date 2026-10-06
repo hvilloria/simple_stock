@@ -4,6 +4,7 @@
 if Rails.env.development?
   puts "🗑️  Limpiando datos existentes..."
   # Sealed cash movements refuse destroy by design; the dev reset skips the guard.
+  Invoice.update_all(cash_movement_id: nil)
   CashMovement.delete_all
   DailyClosing.delete_all
   [ PaymentAllocation, Payment, OrderItem, Order, InvoiceItem, AppliedCredit, CreditNote,
@@ -710,6 +711,23 @@ seed_or_raise = lambda do |label, result|
 
   result.record
 end
+
+# Pending non-supplier debts: taxes, social charges and a utility, all in ARS.
+afip   = Supplier.create!(name: "AFIP", expense_types: %w[taxes social_charges])
+edesur = Supplier.create!(name: "Edesur", expense_types: %w[utilities])
+periodo = Date.current.prev_month.beginning_of_month
+seed_or_raise.("factura IVA", Invoices::CreateInvoice.call(
+  supplier: afip, period: periodo, detail: "IVA", amount: 250_000, currency: "ARS",
+  purchase_date: Date.current - 5, due_date: Date.current + 9, expense_type: "taxes"))
+seed_or_raise.("factura Ganancias", Invoices::CreateInvoice.call(
+  supplier: afip, period: periodo, detail: "Ganancias", amount: 180_000, currency: "ARS",
+  purchase_date: Date.current - 5, due_date: Date.current + 9, expense_type: "taxes"))
+seed_or_raise.("factura SICOSS", Invoices::CreateInvoice.call(
+  supplier: afip, period: periodo, detail: "SICOSS", amount: 226_000, currency: "ARS",
+  purchase_date: Date.current - 5, due_date: Date.current + 4, expense_type: "social_charges"))
+seed_or_raise.("factura Edesur", Invoices::CreateInvoice.call(
+  supplier: edesur, period: periodo, amount: 48_300, currency: "ARS",
+  purchase_date: Date.current - 3, due_date: Date.current + 12, expense_type: "utilities"))
 
 # Single-unit lines priced so each note adds up to the amount on paper.
 crear_nota = lambda do |paper_number:, precios:, order_type: "immediate", customer: mostrador,

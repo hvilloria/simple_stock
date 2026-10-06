@@ -496,4 +496,92 @@ RSpec.describe Invoices::CreateInvoice do
       end
     end
   end
+
+  describe "expense type" do
+    let(:base) do
+      { supplier: create(:supplier, name: "AFIP", expense_types: %w[supplier taxes]), amount: 250_000,
+        currency: "ARS", purchase_date: Date.current, due_date: Date.current + 10 }
+    end
+    let(:taxes) { base.merge(expense_type: "taxes", period: Date.new(2026, 9, 1)) }
+
+    it "records the type" do
+      result = described_class.call(**taxes)
+      expect(result.record.expense_type).to eq("taxes")
+    end
+
+    it "defaults to supplier" do
+      expect(described_class.call(**base, invoice_number: "FAC-001").record.expense_type).to eq("supplier")
+    end
+
+    it "refuses a type the supplier does not bill" do
+      result = described_class.call(**taxes, expense_type: "utilities")
+      expect(result.success?).to be false
+      expect(result.errors).to eq([ "AFIP no factura Servicios" ])
+    end
+
+    it "refuses an unknown type" do
+      result = described_class.call(**base, expense_type: "rent")
+      expect(result.success?).to be false
+      expect(result.errors).to include("Tipo de factura inválido")
+    end
+
+    it "refuses product lines on a non-supplier invoice and moves no stock" do
+      product = create(:product)
+      result = nil
+      expect {
+        result = described_class.call(**taxes, items: [ { product_id: product.id, quantity: 2, unit_cost: "10" } ])
+      }.not_to change(StockMovement, :count)
+      expect(result.errors).to include("Solo las facturas de proveedor llevan productos")
+    end
+  end
+
+  describe "identification by type" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes]) }
+    let(:base) do
+      { supplier: afip, amount: 250_000, currency: "ARS", purchase_date: Date.current, due_date: Date.current + 10 }
+    end
+
+    it "refuses a supplier invoice without a number" do
+      result = described_class.call(**base, invoice_number: "")
+      expect(result.success?).to be false
+      expect(result.errors).to include("Invoice number is required")
+    end
+
+    it "ignores the period and detail of a supplier invoice" do
+      invoice = described_class.call(**base, invoice_number: "FAC-001", period: Date.new(2026, 9, 1), detail: "IVA").record
+      expect(invoice.period).to be_nil
+      expect(invoice.detail).to be_nil
+    end
+
+    it "registers a non-supplier invoice by period and detail, without a number" do
+      result = described_class.call(**base, expense_type: "taxes", period: Date.new(2026, 9, 17), detail: " IVA ", invoice_number: "ignored")
+      expect(result.success?).to be true
+      expect(result.record.invoice_number).to be_nil
+      expect(result.record.period).to eq(Date.new(2026, 9, 1))
+      expect(result.record.reference).to eq("IVA · 09/2026")
+    end
+
+    it "refuses a non-supplier invoice without a period" do
+      result = described_class.call(**base, expense_type: "taxes")
+      expect(result.success?).to be false
+      expect(result.errors).to eq([ "Falta el período" ])
+    end
+
+    it "refuses a detail longer than 40 characters" do
+      result = described_class.call(**base, expense_type: "taxes", period: Date.new(2026, 9, 1), detail: "a" * 41)
+      expect(result.success?).to be false
+      expect(result.errors).to eq([ "El detalle no puede superar 40 caracteres" ])
+    end
+
+    it "refuses a non-supplier invoice in dollars" do
+      result = described_class.call(**base, expense_type: "taxes", period: Date.new(2026, 9, 1), currency: "USD", exchange_rate: 1200)
+      expect(result.success?).to be false
+      expect(result.errors).to eq([ "Las boletas de Impuestos son en pesos" ])
+    end
+
+    it "names the pesos rule before asking for an exchange rate" do
+      result = described_class.call(**base, expense_type: "taxes", period: Date.new(2026, 9, 1), currency: "USD")
+      expect(result.errors).to eq([ "Las boletas de Impuestos son en pesos" ])
+    end
+  end
 end

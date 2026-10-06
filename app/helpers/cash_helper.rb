@@ -80,7 +80,32 @@ module CashHelper
   def cash_entry_link(movement)
     return nil unless movement.automatic?
 
-    "if (!event.target.closest('a, button, form')) window.location='#{web_payment_path(movement.source_payment_id)}'"
+    target = if movement.source_payment_id
+      web_payment_path(movement.source_payment_id)
+    elsif movement.paid_invoices.size == 1
+      web_invoice_path(movement.paid_invoices.first)
+    end
+    return nil if target.nil?
+
+    "if (!event.target.closest('a, button, form')) window.location='#{target}'"
+  end
+
+  # "Pago <supplier> — <references>" with each reference linking to its invoice.
+  # The references are typed by users, so link_to escapes them.
+  def cash_paid_invoices_description(movement)
+    invoices = movement.paid_invoices.sort_by(&:id)
+    links = invoices.map { |invoice| link_to(invoice.reference, web_invoice_path(invoice), class: "underline hover:text-slate-600") }
+
+    safe_join([ "Pago #{invoices.first.supplier.name} — ", safe_join(links, ", ") ])
+  end
+
+  # A fixed expense reads as what it is (Impuestos), not as its broad category.
+  def cash_category_label(movement)
+    if movement.fixed_expense_category? && movement.subcategory.present?
+      CashMovement.subcategory_label(movement.subcategory)
+    else
+      CashMovement.category_label(movement.category)
+    end
   end
 
   def cash_pile?(account)

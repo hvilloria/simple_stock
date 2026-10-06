@@ -7,6 +7,31 @@ class Invoice < ApplicationRecord
   has_many :credit_notes, dependent: :restrict_with_error
   has_many :applied_credits, dependent: :destroy
 
+  EXPENSE_TYPE_LABELS = {
+    "supplier"       => "Proveedor",
+    "taxes"          => "Impuestos",
+    "utilities"      => "Servicios",
+    "social_charges" => "Cargas sociales"
+  }.freeze
+
+  belongs_to :cash_movement, optional: true
+
+  enum :expense_type, EXPENSE_TYPE_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
+
+  DETAIL_MAX_LENGTH = 40
+
+  before_validation :normalize_identification
+  before_save :clear_unused_fields
+
+  validate :lines_only_on_supplier_invoices
+  validate :non_supplier_identification, unless: :supplier_expense_type?
+  validate :supplier_bills_expense_type, if: -> { new_record? || will_save_change_to_supplier_id? || will_save_change_to_expense_type? }
+
+  scope :by_expense_type, ->(key) { where(expense_type: key) if EXPENSE_TYPE_LABELS.key?(key.to_s) }
+
+  def self.expense_type_label(key) = EXPENSE_TYPE_LABELS.fetch(key.to_s, key.to_s)
+  def self.expense_type_options = EXPENSE_TYPE_LABELS.map { |key, label| [ label, key ] }
+
   # Enums - Expand states
   enum :status, {
     pending: "pending",     # Invoice pending payment (simple mode)
@@ -23,7 +48,7 @@ class Invoice < ApplicationRecord
   validates :supplier_id, presence: true
 
   # === SIMPLE MODE VALIDATIONS (has_items: false) ===
-  validates :invoice_number, presence: true, unless: :has_items?
+  validates :invoice_number, presence: true, if: -> { supplier_expense_type? && !has_items? }
   validates :due_date, presence: true, unless: :has_items?
   validates :amount, presence: true, unless: :has_items?
   validates :amount, numericality: { greater_than: 0 }, if: -> { amount_required? && amount.present? }
@@ -82,8 +107,14 @@ class Invoice < ApplicationRecord
   # Filter by supplier (accepts nil for "all")
   scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
 
-  # Search by invoice number (case-insensitive, partial match)
-  scope :search_invoice, ->(query) { where("invoice_number ILIKE ?", "%#{query}%") if query.present? }
+  # Search by number, detail, period as MM/YYYY or the reference as shown (case-insensitive, partial match)
+  scope :search_invoice, ->(query) {
+    if query.present?
+      pattern = "%#{sanitize_sql_like(query.to_s)}%"
+      where("invoice_number ILIKE :q OR detail ILIKE :q OR to_char(period, 'MM/YYYY') ILIKE :q " \
+            "OR concat_ws(' · ', detail, to_char(period, 'MM/YYYY')) ILIKE :q", q: pattern)
+    end
+  }
 
   # Filter by status, ignoring values outside the enum
   scope :by_status_filter, ->(status) { where(status: status) if statuses.key?(status.to_s) }
@@ -116,6 +147,17 @@ class Invoice < ApplicationRecord
 
   def simple_mode?
     !has_items?
+  end
+
+  # What the operator calls this invoice: its number for a supplier, otherwise
+  # the optional detail plus the period it covers.
+  def reference
+    build_reference(expense_type, invoice_number, detail, period)
+  end
+
+  # The reference as stored, whatever an unsaved edit has changed since.
+  def reference_was
+    build_reference(expense_type_in_database, invoice_number_in_database, detail_in_database, period_in_database)
   end
 
   def full_mode?
@@ -154,6 +196,34 @@ class Invoice < ApplicationRecord
     raise "Cannot mark as paid: already paid" if paid_status?
 
     update!(status: "paid", paid_at: payment_date, paid_with_discount: paid_with_discount)
+  end
+
+  # The cash category an outflow paying this invoice is recorded under.
+  def cash_category_attrs
+    if supplier_expense_type?
+      { category: "suppliers", subcategory: nil }
+    else
+      { category: "fixed_expense", subcategory: expense_type }
+    end
+  end
+
+  # Pesos that leave the arca for this invoice on that date, before credits.
+  def amount_due_ars(payment_date)
+    due = eligible_for_discount?(payment_date) ? amount_with_discount_ars : total_amount_ars
+    BigDecimal(due.to_s).round(2)
+  end
+
+  # True when a paid invoice left no cash movement because its credits covered
+  # what it owed on the paid date (legacy invoices have no movement either, but
+  # their credits only covered part of it).
+  def paid_with_credits_only?
+    return false unless paid_status? && paid_at && cash_movement_id.nil?
+
+    credited = applied_credits.includes(:credit_note).sum do |applied|
+      note = applied.credit_note
+      note.currency == "USD" ? (applied.amount * note.exchange_rate.to_d).round(2) : applied.amount
+    end
+    credited.positive? && credited >= amount_due_ars(paid_at.to_date)
   end
 
   # === APPLIED CREDITS METHODS ===
@@ -228,7 +298,62 @@ class Invoice < ApplicationRecord
     end
   end
 
+  def early_payment_applicable?
+    supplier_expense_type? || utilities_expense_type?
+  end
+
   private
+
+  def lines_only_on_supplier_invoices
+    return if supplier_expense_type? || invoice_items.empty?
+
+    errors.add(:base, "Solo las facturas de proveedor llevan productos")
+  end
+
+  def normalize_identification
+    self.detail = detail.to_s.strip.presence
+    self.period = period&.beginning_of_month
+  end
+
+  # Only a supplier invoice has a number; every other type is told apart by its
+  # period. Early-payment terms belong to supplier and utilities invoices only.
+  # What a type does not use is dropped only once the save is going through, so
+  # a refused edit re-renders with everything the user typed.
+  def clear_unused_fields
+    clear_early_payment_terms unless early_payment_applicable?
+
+    if supplier_expense_type?
+      self.period = nil
+      self.detail = nil
+    else
+      self.invoice_number = nil
+      self.exchange_rate = nil if currency == "ARS"
+    end
+  end
+
+  def clear_early_payment_terms
+    self.early_payment_due_date = nil
+    self.early_payment_discount_percentage = nil
+  end
+
+  def build_reference(type, number, detail, period)
+    return number if type == "supplier"
+
+    [ detail.presence, period&.strftime("%m/%Y") ].compact.join(" · ")
+  end
+
+  def non_supplier_identification
+    label = Invoice.expense_type_label(expense_type)
+    errors.add(:base, "Falta el período") if period.nil?
+    errors.add(:base, "El detalle no puede superar #{DETAIL_MAX_LENGTH} caracteres") if detail.to_s.length > DETAIL_MAX_LENGTH
+    errors.add(:base, "Las boletas de #{label} son en pesos") unless currency == "ARS"
+  end
+
+  def supplier_bills_expense_type
+    return if supplier.nil? || supplier.bills?(expense_type)
+
+    errors.add(:base, "#{supplier.name} no factura #{Invoice.expense_type_label(expense_type)}")
+  end
 
   # An amount-only invoice carries a typed amount that must be positive. An
   # invoice with lines takes its amount from them and may sum to zero.
@@ -241,7 +366,7 @@ class Invoice < ApplicationRecord
   end
 
   def set_early_payment_terms
-    return unless supplier.has_early_payment_discount?
+    return unless early_payment_applicable? && supplier.has_early_payment_discount?
     return if early_payment_due_date.present? || early_payment_discount_percentage.present?
 
     self.early_payment_due_date = purchase_date + supplier.early_payment_days.days

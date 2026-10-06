@@ -25,7 +25,18 @@ module Web
       # only handle the period's compensations have.
       CHANNEL_OPTIONS = CashMovement::CHANNEL_LABELS.map { |channel, label| [ label, channel ] }.freeze
 
-      CATEGORY_OPTIONS = CashMovement::CATEGORY_LABELS.map { |category, label| [ label, category ] }.freeze
+      # The same list as "Qué es" on the day screen: each fixed expense by its
+      # own name, plus every fixed expense together.
+      CATEGORY_OPTIONS = [
+        [ CashMovement.category_label("sale"), "sale" ],
+        [ CashMovement.category_label("suppliers"), "suppliers" ],
+        *CashMovement::SUBCATEGORY_LABELS.map { |key, label| [ label, key ] },
+        [ "Gastos fijos (todos)", "fixed_expense" ],
+        [ CashMovement.category_label("partner"), "partner" ],
+        [ CashMovement.category_label("internal_transfer"), "internal_transfer" ],
+        [ CashMovement.category_label("cash_discrepancy"), "cash_discrepancy" ],
+        [ CashMovement.category_label("opening_balance"), "opening_balance" ]
+      ].freeze
 
       def balance
         authorize CashMovement, :balance_report?

@@ -32,6 +32,10 @@
             %span.text-gray-500.w-32.flex-shrink-0 Nombre:
             %span.font-medium.text-gray-900= @supplier.name
 
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-32.flex-shrink-0 Factura:
+            %span.text-gray-900= @supplier.expense_types_display
+
           - if @supplier.email.present?
             .flex.items-start.gap-3
               %span.text-gray-500.w-32.flex-shrink-0 Email:
@@ -87,7 +91,7 @@
                 .flex.items-center.justify-between
                   .flex-1
                     .flex.items-center.gap-3.mb-2
-                      %span.font-mono.text-sm.font-semibold.text-gray-900= invoice.invoice_number
+                      %span.font-mono.text-sm.font-semibold.text-gray-900= invoice.reference
                       - if invoice.overdue?
                         %span.px-2.py-1.bg-red-100.text-red-700.text-xs.rounded-full.font-medium Vencida
                       - elsif invoice.days_until_due && invoice.days_until_due <= 7
@@ -117,7 +121,7 @@
               = link_to web_invoice_path(invoice), class: "block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-75" do
                 .flex.items-center.justify-between
                   .flex-1
-                    %span.font-mono.text-sm.font-semibold.text-gray-700= invoice.invoice_number
+                    %span.font-mono.text-sm.font-semibold.text-gray-700= invoice.reference
                     %span.text-xs.text-gray-500.ml-3
                       ✓ Pagada el
                       = invoice.paid_at.to_date.strftime("%d/%m/%Y")

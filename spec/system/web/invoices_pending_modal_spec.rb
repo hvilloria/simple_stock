@@ -10,7 +10,7 @@ require "rails_helper"
 # What is tested here:
 #   1. Invoice list in modal shows individual numbers, not a generic count
 #   2. Credit notes render as checkboxes (not free-text number inputs)
-#   3. Checking a NC recalculates "Neto a transferir" correctly
+#   3. Checking a NC recalculates the "Sale de" net total correctly
 #   4. Unchecking restores the previous net total
 #   5. When invoice is fully covered, remaining unchecked NCs get disabled
 #   6. Unchecking re-enables the disabled NCs
@@ -243,6 +243,61 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
     it "still shows the invoice list" do
       within "#modalInvoicesList" do
         expect(page).to have_text("FAC-NOCN")
+      end
+    end
+  end
+
+  # ── 9. Paying from the modal ──────────────────────────────────────────
+
+  describe "paying from the modal" do
+    before do
+      create_invoice(amount: 100_000, number: "FAC-PAY")
+      open_payment_modal
+    end
+
+    it "titles the modal with the supplier and the type" do
+      expect(page).to have_css("#modalTitle", text: "Pagar · #{supplier.name} · Proveedor")
+    end
+
+    it "requires an origin and writes the outflow" do
+      expect(page).to have_button("Confirmar pago", disabled: true)
+      within("#paymentModal") { find("label", text: "Banco").click }
+      click_button "Confirmar pago"
+
+      expect(page).to have_text("Salió $ 100.000,00 de Banco")
+      expect(CashMovement.last).to have_attributes(account: "bank", amount: -100_000)
+    end
+  end
+
+  describe "the amount follows the payment date" do
+    before do
+      create(:invoice, :simple_mode, supplier: supplier, amount: 100_000, currency: "ARS",
+             invoice_number: "FAC-EARLY", due_date: Date.current.beginning_of_week(:monday),
+             purchase_date: 30.days.ago.to_date,
+             early_payment_due_date: Date.current - 1, early_payment_discount_percentage: 10)
+      open_payment_modal
+    end
+
+    it "shows the full amount today and the discounted one when backdated into the window" do
+      expect(page).to have_css("#modalNetTotal", text: /\$\s*100\.000,00/)
+
+      find("#payment_date").set(Date.current - 1)
+
+      expect(page).to have_css("#modalNetTotal", text: /\$\s*90\.000,00/)
+      expect(page).to have_css("#modalInvoicesList", text: /\$\s*90\.000,00/)
+    end
+  end
+
+  describe "invoice numbers are rendered as text" do
+    before do
+      create_invoice(amount: 100_000, number: "<b>FAC-XSS</b>")
+      open_payment_modal
+    end
+
+    it "shows the literal number without injecting markup" do
+      within "#modalInvoicesList" do
+        expect(page).to have_text("<b>FAC-XSS</b>")
+        expect(page).not_to have_css("b")
       end
     end
   end

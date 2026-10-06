@@ -11,13 +11,34 @@ class Supplier < ApplicationRecord
   validates :early_payment_discount_percentage, numericality: { greater_than: 0, less_than_or_equal_to: 100, allow_nil: true }
   validates :early_payment_days, presence: true, if: -> { early_payment_discount_percentage.present? }
   validates :early_payment_discount_percentage, presence: true, if: -> { early_payment_days.present? }
+  validate :expense_types_are_billable
+  validate :payment_terms_only_for_suppliers
+
+  before_validation :strip_blank_expense_types
 
   # Scopes
   scope :alphabetical, -> { order(:name) }
+  scope :billing, ->(type) { where("? = ANY (suppliers.expense_types)", type.to_s) if Invoice::EXPENSE_TYPE_LABELS.key?(type.to_s) }
 
   # Helper methods
+  def bills?(type)
+    expense_types.include?(type.to_s)
+  end
+
+  def offers_payment_terms?
+    bills?("supplier") || bills?("utilities")
+  end
+
+  def payment_terms_present?
+    [ payment_term_days, early_payment_days, early_payment_discount_percentage ].any?(&:present?)
+  end
+
   def bank_info_present?
     bank_alias.present? || bank_account.present?
+  end
+
+  def bank_info_stored?
+    bank_alias_in_database.present? || bank_account_in_database.present?
   end
 
   def bank_info_formatted
@@ -35,6 +56,10 @@ class Supplier < ApplicationRecord
 
   def pending_invoices_count
     invoices.simple_mode.pending_payment.count
+  end
+
+  def expense_types_display
+    expense_types.map { |key| Invoice.expense_type_label(key) }.join(" · ")
   end
 
   def payment_term_display
@@ -64,5 +89,25 @@ class Supplier < ApplicationRecord
     return "No configurado" unless has_early_payment_discount?
     percentage = early_payment_discount_percentage.to_i == early_payment_discount_percentage ? early_payment_discount_percentage.to_i : early_payment_discount_percentage
     "#{percentage}% si paga en #{early_payment_days} días"
+  end
+
+  private
+
+  def strip_blank_expense_types
+    self.expense_types = Array(expense_types).map(&:to_s).compact_blank.uniq
+  end
+
+  def expense_types_are_billable
+    if expense_types.empty?
+      errors.add(:base, "Elegí al menos un tipo de factura")
+    elsif (expense_types - Invoice::EXPENSE_TYPE_LABELS.keys).any?
+      errors.add(:base, "Tipo de factura inválido")
+    end
+  end
+
+  def payment_terms_only_for_suppliers
+    return if offers_payment_terms? || !payment_terms_present?
+
+    errors.add(:base, "Las condiciones de pago solo corresponden a proveedores o servicios")
   end
 end

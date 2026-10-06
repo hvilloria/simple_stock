@@ -13,12 +13,15 @@ module Web
       @suppliers = Supplier.alphabetical
       @selected_supplier = Supplier.find_by(id: params[:supplier_id]) if params[:supplier_id].present?
       @status = normalize_status(params[:status])
+      @expense_type = params[:expense_type].to_s
+      @expense_type_options = Invoice.expense_type_options
 
       invoices_scope = Invoice.simple_mode
                               .includes(:supplier)
                               .for_supplier(@selected_supplier)
                               .search_invoice(params[:invoice_search])
                               .by_status_filter(@status)
+                              .by_expense_type(@expense_type)
 
       @pagy, @invoices = pagy(ordered_invoices(invoices_scope))
 
@@ -27,13 +30,17 @@ module Web
                               .pending_payment
                               .for_supplier(@selected_supplier)
                               .search_invoice(params[:invoice_search])
+                              .by_expense_type(@expense_type)
 
       @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars(include_discount: true) }
 
       # Available credits (filtered only by supplier, not by invoice search)
-      credit_notes_scope = CreditNote.includes(:applied_credits)
-                                      .for_supplier(@selected_supplier)
-                                      .available
+      # Credit notes only apply to supplier invoices, so another type shows none.
+      credit_notes_scope = if non_supplier_type?(@expense_type)
+        CreditNote.none
+      else
+        CreditNote.includes(:applied_credits).for_supplier(@selected_supplier).available
+      end
 
       @total_credit_amount = credit_notes_scope.sum { |cn| cn.remaining_balance_ars }
       # Count only notes with available balance (excludes those already applied/exhausted)
@@ -58,17 +65,13 @@ module Web
       @total_invoices_count = all_invoices.count
       # Original amount (without discounts)
       @total_invoices_amount = all_invoices.sum { |i| i.total_amount_ars }
-      # Amount with discounts applied where applicable
-      @total_invoices_with_discount = all_invoices.sum { |i| i.amount_with_discount_ars }
-      # Total savings from discounts
-      @total_savings = all_invoices.sum { |i| i.potential_savings_ars }
+      # Header cards sum the table groups, so they always agree with it
+      @total_invoices_with_discount = @suppliers_with_payments.sum { |group| group[:invoices_amount_with_discount] }
+      @total_savings = @total_invoices_amount - @total_invoices_with_discount
 
-      # Available credits (from suppliers that have invoices)
-      supplier_ids = all_invoices.map(&:supplier_id).uniq
-      @total_credits_amount = CreditNote.where(supplier_id: supplier_ids).available.sum { |cn| cn.remaining_balance_ars }
-      @total_credits_count = CreditNote.where(supplier_id: supplier_ids).available.count
+      @total_credits_amount = @suppliers_with_payments.sum { |group| group[:credits_amount] }
+      @total_credits_count = @suppliers_with_payments.sum { |group| group[:credit_notes].size }
 
-      # Total to pay (net) - uses amount with discount
       @total_to_pay = @total_invoices_with_discount - @total_credits_amount
     end
 
@@ -99,6 +102,9 @@ module Web
         notes: params[:notes],
         early_payment_due_date: parse_optional_date(params[:early_payment_due_date]),
         early_payment_discount_percentage: parse_optional_integer(params[:early_payment_discount_percentage]),
+        expense_type: params[:expense_type].presence || "supplier",
+        period: parse_period(params[:period]),
+        detail: params[:detail],
         items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
@@ -118,6 +124,7 @@ module Web
 
     def edit
       authorize @invoice
+      load_selectable_suppliers
 
       unless @invoice.pending_status?
         redirect_to web_invoice_path(@invoice), alert: "Solo se pueden editar facturas pendientes."
@@ -137,6 +144,11 @@ module Web
       update_params = invoice_update_params
       # The lines own the amount; a value typed around the read-only field is ignored.
       update_params.delete(:amount) if @invoice.invoice_items.any?
+      # The type is locked once lines exist, and an unknown key must not reach the enum.
+      if @invoice.invoice_items.any? || !Invoice::EXPENSE_TYPE_LABELS.key?(update_params[:expense_type].to_s)
+        update_params.delete(:expense_type)
+      end
+      update_params[:period] = parse_period(update_params[:period]) if update_params.key?(:period)
       update_params[:amount] = parse_amount(update_params[:amount]) if update_params[:amount].present?
       update_params[:exchange_rate] = parse_amount(update_params[:exchange_rate]) if update_params[:exchange_rate].present?
 
@@ -144,6 +156,7 @@ module Web
         redirect_to web_invoice_path(@invoice), notice: "Factura actualizada exitosamente."
       else
         load_suppliers
+        load_selectable_suppliers
         render :edit, status: :unprocessable_entity
       end
     end
@@ -151,24 +164,15 @@ module Web
     def mark_as_paid
       authorize @invoice
 
-      payment_date = parse_date(params[:payment_date]) || Date.current
-      apply_discount = params[:apply_discount] == "true"
-
-      # Validate discount
-      if apply_discount && !@invoice.eligible_for_discount?(payment_date)
-        redirect_to web_invoice_path(@invoice),
-                    alert: "El descuento ya expiró. No se puede aplicar."
-        return
-      end
-
-      result = Invoices::MarkAsPaid.call(
-        invoice: @invoice,
-        payment_date: payment_date,
-        apply_discount: apply_discount
+      result = Invoices::PayInvoices.call(
+        invoices: [ @invoice ],
+        account: params[:account],
+        payment_date: parse_date(params[:payment_date]) || Date.current,
+        user: current_user
       )
 
       if result.success?
-        redirect_to web_invoice_path(@invoice), notice: "Factura marcada como pagada."
+        redirect_to web_invoice_path(@invoice), notice: payment_notice(result.record)
       else
         redirect_to web_invoice_path(@invoice), alert: result.errors.join(", ")
       end
@@ -198,21 +202,17 @@ module Web
         return
       end
 
-      payment_date = params[:payment_date].present? ? Date.parse(params[:payment_date]) : Date.current
-
-      credit_note_ids = Array(params[:credit_note_ids]).map(&:to_i).reject(&:zero?)
-
-      result = Invoices::ProcessPayment.call(
-        invoices:        invoices,
-        credit_note_ids: credit_note_ids,
-        payment_date:    payment_date
+      result = Invoices::PayInvoices.call(
+        invoices: invoices,
+        account: params[:account],
+        payment_date: parse_date(params[:payment_date]) || Date.current,
+        user: current_user,
+        credit_note_ids: Array(params[:credit_note_ids])
       )
-
-      supplier_name = invoices.first&.supplier&.name
 
       if result.success?
         redirect_to pending_web_invoices_path(period: period),
-                    notice: "#{invoices.count} factura(s) de #{supplier_name} marcada(s) como pagada(s)."
+                    notice: "#{invoices.count} factura(s) de #{invoices.first.supplier.name} pagada(s). #{payment_notice(result.record)}"
       else
         redirect_to pending_web_invoices_path(period: period), alert: result.errors.join(", ")
       end
@@ -222,6 +222,23 @@ module Web
 
     def load_suppliers
       @suppliers = Supplier.order(:name)
+    end
+
+    # The edit form offers the suppliers billing the invoice's type, plus the
+    # one it already has so the invoice never loses it.
+    def load_selectable_suppliers
+      kept = [ @invoice.supplier_id, @invoice.supplier_id_in_database ].compact
+      @selectable_supplier_ids = Supplier.billing(@invoice.expense_type).or(Supplier.where(id: kept)).pluck(:id)
+    end
+
+    def non_supplier_type?(expense_type)
+      Invoice::EXPENSE_TYPE_LABELS.key?(expense_type) && expense_type != "supplier"
+    end
+
+    def payment_notice(movement)
+      return "No salió plata de ninguna arca." if movement.nil?
+
+      "Salió $ #{helpers.number_ar(movement.amount.abs)} de #{CashMovement.account_label(movement.account)}."
     end
 
     STATUS_FILTERS = %w[pending paid cancelled].freeze
@@ -235,7 +252,7 @@ module Web
     end
 
     def load_invoice
-      @invoice = Invoice.find(params[:id])
+      @invoice = Invoice.includes(cash_movement: :paid_invoices).find(params[:id])
     end
 
     def find_supplier
@@ -281,6 +298,17 @@ module Web
       nil
     end
 
+    # A month input posts "YYYY-MM"; a browser without month inputs sends the
+    # typed "MM/YYYY" or "M/YYYY". The invoice stores the first of that month.
+    def parse_period(value)
+      match = value.to_s.strip.match(%r{\A(?:(?<year>\d{4})-(?<month>\d{2})|(?<month>\d{1,2})/(?<year>\d{4}))\z})
+      return nil unless match
+
+      Date.new(match[:year].to_i, match[:month].to_i, 1)
+    rescue ArgumentError
+      nil
+    end
+
     def parse_optional_integer(value)
       return nil if value.blank?
       value.to_i
@@ -300,7 +328,10 @@ module Web
     def invoice_update_params
       params.require(:invoice).permit(
         :supplier_id,
+        :expense_type,
         :invoice_number,
+        :period,
+        :detail,
         :amount,
         :exchange_rate,
         :purchase_date,
@@ -334,65 +365,26 @@ module Web
       Invoice.due_or_discount_in_period(start_date, end_date)
     end
 
-    def calculate_payments_by_supplier(invoices)
-      invoices.includes(:supplier)
-              .group_by(&:supplier)
-              .map do |supplier, supplier_invoices|
-                credits_amount = supplier.credit_notes.available.sum { |cn| cn.remaining_balance_ars }
-                invoices_amount = supplier_invoices.sum { |i| i.total_amount_ars }
-
-                {
-                  supplier: supplier,
-                  invoices: supplier_invoices,
-                  invoices_count: supplier_invoices.count,
-                  invoices_amount: invoices_amount,
-                  credits_amount: credits_amount,
-                  amount_to_pay: invoices_amount - credits_amount
-                }
-              end
-              .sort_by { |data| data[:amount_to_pay] }
-              .reverse
-    end
-
-    def calculate_payments_by_supplier_from_array(invoices_array)
-      invoices_array.group_by(&:supplier)
-                    .map do |supplier, supplier_invoices|
-                      credits_amount = supplier.credit_notes.available.sum { |cn| cn.remaining_balance_ars }
-                      invoices_amount = supplier_invoices.sum { |i| i.total_amount_ars }
-
-                      {
-                        supplier: supplier,
-                        invoices: supplier_invoices,
-                        invoices_count: supplier_invoices.count,
-                        invoices_amount: invoices_amount,
-                        credits_amount: credits_amount,
-                        amount_to_pay: invoices_amount - credits_amount
-                      }
-                    end
-                    .sort_by { |data| data[:amount_to_pay] }
-                    .reverse
-    end
-
-    # Groups invoices by supplier calculating original and discounted amounts
+    # One row per supplier and type: a batch never mixes types, and only
+    # supplier invoices take credit notes.
     def calculate_payments_by_supplier_unified(invoices_array)
-      invoices_array.group_by(&:supplier)
-                    .map do |supplier, supplier_invoices|
-                      credit_notes  = supplier.credit_notes.available.to_a.select(&:available?)
+      invoices_array.group_by { |invoice| [ invoice.supplier, invoice.expense_type ] }
+                    .map do |(supplier, expense_type), group|
+                      credit_notes = expense_type == "supplier" ? supplier.credit_notes.available.to_a.select(&:available?) : []
                       credits_amount = credit_notes.sum(&:remaining_balance_ars)
-                      # Original amount (without discount)
-                      invoices_amount = supplier_invoices.sum { |i| i.total_amount }
-                      # Amount with discount applied where applicable
-                      invoices_amount_with_discount = supplier_invoices.sum { |i| i.amount_with_discount_ars }
+                      invoices_amount = group.sum(&:total_amount)
+                      amount_due = group.sum { |invoice| invoice.amount_due_ars(Date.current) }
 
                       {
                         supplier: supplier,
-                        invoices: supplier_invoices,
-                        invoices_count: supplier_invoices.count,
+                        expense_type: expense_type,
+                        invoices: group,
+                        invoices_count: group.count,
                         invoices_amount: invoices_amount,
-                        invoices_amount_with_discount: invoices_amount_with_discount,
+                        invoices_amount_with_discount: amount_due,
                         credits_amount: credits_amount,
                         credit_notes: credit_notes,
-                        amount_to_pay: invoices_amount_with_discount - credits_amount
+                        amount_to_pay: amount_due - credits_amount
                       }
                     end
                     .sort_by { |data| data[:amount_to_pay] }

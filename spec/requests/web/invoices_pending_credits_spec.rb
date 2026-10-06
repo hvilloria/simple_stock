@@ -4,13 +4,13 @@ require "rails_helper"
 
 # Tests for POST /web/invoices/mark_supplier_paid.
 # The controller receives explicit invoice_ids and credit_note_ids — no amounts.
-# ProcessPayment distributes NC balances across invoices internally.
+# PayInvoices distributes NC balances across invoices internally.
 
 RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type: :request do
   include Devise::Test::IntegrationHelpers
 
   let(:admin)    { create(:user, role: "admin") }
-  let(:supplier) { create(:supplier, name: "Proveedor Test") }
+  let(:supplier) { create(:supplier, name: "Proveedor Test", expense_types: %w[supplier taxes]) }
 
   before { sign_in admin }
 
@@ -29,7 +29,8 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
       invoice_ids:     Array(invoice_ids),
       credit_note_ids: credit_note_ids,
       period:          "this_week",
-      payment_date:    payment_date.to_s
+      payment_date:    payment_date.to_s,
+      account:         "main_cash"
     }
   end
 
@@ -43,6 +44,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
     it "marks the invoice as paid" do
       post_payment(invoice_ids: [ invoice.id ], credit_note_ids: [ cn.id ])
       expect(invoice.reload.paid_status?).to be true
+      expect(CashMovement.last).to have_attributes(account: "main_cash", amount: -50_000, category: "suppliers")
     end
 
     it "exhausts the credit note balance" do
@@ -145,7 +147,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
   # ─────────────────────────────────────────────────────────────────
   # Scenario 5: 2 invoices ($60k + $40k), NC $80k — automatic distribution
-  # ProcessPayment distributes internally:
+  # PayInvoices distributes internally:
   #   FAC-A: applies min(80k, 60k) = 60k → remaining NC = 20k
   #   FAC-B: applies min(20k, 40k) = 20k → remaining NC = 0
   # ─────────────────────────────────────────────────────────────────
@@ -218,6 +220,57 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
       }.not_to change(AppliedCredit, :count)
 
       expect(invoice.reload.paid_status?).to be true
+    end
+  end
+
+  describe "groups by supplier and type" do
+    it "lists AFIP once per type" do
+      afip = create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities])
+      [ [ "taxes", "IVA" ], [ "social_charges", "SICOSS" ] ].each do |type, detail|
+        create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: type, detail: detail, period: Date.new(2026, 9, 1),
+               amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
+      end
+
+      get pending_web_invoices_path(period: "this_week")
+
+      expect(response.body).to include("Impuestos")
+      expect(response.body).to include("Cargas sociales")
+      expect(response.body.scan(/data-group-supplier="AFIP"/).size).to eq(2)
+    end
+
+    it "names each non-supplier row by its reference, in the table and in the payment modal" do
+      afip = create(:supplier, name: "AFIP", expense_types: %w[taxes])
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1),
+                       amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
+
+      get pending_web_invoices_path(period: "this_week")
+
+      html = Nokogiri::HTML(response.body)
+      expect(html.at("a[href='#{web_invoice_path(invoice)}']").text).to eq("IVA · 09/2026")
+      expect(html.css("th").map { |th| th.text.strip }).to include("Comprobante")
+      expect(JSON.parse(html.at("[data-invoices-list]")["data-invoices-list"]).map { |i| i["number"] }).to eq([ "IVA · 09/2026" ])
+    end
+  end
+
+  describe "header cards agree with the table" do
+    it "does not show an expired early-payment discount" do
+      invoice = invoice_this_week(amount: 100_000, number: "FAC-EXP")
+      invoice.update_columns(early_payment_discount_percentage: 10, early_payment_due_date: Date.yesterday)
+
+      get pending_web_invoices_path(period: "this_week")
+
+      expect(response.body).to include("Sin descuentos disponibles")
+      expect(response.body).not_to include("90.000,00")
+    end
+
+    it "ignores credits of suppliers that only appear under non-supplier types" do
+      create(:credit_note, supplier: supplier, amount: 5_000)
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, expense_type: "taxes", detail: "IIBB",
+             amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
+
+      get pending_web_invoices_path(period: "this_week")
+
+      expect(response.body).not_to include("5.000,00")
     end
   end
 end

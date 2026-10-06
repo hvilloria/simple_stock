@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe "Web::CreditNotes", type: :request do
   let(:admin) { create(:user, role: "admin") }
-  let(:supplier) { create(:supplier, name: "Distribuidora Norte") }
+  let(:supplier) { create(:supplier, name: "Distribuidora Norte", expense_types: %w[supplier taxes]) }
   let(:invoice) { create(:invoice, :simple_mode, supplier: supplier) }
 
   before { sign_in admin }
@@ -108,6 +108,67 @@ RSpec.describe "Web::CreditNotes", type: :request do
 
       expect(response.body).to include("ARS 1.000,00")
       expect(response.body).not_to include("ARS 6.000,00")
+    end
+  end
+
+  describe "GET /web/credit_notes/supplier_invoices" do
+    it "offers only supplier-type invoices to a credit note" do
+      keep = create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "KEEP")
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, detail: "DROP", expense_type: "taxes")
+
+      get supplier_invoices_web_credit_notes_path(supplier_id: supplier.id)
+
+      expect(response.parsed_body.map { |row| row["number"] }).to eq([ keep.invoice_number ])
+    end
+  end
+
+  describe "GET /web/credit_notes/:id/edit" do
+    it "offers only supplier-type invoices to link" do
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "KEEP-INV")
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, detail: "DROP-INV", expense_type: "taxes")
+      note = create(:credit_note, supplier: supplier, amount: 1000)
+
+      get edit_web_credit_note_path(note)
+
+      expect(response.body).to include("KEEP-INV")
+      expect(response.body).not_to include("DROP-INV")
+    end
+  end
+
+  describe "suppliers that can hold a credit note" do
+    let!(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes]) }
+
+    before { supplier }
+
+    def supplier_option_names
+      Nokogiri::HTML(response.body).css("select#credit_note_supplier_id option").map(&:text)
+    end
+
+    it "lists only suppliers billing Proveedor on the new form" do
+      get new_web_credit_note_path
+
+      expect(supplier_option_names).to include("Distribuidora Norte")
+      expect(supplier_option_names).not_to include("AFIP")
+    end
+
+    it "refuses a note for a supplier that does not bill Proveedor" do
+      expect {
+        post web_credit_notes_path, params: { credit_note: { supplier_id: afip.id, credit_note_number: "NC-AFIP",
+                                                              amount: "1000", currency: "ARS", issue_date: Date.current } }
+      }.not_to change(CreditNote, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("AFIP no factura Proveedor")
+    end
+
+    it "keeps the current supplier of a note on the edit form" do
+      note = create(:credit_note, supplier: supplier, amount: 1000)
+      supplier.update!(expense_types: %w[taxes])
+
+      get edit_web_credit_note_path(note)
+
+      expect(supplier_option_names).to include("Distribuidora Norte")
+      expect(supplier_option_names).not_to include("AFIP")
     end
   end
 end

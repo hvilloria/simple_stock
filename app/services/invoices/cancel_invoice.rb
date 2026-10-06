@@ -53,7 +53,7 @@ module Invoices
           movement_type: "adjustment",
           quantity: -quantity,
           reference: @invoice,
-          note: "Cancelación de factura #{@invoice.invoice_number}"
+          note: "Cancelación de factura #{@invoice.reference}"
         )
         raise ValidationError, result.errors.join(", ") if result.failure?
       end

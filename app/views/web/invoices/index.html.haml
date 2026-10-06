@@ -15,10 +15,10 @@
   .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
     = form_with url: web_invoices_path, method: :get, data: { controller: "filter-form" }, class: "flex flex-col md:flex-row items-stretch md:items-center gap-4" do |f|
       
-      -# Search by invoice number
+      -# Search by number, detail or period
       .flex-1
         = text_field_tag :invoice_search, params[:invoice_search],
-                         placeholder: "🔍 Buscar por N° de factura (ej: 001)...",
+                         placeholder: "🔍 Buscar por N° de factura, detalle o período (ej: 001, IVA, 09/2026)...",
                          autofocus: params[:invoice_search].present?,
                          class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
                          data: { action: "input->filter-form#submitWithDebounce" }
@@ -26,6 +26,13 @@
       -# Suppliers dropdown
       .flex-1
         = select_tag :supplier_id, options_for_select([["🔍 Filtrar por proveedor...", ""]] + @suppliers.map { |s| [s.name, s.id] }, @selected_supplier&.id), class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { action: "change->filter-form#submit" }
+
+      -# Type filter
+      .flex-1
+        = select_tag :expense_type,
+                     options_for_select([ [ "Todos los tipos", "" ] ] + @expense_type_options, @expense_type),
+                     class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
+                     data: { action: "change->filter-form#submit" }
 
       -# Status filter — also selects the date axis of the list
       .flex-1
@@ -35,7 +42,7 @@
                      data: { action: "change->filter-form#submit" }
 
       -# Clear button (visible only if there are active filters)
-      - if @selected_supplier || params[:invoice_search].present? || @status != "pending"
+      - if @selected_supplier || params[:invoice_search].present? || @status != "pending" || @expense_type.present?
         .flex.items-center.gap-2
           = link_to web_invoices_path, class: "inline-flex items-center justify-center px-3 py-2 text-slate-600 text-sm font-medium hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors" do
             %span ✕
@@ -57,7 +64,7 @@
       
       .text-sm.text-gray-500
         %span.font-medium.text-gray-700
-          = Invoice.simple_mode.pending_payment.for_supplier(@selected_supplier).search_invoice(params[:invoice_search]).count
+          = Invoice.simple_mode.pending_payment.for_supplier(@selected_supplier).search_invoice(params[:invoice_search]).by_expense_type(@expense_type).count
         %span facturas pendientes
 
     -# Card 2: Credit balance
@@ -120,7 +127,9 @@
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               Proveedor
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
-              N° Factura
+              Tipo
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
+              Comprobante
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
               = date_header
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider
@@ -143,8 +152,10 @@
               %td.px-4.py-3.whitespace-nowrap
                 %p.text-sm.font-medium.text-slate-900= invoice.supplier.name
               
+              %td.px-4.py-3.text-sm.text-slate-600= Invoice.expense_type_label(invoice.expense_type)
+
               %td.px-4.py-3.whitespace-nowrap
-                %p.text-sm.font-mono.text-slate-700= invoice.invoice_number
+                %p.text-sm.font-mono.text-slate-700= invoice.reference
               
               %td.px-4.py-3.whitespace-nowrap
                 - if @status == "paid"

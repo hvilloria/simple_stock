@@ -28,6 +28,7 @@ class CreditNote < ApplicationRecord
   validates :exchange_rate, numericality: { greater_than: 0 }, allow_nil: true
   validates :issue_date, presence: true
   validates :supplier_id, presence: true
+  validate :supplier_bills_supplier_invoices, if: -> { supplier && (new_record? || will_save_change_to_supplier_id?) }
 
   # Scopes
   scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
@@ -94,6 +95,12 @@ class CreditNote < ApplicationRecord
 
   def usd_currency?
     currency == "USD"
+  end
+
+  def supplier_bills_supplier_invoices
+    return if supplier.bills?("supplier")
+
+    errors.add(:base, "#{supplier.name} no factura #{Invoice.expense_type_label('supplier')}")
   end
 
   def set_currency_from_invoice

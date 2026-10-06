@@ -622,6 +622,46 @@ RSpec.describe Invoice, type: :model do
         expect(invoice.early_payment_due_date).to eq(Date.new(2026, 1, 20))
         expect(invoice.early_payment_discount_percentage).to eq(3)
       end
+
+      context "when the supplier bills both Proveedor and Impuestos with a discount" do
+        let(:mixed) do
+          create(:supplier, expense_types: %w[supplier taxes], early_payment_days: 10, early_payment_discount_percentage: 5)
+        end
+
+        it "gives a tax invoice no discount, so it is due in full" do
+          invoice = create(:invoice, :simple_mode, :in_ars, supplier: mixed, expense_type: "taxes",
+                           amount: 100_000, purchase_date: Date.current)
+
+          expect(invoice.early_payment_due_date).to be_nil
+          expect(invoice.early_payment_discount_percentage).to be_nil
+          expect(invoice.amount_due_ars(Date.current)).to eq(100_000)
+        end
+
+        it "still gives a supplier invoice the discount" do
+          invoice = create(:invoice, :simple_mode, :in_ars, supplier: mixed, amount: 100_000, purchase_date: Date.current)
+
+          expect(invoice.early_payment_discount_percentage).to eq(5)
+          expect(invoice.amount_due_ars(Date.current)).to eq(95_000)
+        end
+
+        it "drops a typed discount from a social charges invoice" do
+          invoice = build(:invoice, :simple_mode, :in_ars, supplier: create(:supplier, expense_types: %w[social_charges]),
+                          expense_type: "social_charges", early_payment_due_date: Date.current + 5,
+                          early_payment_discount_percentage: 5)
+          invoice.save!
+
+          expect(invoice.early_payment_discount_percentage).to be_nil
+          expect(invoice.early_payment_due_date).to be_nil
+        end
+
+        it "clears the discount when a supplier invoice is edited into a tax invoice" do
+          invoice = create(:invoice, :simple_mode, :in_ars, supplier: mixed, amount: 100_000, purchase_date: Date.current)
+
+          invoice.update!(expense_type: "taxes", period: Date.current.beginning_of_month)
+
+          expect(invoice.reload).to have_attributes(early_payment_due_date: nil, early_payment_discount_percentage: nil)
+        end
+      end
     end
   end
 
@@ -841,6 +881,232 @@ RSpec.describe Invoice, type: :model do
 
       result = Invoice.due_or_discount_in_period(start_date, end_date)
       expect(result.where(id: invoice.id).count).to eq(1)
+    end
+  end
+
+  describe "expense type" do
+    it "defaults to supplier" do
+      invoice = create(:invoice, :simple_mode, :in_ars)
+      expect(invoice.expense_type).to eq("supplier")
+    end
+
+    it "rejects product lines on a non-supplier invoice" do
+      invoice = build(:invoice, :full_mode, expense_type: "taxes")
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("Solo las facturas de proveedor llevan productos")
+    end
+
+    it "maps each type to its cash category" do
+      expect(build(:invoice, expense_type: "supplier").cash_category_attrs).to eq(category: "suppliers", subcategory: nil)
+      expect(build(:invoice, expense_type: "taxes").cash_category_attrs).to eq(category: "fixed_expense", subcategory: "taxes")
+      expect(build(:invoice, expense_type: "utilities").cash_category_attrs).to eq(category: "fixed_expense", subcategory: "utilities")
+      expect(build(:invoice, expense_type: "social_charges").cash_category_attrs).to eq(category: "fixed_expense", subcategory: "social_charges")
+    end
+
+    it "filters by type and ignores an unknown one" do
+      taxes = create(:invoice, :simple_mode, :in_ars, supplier: create(:supplier, expense_types: %w[taxes]), expense_type: "taxes")
+      supplier = create(:invoice, :simple_mode, :in_ars)
+      expect(Invoice.by_expense_type("taxes")).to contain_exactly(taxes)
+      expect(Invoice.by_expense_type("bogus")).to include(taxes, supplier)
+      expect(Invoice.by_expense_type("")).to include(taxes, supplier)
+    end
+  end
+
+  describe "supplier billing the type" do
+    let(:merchandise) { create(:supplier) }
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes]) }
+
+    it "refuses a type the supplier does not bill" do
+      invoice = build(:invoice, :simple_mode, :in_ars, supplier: merchandise, expense_type: "taxes")
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("#{merchandise.name} no factura Impuestos")
+    end
+
+    it "accepts a type the supplier bills" do
+      expect(build(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")).to be_valid
+    end
+
+    it "keeps updating an invoice whose supplier later dropped its type" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      afip.update!(expense_types: %w[utilities])
+
+      expect { invoice.reload.update!(status: "paid", paid_at: Date.current) }.not_to raise_error
+    end
+
+    it "refuses changing the type to one the supplier does not bill" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      invoice.expense_type = "utilities"
+
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("AFIP no factura Servicios")
+    end
+
+    it "refuses changing the supplier to one that does not bill the type" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      invoice.supplier = merchandise
+
+      expect(invoice).not_to be_valid
+    end
+  end
+
+  describe "identification by type" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes utilities social_charges]) }
+
+    def taxes_invoice(**attrs)
+      build(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", **attrs)
+    end
+
+    it "requires an invoice number on a supplier invoice" do
+      invoice = build(:invoice, :simple_mode, :in_ars, invoice_number: nil)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:invoice_number]).to be_present
+    end
+
+    it "clears the period and detail of a supplier invoice" do
+      invoice = build(:invoice, :simple_mode, :in_ars, supplier: create(:supplier), period: Date.new(2026, 9, 1), detail: "IVA")
+      invoice.save!
+      expect(invoice.reload.period).to be_nil
+      expect(invoice.detail).to be_nil
+    end
+
+    it "requires a period on a non-supplier invoice" do
+      invoice = taxes_invoice(period: nil)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("Falta el período")
+    end
+
+    it "accepts a non-supplier invoice without a number" do
+      expect(taxes_invoice(invoice_number: nil)).to be_valid
+    end
+
+    it "never keeps the number of a non-supplier invoice" do
+      invoice = taxes_invoice(invoice_number: "IIBB 09/2026")
+      invoice.save!
+      expect(invoice.reload.invoice_number).to be_nil
+    end
+
+    it "requires pesos on a non-supplier invoice" do
+      invoice = build(:invoice, :simple_mode, supplier: afip, expense_type: "utilities", currency: "USD", exchange_rate: 1200)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to eq([ "Las boletas de Servicios son en pesos" ])
+    end
+
+    it "caps the detail at 40 characters" do
+      expect(taxes_invoice(detail: "a" * 40)).to be_valid
+
+      invoice = taxes_invoice(detail: "a" * 41)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("El detalle no puede superar 40 caracteres")
+    end
+
+    it "stores a blank detail as nil" do
+      invoice = taxes_invoice(detail: "   ")
+      invoice.valid?
+      expect(invoice.detail).to be_nil
+    end
+
+    it "keeps what the other type does not use until the save goes through" do
+      both = create(:supplier, expense_types: %w[supplier taxes])
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: both, invoice_number: "FAC-1")
+      invoice.assign_attributes(expense_type: "taxes", period: nil)
+
+      expect(invoice).not_to be_valid
+      expect(invoice.invoice_number).to eq("FAC-1")
+    end
+
+    it "stores the period as the first of the month" do
+      invoice = taxes_invoice(period: Date.new(2026, 9, 17))
+      invoice.valid?
+      expect(invoice.period).to eq(Date.new(2026, 9, 1))
+    end
+
+    it "clears the exchange rate of a non-supplier invoice" do
+      invoice = taxes_invoice(exchange_rate: 1200)
+      invoice.save!
+      expect(invoice.reload.exchange_rate).to be_nil
+    end
+
+    describe "#reference" do
+      it "is the invoice number of a supplier invoice" do
+        expect(build(:invoice, :simple_mode, invoice_number: "FAC-001").reference).to eq("FAC-001")
+      end
+
+      it "joins the detail and the period on a non-supplier invoice" do
+        invoice = taxes_invoice(detail: "IVA", period: Date.new(2026, 9, 1))
+        expect(invoice.reference).to eq("IVA · 09/2026")
+      end
+
+      it "is only the period without a detail" do
+        invoice = taxes_invoice(detail: nil, period: Date.new(2026, 9, 1))
+        expect(invoice.reference).to eq("09/2026")
+      end
+
+      it "keeps the stored reference apart from an unsaved edit" do
+        invoice = taxes_invoice(detail: "IVA", period: Date.new(2026, 9, 1))
+        invoice.save!
+        invoice.assign_attributes(detail: "Ganancias", expense_type: "supplier", invoice_number: "")
+
+        expect(invoice.reference_was).to eq("IVA · 09/2026")
+      end
+
+      it "is blank while the period is missing" do
+        expect(taxes_invoice(period: nil).reference).to eq("")
+      end
+    end
+  end
+
+  describe ".search_invoice by detail and period" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes]) }
+    let!(:iva) { create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1)) }
+    let!(:gan) { create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "Ganancias", period: Date.new(2026, 8, 1)) }
+    let!(:fac) { create(:invoice, :simple_mode, :in_ars, invoice_number: "FAC-001") }
+
+    it "matches the detail, ignoring case" do
+      expect(Invoice.search_invoice("iva")).to contain_exactly(iva)
+    end
+
+    it "matches the period as month and year" do
+      expect(Invoice.search_invoice("09/2026")).to contain_exactly(iva)
+      expect(Invoice.search_invoice("08/2026")).to contain_exactly(gan)
+    end
+
+    it "matches the reference as it is displayed" do
+      expect(Invoice.search_invoice("IVA · 09/2026")).to contain_exactly(iva)
+      expect(Invoice.search_invoice("Ganancias · 08")).to contain_exactly(gan)
+    end
+
+    it "still matches a supplier invoice number" do
+      expect(Invoice.search_invoice("FAC-001")).to contain_exactly(fac)
+    end
+
+    it "treats wildcard characters as plain text" do
+      expect(Invoice.search_invoice("%")).to be_empty
+      expect(Invoice.search_invoice("_")).to be_empty
+    end
+  end
+
+  describe "#amount_due_ars" do
+    it "is the peso amount without a discount" do
+      invoice = build(:invoice, :simple_mode, :in_ars, amount: 100_000)
+      expect(invoice.amount_due_ars(Date.current)).to eq(100_000)
+    end
+
+    it "converts a USD invoice at its exchange rate" do
+      invoice = build(:invoice, :simple_mode, currency: "USD", exchange_rate: 1200, amount: 1000)
+      expect(invoice.amount_due_ars(Date.current)).to eq(1_200_000)
+    end
+
+    it "applies the early-payment discount only up to its deadline" do
+      invoice = build(:invoice, :simple_mode, :in_ars, amount: 100_000,
+                      early_payment_due_date: Date.current + 5, early_payment_discount_percentage: 5)
+      expect(invoice.amount_due_ars(Date.current)).to eq(95_000)
+      expect(invoice.amount_due_ars(Date.current + 6)).to eq(100_000)
+    end
+
+    it "applies the discount to a USD invoice in pesos" do
+      invoice = build(:invoice, :simple_mode, currency: "USD", exchange_rate: 1200, amount: 1000,
+                      early_payment_due_date: Date.current + 5, early_payment_discount_percentage: 10)
+      expect(invoice.amount_due_ars(Date.current)).to eq(1_080_000)
     end
   end
 end

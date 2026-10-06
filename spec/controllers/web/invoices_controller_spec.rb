@@ -407,28 +407,22 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
                early_payment_discount_percentage: 5)
       end
 
-      it "marks as paid with discount applied" do
-        post mark_as_paid_web_invoice_path(invoice), params: {
-          payment_date: Date.current.to_s,
-          apply_discount: "true"
-        }
+      it "pays with the discount when paid within the deadline and writes the outflow" do
+        post mark_as_paid_web_invoice_path(invoice), params: { payment_date: Date.current.to_s, account: "main_cash" }
 
         expect(response).to redirect_to(web_invoice_path(invoice))
         invoice.reload
         expect(invoice.paid_status?).to be true
         expect(invoice.paid_with_discount).to be true
+        expect(invoice.cash_movement.amount).to eq(-9_500)
       end
 
-      it "marks as paid without discount" do
-        post mark_as_paid_web_invoice_path(invoice), params: {
-          payment_date: Date.current.to_s,
-          apply_discount: "false"
-        }
+      it "refuses without an arca" do
+        post mark_as_paid_web_invoice_path(invoice), params: { payment_date: Date.current.to_s }
 
-        expect(response).to redirect_to(web_invoice_path(invoice))
-        invoice.reload
-        expect(invoice.paid_status?).to be true
-        expect(invoice.paid_with_discount).to be false
+        expect(invoice.reload.pending_status?).to be true
+        follow_redirect!
+        expect(response.body).to include("Elegí de dónde sale la plata")
       end
     end
 
@@ -443,29 +437,14 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
                early_payment_discount_percentage: 5)
       end
 
-      it "rejects discount application when expired" do
-        post mark_as_paid_web_invoice_path(invoice), params: {
-          payment_date: Date.current.to_s,
-          apply_discount: "true"
-        }
-
-        expect(response).to redirect_to(web_invoice_path(invoice))
-        follow_redirect!
-        expect(response.body).to include("expiró")
-        invoice.reload
-        expect(invoice.pending_status?).to be true
-      end
-
-      it "allows payment without discount when expired" do
-        post mark_as_paid_web_invoice_path(invoice), params: {
-          payment_date: Date.current.to_s,
-          apply_discount: "false"
-        }
+      it "pays the full amount once the discount has expired" do
+        post mark_as_paid_web_invoice_path(invoice), params: { payment_date: Date.current.to_s, account: "main_cash" }
 
         expect(response).to redirect_to(web_invoice_path(invoice))
         invoice.reload
         expect(invoice.paid_status?).to be true
         expect(invoice.paid_with_discount).to be false
+        expect(invoice.cash_movement.amount).to eq(-10_000)
       end
     end
 
@@ -482,7 +461,8 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
       it "marks as paid normally" do
         post mark_as_paid_web_invoice_path(invoice), params: {
-          payment_date: Date.current.to_s
+          payment_date: Date.current.to_s,
+          account: "main_cash"
         }
 
         expect(response).to redirect_to(web_invoice_path(invoice))
@@ -637,12 +617,28 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
         post mark_supplier_paid_web_invoices_path, params: {
           invoice_ids: [ invoice1.id, invoice2.id ],
           period: "this_week",
-          payment_date: Date.current.to_s
+          payment_date: Date.current.to_s,
+          account: "main_cash"
         }
 
         expect(response).to redirect_to(pending_web_invoices_path(period: "this_week"))
         expect(invoice1.reload.paid_status?).to be true
         expect(invoice2.reload.paid_status?).to be true
+      end
+    end
+
+    context "when credit notes cover the whole invoice" do
+      it "tells that no money left any arca" do
+        invoice = create(:invoice, :simple_mode, supplier: supplier, status: "pending", amount: 10_000,
+                         currency: "ARS", due_date: Date.current.beginning_of_week(:monday))
+        credit = create(:credit_note, supplier: supplier, amount: 10_000)
+
+        post mark_supplier_paid_web_invoices_path, params: {
+          invoice_ids: [ invoice.id ], credit_note_ids: [ credit.id ], period: "this_week",
+          payment_date: Date.current.to_s, account: "main_cash"
+        }
+
+        expect(flash[:notice]).to include("No salió plata de ninguna arca.")
       end
     end
 

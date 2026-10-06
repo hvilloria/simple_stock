@@ -595,4 +595,34 @@ RSpec.describe "Web::Cash::Days", type: :request do
       expect(response.body).to include("Eliminar")
     end
   end
+
+  describe "an invoice payment row" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
+    let!(:invoice) do
+      create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
+             detail: "IIBB", period: Date.new(2026, 9, 1), purchase_date: Date.current - 5)
+    end
+
+    before do
+      sign_in admin
+      Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current, user: admin)
+    end
+
+    it "shows it as automatic, linked to the invoice, without edit actions" do
+      get web_cash_day_path(Date.current.to_s)
+      row = Nokogiri::HTML(response.body).at("#entry_#{invoice.reload.cash_movement_id}")
+
+      expect(row.text).to include("Pago AFIP — IIBB · 09/2026")
+      expect(row.text).to include("Automático")
+      expect(row.text).not_to include("Editar")
+      expect(row.at("a[href='#{web_invoice_path(invoice)}']")).to be_present
+    end
+
+    it "uses the reference as the link text" do
+      get web_cash_day_path(Date.current.to_s)
+      row = Nokogiri::HTML(response.body).at("#entry_#{invoice.reload.cash_movement_id}")
+
+      expect(row.at("a[href='#{web_invoice_path(invoice)}']").text).to eq("IIBB · 09/2026")
+    end
+  end
 end

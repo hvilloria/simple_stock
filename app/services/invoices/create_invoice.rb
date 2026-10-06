@@ -1,15 +1,16 @@
 # frozen_string_literal: true
 
 module Invoices
-  # Registers a supplier invoice. With product lines it also stocks them and
-  # takes its amount from them; without lines it is the amount-only invoice.
+  # Registers an invoice. A supplier invoice may carry product lines, which it
+  # stocks and takes its amount from; every other type (and a supplier invoice
+  # without lines) is the amount-only invoice.
   class CreateInvoice
     Line = Struct.new(:product, :quantity, :unit_cost, keyword_init: true)
 
-    def self.call(supplier:, invoice_number:, amount:, currency:,
+    def self.call(supplier:, amount:, currency:, invoice_number: nil,
                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
                   early_payment_due_date: nil, early_payment_discount_percentage: nil,
-                  items: [])
+                  items: [], expense_type: "supplier", period: nil, detail: nil)
       new(
         supplier: supplier,
         invoice_number: invoice_number,
@@ -21,14 +22,17 @@ module Invoices
         notes: notes,
         early_payment_due_date: early_payment_due_date,
         early_payment_discount_percentage: early_payment_discount_percentage,
-        items: items
+        items: items,
+        expense_type: expense_type,
+        period: period,
+        detail: detail
       ).call
     end
 
-    def initialize(supplier:, invoice_number:, amount:, currency:,
+    def initialize(supplier:, amount:, currency:, invoice_number: nil,
                    exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
                    early_payment_due_date: nil, early_payment_discount_percentage: nil,
-                   items: [])
+                   items: [], expense_type: "supplier", period: nil, detail: nil)
       @supplier = supplier
       @invoice_number = invoice_number
       @amount = amount
@@ -40,6 +44,9 @@ module Invoices
       @early_payment_due_date = early_payment_due_date
       @early_payment_discount_percentage = early_payment_discount_percentage
       @items = Array(items).map { |item| item.to_h.symbolize_keys }
+      @expense_type = expense_type.to_s
+      @period = period
+      @detail = detail
     end
 
     def call
@@ -68,6 +75,13 @@ module Invoices
     class ValidationError < StandardError; end
 
     def validate_params
+      raise ValidationError, "Tipo de factura inválido" unless Invoice::EXPENSE_TYPE_LABELS.key?(@expense_type)
+      if @expense_type != "supplier" && lines.any?
+        raise ValidationError, "Solo las facturas de proveedor llevan productos"
+      end
+
+      validate_identification
+
       unless %w[USD ARS].include?(@currency)
         raise ValidationError, "Invalid currency. Must be USD or ARS"
       end
@@ -77,7 +91,6 @@ module Invoices
       end
 
       raise ValidationError, "Supplier is required" if @supplier.nil?
-      raise ValidationError, "Invoice number is required" if @invoice_number.blank?
 
       if lines.empty? && !(@amount.to_f > 0)
         raise ValidationError, "Amount must be greater than zero"
@@ -87,6 +100,23 @@ module Invoices
 
       if @due_date < @purchase_date
         raise ValidationError, "Due date cannot be before purchase date"
+      end
+    end
+
+    # A supplier invoice is told apart by its number, every other type by the
+    # period it covers (plus an optional detail), and it is always in pesos.
+    def validate_identification
+      if @expense_type == "supplier"
+        raise ValidationError, "Invoice number is required" if @invoice_number.blank?
+        return
+      end
+
+      raise ValidationError, "Falta el período" if @period.nil?
+      if @detail.to_s.strip.length > Invoice::DETAIL_MAX_LENGTH
+        raise ValidationError, "El detalle no puede superar #{Invoice::DETAIL_MAX_LENGTH} caracteres"
+      end
+      unless @currency == "ARS"
+        raise ValidationError, "Las boletas de #{Invoice.expense_type_label(@expense_type)} son en pesos"
       end
     end
 
@@ -137,6 +167,9 @@ module Invoices
         due_date: @due_date,
         status: "pending",
         has_items: false,
+        expense_type: @expense_type,
+        period: @period,
+        detail: @detail,
         notes: @notes,
         early_payment_due_date: @early_payment_due_date,
         early_payment_discount_percentage: @early_payment_discount_percentage

@@ -1,6 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
 
+const EARLY_PAYMENT_TYPES = ["supplier", "utilities"]
+
 export default class extends Controller {
   static targets = [
     "supplier",
@@ -28,11 +30,92 @@ export default class extends Controller {
     "zeroCostModal",
     "zeroCostTitle",
     "zeroCostList",
-    "zeroCostSummary"
+    "zeroCostSummary",
+    "productsCard",
+    "summaryType",
+    "numberField",
+    "periodField",
+    "currencyField"
   ]
   
   static values = { 
     submitting: { type: Boolean, default: false } 
+  }
+
+  // A non-supplier invoice never carries products: hide the card and drop any lines.
+  expenseTypeChanged(event) {
+    const supplier = event.target.value === "supplier"
+    if (this.hasProductsCardTarget) this.productsCardTarget.classList.toggle("hidden", !supplier)
+    if (!supplier) document.dispatchEvent(new CustomEvent("invoice-form:clear-lines"))
+    if (this.hasSummaryTypeTarget) this.summaryTypeTarget.textContent = event.target.closest("label").textContent.trim()
+    this.filterSuppliers()
+    this.syncIdentification()
+    this.updateEarlyPaymentInfo()
+  }
+
+  // A supplier invoice is identified by its number, every other type by its
+  // period and detail. A disabled group is not posted, and a non-supplier
+  // invoice is always in pesos, so the currency choice goes back to ARS.
+  syncIdentification() {
+    const type = this.selectedExpenseType()
+    if (!type) return
+
+    const supplier = type === "supplier"
+    this.setGroup(this.hasNumberFieldTarget && this.numberFieldTarget, supplier)
+    this.setGroup(this.hasPeriodFieldTarget && this.periodFieldTarget, !supplier)
+
+    if (this.hasCurrencyFieldTarget) {
+      this.currencyFieldTarget.hidden = !supplier
+      const ars = this.element.querySelector("#currency_ars")
+      if (!supplier && ars && !ars.checked) {
+        ars.checked = true
+        this.toggleExchangeRate()
+      }
+    }
+  }
+
+  setGroup(group, shown) {
+    if (!group) return
+    group.hidden = !shown
+    group.disabled = !shown
+  }
+
+  selectedExpenseType() {
+    const field = this.element.querySelector('input[name="expense_type"]:checked, select[name="invoice[expense_type]"]')
+    return field ? field.value : null
+  }
+
+  // Offers only the suppliers that bill the chosen type. On connect the supplier
+  // already selected stays, so editing an invoice never drops its current one.
+  filterSuppliers({ keepSelected = false } = {}) {
+    const type = this.selectedExpenseType()
+    if (!this.hasSupplierTarget || !type) return
+
+    const select = this.supplierTarget
+    Array.from(select.options).forEach(option => {
+      if (option.value === "") return
+      const offered = option.selected && keepSelected ||
+        option.dataset.keepType === type ||
+        (option.dataset.expenseTypes || "").split(" ").includes(type)
+      option.hidden = !offered
+      option.disabled = !offered
+    })
+
+    const current = select.selectedOptions[0]
+    if (current.disabled) {
+      if (current.dataset.keepType) this.droppedSupplier = current.value
+      select.value = ""
+      this.onSupplierChange()
+    } else if (select.value !== "") {
+      this.droppedSupplier = null
+    } else if (this.droppedSupplier) {
+      const dropped = Array.from(select.options).find(option => option.value === this.droppedSupplier)
+      if (dropped && !dropped.disabled) {
+        select.value = dropped.value
+        this.droppedSupplier = null
+        this.onSupplierChange()
+      }
+    }
   }
 
   connect() {
@@ -41,6 +124,9 @@ export default class extends Controller {
 
     console.log("Invoice form controller connected")
     
+    this.filterSuppliers({ keepSelected: true })
+    this.syncIdentification()
+
     // Calculate initial date if values already exist
     this.calculateDueDate()
 
@@ -167,7 +253,7 @@ export default class extends Controller {
   // ========== DATE CALCULATION ==========
   
   calculateDueDate() {
-    if (!this.hasSupplierTarget) return
+    if (!this.hasSupplierTarget || !this.hasPurchaseDateTarget) return
     const supplierSelect = this.supplierTarget
     const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
     const paymentTermDays = parseInt(selectedOption.dataset.paymentTermDays || "0")
@@ -247,8 +333,10 @@ export default class extends Controller {
     const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
     const earlyPaymentDays = parseInt(selectedOption.dataset.earlyPaymentDays || "0")
     const discountPercentage = parseFloat(selectedOption.dataset.earlyPaymentDiscount || "0")
+    const type = this.selectedExpenseType()
+    const typeAllowed = !type || EARLY_PAYMENT_TYPES.includes(type)
 
-    if (earlyPaymentDays > 0 && discountPercentage > 0) {
+    if (typeAllowed && earlyPaymentDays > 0 && discountPercentage > 0) {
       // Show section
       this.earlyPaymentSectionTarget.style.display = 'block'
 

@@ -1,4 +1,5 @@
-- content_for :page_title, "Editar Factura #{@invoice.invoice_number}"
+- content_for :page_title, "Editar Factura #{@invoice.reference_was}"
+- non_supplier = !@invoice.supplier_expense_type?
 
 .container.mx-auto.px-6.py-6.max-w-2xl
 
@@ -8,7 +9,7 @@
       %span.text-xl ←
     %h1.text-3xl.font-bold.text-gray-900
       Editar Factura
-      = @invoice.invoice_number
+      = @invoice.reference_was
 
   = form_with model: @invoice, url: web_invoice_path(@invoice), method: :patch, local: true, class: "space-y-6", data: { controller: "invoice-form", action: "turbo:submit-start->invoice-form#handleFormSubmit" } do |f|
     
@@ -27,23 +28,48 @@
       %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Factura
 
       .space-y-4
+        -# Type: locked once product lines exist
+        %div
+          %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo
+          - if @invoice.invoice_items.any?
+            %p.w-full.px-4.py-3.border.border-slate-200.bg-slate-50.rounded-xl.text-slate-600= Invoice.expense_type_label(@invoice.expense_type)
+            %p.text-xs.text-slate-500.mt-1 Tiene productos cargados. Para cambiar el tipo, cancelá la factura (devuelve el stock) y cargala de nuevo.
+          - else
+            = f.select :expense_type, Invoice.expense_type_options, {},
+                       class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                       data: { action: "change->invoice-form#expenseTypeChanged" }
+
         -# Supplier
         %div
           = f.label :supplier_id, "Proveedor", class: "block text-sm font-medium text-gray-700 mb-2"
-          = f.collection_select :supplier_id, 
-                                @suppliers, 
-                                :id, 
-                                :name,
-                                { prompt: "Seleccionar proveedor" },
-                                class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                                required: true
+          = f.select :supplier_id,
+                     options_for_select([ [ "Seleccionar proveedor", "" ] ] + @suppliers.map { |s| [ s.name, s.id, supplier_option_attrs(s, selectable: @selectable_supplier_ids.include?(s.id), keep_type: (@invoice.expense_type_in_database if s.id == @invoice.supplier_id_in_database)) ] }, @invoice.supplier_id),
+                     {},
+                     class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                     required: true,
+                     data: { invoice_form_target: "supplier" }
 
-        -# Invoice number
-        %div
+        -# Invoice number: a supplier's document is told apart by its number
+        %fieldset{ data: { invoice_form_target: "numberField" }, hidden: non_supplier, disabled: non_supplier }
           = f.label :invoice_number, "Número de Factura", class: "block text-sm font-medium text-gray-700 mb-2"
           = f.text_field :invoice_number,
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                         required: true
+
+        -# Period and detail: any other document is told apart by the month it covers
+        %fieldset.space-y-4{ data: { invoice_form_target: "periodField" }, hidden: !non_supplier, disabled: !non_supplier }
+          %div
+            = f.label :period, "Período", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.month_field :period,
+                            value: @invoice.period&.strftime("%Y-%m"),
+                            class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                            required: true
+          %div
+            = f.label :detail, "Detalle (opcional)", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.text_field :detail,
+                          placeholder: "Ej: IVA, SICOSS",
+                          maxlength: Invoice::DETAIL_MAX_LENGTH,
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
         -# Amount: owned by the lines when there are any
         %div
@@ -94,7 +120,7 @@
                         required: true
 
     -# Early payment discount
-    - if @invoice.supplier.has_early_payment_discount?
+    - if @invoice.early_payment_applicable? && @invoice.supplier.has_early_payment_discount?
       .bg-emerald-50.border.border-emerald-200.rounded-lg.p-4.mb-6
         .flex.items-start.gap-3.mb-3
           .text-2xl ⚡
@@ -122,7 +148,7 @@
                             class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
             %p.text-xs.text-slate-500.mt-1 Porcentaje de descuento
 
-    - elsif @invoice.early_payment_due_date.present?
+    - elsif @invoice.early_payment_applicable? && @invoice.early_payment_due_date.present?
       .bg-amber-50.border.border-amber-200.rounded-lg.p-4.mb-6
         .flex.items-start.gap-3.mb-3
           .text-2xl ⚠️

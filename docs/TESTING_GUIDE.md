@@ -14,7 +14,7 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Payments::CollectOnAccount` — `amount_to_settle`, discount, lowers `total_amount`
 - `Invoices::CreateInvoice` — the typed `amount`, and per-line `quantity` + `unit_cost` that become the amount and the stock; the hostile-input case is a unit cost of `"abc"`, which must be refused and never read as a free line
 - `Invoices::CancelInvoice` — the floored stock reversal (no input to attack; what it must get right is the floor and the transaction)
-- `Invoices::MarkAsPaid` / `ProcessPayment` — amounts + `AppliedCredit`
+- `Invoices::PayInvoices` — amounts + `AppliedCredit`
 - Credit notes CRUD — `amount`, `exchange_rate`
 - `Cash::RecordMovement` — signed `amount`, arca and category routing
 - `Cash::RecordSaleFromPayment` — copies a `Payment`'s amount into a sale movement and routes it to an arca (its amount comes from the persisted payment, so the hostile-input case belongs to the collection flow upstream)

@@ -17,4 +17,14 @@ module InvoicesHelper
 
     "¿Cancelar esta factura? Se descuentan del stock las #{invoice_units_label(invoice)} que sumó, hasta donde haya."
   end
+
+  def invoice_payment_account_options
+    Invoices::PayInvoices::ACCOUNTS.map { |account| [ CashMovement.account_label(account), account ] }
+  end
+
+  # Attributes the invoice forms read to offer a supplier only under the types it bills.
+  # A supplier an invoice already has stays offered under the type it was saved with.
+  def supplier_option_attrs(supplier, selectable: true, keep_type: nil)
+    { "data-expense-types": supplier.expense_types.join(" "), "data-keep-type": keep_type, hidden: !selectable, disabled: !selectable }
+  end
 end

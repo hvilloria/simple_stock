@@ -1,4 +1,4 @@
-- content_for :page_title, "Factura #{@invoice.invoice_number}"
+- content_for :page_title, "Factura #{@invoice.reference}"
 
 .container.mx-auto.px-6.py-6
 
@@ -9,16 +9,16 @@
         %span.text-xl ←
       %h1.text-3xl.font-bold.text-gray-900
         Factura
-        = @invoice.invoice_number
+        = @invoice.reference
 
     .flex.items-center.gap-3
       - if @invoice.pending_status?
         = link_to "Editar", edit_web_invoice_path(@invoice), class: "px-4 py-2 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
         
-        %button.px-4.py-2.bg-green-600.hover:bg-green-700.text-white.font-semibold.rounded-lg.transition-colors{
-          onclick: "document.getElementById('markAsPaidModal').classList.remove('hidden')"
+        %button.px-4.py-2.bg-slate-700.text-white.font-semibold.rounded-lg.transition-colors{ class: "hover:bg-slate-800", type: "button",
+          onclick: "document.getElementById('payInvoiceModal').classList.remove('hidden')"
         }
-          ✓ Marcar como Pagada
+          Pagar
 
   -# Notices/Alerts
   - if flash[:notice]
@@ -44,8 +44,12 @@
             = link_to @invoice.supplier.name, web_supplier_path(@invoice.supplier), class: "font-medium text-blue-600 hover:text-blue-800 hover:underline"
 
           .flex.items-start.gap-3
-            %span.text-gray-500.w-40.flex-shrink-0 N° Factura:
-            %span.font-mono.font-semibold.text-gray-900= @invoice.invoice_number
+            %span.text-gray-500.w-40.flex-shrink-0 Comprobante:
+            %span.font-mono.font-semibold.text-gray-900= @invoice.reference
+
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-40.flex-shrink-0 Tipo:
+            %span.text-gray-900= Invoice.expense_type_label(@invoice.expense_type)
 
           .flex.items-start.gap-3
             %span.text-gray-500.w-40.flex-shrink-0 Fecha de Factura:
@@ -170,10 +174,10 @@
 
         .space-y-3
           - if @invoice.pending_status?
-            %button.w-full.px-4.py-3.bg-green-600.hover:bg-green-700.text-white.font-semibold.rounded-lg.transition-colors{
-              onclick: "document.getElementById('markAsPaidModal').classList.remove('hidden')"
+            %button.w-full.px-4.py-3.bg-slate-700.text-white.font-semibold.rounded-lg.transition-colors{ class: "hover:bg-slate-800", type: "button",
+              onclick: "document.getElementById('payInvoiceModal').classList.remove('hidden')"
             }
-              ✓ Marcar como Pagada
+              Pagar
 
             = link_to edit_web_invoice_path(@invoice), class: "block w-full px-4 py-3 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors text-center" do
               ✏️ Editar Factura
@@ -185,36 +189,31 @@
               ✗ Cancelar Factura
 
           - elsif @invoice.paid_status?
-            .text-center.py-8
-              %p.text-5xl.mb-3 ✅
-              %p.text-gray-600.font-medium Factura Pagada
-              %p.text-sm.text-gray-500.mt-1
-                = @invoice.paid_at.to_date.strftime("%d/%m/%Y")
+            %h4.text-sm.font-semibold.text-slate-900 Pago
+            - movement = @invoice.cash_movement
+            - if movement
+              %p.text-sm.text-slate-700
+                Pagada el
+                %strong= movement.business_date.strftime("%d/%m/%Y")
+                = "desde #{CashMovement.account_label(movement.account)}"
+              %p.text-sm.text-slate-700
+                Salió
+                %strong= "$ #{number_ar(movement.amount.abs)}"
+              - siblings = movement.paid_invoices.reject { |paid| paid.id == @invoice.id }
+              - if siblings.any?
+                %p.text-xs.text-slate-500= "Pagada junto con #{siblings.map(&:reference).join(', ')}"
+              = link_to "Ver en la caja del #{movement.business_date.strftime('%d/%m')} →", web_cash_day_path(movement.business_date.to_s),
+                        class: "text-sm text-slate-600 underline hover:text-slate-900"
+            - elsif @invoice.paid_with_credits_only?
+              %p.text-sm.text-slate-700= "Pagada el #{@invoice.paid_at.to_date.strftime('%d/%m/%Y')} con notas de crédito · no salió plata"
+            - else
+              %p.text-sm.text-slate-700= "Pagada el #{@invoice.paid_at.to_date.strftime('%d/%m/%Y')}"
 
           - elsif @invoice.cancelled_status?
             .text-center.py-8
               %p.text-5xl.mb-3 ❌
               %p.text-gray-600.font-medium Factura Cancelada
 
--# Modal: Mark as paid (ONLY IF PENDING)
+-# Modal: pay the invoice (ONLY IF PENDING)
 - if @invoice.pending_status?
-  #markAsPaidModal.hidden.fixed.inset-0.bg-black.bg-opacity-50.z-50.flex.items-center.justify-center
-    .bg-white.rounded-lg.p-6.max-w-md.w-full.mx-4{ onclick: "event.stopPropagation()" }
-      .flex.items-center.justify-between.mb-4
-        %h3.text-lg.font-semibold.text-gray-900 Marcar como Pagada
-        %button.text-gray-400.hover:text-gray-600{ onclick: "document.getElementById('markAsPaidModal').classList.add('hidden')" }
-          %span.text-2xl ×
-
-      = form_with url: mark_as_paid_web_invoice_path(@invoice), method: :post, local: true do |f|
-        .mb-4
-          %label.block.text-sm.font-medium.text-gray-700.mb-2 Fecha de Pago
-          = date_field_tag :payment_date, Date.current,
-                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                          required: true
-          %p.text-xs.text-gray-500.mt-1 Fecha en que se realizó el pago
-
-        .flex.items-center.gap-3
-          %button.flex-1.px-4.py-2.border.border-slate-300.text-slate-700.font-semibold.rounded-lg.hover:bg-slate-50.transition-colors{ type: "button", onclick: "document.getElementById('markAsPaidModal').classList.add('hidden')" }
-            Cancelar
-          
-          = f.submit "Confirmar Pago", class: "flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+  = render "pay_modal", invoice: @invoice

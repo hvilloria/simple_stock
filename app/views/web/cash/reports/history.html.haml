@@ -70,7 +70,10 @@
               %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= l(movement.business_date, format: :friendly)
               %td.px-4.py-3.text-sm.text-slate-900
                 .flex.items-center.gap-2
-                  %span= movement.description
+                  - if movement.paid_invoices.any?
+                    %span= cash_paid_invoices_description(movement)
+                  - else
+                    %span= movement.description
                   -# Filtered to one arca only one leg shows, so the row says where its other half is.
                   - if counterpart
                     %span.text-sm.text-slate-500= counterpart
@@ -78,9 +81,9 @@
                     %span.inline-flex.items-center.rounded.bg-slate-100.px-1.5.py-0.5.text-xs.font-medium.text-slate-500 Automático
               -# The fine arca, against the coarse filter above: read fine, filter coarse.
               %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= movement.account.present? ? CashMovement.account_label(movement.account) : "—"
-              %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= CashMovement.category_label(movement.category)
-              -# Only a compensation names a supplier: the debt it cancels is settled by hand in facturas.
-              %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= movement.supplier&.name || "—"
+              %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= cash_category_label(movement)
+              -# A compensation names its supplier; an invoice payment takes it from the invoices it paid.
+              %td.px-4.py-3.whitespace-nowrap.text-sm.text-slate-600= movement.supplier&.name || movement.paid_invoices.first&.supplier&.name || "—"
               %td.px-4.py-3.text-sm.text-slate-600.font-mono.whitespace-nowrap
                 - if paper_numbers.empty?
                   = "—"

@@ -140,4 +140,13 @@ RSpec.describe "Facturas con productos", type: :system do
     expect(page).to have_text("Factura registrada exitosamente")
     expect(page).not_to have_text("Confirmar registro")
   end
+
+  it "hides the products card for a tax invoice" do
+    visit new_web_invoice_path
+    expect(page).to have_field(placeholder: "Buscar por SKU, nombre o marca...")
+    find("label", text: "Impuestos").click
+    expect(page).not_to have_field(placeholder: "Buscar por SKU, nombre o marca...")
+    find("label", text: "Proveedor", match: :prefer_exact).click
+    expect(page).to have_field(placeholder: "Buscar por SKU, nombre o marca...")
+  end
 end

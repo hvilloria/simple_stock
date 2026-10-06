@@ -95,6 +95,7 @@ class CashMovement < ApplicationRecord
   belongs_to :source_payment, class_name: "Payment", optional: true
   belongs_to :supplier, optional: true
   belongs_to :user
+  has_many :paid_invoices, class_name: "Invoice", inverse_of: :cash_movement, dependent: :restrict_with_exception
 
   # Both legs of a transfer, self-joined on the shared transfer_group_id. An
   # association rather than a bare lookup so a page of history can preload
@@ -156,11 +157,12 @@ class CashMovement < ApplicationRecord
   def partner_direction = outflow? ? "withdrawal" : "contribution"
   def sealed? = daily_closing_id.present?
 
-  # Born from a collection rather than typed on the day screen.
-  def automatic? = source_payment_id.present?
+  # Written by the app rather than typed on the day screen: a collection, or
+  # the payment of one or more invoices.
+  def automatic? = source_payment_id.present? || paid_invoices.any?
 
   # The mirror Cash::ReversePayment writes when a sale is cancelled.
-  def reversal? = sale_category? && automatic? && outflow?
+  def reversal? = sale_category? && source_payment_id.present? && outflow?
 
   # Written as one half of a Cash::RecordTransfer pair; its twin carries the
   # same transfer_group_id.

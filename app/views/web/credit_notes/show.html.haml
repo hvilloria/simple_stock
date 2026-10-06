@@ -45,7 +45,7 @@
           .flex.items-start.gap-3
             %span.text-gray-500.w-40.flex-shrink-0 Factura Asociada:
             - if @credit_note.invoice.present?
-              = link_to @credit_note.invoice.invoice_number, web_invoice_path(@credit_note.invoice), class: "font-mono font-medium text-blue-600 hover:text-blue-800 hover:underline", data: { turbo: false }
+              = link_to @credit_note.invoice.reference, web_invoice_path(@credit_note.invoice), class: "font-mono font-medium text-blue-600 hover:text-blue-800 hover:underline", data: { turbo: false }
             - else
               %span.text-gray-500 Sin factura asociada
 

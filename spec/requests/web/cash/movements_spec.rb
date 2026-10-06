@@ -546,6 +546,16 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
 
     describe "DELETE /web/cash/movements/:id" do
+      it "refuses to delete an outflow that paid an invoice" do
+        invoice = create(:invoice, :simple_mode, :in_ars, purchase_date: Date.current - 5)
+        paid = Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash",
+                                          payment_date: Date.current, user: admin).record
+
+        delete web_cash_movement_path(paid), as: :turbo_stream
+
+        expect(CashMovement.exists?(paid.id)).to be true
+      end
+
       it "removes the row" do
         movement
 

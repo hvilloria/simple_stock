@@ -64,7 +64,19 @@ module Web
       @supplier = Supplier.find(params[:id])
     end
 
+    PAYMENT_TERM_KEYS = %i[payment_term_days early_payment_days early_payment_discount_percentage].freeze
+
     def supplier_params
+      permitted = permitted_supplier_params
+      return permitted unless permitted.key?(:expense_types)
+
+      types = permitted[:expense_types].compact_blank
+      return permitted if types.empty? || (types & %w[supplier utilities]).any?
+
+      permitted.reverse_merge(PAYMENT_TERM_KEYS.index_with { nil })
+    end
+
+    def permitted_supplier_params
       params.require(:supplier).permit(
         :name,
         :email,
@@ -74,7 +86,8 @@ module Web
         :bank_account,
         :payment_term_days,
         :early_payment_days,
-        :early_payment_discount_percentage
+        :early_payment_discount_percentage,
+        expense_types: []
       )
     end
   end
