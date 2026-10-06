@@ -7,7 +7,7 @@
     .flex-1
       %h1.text-3xl.font-bold.text-gray-900 💸 Pagos Pendientes
       %p.text-sm.text-gray-600.mt-1
-        Facturas pendientes de pago agrupadas por proveedor
+        Facturas pendientes de pago agrupadas por proveedor y tipo
 
     .text-right
       %p.text-xs.text-gray-500 Última actualización
@@ -110,6 +110,8 @@
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
               Proveedor
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
+              Tipo
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
               N° Factura
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
               Vence Normal
@@ -129,15 +131,17 @@
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
             - cn_json           = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
-            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.invoice_number, amount: i.amount_with_discount_ars.to_f } }.to_json
+            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.invoice_number, amount: i.amount_due_ars(Date.current).to_f } }.to_json
 
             -# Supplier main row
-            %tr.bg-slate-50.hover:bg-slate-100.transition-colors
+            %tr.bg-slate-50.hover:bg-slate-100.transition-colors{ data: { group_supplier: data[:supplier].name, group_type: data[:expense_type] } }
               %td.px-4.py-4
                 %p.font-semibold.text-slate-900= data[:supplier].name
                 %p.text-xs.text-gray-500
                   = data[:invoices_count]
                   = data[:invoices_count] == 1 ? "factura" : "facturas"
+
+              %td.px-4.py-4.text-sm.text-slate-700= Invoice.expense_type_label(data[:expense_type])
 
               %td.px-4.py-4.text-gray-400 —
               %td.px-4.py-4.text-gray-400.text-center —
@@ -168,6 +172,7 @@
                          class: "inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer",
                          data: { supplier_id: data[:supplier].id,
                                  supplier_name: data[:supplier].name,
+                                 group_label: "#{data[:supplier].name} · #{Invoice.expense_type_label(data[:expense_type])}",
                                  invoices_total: data[:invoices_amount_with_discount].to_f,
                                  invoices_list: invoices_list_json,
                                  credit_notes: cn_json },
@@ -180,6 +185,8 @@
               %tr.hover:bg-slate-50.transition-colors
                 %td.px-4.py-2.pl-8
                   %span.text-gray-400 └
+
+                %td.px-4.py-2
 
                 %td.px-4.py-2
                   %span.font-mono.text-sm{ class: has_discount ? "text-emerald-600 font-semibold" : "text-gray-700" }
@@ -211,7 +218,7 @@
                   - if has_discount
                     %span.text-sm.font-semibold.text-emerald-600= currency_ar(invoice.amount_with_discount_ars)
                   - else
-                    %span.text-sm.text-gray-600= currency_ar(invoice.amount_with_discount_ars)
+                    %span.text-sm.text-gray-600= currency_ar(invoice.amount_due_ars(Date.current))
 
                 %td.px-4.py-2
 
@@ -248,23 +255,33 @@
           #creditNotesList.space-y-2
             -# Filled by JS
 
-          -# Settlement summary
-          .mt-3.pt-3.border-t.border-gray-200.space-y-1
-            .flex.justify-between.text-sm
-              %span.text-gray-500 Total facturas:
-              %span#modalInvoicesTotal.font-medium.text-gray-800
-            .flex.justify-between.text-sm
-              %span.text-gray-500 Créditos a aplicar:
-              %span#modalCreditsApplied.font-medium.text-green-600
-            .flex.justify-between.text-sm.font-semibold.pt-1.border-t.border-gray-100
-              %span.text-gray-900 Neto a transferir:
-              %span#modalNetTotal.text-blue-600
+      -# Settlement summary
+      .mb-4.pt-3.border-t.border-gray-200.space-y-1
+        #modalInvoicesTotalRow.flex.justify-between.text-sm{ style: "display: none;" }
+          %span.text-gray-500 Total facturas:
+          %span#modalInvoicesTotal.font-medium.text-gray-800
+        #modalCreditsAppliedRow.flex.justify-between.text-sm{ style: "display: none;" }
+          %span.text-gray-500 Créditos a aplicar:
+          %span#modalCreditsApplied.font-medium.text-green-600
+        .flex.justify-between.text-sm.font-semibold.pt-1.border-t.border-gray-100
+          %span#modalOriginLabel.text-gray-900 Sale de —
+          %span#modalNetTotal.text-blue-600
+
+      -# Origin arca
+      .mb-4
+        %p.block.text-sm.font-medium.text-slate-700.mb-2 Sale de
+        .grid.grid-cols-2.gap-2
+          - invoice_payment_account_options.each do |label, key|
+            %label{ class: "flex items-center justify-center px-3 py-2 border border-slate-300 rounded-lg cursor-pointer text-sm text-slate-700 has-[:checked]:border-slate-700 has-[:checked]:bg-slate-50 has-[:checked]:font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-slate-500" }
+              = radio_button_tag :account, key, false, class: "sr-only", onchange: "refreshPaymentOrigin()"
+              = label
 
       -# Payment date
       .mb-4
         %label.block.text-sm.font-medium.text-gray-700.mb-2
           Fecha de Pago
         = date_field_tag :payment_date, Date.current,
+                        max: Date.current,
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                         required: true
 
@@ -272,8 +289,8 @@
         %button.cursor-pointer.flex-1.px-4.py-2.border.border-slate-300.text-slate-700.font-semibold.rounded-lg.hover:bg-slate-50.transition-colors{ type: "button", onclick: "closePaymentModal()" }
           Cancelar
 
-        %button.cursor-pointer.flex-1.px-4.py-2.bg-slate-700.hover:bg-slate-800.text-white.font-semibold.rounded-lg.transition-colors{ type: "submit" }
-          Confirmar Pago
+        %button#confirmPaymentButton.cursor-pointer.flex-1.px-4.py-2.bg-slate-700.hover:bg-slate-800.text-white.font-semibold.rounded-lg.transition-colors.disabled:opacity-50.disabled:cursor-not-allowed{ type: "submit", disabled: true }
+          Confirmar pago
 
 :javascript
   window.currentSupplierData = null;
@@ -286,20 +303,18 @@
     const cnList    = document.getElementById('creditNotesList');
     const invList   = document.getElementById('modalInvoicesList');
 
-    const supplierId    = btn.dataset.supplierId;
-    const supplierName  = btn.dataset.supplierName;
     const invoicesTotal = parseFloat(btn.dataset.invoicesTotal);
     const invoicesList  = JSON.parse(btn.dataset.invoicesList || '[]');
     const creditNotes   = JSON.parse(btn.dataset.creditNotes  || '[]');
 
     window.currentSupplierData = { invoicesTotal, invoiceIds: invoicesList.map(inv => inv.id) };
 
-    title.textContent = `Pagar a ${supplierName}`;
+    title.textContent = `Pagar · ${btn.dataset.groupLabel}`;
 
     // Render invoice list with number + amount per row
     invList.innerHTML = invoicesList.map(inv => `
       <div class="flex justify-between items-center">
-        <span class="text-sm font-mono text-slate-700">${inv.number}</span>
+        <span class="text-sm font-mono text-slate-700">${escapeHtml(inv.number)}</span>
         <span class="text-sm text-slate-600">${formatARS(inv.amount)}</span>
       </div>
     `).join('');
@@ -315,13 +330,13 @@
           <input
             type="checkbox"
             class="w-4 h-4 rounded border-green-400 text-green-600 focus:ring-green-500 cursor-pointer flex-shrink-0"
-            data-cn-id="${cn.id}"
+            data-cn-id="${escapeHtml(cn.id)}"
             data-cn-balance="${cn.remaining_balance_ars}"
             data-effective="0"
             onchange="recalculateNet()"
           />
           <div class="flex-1 flex items-center justify-between min-w-0">
-            <span class="text-sm font-medium text-green-800">${cn.number}</span>
+            <span class="text-sm font-medium text-green-800">${escapeHtml(cn.number)}</span>
             <div class="text-right flex-shrink-0 ml-2">
               <span class="text-xs text-green-600">Saldo: ${formatARS(cn.remaining_balance_ars)}</span>
               <span class="cn-effective-label block text-xs font-semibold text-emerald-700 hidden"></span>
@@ -332,12 +347,26 @@
 
       document.getElementById('modalInvoicesTotal').textContent  = formatARS(invoicesTotal);
       document.getElementById('modalCreditsApplied').textContent = '— ' + formatARS(0);
-      document.getElementById('modalNetTotal').textContent       = formatARS(invoicesTotal);
     } else {
       cnSection.style.display = 'none';
     }
 
+    const showBreakdown = creditNotes.length > 0 ? 'flex' : 'none';
+    document.getElementById('modalInvoicesTotalRow').style.display  = showBreakdown;
+    document.getElementById('modalCreditsAppliedRow').style.display = showBreakdown;
+    document.getElementById('modalNetTotal').textContent            = formatARS(invoicesTotal);
+
+    form.querySelectorAll('input[name="account"]').forEach(radio => { radio.checked = false; });
+    refreshPaymentOrigin();
+
     modal.style.display = 'flex';
+  }
+
+  window.refreshPaymentOrigin = function refreshPaymentOrigin() {
+    const origin = document.querySelector('#paymentForm input[name="account"]:checked');
+    document.getElementById('confirmPaymentButton').disabled = !origin;
+    document.getElementById('modalOriginLabel').textContent =
+      origin ? `Sale de ${origin.closest('label').textContent.trim()}` : 'Sale de —';
   }
 
   window.recalculateNet = function recalculateNet() {
@@ -395,6 +424,10 @@
   window.closePaymentModal = function closePaymentModal() {
     document.getElementById('paymentModal').style.display = 'none';
     window.currentSupplierData = null;
+  }
+
+  window.escapeHtml = function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
 
   window.formatARS = function formatARS(amount) {

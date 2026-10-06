@@ -246,4 +246,40 @@ RSpec.describe "Pending modal — credit note checkbox behavior", type: :system 
       end
     end
   end
+
+  # ── 9. Paying from the modal ──────────────────────────────────────────
+
+  describe "paying from the modal" do
+    before do
+      create_invoice(amount: 100_000, number: "FAC-PAY")
+      open_payment_modal
+    end
+
+    it "titles the modal with the supplier and the type" do
+      expect(page).to have_css("#modalTitle", text: "Pagar · #{supplier.name} · Proveedor")
+    end
+
+    it "requires an origin and writes the outflow" do
+      expect(page).to have_button("Confirmar pago", disabled: true)
+      within("#paymentModal") { find("label", text: "Banco").click }
+      click_button "Confirmar pago"
+
+      expect(page).to have_text("Salió $ 100.000,00 de Banco")
+      expect(CashMovement.last).to have_attributes(account: "bank", amount: -100_000)
+    end
+  end
+
+  describe "invoice numbers are rendered as text" do
+    before do
+      create_invoice(amount: 100_000, number: "<b>FAC-XSS</b>")
+      open_payment_modal
+    end
+
+    it "shows the literal number without injecting markup" do
+      within "#modalInvoicesList" do
+        expect(page).to have_text("<b>FAC-XSS</b>")
+        expect(page).not_to have_css("b")
+      end
+    end
+  end
 end

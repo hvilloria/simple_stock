@@ -103,7 +103,7 @@ module Web
       supplier = Supplier.find_by(id: params[:supplier_id])
 
       if supplier
-        invoices = supplier.invoices.simple_mode.pending_payment.order(due_date: :asc)
+        invoices = supplier.invoices.simple_mode.pending_payment.supplier_expense_type.order(due_date: :asc)
         render json: invoices.map { |inv| { id: inv.id, number: inv.invoice_number, amount: inv.total_amount_ars(include_discount: true) } }
       else
         render json: []
@@ -119,7 +119,7 @@ module Web
     def load_suppliers
       @suppliers = Supplier.alphabetical
       @invoices = if @credit_note&.supplier
-                    @credit_note.supplier.invoices.simple_mode.pending_payment.order(due_date: :asc)
+                    @credit_note.supplier.invoices.simple_mode.pending_payment.supplier_expense_type.order(due_date: :asc)
       else
         []
       end

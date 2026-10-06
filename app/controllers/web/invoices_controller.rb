@@ -62,17 +62,13 @@ module Web
       @total_invoices_count = all_invoices.count
       # Original amount (without discounts)
       @total_invoices_amount = all_invoices.sum { |i| i.total_amount_ars }
-      # Amount with discounts applied where applicable
-      @total_invoices_with_discount = all_invoices.sum { |i| i.amount_with_discount_ars }
-      # Total savings from discounts
-      @total_savings = all_invoices.sum { |i| i.potential_savings_ars }
+      # Header cards sum the table groups, so they always agree with it
+      @total_invoices_with_discount = @suppliers_with_payments.sum { |group| group[:invoices_amount_with_discount] }
+      @total_savings = @total_invoices_amount - @total_invoices_with_discount
 
-      # Available credits (from suppliers that have invoices)
-      supplier_ids = all_invoices.map(&:supplier_id).uniq
-      @total_credits_amount = CreditNote.where(supplier_id: supplier_ids).available.sum { |cn| cn.remaining_balance_ars }
-      @total_credits_count = CreditNote.where(supplier_id: supplier_ids).available.count
+      @total_credits_amount = @suppliers_with_payments.sum { |group| group[:credits_amount] }
+      @total_credits_count = @suppliers_with_payments.sum { |group| group[:credit_notes].size }
 
-      # Total to pay (net) - uses amount with discount
       @total_to_pay = @total_invoices_with_discount - @total_credits_amount
     end
 
@@ -337,65 +333,26 @@ module Web
       Invoice.due_or_discount_in_period(start_date, end_date)
     end
 
-    def calculate_payments_by_supplier(invoices)
-      invoices.includes(:supplier)
-              .group_by(&:supplier)
-              .map do |supplier, supplier_invoices|
-                credits_amount = supplier.credit_notes.available.sum { |cn| cn.remaining_balance_ars }
-                invoices_amount = supplier_invoices.sum { |i| i.total_amount_ars }
-
-                {
-                  supplier: supplier,
-                  invoices: supplier_invoices,
-                  invoices_count: supplier_invoices.count,
-                  invoices_amount: invoices_amount,
-                  credits_amount: credits_amount,
-                  amount_to_pay: invoices_amount - credits_amount
-                }
-              end
-              .sort_by { |data| data[:amount_to_pay] }
-              .reverse
-    end
-
-    def calculate_payments_by_supplier_from_array(invoices_array)
-      invoices_array.group_by(&:supplier)
-                    .map do |supplier, supplier_invoices|
-                      credits_amount = supplier.credit_notes.available.sum { |cn| cn.remaining_balance_ars }
-                      invoices_amount = supplier_invoices.sum { |i| i.total_amount_ars }
-
-                      {
-                        supplier: supplier,
-                        invoices: supplier_invoices,
-                        invoices_count: supplier_invoices.count,
-                        invoices_amount: invoices_amount,
-                        credits_amount: credits_amount,
-                        amount_to_pay: invoices_amount - credits_amount
-                      }
-                    end
-                    .sort_by { |data| data[:amount_to_pay] }
-                    .reverse
-    end
-
-    # Groups invoices by supplier calculating original and discounted amounts
+    # One row per supplier and type: a batch never mixes types, and only
+    # supplier invoices take credit notes.
     def calculate_payments_by_supplier_unified(invoices_array)
-      invoices_array.group_by(&:supplier)
-                    .map do |supplier, supplier_invoices|
-                      credit_notes  = supplier.credit_notes.available.to_a.select(&:available?)
+      invoices_array.group_by { |invoice| [ invoice.supplier, invoice.expense_type ] }
+                    .map do |(supplier, expense_type), group|
+                      credit_notes = expense_type == "supplier" ? supplier.credit_notes.available.to_a.select(&:available?) : []
                       credits_amount = credit_notes.sum(&:remaining_balance_ars)
-                      # Original amount (without discount)
-                      invoices_amount = supplier_invoices.sum { |i| i.total_amount }
-                      # Amount with discount applied where applicable
-                      invoices_amount_with_discount = supplier_invoices.sum { |i| i.amount_with_discount_ars }
+                      invoices_amount = group.sum(&:total_amount)
+                      amount_due = group.sum { |invoice| invoice.amount_due_ars(Date.current) }
 
                       {
                         supplier: supplier,
-                        invoices: supplier_invoices,
-                        invoices_count: supplier_invoices.count,
+                        expense_type: expense_type,
+                        invoices: group,
+                        invoices_count: group.count,
                         invoices_amount: invoices_amount,
-                        invoices_amount_with_discount: invoices_amount_with_discount,
+                        invoices_amount_with_discount: amount_due,
                         credits_amount: credits_amount,
                         credit_notes: credit_notes,
-                        amount_to_pay: invoices_amount_with_discount - credits_amount
+                        amount_to_pay: amount_due - credits_amount
                       }
                     end
                     .sort_by { |data| data[:amount_to_pay] }

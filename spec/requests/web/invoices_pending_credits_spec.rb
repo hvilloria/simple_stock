@@ -222,4 +222,42 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
       expect(invoice.reload.paid_status?).to be true
     end
   end
+
+  describe "groups by supplier and type" do
+    it "lists AFIP once per type" do
+      afip = create(:supplier, name: "AFIP")
+      [ [ "taxes", "IIBB" ], [ "social_charges", "F931" ] ].each do |type, number|
+        create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: type, invoice_number: number,
+               amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
+      end
+
+      get pending_web_invoices_path(period: "this_week")
+
+      expect(response.body).to include("Impuestos")
+      expect(response.body).to include("Cargas sociales")
+      expect(response.body.scan(/data-group-supplier="AFIP"/).size).to eq(2)
+    end
+  end
+
+  describe "header cards agree with the table" do
+    it "does not show an expired early-payment discount" do
+      invoice = invoice_this_week(amount: 100_000, number: "FAC-EXP")
+      invoice.update_columns(early_payment_discount_percentage: 10, early_payment_due_date: Date.yesterday)
+
+      get pending_web_invoices_path(period: "this_week")
+
+      expect(response.body).to include("Sin descuentos disponibles")
+      expect(response.body).not_to include("90.000,00")
+    end
+
+    it "ignores credits of suppliers that only appear under non-supplier types" do
+      create(:credit_note, supplier: supplier, amount: 5_000)
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, expense_type: "taxes", invoice_number: "IIBB",
+             amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
+
+      get pending_web_invoices_path(period: "this_week")
+
+      expect(response.body).not_to include("5.000,00")
+    end
+  end
 end

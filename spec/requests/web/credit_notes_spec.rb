@@ -110,4 +110,28 @@ RSpec.describe "Web::CreditNotes", type: :request do
       expect(response.body).not_to include("ARS 6.000,00")
     end
   end
+
+  describe "GET /web/credit_notes/supplier_invoices" do
+    it "offers only supplier-type invoices to a credit note" do
+      keep = create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "KEEP")
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "DROP", expense_type: "taxes")
+
+      get supplier_invoices_web_credit_notes_path(supplier_id: supplier.id)
+
+      expect(response.parsed_body.map { |row| row["number"] }).to eq([ keep.invoice_number ])
+    end
+  end
+
+  describe "GET /web/credit_notes/:id/edit" do
+    it "offers only supplier-type invoices to link" do
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "KEEP-INV")
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "DROP-INV", expense_type: "taxes")
+      note = create(:credit_note, supplier: supplier, amount: 1000)
+
+      get edit_web_credit_note_path(note)
+
+      expect(response.body).to include("KEEP-INV")
+      expect(response.body).not_to include("DROP-INV")
+    end
+  end
 end
