@@ -60,7 +60,7 @@ Responsible for:
 - proposing the safest and simplest approach
 - identifying files to modify
 - identifying risks
-- updating `WORKING_CONTEXT.md` after implementation
+- updating `WORKING_CONTEXT.md` in the same branch, as the last task of the plan
 
 Planner must NOT:
 - jump directly into implementation
@@ -195,6 +195,7 @@ Only propose multiple options when the decision is important.
 `WORKING_CONTEXT.md` is operational memory, not full documentation.
 
 When updating it:
+- update it **in the same branch as the work it describes**, as part of that work (a `docs(<scope>)` commit before the branch is reviewed and merged) — never as a follow-up commit on `main`; follow-ups on the branch refresh it there too
 - keep it concise
 - include only important current behavior, decisions, or constraints
 - remove outdated notes when needed
