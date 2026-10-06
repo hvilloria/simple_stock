@@ -30,7 +30,10 @@ export default class extends Controller {
     "zeroCostList",
     "zeroCostSummary",
     "productsCard",
-    "summaryType"
+    "summaryType",
+    "numberField",
+    "periodField",
+    "currencyField"
   ]
   
   static values = { 
@@ -44,6 +47,34 @@ export default class extends Controller {
     if (!supplier) document.dispatchEvent(new CustomEvent("invoice-form:clear-lines"))
     if (this.hasSummaryTypeTarget) this.summaryTypeTarget.textContent = event.target.closest("label").textContent.trim()
     this.filterSuppliers()
+    this.syncIdentification()
+  }
+
+  // A supplier invoice is identified by its number, every other type by its
+  // period and detail. A disabled group is not posted, and a non-supplier
+  // invoice is always in pesos, so the currency choice goes back to ARS.
+  syncIdentification() {
+    const type = this.selectedExpenseType()
+    if (!type) return
+
+    const supplier = type === "supplier"
+    this.setGroup(this.hasNumberFieldTarget && this.numberFieldTarget, supplier)
+    this.setGroup(this.hasPeriodFieldTarget && this.periodFieldTarget, !supplier)
+
+    if (this.hasCurrencyFieldTarget) {
+      this.currencyFieldTarget.hidden = !supplier
+      const ars = this.element.querySelector("#currency_ars")
+      if (!supplier && ars && !ars.checked) {
+        ars.checked = true
+        this.toggleExchangeRate()
+      }
+    }
+  }
+
+  setGroup(group, shown) {
+    if (!group) return
+    group.hidden = !shown
+    group.disabled = !shown
   }
 
   selectedExpenseType() {
@@ -78,6 +109,7 @@ export default class extends Controller {
     console.log("Invoice form controller connected")
     
     this.filterSuppliers({ keepSelected: true })
+    this.syncIdentification()
 
     // Calculate initial date if values already exist
     this.calculateDueDate()

@@ -19,6 +19,8 @@
         %h4.font-semibold.text-red-800.mb-1 Error
         %p.text-sm.text-red-700= flash[:alert]
 
+  - non_supplier = (params[:expense_type].presence || "supplier") != "supplier"
+
   = form_with url: web_invoices_path, method: :post, local: true, data: { controller: "invoice-form", action: "submit->invoice-form#handleFormSubmit lines-changed->invoice-form#linesChanged" } do |f|
     
     .grid.grid-cols-1.lg:grid-cols-3.gap-6
@@ -56,40 +58,59 @@
               
               %p.text-xs.text-gray-500.mt-1 Selecciona el proveedor que emitió la factura
             
-            -# Invoice number
-            %div
+            -# Invoice number: a supplier's document is told apart by its number
+            %fieldset{ data: { invoice_form_target: "numberField" }, hidden: non_supplier, disabled: non_supplier }
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Número de Factura
               = text_field_tag :invoice_number, params[:invoice_number],
                               placeholder: "Ej: FAC-001234",
                               class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                               required: true
               %p.text-xs.text-gray-500.mt-1 Número de factura del proveedor
-            
-            -# Currency (visual radio buttons)
-            %div
-              %label.block.text-sm.font-medium.text-gray-700.mb-3 Moneda
-              .grid.grid-cols-2.gap-4
-                %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_ars_label" }
-                  = radio_button_tag :currency, 'ARS', params[:currency].blank? || params[:currency] == 'ARS', id: "currency_ars", data: { action: "change->invoice-form#toggleExchangeRate" }
-                  .flex-1
-                    %p.font-medium.text-gray-900 🇦🇷 ARS
-                    %p.text-xs.text-gray-500 Pesos argentinos
+
+            -# Period and detail: any other document is told apart by the month it covers
+            %fieldset.space-y-4{ data: { invoice_form_target: "periodField" }, hidden: !non_supplier, disabled: !non_supplier }
+              %div
+                %label.block.text-sm.font-medium.text-gray-700.mb-2{ for: "period" } Período
+                = month_field_tag :period, params[:period].presence || Date.current.prev_month.strftime("%Y-%m"),
+                                  class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                                  required: true
+                %p.text-xs.text-gray-500.mt-1 Mes al que corresponde la boleta
+              %div
+                %label.block.text-sm.font-medium.text-gray-700.mb-2{ for: "detail" } Detalle (opcional)
+                = text_field_tag :detail, params[:detail],
+                                placeholder: "Ej: IVA, SICOSS",
+                                maxlength: Invoice::DETAIL_MAX_LENGTH,
+                                class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+
+            -# Currency: only a supplier invoice may be in dollars; every other type is in pesos
+            %div{ data: { invoice_form_target: "currencyField" }, hidden: non_supplier }
+              .space-y-4
+                -# Currency (visual radio buttons)
+                %div
+                  %label.block.text-sm.font-medium.text-gray-700.mb-3 Moneda
+                  .grid.grid-cols-2.gap-4
+                    %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_ars_label" }
+                      = radio_button_tag :currency, 'ARS', params[:currency].blank? || params[:currency] == 'ARS', id: "currency_ars", data: { action: "change->invoice-form#toggleExchangeRate" }
+                      .flex-1
+                        %p.font-medium.text-gray-900 🇦🇷 ARS
+                        %p.text-xs.text-gray-500 Pesos argentinos
                 
-                %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_usd_label" }
-                  = radio_button_tag :currency, 'USD', params[:currency] == 'USD', id: "currency_usd", data: { action: "change->invoice-form#toggleExchangeRate" }
-                  .flex-1
-                    %p.font-medium.text-gray-900 💵 USD
-                    %p.text-xs.text-gray-500 Dólares estadounidenses
+                    %label.relative.flex.items-center.gap-3.p-4.border-2.border-gray-200.rounded-xl.cursor-pointer.hover:border-gray-400.transition-all{ id: "currency_usd_label" }
+                      = radio_button_tag :currency, 'USD', params[:currency] == 'USD', id: "currency_usd", data: { action: "change->invoice-form#toggleExchangeRate" }
+                      .flex-1
+                        %p.font-medium.text-gray-900 💵 USD
+                        %p.text-xs.text-gray-500 Dólares estadounidenses
             
-            -# Exchange rate (only if USD)
-            %div{ id: "exchange_rate_field", data: { invoice_form_target: "exchangeRateField" }, style: "display: none;" }
-              %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo de Cambio
-              = text_field_tag :exchange_rate, @exchange_rate_value,
-                              placeholder: "Ej: 1.200,00",
-                              class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
-                              data: { invoice_form_target: "exchangeRateInput", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
-              %p.text-xs.text-gray-500.mt-1 Tipo de cambio USD → ARS
+                -# Exchange rate (only if USD)
+                %div{ id: "exchange_rate_field", data: { invoice_form_target: "exchangeRateField" }, style: "display: none;" }
+                  %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo de Cambio
+                  = text_field_tag :exchange_rate, @exchange_rate_value,
+                                  placeholder: "Ej: 1.200,00",
+                                  class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                                  data: { invoice_form_target: "exchangeRateInput", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
+                  %p.text-xs.text-gray-500.mt-1 Tipo de cambio USD → ARS
             
+
             -# Invoice amount
             %div
               %label.block.text-sm.font-medium.text-gray-700.mb-2 Monto Total

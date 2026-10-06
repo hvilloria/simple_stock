@@ -1,4 +1,4 @@
-- content_for :page_title, "Factura #{@invoice.invoice_number}"
+- content_for :page_title, "Factura #{@invoice.reference}"
 
 .container.mx-auto.px-6.py-6
 
@@ -9,7 +9,7 @@
         %span.text-xl ←
       %h1.text-3xl.font-bold.text-gray-900
         Factura
-        = @invoice.invoice_number
+        = @invoice.reference
 
     .flex.items-center.gap-3
       - if @invoice.pending_status?
@@ -44,8 +44,8 @@
             = link_to @invoice.supplier.name, web_supplier_path(@invoice.supplier), class: "font-medium text-blue-600 hover:text-blue-800 hover:underline"
 
           .flex.items-start.gap-3
-            %span.text-gray-500.w-40.flex-shrink-0 N° Factura:
-            %span.font-mono.font-semibold.text-gray-900= @invoice.invoice_number
+            %span.text-gray-500.w-40.flex-shrink-0 Comprobante:
+            %span.font-mono.font-semibold.text-gray-900= @invoice.reference
 
           .flex.items-start.gap-3
             %span.text-gray-500.w-40.flex-shrink-0 Tipo:
@@ -201,7 +201,7 @@
                 %strong= "$ #{number_ar(movement.amount.abs)}"
               - siblings = movement.paid_invoices.reject { |paid| paid.id == @invoice.id }
               - if siblings.any?
-                %p.text-xs.text-slate-500= "Pagada junto con #{siblings.map(&:invoice_number).join(', ')}"
+                %p.text-xs.text-slate-500= "Pagada junto con #{siblings.map(&:reference).join(', ')}"
               = link_to "Ver en la caja del #{movement.business_date.strftime('%d/%m')} →", web_cash_day_path(movement.business_date.to_s),
                         class: "text-sm text-slate-600 underline hover:text-slate-900"
             - elsif @invoice.paid_with_credits_only?

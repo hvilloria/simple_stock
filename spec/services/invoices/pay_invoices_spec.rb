@@ -7,7 +7,7 @@ RSpec.describe Invoices::PayInvoices do
   let(:supplier) { create(:supplier, name: "Sergio Sussex", expense_types: %w[supplier taxes]) }
   let(:afip)     { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
 
-  def pending_invoice(supplier:, amount:, number:, **attrs)
+  def pending_invoice(supplier:, amount:, number: nil, **attrs)
     create(:invoice, :simple_mode, :in_ars, supplier: supplier, amount: amount,
            invoice_number: number, purchase_date: Date.current - 10, **attrs)
   end
@@ -18,7 +18,9 @@ RSpec.describe Invoices::PayInvoices do
   end
 
   describe "a single tax invoice" do
-    let(:invoice) { pending_invoice(supplier: afip, amount: 250_000, number: "IIBB 09/2026", expense_type: "taxes") }
+    let(:invoice) do
+      pending_invoice(supplier: afip, amount: 250_000, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+    end
 
     it "writes one fixed-expense outflow from the chosen arca and links it" do
       result = pay([ invoice ])
@@ -27,10 +29,27 @@ RSpec.describe Invoices::PayInvoices do
       movement = result.record
       expect(movement).to have_attributes(account: "main_cash", amount: -250_000, category: "fixed_expense",
                                           subcategory: "taxes", business_date: Date.current, user: user,
-                                          description: "Pago AFIP — IIBB 09/2026")
+                                          description: "Pago AFIP — IVA · 09/2026")
       expect(invoice.reload).to have_attributes(status: "paid", cash_movement_id: movement.id)
       expect(invoice.paid_at.to_date).to eq(Date.current)
       expect(movement.automatic?).to be true
+    end
+  end
+
+  describe "a batch of tax invoices of the same period" do
+    let!(:iva) { pending_invoice(supplier: afip, amount: 250_000, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1)) }
+    let!(:ganancias) { pending_invoice(supplier: afip, amount: 180_000, expense_type: "taxes", detail: "Ganancias", period: Date.new(2026, 9, 1)) }
+
+    it "names each one by its detail and period in the outflow" do
+      result = pay([ iva, ganancias ])
+
+      expect(result.record).to have_attributes(amount: -430_000, description: "Pago AFIP — IVA · 09/2026, Ganancias · 09/2026")
+    end
+
+    it "names a refused one by its reference" do
+      pay([ iva ])
+
+      expect(pay([ iva ]).errors).to eq([ "La factura IVA · 09/2026 ya está pagada" ])
     end
   end
 
@@ -217,7 +236,7 @@ RSpec.describe Invoices::PayInvoices do
     end
 
     it "refuses mixed types" do
-      taxes = pending_invoice(supplier: supplier, amount: 5_000, number: "X", expense_type: "taxes")
+      taxes = pending_invoice(supplier: supplier, amount: 5_000, expense_type: "taxes")
       expect_refusal("Pagá por separado las facturas de distinto tipo") { pay([ invoice, taxes ]) }
     end
 
@@ -227,7 +246,7 @@ RSpec.describe Invoices::PayInvoices do
     end
 
     it "refuses credit notes on a non-supplier invoice" do
-      taxes  = pending_invoice(supplier: afip, amount: 5_000, number: "Z", expense_type: "taxes")
+      taxes  = pending_invoice(supplier: afip, amount: 5_000, expense_type: "taxes")
       credit = create(:credit_note, supplier: afip, amount: 1_000)
       expect_refusal("Las notas de crédito solo se aplican a facturas de proveedor") do
         pay([ taxes ], credit_note_ids: [ credit.id ])

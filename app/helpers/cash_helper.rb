@@ -90,11 +90,11 @@ module CashHelper
     "if (!event.target.closest('a, button, form')) window.location='#{target}'"
   end
 
-  # "Pago <supplier> — <numbers>" with each number linking to its invoice. The
-  # numbers are typed by users, so link_to escapes them.
+  # "Pago <supplier> — <references>" with each reference linking to its invoice.
+  # The references are typed by users, so link_to escapes them.
   def cash_paid_invoices_description(movement)
     invoices = movement.paid_invoices.sort_by(&:id)
-    links = invoices.map { |invoice| link_to(invoice.invoice_number, web_invoice_path(invoice), class: "underline hover:text-slate-600") }
+    links = invoices.map { |invoice| link_to(invoice.reference, web_invoice_path(invoice), class: "underline hover:text-slate-600") }
 
     safe_join([ "Pago #{invoices.first.supplier.name} — ", safe_join(links, ", ") ])
   end

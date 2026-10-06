@@ -8,6 +8,7 @@ FactoryBot.define do
     total_cost { nil }
     notes { nil }
     has_items { true }
+    expense_type { "supplier" }
 
     # By default creates in full mode for compatibility with existing tests
     after(:build) do |invoice, evaluator|
@@ -30,7 +31,8 @@ FactoryBot.define do
     end
 
     trait :simple_mode do
-      invoice_number { "FAC-#{rand(1000..9999)}" }
+      invoice_number { expense_type == "supplier" ? "FAC-#{rand(1000..9999)}" : nil }
+      period { expense_type == "supplier" ? nil : Date.current.beginning_of_month }
       amount { rand(1000..10000) }
       due_date { 30.days.from_now }
       status { "pending" }

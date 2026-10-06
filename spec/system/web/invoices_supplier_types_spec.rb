@@ -63,17 +63,62 @@ RSpec.describe "Proveedores según el tipo de factura", type: :system do
       expect(find("#supplier_id").value).to eq(afip.id.to_s)
     end
 
-    it "registers a tax invoice for the tax authority" do
+    it "registers a tax invoice for the tax authority by period and detail" do
       choose "Impuestos", allow_label_click: true
       select "AFIP", from: "supplier_id"
-      fill_in "invoice_number", with: "IIBB 09/2026"
-      choose "currency_ars"
+      fill_in "detail", with: "IVA"
       fill_in "amount", with: "250.000,00"
 
       click_button "Registrar Factura"
 
       expect(page).to have_text("Factura registrada exitosamente")
-      expect(Invoice.last).to have_attributes(supplier: afip, expense_type: "taxes")
+      expect(page).to have_text("Factura IVA · #{Date.current.prev_month.strftime('%m/%Y')}")
+      expect(Invoice.last).to have_attributes(supplier: afip, expense_type: "taxes", detail: "IVA", invoice_number: nil,
+                                              period: Date.current.prev_month.beginning_of_month, currency: "ARS")
+    end
+
+    it "shows the number for a supplier and the period and detail for the other types" do
+      expect(page).to have_field("invoice_number")
+      expect(page).to have_no_field("period")
+      expect(page).to have_no_field("detail")
+      expect(page).to have_field("currency_ars", visible: :all)
+
+      choose "Impuestos", allow_label_click: true
+
+      expect(page).to have_no_field("invoice_number")
+      expect(page).to have_field("period", with: Date.current.prev_month.strftime("%Y-%m"))
+      expect(page).to have_field("detail")
+      expect(page).to have_no_field("currency_usd", visible: :visible)
+
+      choose "Proveedor", allow_label_click: true
+
+      expect(page).to have_field("invoice_number")
+      expect(page).to have_no_field("period")
+      expect(page).to have_field("currency_usd", visible: :all)
+    end
+
+    it "puts the currency back to pesos when the type stops being supplier" do
+      choose "currency_usd"
+      expect(page).to have_field("exchange_rate")
+
+      choose "Servicios", allow_label_click: true
+
+      expect(find("#currency_ars", visible: :all)).to be_checked
+      expect(page).to have_no_field("exchange_rate")
+    end
+
+    it "keeps the period and detail when the server refuses the registration" do
+      choose "Impuestos", allow_label_click: true
+      select "AFIP", from: "supplier_id"
+      fill_in "detail", with: "IVA"
+      fill_in "amount", with: "0,00"
+
+      click_button "Registrar Factura"
+
+      expect(page).to have_text("Amount must be greater than zero")
+      expect(page).to have_field("detail", with: "IVA")
+      expect(page).to have_field("period", with: Date.current.prev_month.strftime("%Y-%m"))
+      expect(page).to have_no_field("invoice_number")
     end
   end
 
@@ -85,6 +130,22 @@ RSpec.describe "Proveedores según el tipo de factura", type: :system do
     it "offers the suppliers of the current type and keeps the current one" do
       expect(find("#invoice_supplier_id").value).to eq(goods.id.to_s)
       expect(option_state("invoice_supplier_id", "AFIP")).to eq(:disabled)
+    end
+
+    it "swaps the number for the period and detail when the type changes" do
+      expect(page).to have_field("invoice_invoice_number")
+      expect(page).to have_no_field("invoice_period")
+
+      select "Impuestos", from: "invoice_expense_type"
+
+      expect(page).to have_no_field("invoice_invoice_number")
+      expect(page).to have_field("invoice_period")
+      expect(page).to have_field("invoice_detail")
+
+      select "Proveedor", from: "invoice_expense_type"
+
+      expect(page).to have_field("invoice_invoice_number")
+      expect(page).to have_no_field("invoice_period")
     end
 
     it "clears the supplier when the new type is not billed by it" do

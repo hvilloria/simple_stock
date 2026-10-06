@@ -909,6 +909,142 @@ RSpec.describe Invoice, type: :model do
     end
   end
 
+  describe "identification by type" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes utilities social_charges]) }
+
+    def taxes_invoice(**attrs)
+      build(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", **attrs)
+    end
+
+    it "requires an invoice number on a supplier invoice" do
+      invoice = build(:invoice, :simple_mode, :in_ars, invoice_number: nil)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:invoice_number]).to be_present
+    end
+
+    it "clears the period and detail of a supplier invoice" do
+      invoice = build(:invoice, :simple_mode, :in_ars, supplier: create(:supplier), period: Date.new(2026, 9, 1), detail: "IVA")
+      invoice.save!
+      expect(invoice.reload.period).to be_nil
+      expect(invoice.detail).to be_nil
+    end
+
+    it "requires a period on a non-supplier invoice" do
+      invoice = taxes_invoice(period: nil)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("Falta el período")
+    end
+
+    it "accepts a non-supplier invoice without a number" do
+      expect(taxes_invoice(invoice_number: nil)).to be_valid
+    end
+
+    it "never keeps the number of a non-supplier invoice" do
+      invoice = taxes_invoice(invoice_number: "IIBB 09/2026")
+      invoice.save!
+      expect(invoice.reload.invoice_number).to be_nil
+    end
+
+    it "requires pesos on a non-supplier invoice" do
+      invoice = build(:invoice, :simple_mode, supplier: afip, expense_type: "utilities", currency: "USD", exchange_rate: 1200)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to eq([ "Las boletas de Servicios son en pesos" ])
+    end
+
+    it "caps the detail at 40 characters" do
+      expect(taxes_invoice(detail: "a" * 40)).to be_valid
+
+      invoice = taxes_invoice(detail: "a" * 41)
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("El detalle no puede superar 40 caracteres")
+    end
+
+    it "stores a blank detail as nil" do
+      invoice = taxes_invoice(detail: "   ")
+      invoice.valid?
+      expect(invoice.detail).to be_nil
+    end
+
+    it "keeps what the other type does not use until the save goes through" do
+      both = create(:supplier, expense_types: %w[supplier taxes])
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: both, invoice_number: "FAC-1")
+      invoice.assign_attributes(expense_type: "taxes", period: nil)
+
+      expect(invoice).not_to be_valid
+      expect(invoice.invoice_number).to eq("FAC-1")
+    end
+
+    it "stores the period as the first of the month" do
+      invoice = taxes_invoice(period: Date.new(2026, 9, 17))
+      invoice.valid?
+      expect(invoice.period).to eq(Date.new(2026, 9, 1))
+    end
+
+    it "clears the exchange rate of a non-supplier invoice" do
+      invoice = taxes_invoice(exchange_rate: 1200)
+      invoice.save!
+      expect(invoice.reload.exchange_rate).to be_nil
+    end
+
+    describe "#reference" do
+      it "is the invoice number of a supplier invoice" do
+        expect(build(:invoice, :simple_mode, invoice_number: "FAC-001").reference).to eq("FAC-001")
+      end
+
+      it "joins the detail and the period on a non-supplier invoice" do
+        invoice = taxes_invoice(detail: "IVA", period: Date.new(2026, 9, 1))
+        expect(invoice.reference).to eq("IVA · 09/2026")
+      end
+
+      it "is only the period without a detail" do
+        invoice = taxes_invoice(detail: nil, period: Date.new(2026, 9, 1))
+        expect(invoice.reference).to eq("09/2026")
+      end
+
+      it "keeps the stored reference apart from an unsaved edit" do
+        invoice = taxes_invoice(detail: "IVA", period: Date.new(2026, 9, 1))
+        invoice.save!
+        invoice.assign_attributes(detail: "Ganancias", expense_type: "supplier", invoice_number: "")
+
+        expect(invoice.reference_was).to eq("IVA · 09/2026")
+      end
+
+      it "is blank while the period is missing" do
+        expect(taxes_invoice(period: nil).reference).to eq("")
+      end
+    end
+  end
+
+  describe ".search_invoice by detail and period" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes]) }
+    let!(:iva) { create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1)) }
+    let!(:gan) { create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "Ganancias", period: Date.new(2026, 8, 1)) }
+    let!(:fac) { create(:invoice, :simple_mode, :in_ars, invoice_number: "FAC-001") }
+
+    it "matches the detail, ignoring case" do
+      expect(Invoice.search_invoice("iva")).to contain_exactly(iva)
+    end
+
+    it "matches the period as month and year" do
+      expect(Invoice.search_invoice("09/2026")).to contain_exactly(iva)
+      expect(Invoice.search_invoice("08/2026")).to contain_exactly(gan)
+    end
+
+    it "matches the reference as it is displayed" do
+      expect(Invoice.search_invoice("IVA · 09/2026")).to contain_exactly(iva)
+      expect(Invoice.search_invoice("Ganancias · 08")).to contain_exactly(gan)
+    end
+
+    it "still matches a supplier invoice number" do
+      expect(Invoice.search_invoice("FAC-001")).to contain_exactly(fac)
+    end
+
+    it "treats wildcard characters as plain text" do
+      expect(Invoice.search_invoice("%")).to be_empty
+      expect(Invoice.search_invoice("_")).to be_empty
+    end
+  end
+
   describe "#amount_due_ars" do
     it "is the peso amount without a discount" do
       invoice = build(:invoice, :simple_mode, :in_ars, amount: 100_000)

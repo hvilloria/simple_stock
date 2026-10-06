@@ -77,12 +77,12 @@ module Invoices
 
     def validate_invoice(invoice)
       unless invoice.simple_mode?
-        raise ValidationError, "Solo facturas en modo simple pueden pagarse (#{invoice.invoice_number})"
+        raise ValidationError, "Solo facturas en modo simple pueden pagarse (#{invoice.reference})"
       end
-      raise ValidationError, "La factura #{invoice.invoice_number} ya está pagada" if invoice.paid_status?
-      raise ValidationError, "La factura #{invoice.invoice_number} no está pendiente" unless invoice.pending_status?
+      raise ValidationError, "La factura #{invoice.reference} ya está pagada" if invoice.paid_status?
+      raise ValidationError, "La factura #{invoice.reference} no está pendiente" unless invoice.pending_status?
       if @payment_date < invoice.purchase_date
-        raise ValidationError, "La fecha de pago no puede ser anterior a la fecha de la factura #{invoice.invoice_number}"
+        raise ValidationError, "La fecha de pago no puede ser anterior a la fecha de la factura #{invoice.reference}"
       end
     end
 
@@ -160,7 +160,7 @@ module Invoices
     end
 
     def description
-      "Pago #{@invoices.first.supplier.name} — #{@invoices.map(&:invoice_number).join(', ')}"
+      "Pago #{@invoices.first.supplier.name} — #{@invoices.map(&:reference).join(', ')}"
     end
   end
 end

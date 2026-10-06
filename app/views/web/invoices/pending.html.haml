@@ -112,7 +112,7 @@
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
               Tipo
             %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase
-              N° Factura
+              Comprobante
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
               Vence Normal
             %th.px-4.py-3.text-center.text-xs.font-medium.text-slate-500.uppercase
@@ -131,7 +131,7 @@
         %tbody.divide-y.divide-slate-100
           - @suppliers_with_payments.each do |data|
             - cn_json           = data[:credit_notes].map { |cn| { id: cn.id, number: cn.credit_note_number, remaining_balance_ars: cn.remaining_balance_ars.to_f } }.to_json
-            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.invoice_number, full: BigDecimal(i.total_amount_ars.to_s).round(2).to_f, discounted: BigDecimal(i.amount_with_discount_ars.to_s).round(2).to_f, deadline: i.early_payment_due_date&.iso8601.to_s } }.to_json
+            - invoices_list_json = data[:invoices].map { |i| { id: i.id, number: i.reference, full: BigDecimal(i.total_amount_ars.to_s).round(2).to_f, discounted: BigDecimal(i.amount_with_discount_ars.to_s).round(2).to_f, deadline: i.early_payment_due_date&.iso8601.to_s } }.to_json
 
             -# Supplier main row
             %tr.bg-slate-50.hover:bg-slate-100.transition-colors{ data: { group_supplier: data[:supplier].name, group_type: data[:expense_type] } }
@@ -189,7 +189,7 @@
 
                 %td.px-4.py-2
                   %span.font-mono.text-sm{ class: has_discount ? "text-emerald-600 font-semibold" : "text-gray-700" }
-                    = link_to invoice.invoice_number, web_invoice_path(invoice)
+                    = link_to invoice.reference, web_invoice_path(invoice)
 
                 %td.px-4.py-2.text-center
                   %span.text-sm.text-gray-600= invoice.due_date.strftime("%d/%m/%Y")

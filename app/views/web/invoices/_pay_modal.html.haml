@@ -6,7 +6,7 @@
             invoice_payment_discounted_value: invoice.amount_with_discount_ars.to_f,
             invoice_payment_deadline_value: invoice.early_payment_due_date&.iso8601.to_s } }
     .flex.items-center.justify-between.mb-4
-      %h3.text-lg.font-semibold.text-slate-900= "Pagar factura #{invoice.invoice_number}"
+      %h3.text-lg.font-semibold.text-slate-900= "Pagar factura #{invoice.reference}"
       %button.text-slate-400{ class: "hover:text-slate-600", type: "button", onclick: "document.getElementById('payInvoiceModal').classList.add('hidden')" }
         %span.text-2xl ×
 

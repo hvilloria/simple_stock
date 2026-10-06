@@ -1,4 +1,5 @@
-- content_for :page_title, "Editar Factura #{@invoice.invoice_number}"
+- content_for :page_title, "Editar Factura #{@invoice.reference_was}"
+- non_supplier = !@invoice.supplier_expense_type?
 
 .container.mx-auto.px-6.py-6.max-w-2xl
 
@@ -8,7 +9,7 @@
       %span.text-xl ←
     %h1.text-3xl.font-bold.text-gray-900
       Editar Factura
-      = @invoice.invoice_number
+      = @invoice.reference_was
 
   = form_with model: @invoice, url: web_invoice_path(@invoice), method: :patch, local: true, class: "space-y-6", data: { controller: "invoice-form", action: "turbo:submit-start->invoice-form#handleFormSubmit" } do |f|
     
@@ -48,12 +49,27 @@
                      required: true,
                      data: { invoice_form_target: "supplier" }
 
-        -# Invoice number
-        %div
+        -# Invoice number: a supplier's document is told apart by its number
+        %fieldset{ data: { invoice_form_target: "numberField" }, hidden: non_supplier, disabled: non_supplier }
           = f.label :invoice_number, "Número de Factura", class: "block text-sm font-medium text-gray-700 mb-2"
           = f.text_field :invoice_number,
                         class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                         required: true
+
+        -# Period and detail: any other document is told apart by the month it covers
+        %fieldset.space-y-4{ data: { invoice_form_target: "periodField" }, hidden: !non_supplier, disabled: !non_supplier }
+          %div
+            = f.label :period, "Período", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.month_field :period,
+                            value: @invoice.period&.strftime("%Y-%m"),
+                            class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
+                            required: true
+          %div
+            = f.label :detail, "Detalle (opcional)", class: "block text-sm font-medium text-gray-700 mb-2"
+            = f.text_field :detail,
+                          placeholder: "Ej: IVA, SICOSS",
+                          maxlength: Invoice::DETAIL_MAX_LENGTH,
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
 
         -# Amount: owned by the lines when there are any
         %div

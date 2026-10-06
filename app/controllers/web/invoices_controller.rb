@@ -103,6 +103,8 @@ module Web
         early_payment_due_date: parse_optional_date(params[:early_payment_due_date]),
         early_payment_discount_percentage: parse_optional_integer(params[:early_payment_discount_percentage]),
         expense_type: params[:expense_type].presence || "supplier",
+        period: parse_period(params[:period]),
+        detail: params[:detail],
         items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
@@ -146,6 +148,7 @@ module Web
       if @invoice.invoice_items.any? || !Invoice::EXPENSE_TYPE_LABELS.key?(update_params[:expense_type].to_s)
         update_params.delete(:expense_type)
       end
+      update_params[:period] = parse_period(update_params[:period]) if update_params.key?(:period)
       update_params[:amount] = parse_amount(update_params[:amount]) if update_params[:amount].present?
       update_params[:exchange_rate] = parse_amount(update_params[:exchange_rate]) if update_params[:exchange_rate].present?
 
@@ -295,6 +298,15 @@ module Web
       nil
     end
 
+    # A month input posts "YYYY-MM"; the invoice stores the first of that month.
+    def parse_period(value)
+      return nil unless value.to_s.match?(/\A\d{4}-\d{2}\z/)
+
+      Date.strptime(value, "%Y-%m")
+    rescue ArgumentError
+      nil
+    end
+
     def parse_optional_integer(value)
       return nil if value.blank?
       value.to_i
@@ -316,6 +328,8 @@ module Web
         :supplier_id,
         :expense_type,
         :invoice_number,
+        :period,
+        :detail,
         :amount,
         :exchange_rate,
         :purchase_date,

@@ -18,7 +18,13 @@ class Invoice < ApplicationRecord
 
   enum :expense_type, EXPENSE_TYPE_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
 
+  DETAIL_MAX_LENGTH = 40
+
+  before_validation :normalize_identification
+  before_save :clear_unused_identification
+
   validate :lines_only_on_supplier_invoices
+  validate :non_supplier_identification, unless: :supplier_expense_type?
   validate :supplier_bills_expense_type, if: -> { new_record? || will_save_change_to_supplier_id? || will_save_change_to_expense_type? }
 
   scope :by_expense_type, ->(key) { where(expense_type: key) if EXPENSE_TYPE_LABELS.key?(key.to_s) }
@@ -42,7 +48,7 @@ class Invoice < ApplicationRecord
   validates :supplier_id, presence: true
 
   # === SIMPLE MODE VALIDATIONS (has_items: false) ===
-  validates :invoice_number, presence: true, unless: :has_items?
+  validates :invoice_number, presence: true, if: -> { supplier_expense_type? && !has_items? }
   validates :due_date, presence: true, unless: :has_items?
   validates :amount, presence: true, unless: :has_items?
   validates :amount, numericality: { greater_than: 0 }, if: -> { amount_required? && amount.present? }
@@ -101,8 +107,14 @@ class Invoice < ApplicationRecord
   # Filter by supplier (accepts nil for "all")
   scope :for_supplier, ->(supplier) { where(supplier_id: supplier.id) if supplier.present? }
 
-  # Search by invoice number (case-insensitive, partial match)
-  scope :search_invoice, ->(query) { where("invoice_number ILIKE ?", "%#{query}%") if query.present? }
+  # Search by number, detail, period as MM/YYYY or the reference as shown (case-insensitive, partial match)
+  scope :search_invoice, ->(query) {
+    if query.present?
+      pattern = "%#{sanitize_sql_like(query.to_s)}%"
+      where("invoice_number ILIKE :q OR detail ILIKE :q OR to_char(period, 'MM/YYYY') ILIKE :q " \
+            "OR concat_ws(' · ', detail, to_char(period, 'MM/YYYY')) ILIKE :q", q: pattern)
+    end
+  }
 
   # Filter by status, ignoring values outside the enum
   scope :by_status_filter, ->(status) { where(status: status) if statuses.key?(status.to_s) }
@@ -135,6 +147,17 @@ class Invoice < ApplicationRecord
 
   def simple_mode?
     !has_items?
+  end
+
+  # What the operator calls this invoice: its number for a supplier, otherwise
+  # the optional detail plus the period it covers.
+  def reference
+    build_reference(expense_type, invoice_number, detail, period)
+  end
+
+  # The reference as stored, whatever an unsaved edit has changed since.
+  def reference_was
+    build_reference(expense_type_in_database, invoice_number_in_database, detail_in_database, period_in_database)
   end
 
   def full_mode?
@@ -281,6 +304,37 @@ class Invoice < ApplicationRecord
     return if supplier_expense_type? || invoice_items.empty?
 
     errors.add(:base, "Solo las facturas de proveedor llevan productos")
+  end
+
+  def normalize_identification
+    self.detail = detail.to_s.strip.presence
+    self.period = period&.beginning_of_month
+  end
+
+  # Only a supplier invoice has a number; every other type is told apart by its
+  # period. What the other kind does not use is dropped only once the save is
+  # going through, so a refused edit re-renders with everything the user typed.
+  def clear_unused_identification
+    if supplier_expense_type?
+      self.period = nil
+      self.detail = nil
+    else
+      self.invoice_number = nil
+      self.exchange_rate = nil if currency == "ARS"
+    end
+  end
+
+  def build_reference(type, number, detail, period)
+    return number if type == "supplier"
+
+    [ detail.presence, period&.strftime("%m/%Y") ].compact.join(" · ")
+  end
+
+  def non_supplier_identification
+    label = Invoice.expense_type_label(expense_type)
+    errors.add(:base, "Falta el período") if period.nil?
+    errors.add(:base, "El detalle no puede superar #{DETAIL_MAX_LENGTH} caracteres") if detail.to_s.length > DETAIL_MAX_LENGTH
+    errors.add(:base, "Las boletas de #{label} son en pesos") unless currency == "ARS"
   end
 
   def supplier_bills_expense_type

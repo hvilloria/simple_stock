@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_06_130000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_06_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -138,6 +138,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_06_130000) do
     t.boolean "paid_with_discount", default: false
     t.string "expense_type", default: "supplier", null: false
     t.bigint "cash_movement_id"
+    t.date "period"
+    t.string "detail"
     t.index ["cash_movement_id"], name: "index_invoices_on_cash_movement_id"
     t.index ["due_date"], name: "index_invoices_on_due_date"
     t.index ["early_payment_due_date"], name: "index_invoices_on_early_payment_due_date"

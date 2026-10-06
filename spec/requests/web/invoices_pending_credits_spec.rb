@@ -226,8 +226,8 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   describe "groups by supplier and type" do
     it "lists AFIP once per type" do
       afip = create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities])
-      [ [ "taxes", "IIBB" ], [ "social_charges", "F931" ] ].each do |type, number|
-        create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: type, invoice_number: number,
+      [ [ "taxes", "IVA" ], [ "social_charges", "SICOSS" ] ].each do |type, detail|
+        create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: type, detail: detail, period: Date.new(2026, 9, 1),
                amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
       end
 
@@ -236,6 +236,19 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
       expect(response.body).to include("Impuestos")
       expect(response.body).to include("Cargas sociales")
       expect(response.body.scan(/data-group-supplier="AFIP"/).size).to eq(2)
+    end
+
+    it "names each non-supplier row by its reference, in the table and in the payment modal" do
+      afip = create(:supplier, name: "AFIP", expense_types: %w[taxes])
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1),
+                       amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
+
+      get pending_web_invoices_path(period: "this_week")
+
+      html = Nokogiri::HTML(response.body)
+      expect(html.at("a[href='#{web_invoice_path(invoice)}']").text).to eq("IVA · 09/2026")
+      expect(html.css("th").map { |th| th.text.strip }).to include("Comprobante")
+      expect(JSON.parse(html.at("[data-invoices-list]")["data-invoices-list"]).map { |i| i["number"] }).to eq([ "IVA · 09/2026" ])
     end
   end
 
@@ -252,7 +265,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
     it "ignores credits of suppliers that only appear under non-supplier types" do
       create(:credit_note, supplier: supplier, amount: 5_000)
-      create(:invoice, :simple_mode, :in_ars, supplier: supplier, expense_type: "taxes", invoice_number: "IIBB",
+      create(:invoice, :simple_mode, :in_ars, supplier: supplier, expense_type: "taxes", detail: "IIBB",
              amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)
 
       get pending_web_invoices_path(period: "this_week")

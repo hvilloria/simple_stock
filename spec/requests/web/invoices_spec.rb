@@ -434,7 +434,7 @@ RSpec.describe "Web::Invoices", type: :request do
 
     it "creates a tax invoice" do
       post web_invoices_path, params: {
-        supplier_id: afip.id, expense_type: "taxes", invoice_number: "IIBB 09/2026", amount: "250.000,00",
+        supplier_id: afip.id, expense_type: "taxes", period: "2026-09", amount: "250.000,00",
         currency: "ARS", purchase_date: Date.current.to_s, due_date: (Date.current + 10).to_s
       }
       expect(Invoice.last.expense_type).to eq("taxes")
@@ -453,7 +453,7 @@ RSpec.describe "Web::Invoices", type: :request do
 
     it "changes the type of an amount-only invoice" do
       invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip)
-      patch web_invoice_path(invoice), params: { invoice: { expense_type: "utilities" } }
+      patch web_invoice_path(invoice), params: { invoice: { expense_type: "utilities", period: "2026-09" } }
       expect(invoice.reload.expense_type).to eq("utilities")
     end
 
@@ -472,11 +472,259 @@ RSpec.describe "Web::Invoices", type: :request do
     end
 
     it "filters the index by type" do
-      create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", invoice_number: "TAX-1")
+      create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "TAX-1")
       create(:invoice, :simple_mode, :in_ars, invoice_number: "SUP-1")
       get web_invoices_path, params: { expense_type: "taxes" }
       expect(response.body).to include("TAX-1")
       expect(response.body).not_to include("SUP-1")
+    end
+  end
+
+  describe "identification by type" do
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
+
+    def taxes_params(overrides = {})
+      { supplier_id: afip.id, expense_type: "taxes", period: "2026-09", detail: "IVA", amount: "250.000,00",
+        currency: "ARS", purchase_date: Date.current.to_s, due_date: (Date.current + 10).to_s }.merge(overrides)
+    end
+
+    def field_group(html, name)
+      html.at("fieldset[data-invoice-form-target='#{name}']")
+    end
+
+    matcher :have_attribute do |name|
+      match { |node| node.has_attribute?(name) }
+    end
+
+    describe "POST /web/invoices" do
+      it "registers a taxes invoice by period and detail, and lists it under Comprobante" do
+        post web_invoices_path, params: taxes_params
+
+        invoice = Invoice.last
+        expect(invoice.period).to eq(Date.new(2026, 9, 1))
+        expect(invoice.detail).to eq("IVA")
+        expect(invoice.invoice_number).to be_nil
+
+        get web_invoices_path
+        html = Nokogiri::HTML(response.body)
+        expect(html.css("th").map { |th| th.text.strip }).to include("Comprobante")
+        expect(html.css("td").map { |td| td.text.strip }).to include("IVA · 09/2026")
+      end
+
+      it "reads the period as the first of its month and ignores an unreadable one" do
+        post web_invoices_path, params: taxes_params(period: "2026-13")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Falta el período")
+        expect(Invoice.count).to eq(0)
+      end
+
+      it "refuses a detail over 40 characters" do
+        post web_invoices_path, params: taxes_params(detail: "a" * 41)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("El detalle no puede superar 40 caracteres")
+      end
+
+      it "refuses a taxes invoice in dollars" do
+        post web_invoices_path, params: taxes_params(currency: "USD", exchange_rate: "1.200,00")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Las boletas de Impuestos son en pesos")
+      end
+
+      it "refuses a supplier invoice without a number" do
+        post web_invoices_path, params: taxes_params(expense_type: "supplier", invoice_number: "")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Invoice number is required")
+      end
+
+      it "keeps the period and detail fields, and their values, when the server refuses" do
+        post web_invoices_path, params: taxes_params(amount: "")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        html = Nokogiri::HTML(response.body)
+        expect(html.at("input[name='period']")["value"]).to eq("2026-09")
+        expect(html.at("input[name='detail']")["value"]).to eq("IVA")
+        expect(field_group(html, "periodField")).not_to have_attribute("hidden")
+        expect(field_group(html, "numberField")).to have_attribute("hidden")
+        expect(field_group(html, "numberField")).to have_attribute("disabled")
+      end
+    end
+
+    describe "GET /web/invoices/new" do
+      it "shows the number for a supplier and the period for the other types" do
+        get new_web_invoice_path
+
+        html = Nokogiri::HTML(response.body)
+        expect(field_group(html, "numberField")).not_to have_attribute("hidden")
+        expect(field_group(html, "periodField")).to have_attribute("hidden")
+        expect(html.at("input[name='period']")["type"]).to eq("month")
+        expect(html.at("input[name='period']")["value"]).to eq(Date.current.prev_month.strftime("%Y-%m"))
+        expect(html.at("input[name='detail']")["maxlength"]).to eq("40")
+      end
+    end
+
+    describe "GET /web/invoices" do
+      let!(:iva)  { create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1)) }
+      let!(:sicoss) { create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "social_charges", detail: "SICOSS", period: Date.new(2026, 8, 1)) }
+      let!(:fac)  { create(:invoice, :simple_mode, :in_ars, supplier: supplier, invoice_number: "FAC-777") }
+
+      it "finds a non-supplier invoice by detail or period, and a supplier one by number" do
+        get web_invoices_path, params: { invoice_search: "IVA" }
+        expect(response.body).to include("IVA · 09/2026")
+        expect(response.body).not_to include("SICOSS · 08/2026")
+
+        get web_invoices_path, params: { invoice_search: "08/2026" }
+        expect(response.body).to include("SICOSS · 08/2026")
+        expect(response.body).not_to include("IVA · 09/2026")
+
+        get web_invoices_path, params: { invoice_search: "FAC-777" }
+        expect(response.body).to include("FAC-777")
+        expect(response.body).not_to include("IVA · 09/2026")
+      end
+
+      it "names the number, detail and period in the search placeholder" do
+        get web_invoices_path
+
+        placeholder = Nokogiri::HTML(response.body).at("input[name='invoice_search']")["placeholder"]
+        expect(placeholder).to include("detalle").and include("período")
+      end
+    end
+
+    describe "GET /web/invoices/:id" do
+      it "titles the page and shows the Comprobante row with the reference" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+
+        get web_invoice_path(invoice)
+
+        html = Nokogiri::HTML(response.body)
+        expect(html.css("h1").map { |h| h.text.squish }).to include("Factura IVA · 09/2026")
+        expect(response.body).to include("Comprobante:")
+        expect(response.body).not_to include("N° Factura")
+        expect(response.body).to include("Pagar factura IVA · 09/2026")
+      end
+
+      it "names the sibling invoices of the same payment by reference" do
+        iva = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+        gan = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "Ganancias", period: Date.new(2026, 9, 1))
+        Invoices::PayInvoices.call(invoices: [ iva, gan ], account: "main_cash", payment_date: Date.current, user: admin)
+
+        get web_invoice_path(iva)
+
+        expect(response.body).to include("Pagada junto con Ganancias · 09/2026")
+      end
+    end
+
+    describe "GET /web/suppliers/:id" do
+      it "lists the pending and paid invoices of a non-supplier type by reference" do
+        create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+        create(:invoice, :paid, :in_ars, supplier: afip, expense_type: "taxes", detail: "Ganancias", period: Date.new(2026, 8, 1))
+
+        get web_supplier_path(afip)
+
+        expect(response.body).to include("IVA · 09/2026")
+        expect(response.body).to include("Ganancias · 08/2026")
+      end
+    end
+
+    describe "GET /web/invoices/:id/edit" do
+      it "shows the period and detail of a non-supplier invoice and hides the number" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+
+        get edit_web_invoice_path(invoice)
+
+        html = Nokogiri::HTML(response.body)
+        expect(html.css("h1").map { |h| h.text.squish }).to include("Editar Factura IVA · 09/2026")
+        expect(html.at("input[name='invoice[period]']")["value"]).to eq("2026-09")
+        expect(html.at("input[name='invoice[detail]']")["value"]).to eq("IVA")
+        expect(field_group(html, "numberField")).to have_attribute("disabled")
+        expect(field_group(html, "periodField")).not_to have_attribute("hidden")
+      end
+
+      it "shows the number of a supplier invoice and hides the period" do
+        invoice = create(:invoice, :simple_mode, :in_ars, invoice_number: "FAC-9")
+
+        get edit_web_invoice_path(invoice)
+
+        html = Nokogiri::HTML(response.body)
+        expect(html.at("input[name='invoice[invoice_number]']")["value"]).to eq("FAC-9")
+        expect(field_group(html, "periodField")).to have_attribute("disabled")
+      end
+    end
+
+    describe "PATCH /web/invoices/:id" do
+      it "clears the number when a supplier invoice becomes taxes" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, invoice_number: "FAC-1")
+
+        patch web_invoice_path(invoice), params: { invoice: { expense_type: "taxes", period: "2026-09", detail: "IVA", invoice_number: "FAC-1" } }
+
+        invoice.reload
+        expect(invoice.expense_type).to eq("taxes")
+        expect(invoice.invoice_number).to be_nil
+        expect(invoice.period).to eq(Date.new(2026, 9, 1))
+        expect(invoice.reference).to eq("IVA · 09/2026")
+      end
+
+      it "refuses turning a supplier invoice into taxes without a period" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, invoice_number: "FAC-1")
+
+        patch web_invoice_path(invoice), params: { invoice: { expense_type: "taxes", period: "" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Falta el período")
+        expect(invoice.reload.expense_type).to eq("supplier")
+      end
+
+      it "clears the period and detail when taxes becomes a supplier invoice with a number" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+
+        patch web_invoice_path(invoice), params: { invoice: { expense_type: "supplier", invoice_number: "FAC-2", period: "2026-09", detail: "IVA" } }
+
+        invoice.reload
+        expect(invoice.expense_type).to eq("supplier")
+        expect(invoice.invoice_number).to eq("FAC-2")
+        expect(invoice.period).to be_nil
+        expect(invoice.detail).to be_nil
+      end
+
+      it "refuses turning taxes into a supplier invoice without a number" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+
+        patch web_invoice_path(invoice), params: { invoice: { expense_type: "supplier", invoice_number: "" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Invoice number can&#39;t be blank")
+        expect(invoice.reload.expense_type).to eq("taxes")
+        expect(invoice.period).to eq(Date.new(2026, 9, 1))
+
+        html = Nokogiri::HTML(response.body)
+        expect(html.css("h1").map { |h| h.text.squish }).to include("Editar Factura IVA · 09/2026")
+        expect(html.at("input[name='invoice[period]']")["value"]).to eq("2026-09")
+        expect(html.at("input[name='invoice[detail]']")["value"]).to eq("IVA")
+      end
+
+      it "re-renders a refused USD to taxes edit with the supplier number still in the form" do
+        invoice = create(:invoice, :simple_mode, supplier: afip, currency: "USD", exchange_rate: 1200, invoice_number: "FAC-1")
+
+        patch web_invoice_path(invoice), params: { invoice: { expense_type: "taxes", period: "2026-09" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Las boletas de Impuestos son en pesos")
+        html = Nokogiri::HTML(response.body)
+        expect(html.at("input[name='invoice[invoice_number]']")["value"]).to eq("FAC-1")
+        expect(html.css("h1").map { |h| h.text.squish }).to include("Editar Factura FAC-1")
+        expect(invoice.reload.invoice_number).to eq("FAC-1")
+      end
+
+      it "updates the period and detail of a non-supplier invoice" do
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "IVA", period: Date.new(2026, 9, 1))
+
+        patch web_invoice_path(invoice), params: { invoice: { period: "2026-08", detail: "Ganancias" } }
+
+        expect(invoice.reload.reference).to eq("Ganancias · 08/2026")
+      end
     end
   end
 
@@ -485,7 +733,7 @@ RSpec.describe "Web::Invoices", type: :request do
 
     before do
       create(:credit_note, supplier: supplier, amount: 5_000)
-      create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", invoice_number: "TAX-9")
+      create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", detail: "TAX-9")
     end
 
     it "shows the available credit when the type is supplier or unset" do
@@ -503,7 +751,7 @@ RSpec.describe "Web::Invoices", type: :request do
     let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
     let(:invoice) do
       create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
-             invoice_number: "IIBB 09/2026", purchase_date: Date.current - 5)
+             detail: "IIBB", period: Date.new(2026, 9, 1), purchase_date: Date.current - 5)
     end
 
     it "offers the four origins and the type" do
@@ -522,7 +770,7 @@ RSpec.describe "Web::Invoices", type: :request do
 
     it "says no money left when credit notes covered the invoice" do
       credit = create(:credit_note, supplier: afip, amount: 300_000)
-      invoice.update!(expense_type: "supplier")
+      invoice.update!(expense_type: "supplier", invoice_number: "FAC-1")
       Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current,
                                  user: create(:user, :admin), credit_note_ids: [ credit.id ])
       get web_invoice_path(invoice)
@@ -530,7 +778,7 @@ RSpec.describe "Web::Invoices", type: :request do
     end
 
     it "says no money left when a USD note rounded up to cover the invoice" do
-      invoice.update!(expense_type: "supplier", amount: 1_000)
+      invoice.update!(expense_type: "supplier", invoice_number: "FAC-1", amount: 1_000)
       credit = create(:credit_note, :usd, supplier: afip, amount: 1, exchange_rate: 1200)
       Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current,
                                  user: create(:user, :admin), credit_note_ids: [ credit.id ])
@@ -540,7 +788,7 @@ RSpec.describe "Web::Invoices", type: :request do
 
     it "does not claim that no money left for a legacy invoice paid partly with credits" do
       credit = create(:credit_note, supplier: afip, amount: 5_000)
-      invoice.update!(expense_type: "supplier")
+      invoice.update!(expense_type: "supplier", invoice_number: "FAC-1")
       AppliedCredit.create!(credit_note: credit, invoice: invoice, amount: 5_000, applied_at: Date.current)
       invoice.update!(status: "paid", paid_at: Date.current)
       get web_invoice_path(invoice)

@@ -715,14 +715,18 @@ end
 # Pending non-supplier debts: taxes, social charges and a utility, all in ARS.
 afip   = Supplier.create!(name: "AFIP", expense_types: %w[taxes social_charges])
 edesur = Supplier.create!(name: "Edesur", expense_types: %w[utilities])
-seed_or_raise.("factura IIBB", Invoices::CreateInvoice.call(
-  supplier: afip, invoice_number: "IIBB 09/2026", amount: 250_000, currency: "ARS",
+periodo = Date.current.prev_month.beginning_of_month
+seed_or_raise.("factura IVA", Invoices::CreateInvoice.call(
+  supplier: afip, period: periodo, detail: "IVA", amount: 250_000, currency: "ARS",
   purchase_date: Date.current - 5, due_date: Date.current + 9, expense_type: "taxes"))
-seed_or_raise.("factura F931", Invoices::CreateInvoice.call(
-  supplier: afip, invoice_number: "F931 09/2026", amount: 226_000, currency: "ARS",
+seed_or_raise.("factura Ganancias", Invoices::CreateInvoice.call(
+  supplier: afip, period: periodo, detail: "Ganancias", amount: 180_000, currency: "ARS",
+  purchase_date: Date.current - 5, due_date: Date.current + 9, expense_type: "taxes"))
+seed_or_raise.("factura SICOSS", Invoices::CreateInvoice.call(
+  supplier: afip, period: periodo, detail: "SICOSS", amount: 226_000, currency: "ARS",
   purchase_date: Date.current - 5, due_date: Date.current + 4, expense_type: "social_charges"))
 seed_or_raise.("factura Edesur", Invoices::CreateInvoice.call(
-  supplier: edesur, invoice_number: "Edesur 0921", amount: 48_300, currency: "ARS",
+  supplier: edesur, period: periodo, amount: 48_300, currency: "ARS",
   purchase_date: Date.current - 3, due_date: Date.current + 12, expense_type: "utilities"))
 
 # Single-unit lines priced so each note adds up to the amount on paper.
