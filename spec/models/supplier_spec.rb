@@ -225,6 +225,40 @@ RSpec.describe Supplier, type: :model do
       expect(build(:supplier, expense_types: [ "" ])).not_to be_valid
     end
 
+    describe "payment terms" do
+      let(:message) { "Las condiciones de pago solo corresponden a proveedores o servicios" }
+
+      it "refuses a payment term on a supplier that bills only taxes" do
+        supplier = build(:supplier, expense_types: %w[taxes], payment_term_days: 30)
+        expect(supplier).not_to be_valid
+        expect(supplier.errors[:base]).to include(message)
+      end
+
+      it "refuses early payment terms on a supplier that bills only taxes and social charges" do
+        supplier = build(:supplier, expense_types: %w[taxes social_charges],
+                                    early_payment_days: 10, early_payment_discount_percentage: 5)
+        expect(supplier).not_to be_valid
+        expect(supplier.errors[:base]).to include(message)
+      end
+
+      it "accepts terms on a utilities supplier" do
+        expect(build(:supplier, expense_types: %w[utilities], payment_term_days: 30)).to be_valid
+      end
+
+      it "accepts terms on a supplier that also bills taxes" do
+        expect(build(:supplier, expense_types: %w[taxes supplier], payment_term_days: 30)).to be_valid
+      end
+
+      it "accepts terms on a supplier" do
+        supplier = build(:supplier, payment_term_days: 30, early_payment_days: 10, early_payment_discount_percentage: 5)
+        expect(supplier).to be_valid
+      end
+
+      it "accepts bank details on a taxes-only supplier" do
+        expect(build(:supplier, expense_types: %w[taxes], bank_alias: "AFIP.ALIAS")).to be_valid
+      end
+    end
+
     describe ".billing" do
       let!(:merchandise) { create(:supplier) }
       let!(:afip) { create(:supplier, expense_types: %w[taxes social_charges]) }

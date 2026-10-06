@@ -8,5 +8,6 @@
       %label{ for: "supplier_expense_types_#{key}", class: "flex items-center gap-3 px-4 py-3 border border-slate-300 rounded-lg cursor-pointer text-sm text-slate-700 has-[:checked]:border-slate-700 has-[:checked]:bg-slate-50 has-[:checked]:font-semibold" }
         = check_box_tag "supplier[expense_types][]", key, supplier.expense_types.include?(key),
                         id: "supplier_expense_types_#{key}",
+                        data: { supplier_form_target: "typeBox", action: "supplier-form#refresh" },
                         class: "w-5 h-5 rounded border-slate-300 text-slate-700 focus:ring-slate-500"
         = label

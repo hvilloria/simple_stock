@@ -12,6 +12,7 @@ class Supplier < ApplicationRecord
   validates :early_payment_days, presence: true, if: -> { early_payment_discount_percentage.present? }
   validates :early_payment_discount_percentage, presence: true, if: -> { early_payment_days.present? }
   validate :expense_types_are_billable
+  validate :payment_terms_only_for_suppliers
 
   before_validation :strip_blank_expense_types
 
@@ -22,6 +23,14 @@ class Supplier < ApplicationRecord
   # Helper methods
   def bills?(type)
     expense_types.include?(type.to_s)
+  end
+
+  def offers_payment_terms?
+    bills?("supplier") || bills?("utilities")
+  end
+
+  def payment_terms_present?
+    [ payment_term_days, early_payment_days, early_payment_discount_percentage ].any?(&:present?)
   end
 
   def bank_info_present?
@@ -90,5 +99,11 @@ class Supplier < ApplicationRecord
     elsif (expense_types - Invoice::EXPENSE_TYPE_LABELS.keys).any?
       errors.add(:base, "Tipo de factura inválido")
     end
+  end
+
+  def payment_terms_only_for_suppliers
+    return if offers_payment_terms? || !payment_terms_present?
+
+    errors.add(:base, "Las condiciones de pago solo corresponden a proveedores o servicios")
   end
 end
