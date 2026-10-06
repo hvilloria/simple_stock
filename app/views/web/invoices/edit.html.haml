@@ -27,6 +27,16 @@
       %h3.text-lg.font-semibold.text-gray-900.mb-4 Información de la Factura
 
       .space-y-4
+        -# Type: locked once product lines exist
+        %div
+          %label.block.text-sm.font-medium.text-gray-700.mb-2 Tipo
+          - if @invoice.invoice_items.any?
+            %p.w-full.px-4.py-3.border.border-slate-200.bg-slate-50.rounded-xl.text-slate-600= Invoice.expense_type_label(@invoice.expense_type)
+            %p.text-xs.text-slate-500.mt-1 Tiene productos cargados. Para cambiar el tipo, cancelá la factura (devuelve el stock) y cargala de nuevo.
+          - else
+            = f.select :expense_type, Invoice.expense_type_options, {},
+                       class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all"
+
         -# Supplier
         %div
           = f.label :supplier_id, "Proveedor", class: "block text-sm font-medium text-gray-700 mb-2"

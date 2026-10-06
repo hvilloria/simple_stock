@@ -28,11 +28,21 @@ export default class extends Controller {
     "zeroCostModal",
     "zeroCostTitle",
     "zeroCostList",
-    "zeroCostSummary"
+    "zeroCostSummary",
+    "productsCard",
+    "summaryType"
   ]
   
   static values = { 
     submitting: { type: Boolean, default: false } 
+  }
+
+  // A non-supplier invoice never carries products: hide the card and drop any lines.
+  expenseTypeChanged(event) {
+    const supplier = event.target.value === "supplier"
+    if (this.hasProductsCardTarget) this.productsCardTarget.classList.toggle("hidden", !supplier)
+    if (!supplier) document.dispatchEvent(new CustomEvent("invoice-form:clear-lines"))
+    if (this.hasSummaryTypeTarget) this.summaryTypeTarget.textContent = event.target.closest("label").textContent.trim()
   }
 
   connect() {

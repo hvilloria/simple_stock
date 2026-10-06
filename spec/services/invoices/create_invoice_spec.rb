@@ -496,4 +496,36 @@ RSpec.describe Invoices::CreateInvoice do
       end
     end
   end
+
+  describe "expense type" do
+    let(:base) do
+      { supplier: create(:supplier, name: "AFIP"), invoice_number: "IIBB 09/2026", amount: 250_000,
+        currency: "ARS", purchase_date: Date.current, due_date: Date.current + 10 }
+    end
+
+    it "records the type" do
+      result = described_class.call(**base, expense_type: "taxes")
+      expect(result.record.expense_type).to eq("taxes")
+    end
+
+    it "defaults to supplier" do
+      expect(described_class.call(**base).record.expense_type).to eq("supplier")
+    end
+
+    it "refuses an unknown type" do
+      result = described_class.call(**base, expense_type: "rent")
+      expect(result.success?).to be false
+      expect(result.errors).to include("Tipo de factura inválido")
+    end
+
+    it "refuses product lines on a non-supplier invoice and moves no stock" do
+      product = create(:product)
+      result = nil
+      expect {
+        result = described_class.call(**base, expense_type: "taxes",
+                                      items: [ { product_id: product.id, quantity: 2, unit_cost: "10" } ])
+      }.not_to change(StockMovement, :count)
+      expect(result.errors).to include("Solo las facturas de proveedor llevan productos")
+    end
+  end
 end

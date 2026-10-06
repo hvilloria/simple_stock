@@ -36,6 +36,13 @@ export default class extends Controller {
     costInputs[costInputs.length - 1]?.focus()
   }
 
+  clear() {
+    if (this.lines.length === 0) return
+    this.lines = []
+    this.render()
+    this.notify()
+  }
+
   remove(event) {
     this.lines.splice(this.index(event), 1)
     this.render()

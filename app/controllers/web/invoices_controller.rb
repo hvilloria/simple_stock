@@ -13,12 +13,15 @@ module Web
       @suppliers = Supplier.alphabetical
       @selected_supplier = Supplier.find_by(id: params[:supplier_id]) if params[:supplier_id].present?
       @status = normalize_status(params[:status])
+      @expense_type = params[:expense_type].to_s
+      @expense_type_options = Invoice.expense_type_options
 
       invoices_scope = Invoice.simple_mode
                               .includes(:supplier)
                               .for_supplier(@selected_supplier)
                               .search_invoice(params[:invoice_search])
                               .by_status_filter(@status)
+                              .by_expense_type(@expense_type)
 
       @pagy, @invoices = pagy(ordered_invoices(invoices_scope))
 
@@ -27,6 +30,7 @@ module Web
                               .pending_payment
                               .for_supplier(@selected_supplier)
                               .search_invoice(params[:invoice_search])
+                              .by_expense_type(@expense_type)
 
       @total_pending_amount = metrics_scope.sum { |i| i.total_amount_ars(include_discount: true) }
 
@@ -99,6 +103,7 @@ module Web
         notes: params[:notes],
         early_payment_due_date: parse_optional_date(params[:early_payment_due_date]),
         early_payment_discount_percentage: parse_optional_integer(params[:early_payment_discount_percentage]),
+        expense_type: params[:expense_type].presence || "supplier",
         items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
@@ -137,6 +142,10 @@ module Web
       update_params = invoice_update_params
       # The lines own the amount; a value typed around the read-only field is ignored.
       update_params.delete(:amount) if @invoice.invoice_items.any?
+      # The type is locked once lines exist, and an unknown key must not reach the enum.
+      if @invoice.invoice_items.any? || !Invoice::EXPENSE_TYPE_LABELS.key?(update_params[:expense_type].to_s)
+        update_params.delete(:expense_type)
+      end
       update_params[:amount] = parse_amount(update_params[:amount]) if update_params[:amount].present?
       update_params[:exchange_rate] = parse_amount(update_params[:exchange_rate]) if update_params[:exchange_rate].present?
 
@@ -293,6 +302,7 @@ module Web
     def invoice_update_params
       params.require(:invoice).permit(
         :supplier_id,
+        :expense_type,
         :invoice_number,
         :amount,
         :exchange_rate,

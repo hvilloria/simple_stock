@@ -711,6 +711,19 @@ seed_or_raise = lambda do |label, result|
   result.record
 end
 
+# Pending non-supplier debts: taxes, social charges and a utility, all in ARS.
+afip   = Supplier.create!(name: "AFIP")
+edesur = Supplier.create!(name: "Edesur")
+seed_or_raise.("factura IIBB", Invoices::CreateInvoice.call(
+  supplier: afip, invoice_number: "IIBB 09/2026", amount: 250_000, currency: "ARS",
+  purchase_date: Date.current - 5, due_date: Date.current + 9, expense_type: "taxes"))
+seed_or_raise.("factura F931", Invoices::CreateInvoice.call(
+  supplier: afip, invoice_number: "F931 09/2026", amount: 226_000, currency: "ARS",
+  purchase_date: Date.current - 5, due_date: Date.current + 4, expense_type: "social_charges"))
+seed_or_raise.("factura Edesur", Invoices::CreateInvoice.call(
+  supplier: edesur, invoice_number: "Edesur 0921", amount: 48_300, currency: "ARS",
+  purchase_date: Date.current - 3, due_date: Date.current + 12, expense_type: "utilities"))
+
 # Single-unit lines priced so each note adds up to the amount on paper.
 crear_nota = lambda do |paper_number:, precios:, order_type: "immediate", customer: mostrador,
                         sale_date: hoy, contact_name: nil, contact_phone: nil|

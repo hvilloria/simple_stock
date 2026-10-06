@@ -387,4 +387,55 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(Nokogiri::HTML(response.body).at("#invoice_amount")["readonly"]).to be_nil
     end
   end
+
+  describe "expense type" do
+    let(:afip) { create(:supplier, name: "AFIP") }
+
+    it "creates a tax invoice" do
+      post web_invoices_path, params: {
+        supplier_id: afip.id, expense_type: "taxes", invoice_number: "IIBB 09/2026", amount: "250.000,00",
+        currency: "ARS", purchase_date: Date.current.to_s, due_date: (Date.current + 10).to_s
+      }
+      expect(Invoice.last.expense_type).to eq("taxes")
+    end
+
+    it "refuses an unknown type on create without a server error" do
+      expect {
+        post web_invoices_path, params: {
+          supplier_id: afip.id, expense_type: "bogus", invoice_number: "X-1", amount: "100,00",
+          currency: "ARS", purchase_date: Date.current.to_s, due_date: (Date.current + 10).to_s
+        }
+      }.not_to change(Invoice, :count)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Tipo de factura inválido")
+    end
+
+    it "changes the type of an amount-only invoice" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip)
+      patch web_invoice_path(invoice), params: { invoice: { expense_type: "utilities" } }
+      expect(invoice.reload.expense_type).to eq("utilities")
+    end
+
+    it "ignores an unknown type on update instead of raising" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip)
+      patch web_invoice_path(invoice), params: { invoice: { expense_type: "bogus" } }
+      expect(response).to redirect_to(web_invoice_path(invoice))
+      expect(invoice.reload.expense_type).to eq("supplier")
+    end
+
+    it "keeps the type of an invoice with product lines" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip)
+      invoice.invoice_items.create!(product: create(:product), quantity: 1, unit_cost: 10)
+      patch web_invoice_path(invoice), params: { invoice: { expense_type: "taxes" } }
+      expect(invoice.reload.expense_type).to eq("supplier")
+    end
+
+    it "filters the index by type" do
+      create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes", invoice_number: "TAX-1")
+      create(:invoice, :simple_mode, :in_ars, invoice_number: "SUP-1")
+      get web_invoices_path, params: { expense_type: "taxes" }
+      expect(response.body).to include("TAX-1")
+      expect(response.body).not_to include("SUP-1")
+    end
+  end
 end

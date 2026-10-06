@@ -1,15 +1,16 @@
 # frozen_string_literal: true
 
 module Invoices
-  # Registers a supplier invoice. With product lines it also stocks them and
-  # takes its amount from them; without lines it is the amount-only invoice.
+  # Registers an invoice. A supplier invoice may carry product lines, which it
+  # stocks and takes its amount from; every other type (and a supplier invoice
+  # without lines) is the amount-only invoice.
   class CreateInvoice
     Line = Struct.new(:product, :quantity, :unit_cost, keyword_init: true)
 
     def self.call(supplier:, invoice_number:, amount:, currency:,
                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
                   early_payment_due_date: nil, early_payment_discount_percentage: nil,
-                  items: [])
+                  items: [], expense_type: "supplier")
       new(
         supplier: supplier,
         invoice_number: invoice_number,
@@ -21,14 +22,15 @@ module Invoices
         notes: notes,
         early_payment_due_date: early_payment_due_date,
         early_payment_discount_percentage: early_payment_discount_percentage,
-        items: items
+        items: items,
+        expense_type: expense_type
       ).call
     end
 
     def initialize(supplier:, invoice_number:, amount:, currency:,
                    exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
                    early_payment_due_date: nil, early_payment_discount_percentage: nil,
-                   items: [])
+                   items: [], expense_type: "supplier")
       @supplier = supplier
       @invoice_number = invoice_number
       @amount = amount
@@ -40,6 +42,7 @@ module Invoices
       @early_payment_due_date = early_payment_due_date
       @early_payment_discount_percentage = early_payment_discount_percentage
       @items = Array(items).map { |item| item.to_h.symbolize_keys }
+      @expense_type = expense_type.to_s
     end
 
     def call
@@ -68,6 +71,11 @@ module Invoices
     class ValidationError < StandardError; end
 
     def validate_params
+      raise ValidationError, "Tipo de factura inválido" unless Invoice::EXPENSE_TYPE_LABELS.key?(@expense_type)
+      if @expense_type != "supplier" && lines.any?
+        raise ValidationError, "Solo las facturas de proveedor llevan productos"
+      end
+
       unless %w[USD ARS].include?(@currency)
         raise ValidationError, "Invalid currency. Must be USD or ARS"
       end
@@ -137,6 +145,7 @@ module Invoices
         due_date: @due_date,
         status: "pending",
         has_items: false,
+        expense_type: @expense_type,
         notes: @notes,
         early_payment_due_date: @early_payment_due_date,
         early_payment_discount_percentage: @early_payment_discount_percentage
