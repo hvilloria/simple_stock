@@ -35,7 +35,7 @@ module Cash
       # A relation and not an array: the controller paginates it, so the page
       # is cut in SQL rather than in Ruby.
       def relation
-        filtered.includes(:supplier, :transfer_legs, source_payment: :orders)
+        filtered.includes(:supplier, :transfer_legs, paid_invoices: :supplier, source_payment: :orders)
                 .order(business_date: :desc, created_at: :desc, id: :desc)
       end
 
@@ -55,6 +55,7 @@ module Cash
         scoped = CashMovement.between(@from, @to)
         scoped = scoped.where(account: accounts) if accounts
         scoped = scoped.where(channel: @channel) if channel?
+        scoped = scoped.where(category: "fixed_expense", subcategory: @category) if subcategory?
         scoped = scoped.where(category: @category) if category?
         scoped = scoped.where("unaccent(description) ILIKE unaccent(?)", "%#{escaped_search}%") if @search.present?
         scoped
@@ -76,6 +77,8 @@ module Cash
       def channel? = CashMovement::CHANNEL_LABELS.key?(@channel)
 
       def category? = CashMovement::CATEGORY_LABELS.key?(@category)
+
+      def subcategory? = CashMovement::SUBCATEGORY_LABELS.key?(@category)
 
       def escaped_search = CashMovement.sanitize_sql_like(@search)
     end

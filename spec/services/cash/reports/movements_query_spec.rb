@@ -103,6 +103,13 @@ RSpec.describe Cash::Reports::MovementsQuery do
       expect(result(category: "fixed_expense")).to eq([ expense ])
     end
 
+    it "narrows to one fixed-expense subcategory" do
+      taxes = movement(category: "fixed_expense", subcategory: "taxes", channel: nil, account: "bank", amount: -1_000)
+      movement(category: "fixed_expense", subcategory: "rent", channel: nil, account: "bank", amount: -2_000)
+
+      expect(result(category: "taxes")).to eq([ taxes ])
+    end
+
     it "ignores a category nobody offers" do
       sale = movement(account: "drawer", amount: 10_000)
 
@@ -211,16 +218,17 @@ RSpec.describe Cash::Reports::MovementsQuery do
 
   # The paper-number column reads through the source payment, the transfer
   # counterpart through the shared transfer_group_id and the supplier column
-  # through the compensation's supplier, so a page of rows must cost the same
-  # round trips as a single row.
+  # through the compensation's supplier and the invoices an outflow paid
+  # through their own preload, so a page of rows must cost the same round
+  # trips as a single row.
   describe "the cost of a page" do
-    it "costs five round trips, not one per row" do
+    it "costs six round trips, not one per row" do
       3.times { movement(:from_collection, account: "drawer", amount: 10_000) }
       movement(account: "drawer", amount: 20_000)
       movement(:compensation_sale)
       transfer_pair
 
-      expect(round_trips).to eq(5)
+      expect(round_trips).to eq(6)
     end
 
     it "costs the same however many rows the page holds" do

@@ -278,6 +278,51 @@ RSpec.describe "Web::Cash::Reports", type: :request do
         expect(response.body).not_to include("De septiembre")
       end
 
+      it "filters by a fixed-expense subcategory, typed and automatic rows alike" do
+        afip = create(:supplier, name: "AFIP")
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
+                         invoice_number: "IIBB 09/2026", purchase_date: Date.new(2026, 9, 1))
+        travel_to Date.new(2026, 9, 3) do
+          Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.new(2026, 9, 3), user: admin)
+        end
+        movement(category: "fixed_expense", subcategory: "taxes", channel: nil, account: "bank",
+                 amount: -18_000, description: "Tasa municipal")
+        movement(category: "fixed_expense", subcategory: "rent", channel: nil, account: "bank",
+                 amount: -500_000, description: "Alquiler")
+
+        get "/web/cash/reports/history", params: { period: "custom", from: "2026-09-01", to: "2026-09-30", category: "taxes" }
+
+        text = Nokogiri::HTML(response.body).at("#movement-rows").text
+        expect(text).to include("Pago AFIP — IIBB 09/2026")
+        expect(text).to include("Tasa municipal")
+        expect(text).not_to include("Alquiler")
+        expect(Nokogiri::HTML(response.body).at("[data-total=outflow]").text.strip).to eq("268.000,00")
+      end
+
+      it "names the category by its subcategory and the supplier of a paid invoice" do
+        afip = create(:supplier, name: "AFIP")
+        invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 1_000, expense_type: "taxes",
+                         purchase_date: Date.new(2026, 9, 1))
+        travel_to Date.new(2026, 9, 3) do
+          Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.new(2026, 9, 3), user: admin)
+        end
+
+        get "/web/cash/reports/history", params: { period: "custom", from: "2026-09-01", to: "2026-09-30" }
+        row = Nokogiri::HTML(response.body).css("#movement-rows tr").first
+
+        expect(row.text).to include("Impuestos")
+        expect(row.text).to include("AFIP")
+      end
+
+      it "still filters all fixed expenses together" do
+        movement(category: "fixed_expense", subcategory: "taxes", channel: nil, account: "bank", amount: -1_000, description: "T")
+        movement(category: "fixed_expense", subcategory: "rent", channel: nil, account: "bank", amount: -2_000, description: "R")
+
+        get "/web/cash/reports/history", params: { period: "custom", from: "2026-09-01", to: "2026-09-30", category: "fixed_expense" }
+
+        expect(Nokogiri::HTML(response.body).at("[data-total=outflow]").text.strip).to eq("3.000,00")
+      end
+
       it "combines the filters instead of letting one override another" do
         travel_to Date.new(2026, 9, 30) do
           movement(account: "main_cash", category: "suppliers", channel: nil,

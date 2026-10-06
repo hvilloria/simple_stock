@@ -39,7 +39,7 @@ module Cash
     def entries
       CashMovement
         .on(@business_date)
-        .includes(:supplier, source_payment: [ :orders, :cash_movements ])
+        .includes(:supplier, paid_invoices: :supplier, source_payment: [ :orders, :cash_movements ])
         .order(:created_at, :id)
         .group_by { |movement| movement.transfer_group_id || movement.id }
         .values

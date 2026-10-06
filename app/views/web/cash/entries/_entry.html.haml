@@ -3,8 +3,11 @@
 %tr{ id: "entry_#{movement.id}", class: [ "hover:bg-slate-50 transition-colors", ("cursor-pointer" if movement.automatic?) ], **{ onclick: cash_entry_link(movement) }.compact }
   %td.pl-4.py-3.text-base{ class: cash_entry_glyph_class(entry) }= cash_entry_glyph(entry)
   %td.px-4.py-3.text-sm.text-slate-900
-    .flex.items-center.gap-2
-      %span= movement.description
+    .flex.items-center.gap-2.flex-wrap
+      - if movement.paid_invoices.any?
+        %span= cash_paid_invoices_description(movement)
+      - else
+        %span= movement.description
       - if movement.automatic?
         %span.inline-flex.items-center.rounded.bg-slate-100.px-1.5.py-0.5.text-xs.font-medium.text-slate-500 Automático
   %td.px-4.py-3.text-sm.text-slate-600.font-mono.whitespace-nowrap
@@ -44,5 +47,5 @@
         = button_to "Eliminar", web_cash_movement_path(movement), method: :delete,
                     form: { data: { turbo_confirm: "¿Eliminar este movimiento?" } },
                     class: "text-sm font-medium text-slate-500 hover:text-red-700"
-    - elsif movement.automatic?
+    - elsif movement.automatic? && cash_entry_link(movement)
       %span.text-slate-400{ aria: { hidden: true } } ›
