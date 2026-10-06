@@ -438,4 +438,32 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(response.body).not_to include("SUP-1")
     end
   end
+
+  describe "invoice page payment" do
+    let(:afip) { create(:supplier, name: "AFIP") }
+    let(:invoice) do
+      create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
+             invoice_number: "IIBB 09/2026", purchase_date: Date.current - 5)
+    end
+
+    it "offers the four origins and the type" do
+      get web_invoice_path(invoice)
+      %w[Caja\ del\ día Caja\ grande Banco Mercado\ Pago].each { |label| expect(response.body).to include(label) }
+      expect(response.body).to include("Impuestos")
+      expect(response.body).to include("Pagar")
+    end
+
+    it "shows where a paid invoice was paid from" do
+      Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current, user: create(:user, :admin))
+      get web_invoice_path(invoice)
+      expect(response.body).to include("desde Caja grande")
+      expect(response.body).to include(web_cash_day_path(Date.current.to_s))
+    end
+
+    it "shows only the date for an invoice paid before invoices wrote outflows" do
+      invoice.update!(status: "paid", paid_at: Date.current)
+      get web_invoice_path(invoice)
+      expect(response.body).to include("Pagada el #{Date.current.strftime('%d/%m/%Y')}")
+    end
+  end
 end

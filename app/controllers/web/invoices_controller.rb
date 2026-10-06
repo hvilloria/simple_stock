@@ -237,7 +237,7 @@ module Web
     end
 
     def load_invoice
-      @invoice = Invoice.find(params[:id])
+      @invoice = Invoice.includes(cash_movement: :paid_invoices).find(params[:id])
     end
 
     def find_supplier

@@ -17,4 +17,8 @@ module InvoicesHelper
 
     "¿Cancelar esta factura? Se descuentan del stock las #{invoice_units_label(invoice)} que sumó, hasta donde haya."
   end
+
+  def invoice_payment_account_options
+    Invoices::PayInvoices::ACCOUNTS.map { |account| [ CashMovement.account_label(account), account ] }
+  end
 end
