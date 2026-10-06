@@ -519,6 +519,20 @@ RSpec.describe "Web::Invoices", type: :request do
         expect(Invoice.count).to eq(0)
       end
 
+      it "reads a period typed as MM/YYYY or M/YYYY" do
+        post web_invoices_path, params: taxes_params(period: "09/2026")
+        post web_invoices_path, params: taxes_params(period: "3/2026", detail: "Ganancias")
+
+        expect(Invoice.order(:id).pluck(:period)).to eq([ Date.new(2026, 9, 1), Date.new(2026, 3, 1) ])
+      end
+
+      it "refuses a typed period with an invalid month" do
+        post web_invoices_path, params: taxes_params(period: "13/2026")
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Falta el período")
+      end
+
       it "refuses a detail over 40 characters" do
         post web_invoices_path, params: taxes_params(detail: "a" * 41)
 

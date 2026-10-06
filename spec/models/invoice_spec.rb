@@ -622,6 +622,46 @@ RSpec.describe Invoice, type: :model do
         expect(invoice.early_payment_due_date).to eq(Date.new(2026, 1, 20))
         expect(invoice.early_payment_discount_percentage).to eq(3)
       end
+
+      context "when the supplier bills both Proveedor and Impuestos with a discount" do
+        let(:mixed) do
+          create(:supplier, expense_types: %w[supplier taxes], early_payment_days: 10, early_payment_discount_percentage: 5)
+        end
+
+        it "gives a tax invoice no discount, so it is due in full" do
+          invoice = create(:invoice, :simple_mode, :in_ars, supplier: mixed, expense_type: "taxes",
+                           amount: 100_000, purchase_date: Date.current)
+
+          expect(invoice.early_payment_due_date).to be_nil
+          expect(invoice.early_payment_discount_percentage).to be_nil
+          expect(invoice.amount_due_ars(Date.current)).to eq(100_000)
+        end
+
+        it "still gives a supplier invoice the discount" do
+          invoice = create(:invoice, :simple_mode, :in_ars, supplier: mixed, amount: 100_000, purchase_date: Date.current)
+
+          expect(invoice.early_payment_discount_percentage).to eq(5)
+          expect(invoice.amount_due_ars(Date.current)).to eq(95_000)
+        end
+
+        it "drops a typed discount from a social charges invoice" do
+          invoice = build(:invoice, :simple_mode, :in_ars, supplier: create(:supplier, expense_types: %w[social_charges]),
+                          expense_type: "social_charges", early_payment_due_date: Date.current + 5,
+                          early_payment_discount_percentage: 5)
+          invoice.save!
+
+          expect(invoice.early_payment_discount_percentage).to be_nil
+          expect(invoice.early_payment_due_date).to be_nil
+        end
+
+        it "clears the discount when a supplier invoice is edited into a tax invoice" do
+          invoice = create(:invoice, :simple_mode, :in_ars, supplier: mixed, amount: 100_000, purchase_date: Date.current)
+
+          invoice.update!(expense_type: "taxes", period: Date.current.beginning_of_month)
+
+          expect(invoice.reload).to have_attributes(early_payment_due_date: nil, early_payment_discount_percentage: nil)
+        end
+      end
     end
   end
 

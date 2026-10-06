@@ -20,6 +20,28 @@ RSpec.describe CreditNote, type: :model do
     it { is_expected.to validate_presence_of(:issue_date) }
     it { is_expected.to validate_presence_of(:supplier_id) }
 
+    it "refuses a supplier that does not bill Proveedor" do
+      afip = create(:supplier, name: "AFIP", expense_types: %w[taxes])
+      note = build(:credit_note, supplier: afip)
+
+      expect(note).not_to be_valid
+      expect(note.errors.full_messages).to include("AFIP no factura Proveedor")
+    end
+
+    it "does not recheck the supplier of an existing note when other fields change" do
+      note = create(:credit_note)
+      note.supplier.update!(expense_types: %w[taxes])
+
+      expect(note.update(notes: "reviewed")).to be true
+    end
+
+    it "refuses moving an existing note to a supplier that does not bill Proveedor" do
+      note = create(:credit_note)
+      afip = create(:supplier, name: "AFIP", expense_types: %w[taxes])
+
+      expect(note.update(supplier: afip)).to be false
+    end
+
     context "when currency is USD" do
       subject { build(:credit_note, :usd) }
       it { is_expected.to validate_presence_of(:exchange_rate) }

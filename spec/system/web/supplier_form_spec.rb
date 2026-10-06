@@ -116,6 +116,20 @@ RSpec.describe "Formulario de proveedor", type: :system do
       expect(supplier.payment_term_days).to be_nil
     end
 
+    it "lets the bank details of a taxes-only supplier be edited and removed" do
+      supplier = create(:supplier, expense_types: %w[taxes], bank_alias: "VIEJO.ALIAS")
+      visit "/web/suppliers/#{supplier.id}/edit"
+
+      expect(page).to have_field("Alias CBU", with: "VIEJO.ALIAS")
+      expect(page).to have_no_button("+ Agregar datos bancarios")
+
+      within("fieldset", text: "Información Bancaria") { click_button "Quitar" }
+      click_button "Actualizar Proveedor"
+
+      expect(page).to have_text("Proveedor actualizado exitosamente")
+      expect(supplier.reload.bank_alias).to be_blank
+    end
+
     it "keeps a card with submitted values open after a failed submit" do
       supplier = create(:supplier)
       visit "/web/suppliers/#{supplier.id}/edit"

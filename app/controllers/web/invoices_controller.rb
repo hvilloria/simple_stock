@@ -298,11 +298,13 @@ module Web
       nil
     end
 
-    # A month input posts "YYYY-MM"; the invoice stores the first of that month.
+    # A month input posts "YYYY-MM"; a browser without month inputs sends the
+    # typed "MM/YYYY" or "M/YYYY". The invoice stores the first of that month.
     def parse_period(value)
-      return nil unless value.to_s.match?(/\A\d{4}-\d{2}\z/)
+      match = value.to_s.strip.match(%r{\A(?:(?<year>\d{4})-(?<month>\d{2})|(?<month>\d{1,2})/(?<year>\d{4}))\z})
+      return nil unless match
 
-      Date.strptime(value, "%Y-%m")
+      Date.new(match[:year].to_i, match[:month].to_i, 1)
     rescue ArgumentError
       nil
     end

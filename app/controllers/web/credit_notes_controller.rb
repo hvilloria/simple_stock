@@ -117,7 +117,8 @@ module Web
     end
 
     def load_suppliers
-      @suppliers = Supplier.alphabetical
+      kept = @credit_note&.supplier_id_in_database
+      @suppliers = Supplier.billing("supplier").or(Supplier.where(id: kept)).alphabetical
       @invoices = if @credit_note&.supplier
                     @credit_note.supplier.invoices.simple_mode.pending_payment.supplier_expense_type.order(due_date: :asc)
       else

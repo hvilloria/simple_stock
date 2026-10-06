@@ -69,7 +69,9 @@ module Web
     def supplier_params
       permitted = permitted_supplier_params
       return permitted unless permitted.key?(:expense_types)
-      return permitted if (permitted[:expense_types].compact_blank & %w[supplier utilities]).any?
+
+      types = permitted[:expense_types].compact_blank
+      return permitted if types.empty? || (types & %w[supplier utilities]).any?
 
       permitted.reverse_merge(PAYMENT_TERM_KEYS.index_with { nil })
     end

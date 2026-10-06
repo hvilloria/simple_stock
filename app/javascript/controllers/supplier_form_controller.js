@@ -9,6 +9,9 @@ export default class extends Controller {
     this.opened = new Set(
       this.cardTargets.filter((card) => this.hasValues(card)).map((card) => card.dataset.section)
     )
+    this.kept = new Set(
+      this.cardTargets.filter((card) => card.dataset.keep === "true").map((card) => card.dataset.section)
+    )
     this.refresh()
   }
 
@@ -29,9 +32,10 @@ export default class extends Controller {
 
     this.cardTargets.forEach((card) => {
       const section = card.dataset.section
-      if (!offered && !this.hasValues(card)) this.opened.delete(section)
-      card.disabled = !offered
-      card.hidden = !(offered && this.opened.has(section))
+      const usable = offered || this.kept.has(section)
+      if (!usable && !this.hasValues(card)) this.opened.delete(section)
+      card.disabled = !usable
+      card.hidden = !(usable && this.opened.has(section))
     })
 
     this.linkTargets.forEach((link) => {

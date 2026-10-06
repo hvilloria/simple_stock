@@ -1,6 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
 
+const EARLY_PAYMENT_TYPES = ["supplier", "utilities"]
+
 export default class extends Controller {
   static targets = [
     "supplier",
@@ -48,6 +50,7 @@ export default class extends Controller {
     if (this.hasSummaryTypeTarget) this.summaryTypeTarget.textContent = event.target.closest("label").textContent.trim()
     this.filterSuppliers()
     this.syncIdentification()
+    this.updateEarlyPaymentInfo()
   }
 
   // A supplier invoice is identified by its number, every other type by its
@@ -91,14 +94,27 @@ export default class extends Controller {
     const select = this.supplierTarget
     Array.from(select.options).forEach(option => {
       if (option.value === "") return
-      const offered = option.selected && keepSelected || (option.dataset.expenseTypes || "").split(" ").includes(type)
+      const offered = option.selected && keepSelected ||
+        option.dataset.keepType === type ||
+        (option.dataset.expenseTypes || "").split(" ").includes(type)
       option.hidden = !offered
       option.disabled = !offered
     })
 
-    if (select.selectedOptions[0].disabled) {
+    const current = select.selectedOptions[0]
+    if (current.disabled) {
+      if (current.dataset.keepType) this.droppedSupplier = current.value
       select.value = ""
       this.onSupplierChange()
+    } else if (select.value !== "") {
+      this.droppedSupplier = null
+    } else if (this.droppedSupplier) {
+      const dropped = Array.from(select.options).find(option => option.value === this.droppedSupplier)
+      if (dropped && !dropped.disabled) {
+        select.value = dropped.value
+        this.droppedSupplier = null
+        this.onSupplierChange()
+      }
     }
   }
 
@@ -317,8 +333,10 @@ export default class extends Controller {
     const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
     const earlyPaymentDays = parseInt(selectedOption.dataset.earlyPaymentDays || "0")
     const discountPercentage = parseFloat(selectedOption.dataset.earlyPaymentDiscount || "0")
+    const type = this.selectedExpenseType()
+    const typeAllowed = !type || EARLY_PAYMENT_TYPES.includes(type)
 
-    if (earlyPaymentDays > 0 && discountPercentage > 0) {
+    if (typeAllowed && earlyPaymentDays > 0 && discountPercentage > 0) {
       // Show section
       this.earlyPaymentSectionTarget.style.display = 'block'
 

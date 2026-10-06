@@ -40,10 +40,19 @@ RSpec.describe "Web::Suppliers", type: :request do
     end
 
     it "renders the cards hidden and disabled for a taxes-only supplier" do
-      cards = cards(create(:supplier, expense_types: %w[taxes], bank_alias: "AFIP"))
+      cards = cards(create(:supplier, expense_types: %w[taxes]))
 
       expect(cards.values.map { |card| card.key?("hidden") }).to all(be true)
       expect(cards.values.map { |card| card.key?("disabled") }).to all(be true)
+    end
+
+    it "keeps the bank card open and enabled for a taxes-only supplier that still holds bank details" do
+      cards = cards(create(:supplier, expense_types: %w[taxes], bank_alias: "AFIP"))
+
+      expect(cards["bank"].key?("hidden")).to be false
+      expect(cards["bank"].key?("disabled")).to be false
+      expect(cards["terms"].key?("hidden")).to be true
+      expect(cards["terms"].key?("disabled")).to be true
     end
   end
 
@@ -113,6 +122,17 @@ RSpec.describe "Web::Suppliers", type: :request do
       supplier.reload
       expect(supplier.expense_types).to eq(%w[taxes])
       expect([ supplier.payment_term_days, supplier.early_payment_days, supplier.early_payment_discount_percentage ]).to all(be_nil)
+    end
+
+    it "keeps the payment terms on the re-rendered form when every type is unchecked" do
+      supplier.update!(payment_term_days: 30)
+
+      patch web_supplier_path(supplier), params: { supplier: { expense_types: [ "" ] } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      field = Nokogiri::HTML(response.body).at_css("input[name='supplier[payment_term_days]']")
+      expect(field["value"]).to eq("30")
+      expect(supplier.reload.payment_term_days).to eq(30)
     end
 
     it "refuses payment terms posted for a taxes-only supplier" do

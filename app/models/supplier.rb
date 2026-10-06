@@ -37,6 +37,10 @@ class Supplier < ApplicationRecord
     bank_alias.present? || bank_account.present?
   end
 
+  def bank_info_stored?
+    bank_alias_in_database.present? || bank_account_in_database.present?
+  end
+
   def bank_info_formatted
     parts = []
     parts << "Alias: #{bank_alias}" if bank_alias.present?

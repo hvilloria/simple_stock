@@ -23,7 +23,8 @@ module InvoicesHelper
   end
 
   # Attributes the invoice forms read to offer a supplier only under the types it bills.
-  def supplier_option_attrs(supplier, selectable: true)
-    { "data-expense-types": supplier.expense_types.join(" "), hidden: !selectable, disabled: !selectable }
+  # A supplier an invoice already has stays offered under the type it was saved with.
+  def supplier_option_attrs(supplier, selectable: true, keep_type: nil)
+    { "data-expense-types": supplier.expense_types.join(" "), "data-keep-type": keep_type, hidden: !selectable, disabled: !selectable }
   end
 end

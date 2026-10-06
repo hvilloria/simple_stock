@@ -91,6 +91,15 @@ RSpec.describe Invoices::PayInvoices do
     expect(late.reload.paid_with_discount).to be false
   end
 
+  it "pays a tax invoice in full even when its supplier offers a discount on goods" do
+    mixed = create(:supplier, expense_types: %w[supplier taxes], early_payment_days: 10, early_payment_discount_percentage: 5)
+    invoice = pending_invoice(supplier: mixed, amount: 100_000, expense_type: "taxes", detail: "IVA",
+                              period: Date.current.beginning_of_month, purchase_date: Date.current - 2)
+
+    expect(pay([ invoice ]).record.amount).to eq(-100_000)
+    expect(invoice.reload.paid_with_discount).to be false
+  end
+
   it "caps a credit at the USD invoice's peso amount due" do
     invoice = create(:invoice, :simple_mode, supplier: supplier, currency: "USD", exchange_rate: 1000,
                      amount: 100, purchase_date: Date.current - 10,

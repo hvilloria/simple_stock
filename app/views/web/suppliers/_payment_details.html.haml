@@ -1,9 +1,11 @@
 - offered = supplier.offers_payment_terms?
-- bank_open = offered && supplier.bank_info_present?
+- bank_kept = supplier.bank_info_stored?
+- bank_usable = offered || bank_kept
+- bank_open = bank_usable && supplier.bank_info_present?
 - terms_open = offered && supplier.payment_terms_present?
 
 -# Bank details card
-%fieldset.min-w-0.bg-white.border.border-slate-200.rounded-lg.p-6{ hidden: !bank_open, disabled: !offered, data: { supplier_form_target: "card", section: "bank" } }
+%fieldset.min-w-0.bg-white.border.border-slate-200.rounded-lg.p-6{ hidden: !bank_open, disabled: !bank_usable, data: { supplier_form_target: "card", section: "bank", keep: bank_kept.to_s } }
   .flex.items-center.justify-between.mb-4
     %h3.text-lg.font-semibold.text-gray-900 Información Bancaria
     %button{ class: "text-sm text-slate-500 hover:text-slate-700", type: "button", data: { action: "supplier-form#remove", supplier_form_section_param: "bank" } } Quitar

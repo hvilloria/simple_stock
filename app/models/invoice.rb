@@ -21,7 +21,7 @@ class Invoice < ApplicationRecord
   DETAIL_MAX_LENGTH = 40
 
   before_validation :normalize_identification
-  before_save :clear_unused_identification
+  before_save :clear_unused_fields
 
   validate :lines_only_on_supplier_invoices
   validate :non_supplier_identification, unless: :supplier_expense_type?
@@ -298,6 +298,10 @@ class Invoice < ApplicationRecord
     end
   end
 
+  def early_payment_applicable?
+    supplier_expense_type? || utilities_expense_type?
+  end
+
   private
 
   def lines_only_on_supplier_invoices
@@ -312,9 +316,12 @@ class Invoice < ApplicationRecord
   end
 
   # Only a supplier invoice has a number; every other type is told apart by its
-  # period. What the other kind does not use is dropped only once the save is
-  # going through, so a refused edit re-renders with everything the user typed.
-  def clear_unused_identification
+  # period. Early-payment terms belong to supplier and utilities invoices only.
+  # What a type does not use is dropped only once the save is going through, so
+  # a refused edit re-renders with everything the user typed.
+  def clear_unused_fields
+    clear_early_payment_terms unless early_payment_applicable?
+
     if supplier_expense_type?
       self.period = nil
       self.detail = nil
@@ -322,6 +329,11 @@ class Invoice < ApplicationRecord
       self.invoice_number = nil
       self.exchange_rate = nil if currency == "ARS"
     end
+  end
+
+  def clear_early_payment_terms
+    self.early_payment_due_date = nil
+    self.early_payment_discount_percentage = nil
   end
 
   def build_reference(type, number, detail, period)
@@ -354,7 +366,7 @@ class Invoice < ApplicationRecord
   end
 
   def set_early_payment_terms
-    return unless supplier.has_early_payment_discount?
+    return unless early_payment_applicable? && supplier.has_early_payment_discount?
     return if early_payment_due_date.present? || early_payment_discount_percentage.present?
 
     self.early_payment_due_date = purchase_date + supplier.early_payment_days.days
