@@ -843,4 +843,57 @@ RSpec.describe Invoice, type: :model do
       expect(result.where(id: invoice.id).count).to eq(1)
     end
   end
+
+  describe "expense type" do
+    it "defaults to supplier" do
+      invoice = create(:invoice, :simple_mode, :in_ars)
+      expect(invoice.expense_type).to eq("supplier")
+    end
+
+    it "rejects product lines on a non-supplier invoice" do
+      invoice = build(:invoice, :full_mode, expense_type: "taxes")
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("Solo las facturas de proveedor llevan productos")
+    end
+
+    it "maps each type to its cash category" do
+      expect(build(:invoice, expense_type: "supplier").cash_category_attrs).to eq(category: "suppliers", subcategory: nil)
+      expect(build(:invoice, expense_type: "taxes").cash_category_attrs).to eq(category: "fixed_expense", subcategory: "taxes")
+      expect(build(:invoice, expense_type: "utilities").cash_category_attrs).to eq(category: "fixed_expense", subcategory: "utilities")
+      expect(build(:invoice, expense_type: "social_charges").cash_category_attrs).to eq(category: "fixed_expense", subcategory: "social_charges")
+    end
+
+    it "filters by type and ignores an unknown one" do
+      taxes = create(:invoice, :simple_mode, :in_ars, expense_type: "taxes")
+      supplier = create(:invoice, :simple_mode, :in_ars)
+      expect(Invoice.by_expense_type("taxes")).to contain_exactly(taxes)
+      expect(Invoice.by_expense_type("bogus")).to include(taxes, supplier)
+      expect(Invoice.by_expense_type("")).to include(taxes, supplier)
+    end
+  end
+
+  describe "#amount_due_ars" do
+    it "is the peso amount without a discount" do
+      invoice = build(:invoice, :simple_mode, :in_ars, amount: 100_000)
+      expect(invoice.amount_due_ars(Date.current)).to eq(100_000)
+    end
+
+    it "converts a USD invoice at its exchange rate" do
+      invoice = build(:invoice, :simple_mode, currency: "USD", exchange_rate: 1200, amount: 1000)
+      expect(invoice.amount_due_ars(Date.current)).to eq(1_200_000)
+    end
+
+    it "applies the early-payment discount only up to its deadline" do
+      invoice = build(:invoice, :simple_mode, :in_ars, amount: 100_000,
+                      early_payment_due_date: Date.current + 5, early_payment_discount_percentage: 5)
+      expect(invoice.amount_due_ars(Date.current)).to eq(95_000)
+      expect(invoice.amount_due_ars(Date.current + 6)).to eq(100_000)
+    end
+
+    it "applies the discount to a USD invoice in pesos" do
+      invoice = build(:invoice, :simple_mode, currency: "USD", exchange_rate: 1200, amount: 1000,
+                      early_payment_due_date: Date.current + 5, early_payment_discount_percentage: 10)
+      expect(invoice.amount_due_ars(Date.current)).to eq(1_080_000)
+    end
+  end
 end

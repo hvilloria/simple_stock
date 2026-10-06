@@ -7,6 +7,24 @@ class Invoice < ApplicationRecord
   has_many :credit_notes, dependent: :restrict_with_error
   has_many :applied_credits, dependent: :destroy
 
+  EXPENSE_TYPE_LABELS = {
+    "supplier"       => "Proveedor",
+    "taxes"          => "Impuestos",
+    "utilities"      => "Servicios",
+    "social_charges" => "Cargas sociales"
+  }.freeze
+
+  belongs_to :cash_movement, optional: true
+
+  enum :expense_type, EXPENSE_TYPE_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
+
+  validate :lines_only_on_supplier_invoices
+
+  scope :by_expense_type, ->(key) { where(expense_type: key) if EXPENSE_TYPE_LABELS.key?(key.to_s) }
+
+  def self.expense_type_label(key) = EXPENSE_TYPE_LABELS.fetch(key.to_s, key.to_s)
+  def self.expense_type_options = EXPENSE_TYPE_LABELS.map { |key, label| [ label, key ] }
+
   # Enums - Expand states
   enum :status, {
     pending: "pending",     # Invoice pending payment (simple mode)
@@ -156,6 +174,21 @@ class Invoice < ApplicationRecord
     update!(status: "paid", paid_at: payment_date, paid_with_discount: paid_with_discount)
   end
 
+  # The cash category an outflow paying this invoice is recorded under.
+  def cash_category_attrs
+    if supplier_expense_type?
+      { category: "suppliers", subcategory: nil }
+    else
+      { category: "fixed_expense", subcategory: expense_type }
+    end
+  end
+
+  # Pesos that leave the arca for this invoice on that date, before credits.
+  def amount_due_ars(payment_date)
+    due = eligible_for_discount?(payment_date) ? amount_with_discount_ars : total_amount_ars
+    BigDecimal(due.to_s).round(2)
+  end
+
   # === APPLIED CREDITS METHODS ===
 
   # Total credits already applied to this invoice (ARS)
@@ -229,6 +262,12 @@ class Invoice < ApplicationRecord
   end
 
   private
+
+  def lines_only_on_supplier_invoices
+    return if supplier_expense_type? || invoice_items.empty?
+
+    errors.add(:base, "Solo las facturas de proveedor llevan productos")
+  end
 
   # An amount-only invoice carries a typed amount that must be positive. An
   # invoice with lines takes its amount from them and may sum to zero.

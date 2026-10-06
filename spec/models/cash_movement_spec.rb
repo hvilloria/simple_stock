@@ -446,4 +446,21 @@ RSpec.describe CashMovement, type: :model do
       end
     end
   end
+
+  describe "#automatic? for invoice payments" do
+    it "is true for a row that paid an invoice" do
+      movement = create(:cash_movement, category: "suppliers", channel: nil, account: "main_cash",
+                        amount: -1000, business_date: Date.current)
+      create(:invoice, :simple_mode, :in_ars, status: "paid", paid_at: Date.current, cash_movement: movement)
+
+      expect(movement.reload.automatic?).to be true
+      expect(movement.reversal?).to be false
+    end
+
+    it "is false for a typed outflow" do
+      movement = create(:cash_movement, category: "suppliers", channel: nil, account: "main_cash",
+                        amount: -1000, business_date: Date.current)
+      expect(movement.automatic?).to be false
+    end
+  end
 end

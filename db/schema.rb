@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_02_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_06_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -136,8 +136,12 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_02_120000) do
     t.date "early_payment_due_date"
     t.decimal "early_payment_discount_percentage", precision: 5, scale: 2
     t.boolean "paid_with_discount", default: false
+    t.string "expense_type", default: "supplier", null: false
+    t.bigint "cash_movement_id"
+    t.index ["cash_movement_id"], name: "index_invoices_on_cash_movement_id"
     t.index ["due_date"], name: "index_invoices_on_due_date"
     t.index ["early_payment_due_date"], name: "index_invoices_on_early_payment_due_date"
+    t.index ["expense_type"], name: "index_invoices_on_expense_type"
     t.index ["has_items"], name: "index_invoices_on_has_items"
     t.index ["invoice_number"], name: "index_invoices_on_invoice_number"
     t.index ["paid_at"], name: "index_invoices_on_paid_at"
@@ -303,6 +307,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_02_120000) do
   add_foreign_key "daily_closings", "users"
   add_foreign_key "invoice_items", "invoices"
   add_foreign_key "invoice_items", "products"
+  add_foreign_key "invoices", "cash_movements"
   add_foreign_key "invoices", "suppliers"
   add_foreign_key "order_items", "orders"
   add_foreign_key "order_items", "products"
