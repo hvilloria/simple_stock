@@ -32,6 +32,10 @@
             %span.text-gray-500.w-32.flex-shrink-0 Nombre:
             %span.font-medium.text-gray-900= @supplier.name
 
+          .flex.items-start.gap-3
+            %span.text-gray-500.w-32.flex-shrink-0 Factura:
+            %span.text-gray-900= @supplier.expense_types_display
+
           - if @supplier.email.present?
             .flex.items-start.gap-3
               %span.text-gray-500.w-32.flex-shrink-0 Email:

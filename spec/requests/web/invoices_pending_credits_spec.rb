@@ -10,7 +10,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
   include Devise::Test::IntegrationHelpers
 
   let(:admin)    { create(:user, role: "admin") }
-  let(:supplier) { create(:supplier, name: "Proveedor Test") }
+  let(:supplier) { create(:supplier, name: "Proveedor Test", expense_types: %w[supplier taxes]) }
 
   before { sign_in admin }
 
@@ -225,7 +225,7 @@ RSpec.describe "Web::InvoicesController - mark_supplier_paid with credits", type
 
   describe "groups by supplier and type" do
     it "lists AFIP once per type" do
-      afip = create(:supplier, name: "AFIP")
+      afip = create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities])
       [ [ "taxes", "IIBB" ], [ "social_charges", "F931" ] ].each do |type, number|
         create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: type, invoice_number: number,
                amount: 10_000, due_date: Date.current.beginning_of_week(:monday), purchase_date: 30.days.ago.to_date)

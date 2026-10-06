@@ -279,7 +279,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "filters by a fixed-expense subcategory, typed and automatic rows alike" do
-        afip = create(:supplier, name: "AFIP")
+        afip = create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities])
         invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
                          invoice_number: "IIBB 09/2026", purchase_date: Date.new(2026, 9, 1))
         travel_to Date.new(2026, 9, 3) do
@@ -300,7 +300,7 @@ RSpec.describe "Web::Cash::Reports", type: :request do
       end
 
       it "names the category by its subcategory and the supplier of a paid invoice" do
-        afip = create(:supplier, name: "AFIP")
+        afip = create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities])
         invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 1_000, expense_type: "taxes",
                          purchase_date: Date.new(2026, 9, 1))
         travel_to Date.new(2026, 9, 3) do

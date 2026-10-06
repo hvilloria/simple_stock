@@ -43,6 +43,32 @@ export default class extends Controller {
     if (this.hasProductsCardTarget) this.productsCardTarget.classList.toggle("hidden", !supplier)
     if (!supplier) document.dispatchEvent(new CustomEvent("invoice-form:clear-lines"))
     if (this.hasSummaryTypeTarget) this.summaryTypeTarget.textContent = event.target.closest("label").textContent.trim()
+    this.filterSuppliers()
+  }
+
+  selectedExpenseType() {
+    const field = this.element.querySelector('input[name="expense_type"]:checked, select[name="invoice[expense_type]"]')
+    return field ? field.value : null
+  }
+
+  // Offers only the suppliers that bill the chosen type. On connect the supplier
+  // already selected stays, so editing an invoice never drops its current one.
+  filterSuppliers({ keepSelected = false } = {}) {
+    const type = this.selectedExpenseType()
+    if (!this.hasSupplierTarget || !type) return
+
+    const select = this.supplierTarget
+    Array.from(select.options).forEach(option => {
+      if (option.value === "") return
+      const offered = option.selected && keepSelected || (option.dataset.expenseTypes || "").split(" ").includes(type)
+      option.hidden = !offered
+      option.disabled = !offered
+    })
+
+    if (select.selectedOptions[0].disabled) {
+      select.value = ""
+      this.onSupplierChange()
+    }
   }
 
   connect() {
@@ -51,6 +77,8 @@ export default class extends Controller {
 
     console.log("Invoice form controller connected")
     
+    this.filterSuppliers({ keepSelected: true })
+
     // Calculate initial date if values already exist
     this.calculateDueDate()
 
@@ -177,7 +205,7 @@ export default class extends Controller {
   // ========== DATE CALCULATION ==========
   
   calculateDueDate() {
-    if (!this.hasSupplierTarget) return
+    if (!this.hasSupplierTarget || !this.hasPurchaseDateTarget) return
     const supplierSelect = this.supplierTarget
     const selectedOption = supplierSelect.options[supplierSelect.selectedIndex]
     const paymentTermDays = parseInt(selectedOption.dataset.paymentTermDays || "0")

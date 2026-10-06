@@ -74,7 +74,8 @@ module Web
         :bank_account,
         :payment_term_days,
         :early_payment_days,
-        :early_payment_discount_percentage
+        :early_payment_discount_percentage,
+        expense_types: []
       )
     end
   end

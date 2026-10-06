@@ -49,7 +49,7 @@
                 %div{ data: { invoice_form_target: "paymentTermInfo" }, style: "display: none;" }
               
               = select_tag :supplier_id, 
-                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0", "data-early-payment-days": "0", "data-early-payment-discount": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0, "data-early-payment-days": s.early_payment_days || 0, "data-early-payment-discount": s.early_payment_discount_percentage || 0 }] }, params[:supplier_id]),
+                          options_for_select([["Seleccionar proveedor", "", { "data-payment-term-days": "0", "data-early-payment-days": "0", "data-early-payment-discount": "0" }]] + @suppliers.map { |s| [s.name, s.id, { "data-payment-term-days": s.payment_term_days || 0, "data-early-payment-days": s.early_payment_days || 0, "data-early-payment-discount": s.early_payment_discount_percentage || 0 }.merge(supplier_option_attrs(s))] }, params[:supplier_id]),
                           class: "w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-700 focus:border-transparent transition-all",
                           required: true,
                           data: { invoice_form_target: "supplier", action: "change->invoice-form#onSupplierChange" }

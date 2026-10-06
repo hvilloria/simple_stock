@@ -21,4 +21,9 @@ module InvoicesHelper
   def invoice_payment_account_options
     Invoices::PayInvoices::ACCOUNTS.map { |account| [ CashMovement.account_label(account), account ] }
   end
+
+  # Attributes the invoice forms read to offer a supplier only under the types it bills.
+  def supplier_option_attrs(supplier, selectable: true)
+    { "data-expense-types": supplier.expense_types.join(" "), hidden: !selectable, disabled: !selectable }
+  end
 end

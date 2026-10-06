@@ -19,6 +19,7 @@ class Invoice < ApplicationRecord
   enum :expense_type, EXPENSE_TYPE_LABELS.keys.to_h { |k| [ k.to_sym, k ] }, suffix: true
 
   validate :lines_only_on_supplier_invoices
+  validate :supplier_bills_expense_type, if: -> { new_record? || will_save_change_to_supplier_id? || will_save_change_to_expense_type? }
 
   scope :by_expense_type, ->(key) { where(expense_type: key) if EXPENSE_TYPE_LABELS.key?(key.to_s) }
 
@@ -280,6 +281,12 @@ class Invoice < ApplicationRecord
     return if supplier_expense_type? || invoice_items.empty?
 
     errors.add(:base, "Solo las facturas de proveedor llevan productos")
+  end
+
+  def supplier_bills_expense_type
+    return if supplier.nil? || supplier.bills?(expense_type)
+
+    errors.add(:base, "#{supplier.name} no factura #{Invoice.expense_type_label(expense_type)}")
   end
 
   # An amount-only invoice carries a typed amount that must be positive. An

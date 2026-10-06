@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe "Web::CreditNotes", type: :request do
   let(:admin) { create(:user, role: "admin") }
-  let(:supplier) { create(:supplier, name: "Distribuidora Norte") }
+  let(:supplier) { create(:supplier, name: "Distribuidora Norte", expense_types: %w[supplier taxes]) }
   let(:invoice) { create(:invoice, :simple_mode, supplier: supplier) }
 
   before { sign_in admin }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_06_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_06_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -274,6 +274,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_06_120000) do
     t.integer "payment_term_days"
     t.integer "early_payment_days"
     t.decimal "early_payment_discount_percentage", precision: 5, scale: 2
+    t.string "expense_types", default: ["supplier"], null: false, array: true
     t.index ["name"], name: "index_suppliers_on_name", unique: true
   end
 

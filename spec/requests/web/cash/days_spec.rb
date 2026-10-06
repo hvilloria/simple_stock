@@ -597,7 +597,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
   end
 
   describe "an invoice payment row" do
-    let(:afip) { create(:supplier, name: "AFIP") }
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
     let!(:invoice) do
       create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
              invoice_number: "IIBB 09/2026", purchase_date: Date.current - 5)

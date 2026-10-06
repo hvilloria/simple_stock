@@ -499,7 +499,7 @@ RSpec.describe Invoices::CreateInvoice do
 
   describe "expense type" do
     let(:base) do
-      { supplier: create(:supplier, name: "AFIP"), invoice_number: "IIBB 09/2026", amount: 250_000,
+      { supplier: create(:supplier, name: "AFIP", expense_types: %w[supplier taxes]), invoice_number: "IIBB 09/2026", amount: 250_000,
         currency: "ARS", purchase_date: Date.current, due_date: Date.current + 10 }
     end
 
@@ -510,6 +510,12 @@ RSpec.describe Invoices::CreateInvoice do
 
     it "defaults to supplier" do
       expect(described_class.call(**base).record.expense_type).to eq("supplier")
+    end
+
+    it "refuses a type the supplier does not bill" do
+      result = described_class.call(**base, expense_type: "utilities")
+      expect(result.success?).to be false
+      expect(result.errors).to eq([ "AFIP no factura Servicios" ])
     end
 
     it "refuses an unknown type" do

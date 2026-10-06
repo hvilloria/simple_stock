@@ -713,8 +713,8 @@ seed_or_raise = lambda do |label, result|
 end
 
 # Pending non-supplier debts: taxes, social charges and a utility, all in ARS.
-afip   = Supplier.create!(name: "AFIP")
-edesur = Supplier.create!(name: "Edesur")
+afip   = Supplier.create!(name: "AFIP", expense_types: %w[taxes social_charges])
+edesur = Supplier.create!(name: "Edesur", expense_types: %w[utilities])
 seed_or_raise.("factura IIBB", Invoices::CreateInvoice.call(
   supplier: afip, invoice_number: "IIBB 09/2026", amount: 250_000, currency: "ARS",
   purchase_date: Date.current - 5, due_date: Date.current + 9, expense_type: "taxes"))

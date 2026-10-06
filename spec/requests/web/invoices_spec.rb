@@ -388,8 +388,49 @@ RSpec.describe "Web::Invoices", type: :request do
     end
   end
 
+  describe "GET /web/invoices/:id/edit supplier choices" do
+    let(:afip)     { create(:supplier, name: "AFIP", expense_types: %w[taxes]) }
+    let!(:billing) { create(:supplier, name: "Bills Taxes", expense_types: %w[taxes]) }
+    let!(:other)   { create(:supplier, name: "Only Goods") }
+
+    def selectable_names(html)
+      html.css("#invoice_supplier_id option").reject { |o| o["disabled"] || o["value"].blank? }.map(&:text)
+    end
+
+    it "lists the suppliers billing the invoice type and no others" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+
+      get "/web/invoices/#{invoice.id}/edit"
+
+      html = Nokogiri::HTML(response.body)
+      expect(selectable_names(html)).to contain_exactly("AFIP", "Bills Taxes")
+      expect(html.at("#invoice_supplier_id option[value='#{billing.id}']")["data-expense-types"]).to eq("taxes")
+    end
+
+    it "keeps the current supplier even when it no longer bills the type" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      afip.update!(expense_types: %w[utilities])
+
+      get "/web/invoices/#{invoice.id}/edit"
+
+      html = Nokogiri::HTML(response.body)
+      expect(selectable_names(html)).to contain_exactly("AFIP", "Bills Taxes")
+      expect(html.at("#invoice_supplier_id option[selected]").text).to eq("AFIP")
+    end
+
+    it "refuses an update that picks a supplier not billing the type" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+
+      patch web_invoice_path(invoice), params: { invoice: { supplier_id: other.id } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Only Goods no factura Impuestos")
+      expect(invoice.reload.supplier).to eq(afip)
+    end
+  end
+
   describe "expense type" do
-    let(:afip) { create(:supplier, name: "AFIP") }
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
 
     it "creates a tax invoice" do
       post web_invoices_path, params: {
@@ -440,7 +481,7 @@ RSpec.describe "Web::Invoices", type: :request do
   end
 
   describe "index credit cards under the type filter" do
-    let(:afip) { create(:supplier, name: "AFIP") }
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
 
     before do
       create(:credit_note, supplier: supplier, amount: 5_000)
@@ -459,7 +500,7 @@ RSpec.describe "Web::Invoices", type: :request do
   end
 
   describe "invoice page payment" do
-    let(:afip) { create(:supplier, name: "AFIP") }
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
     let(:invoice) do
       create(:invoice, :simple_mode, :in_ars, supplier: afip, amount: 250_000, expense_type: "taxes",
              invoice_number: "IIBB 09/2026", purchase_date: Date.current - 5)

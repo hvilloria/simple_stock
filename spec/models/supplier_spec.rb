@@ -197,4 +197,55 @@ RSpec.describe Supplier, type: :model do
       expect(supplier.early_payment_display).to eq("No configurado")
     end
   end
+
+  describe "billed invoice types" do
+    it "bills only supplier invoices by default" do
+      expect(Supplier.new.expense_types).to eq([ "supplier" ])
+    end
+
+    it "requires at least one type" do
+      supplier = build(:supplier, expense_types: [])
+      expect(supplier).not_to be_valid
+      expect(supplier.errors[:base]).to include("Elegí al menos un tipo de factura")
+    end
+
+    it "refuses an unknown type" do
+      supplier = build(:supplier, expense_types: %w[supplier rent])
+      expect(supplier).not_to be_valid
+      expect(supplier.errors[:base]).to include("Tipo de factura inválido")
+    end
+
+    it "strips blanks and repeats" do
+      supplier = build(:supplier, expense_types: [ "", "taxes", "taxes" ])
+      expect(supplier).to be_valid
+      expect(supplier.expense_types).to eq([ "taxes" ])
+    end
+
+    it "is invalid when only blanks are submitted" do
+      expect(build(:supplier, expense_types: [ "" ])).not_to be_valid
+    end
+
+    describe ".billing" do
+      let!(:merchandise) { create(:supplier) }
+      let!(:afip) { create(:supplier, expense_types: %w[taxes social_charges]) }
+
+      it "returns only the suppliers that bill the type" do
+        expect(Supplier.billing("taxes")).to contain_exactly(afip)
+        expect(Supplier.billing("supplier")).to contain_exactly(merchandise)
+      end
+
+      it "does not filter on an unknown or blank type" do
+        expect(Supplier.billing("bogus")).to contain_exactly(merchandise, afip)
+        expect(Supplier.billing("")).to contain_exactly(merchandise, afip)
+      end
+    end
+
+    describe "#bills?" do
+      it "tells whether the type is billed" do
+        supplier = build(:supplier, expense_types: %w[utilities])
+        expect(supplier.bills?("utilities")).to be true
+        expect(supplier.bills?("taxes")).to be false
+      end
+    end
+  end
 end

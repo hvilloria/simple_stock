@@ -864,11 +864,48 @@ RSpec.describe Invoice, type: :model do
     end
 
     it "filters by type and ignores an unknown one" do
-      taxes = create(:invoice, :simple_mode, :in_ars, expense_type: "taxes")
+      taxes = create(:invoice, :simple_mode, :in_ars, supplier: create(:supplier, expense_types: %w[taxes]), expense_type: "taxes")
       supplier = create(:invoice, :simple_mode, :in_ars)
       expect(Invoice.by_expense_type("taxes")).to contain_exactly(taxes)
       expect(Invoice.by_expense_type("bogus")).to include(taxes, supplier)
       expect(Invoice.by_expense_type("")).to include(taxes, supplier)
+    end
+  end
+
+  describe "supplier billing the type" do
+    let(:merchandise) { create(:supplier) }
+    let(:afip) { create(:supplier, name: "AFIP", expense_types: %w[taxes]) }
+
+    it "refuses a type the supplier does not bill" do
+      invoice = build(:invoice, :simple_mode, :in_ars, supplier: merchandise, expense_type: "taxes")
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("#{merchandise.name} no factura Impuestos")
+    end
+
+    it "accepts a type the supplier bills" do
+      expect(build(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")).to be_valid
+    end
+
+    it "keeps updating an invoice whose supplier later dropped its type" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      afip.update!(expense_types: %w[utilities])
+
+      expect { invoice.reload.update!(status: "paid", paid_at: Date.current) }.not_to raise_error
+    end
+
+    it "refuses changing the type to one the supplier does not bill" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      invoice.expense_type = "utilities"
+
+      expect(invoice).not_to be_valid
+      expect(invoice.errors[:base]).to include("AFIP no factura Servicios")
+    end
+
+    it "refuses changing the supplier to one that does not bill the type" do
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: afip, expense_type: "taxes")
+      invoice.supplier = merchandise
+
+      expect(invoice).not_to be_valid
     end
   end
 

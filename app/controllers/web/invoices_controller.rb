@@ -122,6 +122,7 @@ module Web
 
     def edit
       authorize @invoice
+      load_selectable_suppliers
 
       unless @invoice.pending_status?
         redirect_to web_invoice_path(@invoice), alert: "Solo se pueden editar facturas pendientes."
@@ -152,6 +153,7 @@ module Web
         redirect_to web_invoice_path(@invoice), notice: "Factura actualizada exitosamente."
       else
         load_suppliers
+        load_selectable_suppliers
         render :edit, status: :unprocessable_entity
       end
     end
@@ -217,6 +219,13 @@ module Web
 
     def load_suppliers
       @suppliers = Supplier.order(:name)
+    end
+
+    # The edit form offers the suppliers billing the invoice's type, plus the
+    # one it already has so the invoice never loses it.
+    def load_selectable_suppliers
+      kept = [ @invoice.supplier_id, @invoice.supplier_id_in_database ].compact
+      @selectable_supplier_ids = Supplier.billing(@invoice.expense_type).or(Supplier.where(id: kept)).pluck(:id)
     end
 
     def non_supplier_type?(expense_type)

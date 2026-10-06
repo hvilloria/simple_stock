@@ -4,8 +4,8 @@ require "rails_helper"
 
 RSpec.describe Invoices::PayInvoices do
   let(:user)     { create(:user, :admin) }
-  let(:supplier) { create(:supplier, name: "Sergio Sussex") }
-  let(:afip)     { create(:supplier, name: "AFIP") }
+  let(:supplier) { create(:supplier, name: "Sergio Sussex", expense_types: %w[supplier taxes]) }
+  let(:afip)     { create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]) }
 
   def pending_invoice(supplier:, amount:, number:, **attrs)
     create(:invoice, :simple_mode, :in_ars, supplier: supplier, amount: amount,

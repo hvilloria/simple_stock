@@ -7,7 +7,7 @@ RSpec.describe "Paying an invoice from its page", type: :system do
 
   let(:admin) { create(:user, :admin) }
   let!(:invoice) do
-    create(:invoice, :simple_mode, :in_ars, supplier: create(:supplier, name: "AFIP"), amount: 250_000,
+    create(:invoice, :simple_mode, :in_ars, supplier: create(:supplier, name: "AFIP", expense_types: %w[supplier taxes social_charges utilities]), amount: 250_000,
            expense_type: "taxes", invoice_number: "IIBB 09/2026", purchase_date: Date.current - 5)
   end
 
