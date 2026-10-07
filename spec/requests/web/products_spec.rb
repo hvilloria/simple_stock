@@ -228,6 +228,20 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(created.price_for("mercadolibre")).to eq(15_000)
     end
 
+    it "refuses to create a product on a non-numeric ML price" do
+      origin = product.origin
+      expect {
+        post web_products_path, params: {
+          product: { sku: "BUJE-BAD", name: "Buje", brand: "X", product_type: "aftermarket",
+                     origin: origin, price_unit: "10.000,00", cost_currency: "ARS", active: "1" },
+          channel_prices: { mercadolibre: "abc" }
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Precio Mercado Libre debe ser mayor a 0")
+    end
+
     it "shows the ML price on the product page, or the fallback" do
       get web_product_path(product)
       expect(response.body).to include("Precio Mercado Libre")

@@ -1,4 +1,4 @@
-= form_with model: product, url: (product.persisted? ? web_product_path(product) : web_products_path), local: true, data: { controller: "product-form", action: "turbo:submit-start->product-form#handleSubmit" } do |f|
+= form_with model: product, url: (product.persisted? ? web_product_path(product) : web_products_path), local: true, data: { controller: "product-form", action: "submit->product-form#handleSubmit" } do |f|
   
   -# Show errors if any
   - if product.errors.any?
@@ -62,8 +62,7 @@
                           class: "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all",
                           placeholder: "0,00",
                           data: { controller: "currency-input", action: "blur->currency-input#format focus->currency-input#unformat" }
-            - if product.persisted?
-              %p.text-xs.text-slate-500.mt-1 Es el precio de mostrador y el de cualquier canal sin precio propio. Una venta posterior puede sobrescribirlo.
+            %p.text-xs.text-slate-500.mt-1 Es el precio de mostrador y el de cualquier canal sin precio propio. Una venta posterior puede sobrescribirlo.
 
           - ProductChannelPrice::CHANNELS.each do |channel|
             - label = ProductChannelPrice.label(channel)
