@@ -119,11 +119,55 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(order.reload.outstanding_balance).to eq(1000)
     end
 
-    it "re-renders with the amount to settle when the cash exceeds what is owed" do
+    it "settles with AR-formatted cash above the balance" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order),
+           params: { discount_percent: "0", confirmed_overpaid: "50,00",
+                     tenders: { "0" => { payment_method: "cash", amount: "1.050,00" } } }
+
+      expect(response).to redirect_to(web_payments_on_account_path(order))
+      expect(order.reload.outstanding_balance).to eq(0)
+      expect(order.overpaid_amount).to eq(50)
+    end
+
+    it "refuses a repeated settling POST instead of booking it as overpaid" do
+      sign_in caja
+      params = { discount_percent: "0", confirmed_overpaid: "0",
+                 tenders: { "0" => { payment_method: "cash", amount: "1.000,00" } } }
+      post web_payments_on_account_payment_path(order), params: params
+      expect(response).to redirect_to(web_payments_on_account_path(order))
+
+      expect {
+        post web_payments_on_account_payment_path(order), params: params
+      }.not_to change(Payment, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("La operación ya está saldada")
+      expect(order.reload.total_amount).to eq(1000)
+      expect(order.overpaid_amount).to eq(0)
+    end
+
+    it "refuses cash above a balance that dropped since the form was loaded" do
+      ::Payments::CollectOnAccount.call(user: caja, order: order, discount_percent: 0,
+                                        tenders: [ { payment_method: "bank_transfer", amount: 400 } ])
+      sign_in caja
+
+      expect {
+        post web_payments_on_account_payment_path(order),
+             params: { discount_percent: "0", confirmed_overpaid: "0",
+                       tenders: { "0" => { payment_method: "cash", amount: "1.000,00" } } }
+      }.not_to change(Payment, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El saldo cambió mientras cobrabas. Revisá el monto.")
+      expect(order.reload.outstanding_balance).to eq(600)
+    end
+
+    it "re-renders with the amount to settle when a transfer exceeds what is owed" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
            params: { discount_percent: "0",
-                     tenders: { "0" => { payment_method: "cash", amount: "5000" } } }
+                     tenders: { "0" => { payment_method: "bank_transfer", amount: "5000" } } }
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.body).to include("Es más de lo que debe. Para saldar todo corresponde cobrar $ 1.000,00")

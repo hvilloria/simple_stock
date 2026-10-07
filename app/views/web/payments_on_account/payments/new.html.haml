@@ -12,6 +12,7 @@
     .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash.now[:alert]
 
   = form_with url: web_payments_on_account_payment_path(@order), method: :post, data: { action: "submit->on-account-payment#confirmSettle" } do |f|
+    = hidden_field_tag :confirmed_overpaid, "0", data: { "on-account-payment-target": "confirmedOverpaid" }
 
     .grid.grid-cols-1.gap-5{ class: "lg:grid-cols-[1fr_360px]" }
 
@@ -112,6 +113,9 @@
             .flex.justify-between.font-semibold.text-slate-900
               %span Queda debiendo
               %span{ data: { "on-account-payment-target": "balanceAfter" } } $ 0,00
+            .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "overpaidRow" }, hidden: true }
+              %span Cobrado de más
+              %span{ data: { "on-account-payment-target": "overpaidLine" } } $ 0,00
           %p.mt-3.p-3.rounded-lg.border.border-slate-300.bg-slate-50.text-slate-700{ data: { "on-account-payment-target": "excessNotice" }, hidden: true }
 
         = f.submit "Registrar cobro",

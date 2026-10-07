@@ -47,7 +47,7 @@ class Order < ApplicationRecord
   validate :credit_order_requires_credit_account
   validate :on_account_requires_contact
   validates :original_total_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validate :original_total_at_least_current_total
+  validate :original_total_at_least_current_total, on: :create
 
   before_validation :normalize_contact_phone
 
@@ -91,7 +91,12 @@ class Order < ApplicationRecord
 
   # What cash discounts took off the original total.
   def discounts_total
-    original_total_amount - total_amount
+    original_total_amount - total_amount + overpaid_amount
+  end
+
+  # Cash collected above what was owed; it is part of total_amount.
+  def overpaid_amount
+    payment_allocations.sum(:overpaid_amount)
   end
 
   def from_paper?
@@ -111,18 +116,16 @@ class Order < ApplicationRecord
     StockMovement.where(reference_type: "OrderItem", reference_id: order_items.select(:id))
   end
 
-  # Real NOMINAL discount (sum of the per-item discounts). It does NOT include the
-  # nearest-100 rounding applied to the total to pay — that goes in #rounding_amount.
+  # Real NOMINAL discount (sum of the per-item discounts).
   def discount_amount
     order_items.sum { |i| (i.quantity * i.unit_price) * (i.discount_percent.to_d / 100) }.round(2)
   end
 
-  # Nearest-100 rounding adjustment baked into total_amount (cash collection
-  # with discount). Signed: positive when rounded up, negative when rounded down,
-  # 0 when there was no rounding (e.g. per-item credit discounts).
+  # Nearest-100 rounding the old cash rule baked into total_amount (legacy
+  # orders only). Signed; 0 when there was none.
   def rounding_amount
     return 0 if total_amount.nil? || original_total_amount.nil?
-    total_amount - (original_total_amount - discount_amount)
+    total_amount - (original_total_amount - discount_amount) - overpaid_amount
   end
 
   def discount_percent_display

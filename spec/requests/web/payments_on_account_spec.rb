@@ -99,6 +99,25 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       expect(history.scan("$400,00").size).to eq(2)
       expect(Nokogiri::HTML(response.body).at_css("[data-summary]").text).not_to include("Descuentos")
     end
+
+    it "shows the overpaid cash and keeps the discount and debt figures right" do
+      o = create(:order, :on_account, customer: Customer.mostrador, total_amount: 80_300, original_total_amount: 80_300)
+      create(:order_item, order: o, product: create(:product), quantity: 1, unit_price: 80_300)
+      Payments::CollectOnAccount.call(order: o, user: create(:user, :caja), discount_percent: 10,
+                                      tenders: [ { payment_method: "cash", amount: 72_300 } ],
+                                      confirmed_overpaid: 30)
+
+      get web_payments_on_account_path(o)
+
+      summary = Nokogiri::HTML(response.body).at_css("[data-summary]").text
+      expect(summary).to include("Cobrado de más")
+      expect(summary).to include("+$30,00")
+      expect(summary).to include("8.030,00")
+      expect(summary).to include("72.300,00")
+      history = Nokogiri::HTML(response.body).at_css("[data-history]").text
+      expect(history).to include("80.300,00")
+      expect(history).not_to include("80.330,00")
+    end
   end
 
   describe "POST deliver" do

@@ -161,6 +161,10 @@
                   %tr
                     %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Redondeo
                     %td.px-6.py-2.text-right.text-sm.text-gray-500= "#{@order.rounding_amount.positive? ? '+' : '−'}#{currency_ar(@order.rounding_amount.abs)}"
+              - if @order.overpaid_amount.positive?
+                %tr
+                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Cobrado de más
+                  %td.px-6.py-2.text-right.text-sm.text-gray-500= "+#{currency_ar(@order.overpaid_amount)}"
               %tr
                 %td.px-6.py-4{colspan: "5"}
                   %span.text-base.font-bold.text-gray-900 Total:
@@ -296,7 +300,11 @@
           - else
             .flex.justify-between.text-sm
               %span.text-gray-600 Subtotal
-              %span.font-medium.text-gray-900= currency_ar(@order.total_amount)
+              %span.font-medium.text-gray-900= currency_ar(@order.total_amount - @order.overpaid_amount)
+          - if @order.overpaid_amount.positive?
+            .flex.justify-between.text-sm
+              %span.text-gray-600 Cobrado de más
+              %span.font-medium.text-gray-900= "+#{currency_ar(@order.overpaid_amount)}"
 
         -# Cost analysis
         .border-t.border-gray-200.py-4

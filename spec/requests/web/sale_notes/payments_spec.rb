@@ -50,6 +50,38 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
       expect(movement.amount).to eq(200)
     end
 
+    it "takes AR-formatted cash above the total and confirms the note" do
+      post "/web/sale_notes/#{note.id}/payment", params: {
+        discount_percent: "0", confirmed_overpaid: "50,00",
+        tenders: { "0" => { payment_method: "cash", amount: "250,00" } }
+      }
+
+      expect(response).to redirect_to(web_sale_notes_path)
+      expect(note.reload.total_amount).to eq(250)
+      expect(note.overpaid_amount).to eq(50)
+    end
+
+    it "re-renders when a transfer carries the excess" do
+      post "/web/sale_notes/#{note.id}/payment", params: {
+        discount_percent: "0",
+        tenders: { "0" => { payment_method: "bank_transfer", amount: "1.200,00" } }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Lo cobrado de más solo puede ser en efectivo")
+      expect(note.reload.status).to eq("pending")
+    end
+
+    it "re-renders on a negative or blank amount" do
+      post "/web/sale_notes/#{note.id}/payment", params: {
+        discount_percent: "0",
+        tenders: { "0" => { payment_method: "cash", amount: "-250" }, "1" => { payment_method: "cash", amount: "" } }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(note.reload.status).to eq("pending")
+    end
+
     it "rejects discount with non-cash tender (cash-only rule)" do
       post "/web/sale_notes/#{note.id}/payment", params: {
         discount_percent: "5",

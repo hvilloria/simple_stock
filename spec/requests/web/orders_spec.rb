@@ -377,5 +377,51 @@ RSpec.describe "Web::Orders", type: :request do
       expect(response.body).to include("Cobrada")
       expect(response.body).not_to include("Confirmada")
     end
+
+    it "shows cash collected above the total as its own line" do
+      note = create(:order, :pending, order_type: "immediate", paper_number: "SH-1",
+                    total_amount: 200, original_total_amount: 200)
+      create(:order_item, order: note, product: create(:product), quantity: 2, unit_price: 100)
+      Payments::CollectSaleNote.call(order: note, user: create(:user, :caja), discount_percent: 0,
+                                     tenders: [ { payment_method: "cash", amount: 250 } ],
+                                     confirmed_overpaid: 50)
+
+      get web_order_path(note)
+
+      expect(response.body).to include("Cobrado de más")
+      expect(response.body).to include("+ARS 50,00")
+      expect(response.body).not_to include("Redondeo")
+    end
+
+    it "shows the overpaid cash next to a discount without a rounding line" do
+      note = create(:order, :pending, order_type: "immediate", paper_number: "SH-2",
+                    total_amount: 80_300, original_total_amount: 80_300)
+      create(:order_item, order: note, product: create(:product), quantity: 1, unit_price: 80_300)
+      Payments::CollectSaleNote.call(order: note, user: create(:user, :caja), discount_percent: 10,
+                                     tenders: [ { payment_method: "cash", amount: 72_300 } ],
+                                     confirmed_overpaid: 30)
+
+      get web_order_path(note)
+
+      expect(response.body).to include("Cobrado de más")
+      expect(response.body).to include("+ARS 30,00")
+      expect(response.body).not_to include("Redondeo")
+    end
+
+    it "does not show an on-account order's per-collection discount as its subtotal" do
+      order = create(:order, :on_account, customer: Customer.mostrador,
+                     total_amount: 80_300, original_total_amount: 80_300)
+      create(:order_item, order: order, product: create(:product), quantity: 1, unit_price: 80_300)
+      Payments::CollectOnAccount.call(order: order, user: create(:user, :caja), discount_percent: 10,
+                                      tenders: [ { payment_method: "cash", amount: 72_270 } ])
+
+      get web_order_path(order)
+
+      subtotal = Nokogiri::HTML(response.body).css(".flex.justify-between.text-sm")
+                         .find { |row| row.text.include?("Subtotal") }
+      expect(subtotal.text).to include("72.270,00")
+      expect(subtotal.text).not_to include("80.300,00")
+      expect(response.body).not_to include("Cobrado de más")
+    end
   end
 end

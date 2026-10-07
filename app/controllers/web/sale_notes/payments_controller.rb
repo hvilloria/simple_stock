@@ -11,10 +11,11 @@ module Web
         authorize @note, :collect?, policy_class: SaleNotePolicy
 
         result = Payments::CollectSaleNote.call(
-          order:            @note,
-          user:             current_user,
-          discount_percent: params[:discount_percent].to_i,
-          tenders:          parsed_tenders
+          order:              @note,
+          user:               current_user,
+          discount_percent:   params[:discount_percent].to_i,
+          tenders:            parsed_tenders,
+          confirmed_overpaid: parse_amount(params[:confirmed_overpaid])
         )
 
         if result.success?
@@ -32,17 +33,20 @@ module Web
       end
 
       # Tenders arrive as `tenders[0][payment_method]=cash&tenders[0][amount]=1.500,00`.
-      # Strip Argentine formatting (1.500,00 -> 1500.00) before to_f.
       def parsed_tenders
         rows = params[:tenders]
         return [] if rows.blank?
 
         rows.to_unsafe_h.values.filter_map do |row|
-          raw    = row[:amount].to_s.gsub(".", "").tr(",", ".")
-          amount = raw.to_f
+          amount = parse_amount(row[:amount])
           next if amount <= 0
           { payment_method: row[:payment_method], amount: amount }
         end
+      end
+
+      # Strip Argentine formatting (1.500,00 -> 1500.00) before to_f.
+      def parse_amount(raw)
+        raw.to_s.gsub(".", "").tr(",", ".").to_f
       end
     end
   end

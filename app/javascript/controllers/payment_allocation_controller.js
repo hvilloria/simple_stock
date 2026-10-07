@@ -1,9 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
-import { roundToNearestHundred } from "helpers/cash_rounding"
 
 // Manages the multi-order payment form with per-product discounts.
 // - Each card represents one credit order.
-// - Ticking a card enables inputs, expands the products block, and prefills "Cobrar" with the post-discount total.
+// - Ticking a card enables inputs, expands the products block, and prefills "Cobrar" with the exact post-discount total.
 // - Discount selects only run when the order is unlocked (no prior allocations).
 // - Locked cards render their percentages as plain "(fijado)" text in HAML; this controller never enables their selects.
 export default class extends Controller {
@@ -36,9 +35,7 @@ export default class extends Controller {
     this.updateSummary()
   }
 
-  methodChanged(event) {
-    const row = event.target.closest("[data-payment-allocation-target='row']")
-    this.recomputeCard(row)
+  methodChanged() {
     this.updateSummary()
   }
 
@@ -83,7 +80,8 @@ export default class extends Controller {
       const qty = parseFloat(sel.dataset.quantity) || 0
       const pct = parseFloat(sel.value) || 0
       const lineOriginal = unit * qty
-      const lineNew = lineOriginal * (1 - pct / 100)
+      // In integer cents, rounding half-up like the server.
+      const lineNew = Math.round(Math.round(lineOriginal * 100) * (100 - pct) / 100) / 100
       originalSum += lineOriginal
       newSum += lineNew
       const subtotalCell = tr.querySelector("[data-role='subtotal-cell']")
@@ -107,50 +105,74 @@ export default class extends Controller {
 
     // Unlocked orders have paid_so_far == 0, so the new pending equals the new total.
     row.dataset.pending = newSum.toFixed(2)
-    // Prefill rule: when paying a discounted order in cash, round the charged amount
-    // to the nearest hundred. On a FULL cash settlement the backend (AllocatePayment)
-    // now enforces this same rounding as the canonical total; a partial credit payment
-    // stays free-form and exact (backend leaves the nominal total untouched).
-    const methodSelect = row.querySelector("[data-role='method-select']")
-    const isCash = methodSelect && methodSelect.value === "cash"
-    const hasDiscount = Math.abs(originalSum - newSum) > 0.001
-    const chargeable = (isCash && hasDiscount) ? roundToNearestHundred(newSum) : newSum
-
-    // Discount forgiven on this order (debt the customer no longer owes once charged).
-    // Measured against the charged amount so a rounded full cash settlement reads $0.
-    row.dataset.discountForgiven = (originalSum - chargeable).toFixed(2)
+    row.dataset.discountForgiven = (originalSum - newSum).toFixed(2)
 
     const amountInput = row.querySelector("[data-role='amount-input']")
     const checkbox = row.querySelector("[data-role='include-checkbox']")
     if (checkbox.checked) {
-      amountInput.value = this.formatAmount(chargeable)
+      amountInput.value = this.formatAmount(newSum)
     }
   }
 
   updateSummary() {
     let charging = 0
+    let applied = 0
     let totalDiscount = 0
     let selected = 0
+    let blocked = false
+    this._overpaid = []
+    this._overpaidByRow = new Map()
 
     this.rowTargets.forEach(row => {
       const checkbox = row.querySelector("[data-role='include-checkbox']")
       const amountInput = row.querySelector("[data-role='amount-input']")
-      if (checkbox.checked && amountInput.value) {
-        const v = this.parseAmount(amountInput.value)
-        charging += v
-        totalDiscount += parseFloat(row.dataset.discountForgiven) || 0
-        if (v > 0) selected += 1
+      const line = row.querySelector("[data-role='overpaid-line']")
+      const error = row.querySelector("[data-role='overpaid-error']")
+      line.classList.add("hidden")
+      error.classList.add("hidden")
+      if (!checkbox.checked || !amountInput.value) return
+
+      const v = this.parseAmount(amountInput.value)
+      const pending = parseFloat(row.dataset.pending) || 0
+      const excess = +(v - pending).toFixed(2)
+      charging += v
+      applied += Math.min(v, pending)
+      totalDiscount += parseFloat(row.dataset.discountForgiven) || 0
+      if (v > 0) selected += 1
+
+      if (excess >= 0.01) {
+        const isCash = row.querySelector("[data-role='method-select']").value === "cash"
+        if (isCash) {
+          line.textContent = `Cobrado de más +${this.formatMoney(excess)}`
+          line.classList.remove("hidden")
+          this._overpaid.push(`Orden #${row.dataset.orderId}: ${this.formatMoney(excess)}`)
+          this._overpaidByRow.set(row, excess)
+        } else {
+          error.classList.remove("hidden")
+          blocked = true
+        }
       }
     })
 
-    const remaining = this.totalDebtValue - charging - totalDiscount
+    const remaining = Math.max(this.totalDebtValue - applied - totalDiscount, 0)
 
     this.totalChargingTarget.textContent = this.formatMoney(charging)
     this.remainingBalanceTarget.textContent = this.formatMoney(remaining)
     this.selectedCountTarget.textContent = selected
 
     if (this.hasSubmitButtonTarget) {
-      this.submitButtonTarget.disabled = selected === 0
+      this.submitButtonTarget.disabled = selected === 0 || blocked
+    }
+  }
+
+  confirmOverpayment(event) {
+    this.rowTargets.forEach(row => {
+      const excess = this._overpaidByRow.get(row)
+      row.querySelector("[data-role='confirmed-overpaid']").value = excess ? this.formatAmount(excess) : "0"
+    })
+    if (this._overpaid && this._overpaid.length > 0 &&
+        !window.confirm(`Vas a cobrar de más en efectivo:\n${this._overpaid.join("\n")}\n¿Confirmás?`)) {
+      event.preventDefault()
     }
   }
 

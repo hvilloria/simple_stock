@@ -97,15 +97,15 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect(result.failure?).to be true
       end
 
-      it "fails when amount exceeds outstanding balance of an order" do
+      it "fails when a non-cash amount exceeds outstanding balance of an order" do
         result = described_class.call(
           user: cashier,
           customer: customer,
           payment_date: Date.current,
-          allocations: [ { order_id: order_a.id, amount: order_a.total_amount + 1, payment_method: "cash" } ]
+          allocations: [ { order_id: order_a.id, amount: order_a.total_amount + 1, payment_method: "bank_transfer" } ]
         )
         expect(result.failure?).to be true
-        expect(result.errors.join).to match(/saldo pendiente/i)
+        expect(result.errors.join).to include("Lo cobrado de más solo puede ser en efectivo")
       end
 
       it "fails when payment_method is invalid" do
@@ -198,12 +198,14 @@ RSpec.describe Payments::AllocatePayment, type: :service do
             customer: customer,
             payment_date: Date.current,
             allocations: [
-              { order_id: order_a.id, amount: 100, payment_method: "cash" },
-              { order_id: order_b.id, amount: bad_amount, payment_method: "cash" }
+              { order_id: order_a.id, amount: 350, payment_method: "cash" },
+              { order_id: order_b.id, amount: bad_amount, payment_method: "bank_transfer" }
             ]
           )
         }.to change(Payment, :count).by(0)
          .and change(PaymentAllocation, :count).by(0)
+
+        expect(order_a.reload.total_amount).to eq(300)
       end
     end
 
@@ -357,126 +359,109 @@ RSpec.describe Payments::AllocatePayment, type: :service do
       end
     end
 
-    context "nearest-hundred rounding on a full discounted cash settlement" do
-      # unit_price 34_780 × 2 = 69_560 original; 20% off → 55_648 nominal;
-      # nearest hundred → 55_600 (55_648 / 100 = 556.48 → 556 → 55_600).
+    context "with a discounted order (69.560, 20% → 55.648)" do
       let(:discounted_order) do
         Sales::CreateOrder.call(
           customer: customer,
           items: [ { product_id: product.id, quantity: 2, unit_price: 34_780 } ],
-          order_type: "credit",
-          paper_number: "AP-ROUND",
-          user: user
+          order_type: "credit", paper_number: "AP-EXACT", user: user
         ).record
       end
 
-      it "rounds total_amount to the nearest hundred and closes the balance (confirmed)" do
+      def pay(amount, method: "cash", confirmed_overpaid: 0)
         item = discounted_order.order_items.first
-        result = described_class.call(
-          user: cashier,
-          customer: customer,
-          payment_date: Date.current,
-          allocations: [
-            {
-              order_id: discounted_order.id,
-              amount: 55_600,
-              payment_method: "cash",
-              item_discounts: { item.id => 20 }
-            }
-          ]
-        )
+        described_class.call(user: cashier, customer: customer, payment_date: Date.current,
+                             allocations: [ { order_id: discounted_order.id, amount: amount,
+                                              payment_method: method, item_discounts: { item.id => 20 },
+                                              confirmed_overpaid: confirmed_overpaid } ])
+      end
 
-        expect(result.success?).to be true
+      it "keeps the exact discounted total on a full cash settlement" do
+        expect(pay(55_648).success?).to be true
         discounted_order.reload
-        expect(discounted_order.total_amount.to_f).to eq(55_600.0)
-        expect(discounted_order.outstanding_balance.to_f).to eq(0.0)
+        expect(discounted_order.total_amount).to eq(55_648)
+        expect(discounted_order.rounding_amount).to eq(0)
         expect(discounted_order.status).to eq("confirmed")
       end
 
-      it "preserves the nominal discount invariant (discount 13_912, rounding -48)" do
-        item = discounted_order.order_items.first
-        described_class.call(
-          user: cashier,
-          customer: customer,
-          payment_date: Date.current,
-          allocations: [
-            {
-              order_id: discounted_order.id,
-              amount: 55_600,
-              payment_method: "cash",
-              item_discounts: { item.id => 20 }
-            }
-          ]
-        )
-
+      it "adds cash above the discounted total to the sale as overpaid" do
+        expect(pay(55_700, confirmed_overpaid: 52).success?).to be true
         discounted_order.reload
-        expect(discounted_order.discount_amount.to_f).to eq(13_912.0)
-        expect(discounted_order.rounding_amount.to_f).to eq(-48.0)
+        expect(discounted_order.total_amount).to eq(55_700)
+        expect(discounted_order.discount_amount).to eq(13_912)
+        expect(discounted_order.overpaid_amount).to eq(52)
+        expect(discounted_order.outstanding_balance).to eq(0)
       end
 
-      it "does NOT round a partial cash payment on a discounted order (stays exact)" do
-        item = discounted_order.order_items.first
-        result = described_class.call(
-          user: cashier,
-          customer: customer,
-          payment_date: Date.current,
-          allocations: [
-            {
-              order_id: discounted_order.id,
-              amount: 20_000,
-              payment_method: "cash",
-              item_discounts: { item.id => 20 }
-            }
-          ]
-        )
+      it "refuses a transfer above the discounted total" do
+        result = pay(55_700, method: "bank_transfer")
 
-        expect(result.success?).to be true
-        discounted_order.reload
-        expect(discounted_order.total_amount.to_f).to eq(55_648.0)
+        expect(result.success?).to be false
+        expect(result.errors.first).to include("Lo cobrado de más solo puede ser en efectivo")
+        expect(discounted_order.reload.payment_allocations).to be_empty
+      end
+
+      it "keeps a partial cash payment exact" do
+        expect(pay(20_000).success?).to be true
+        expect(discounted_order.reload.total_amount).to eq(55_648)
         expect(discounted_order.status).to eq("pending")
       end
+    end
 
-      it "does NOT round a non-cash full settlement (bank_transfer stays exact)" do
-        item = discounted_order.order_items.first
-        result = described_class.call(
-          user: cashier,
-          customer: customer,
-          payment_date: Date.current,
-          allocations: [
-            {
-              order_id: discounted_order.id,
-              amount: 55_648,
-              payment_method: "bank_transfer",
-              item_discounts: { item.id => 20 }
-            }
-          ]
-        )
+    it "puts the excess only on the order that got it when one cash payment covers two" do
+      result = described_class.call(user: cashier, customer: customer, payment_date: Date.current,
+                                    allocations: [ { order_id: order_a.id, amount: 350, payment_method: "cash",
+                                                     confirmed_overpaid: 50 },
+                                                   { order_id: order_b.id, amount: 200, payment_method: "cash" } ])
 
-        expect(result.success?).to be true
-        discounted_order.reload
-        expect(discounted_order.total_amount.to_f).to eq(55_648.0)
+      expect(result.success?).to be true
+      payment = result.record.sole
+      expect(payment.amount).to eq(550)
+      expect(payment.allocations.sum(:amount)).to eq(550)
+      expect(order_a.reload.overpaid_amount).to eq(50)
+      expect(order_a.total_amount).to eq(350)
+      expect(order_b.reload.overpaid_amount).to eq(0)
+    end
+
+    it "counts any positive cash excess, even a single cent" do
+      result = described_class.call(user: cashier, customer: customer, payment_date: Date.current,
+                                    allocations: [ { order_id: order_a.id, amount: 300.01, payment_method: "cash",
+                                                     confirmed_overpaid: 0.01 } ])
+
+      expect(result.success?).to be true
+      expect(order_a.reload.overpaid_amount).to eq(0.01)
+      expect(order_a.outstanding_balance).to eq(0)
+    end
+
+    [ nil, 20 ].each do |confirmed|
+      it "refuses an overpayment confirmed as #{confirmed.inspect} and writes nothing" do
+        result = described_class.call(user: cashier, customer: customer, payment_date: Date.current,
+                                      allocations: [ { order_id: order_a.id, amount: 350, payment_method: "cash",
+                                                       confirmed_overpaid: confirmed } ])
+
+        expect(result.success?).to be false
+        expect(result.errors).to eq([ "El saldo cambió mientras cobrabas. Revisá el monto." ])
+        expect(order_a.reload.total_amount).to eq(300)
+        expect(order_a.payment_allocations).to be_empty
+        expect(Payment.count).to eq(0)
+        expect(CashMovement.count).to eq(0)
       end
+    end
 
-      it "does NOT round when there is no discount (all item percents 0)" do
-        item = discounted_order.order_items.first
-        result = described_class.call(
-          user: cashier,
-          customer: customer,
-          payment_date: Date.current,
-          allocations: [
-            {
-              order_id: discounted_order.id,
-              amount: 69_560,
-              payment_method: "cash",
-              item_discounts: { item.id => 0 }
-            }
-          ]
-        )
+    it "refuses a collection on an order that is already settled" do
+      first = described_class.call(user: cashier, customer: customer, payment_date: Date.current,
+                                   allocations: [ { order_id: order_a.id, amount: 300, payment_method: "cash" } ])
+      expect(first.success?).to be true
 
-        expect(result.success?).to be true
-        discounted_order.reload
-        expect(discounted_order.total_amount.to_f).to eq(discounted_order.original_total_amount.to_f)
-      end
+      result = described_class.call(user: cashier, customer: customer, payment_date: Date.current,
+                                    allocations: [ { order_id: order_a.id, amount: 300, payment_method: "cash",
+                                                     confirmed_overpaid: 300 } ])
+
+      expect(result.success?).to be false
+      expect(result.errors).to eq([ "La orden ##{order_a.id} ya está saldada" ])
+      expect(order_a.reload.total_amount).to eq(300)
+      expect(Payment.count).to eq(1)
+      expect(CashMovement.count).to eq(1)
     end
 
     describe "status promotion" do

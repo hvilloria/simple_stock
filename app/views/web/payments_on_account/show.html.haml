@@ -63,7 +63,7 @@
                   %td.py-2.text-slate-600= l(allocation.payment.payment_date, format: :default)
                   %td.py-2= [ payment_method_label(allocation.payment.payment_method), ("#{percent}%" if percent) ].compact.join(" · ")
                   %td.py-2.text-right= number_to_currency(allocation.amount, unit: "$", separator: ",", delimiter: ".")
-                  %td.py-2.text-right= number_to_currency(allocation.amount + allocation.discount_amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right= number_to_currency(allocation.amount + allocation.discount_amount - allocation.overpaid_amount, unit: "$", separator: ",", delimiter: ".")
         - else
           %p.text-sm.text-slate-500 Sin cobros todavía.
 
@@ -77,6 +77,10 @@
           .flex.justify-between.text-slate-600
             %span Descuentos
             %span= "−#{number_to_currency(@order.discounts_total, unit: '$', separator: ',', delimiter: '.')}"
+        - if @order.overpaid_amount.positive?
+          .flex.justify-between.text-slate-600
+            %span Cobrado de más
+            %span= "+#{number_to_currency(@order.overpaid_amount, unit: '$', separator: ',', delimiter: '.')}"
         .flex.justify-between.text-slate-600
           %span Pagado
           %span= number_to_currency(@order.total_amount - @order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
