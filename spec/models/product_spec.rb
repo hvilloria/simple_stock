@@ -645,4 +645,38 @@ RSpec.describe Product, type: :model do
       expect(StockMovement.find_by(id: movement.id)).to eq(movement)
     end
   end
+
+  describe "#price_for" do
+    let(:product) { create(:product, price_unit: 10_000) }
+
+    it "returns the channel price when the product has one" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      expect(product.price_for("mercadolibre")).to eq(15_000)
+    end
+
+    it "falls back to the counter price without a channel price" do
+      expect(product.price_for("mercadolibre")).to eq(10_000)
+    end
+
+    it "returns the counter price for counter, whatsapp and a nil channel" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      expect(product.price_for("counter")).to eq(10_000)
+      expect(product.price_for("whatsapp")).to eq(10_000)
+      expect(product.price_for(nil)).to eq(10_000)
+    end
+  end
+
+  describe "#channel_prices_map" do
+    it "maps each channel to its price" do
+      product = create(:product, price_unit: 10_000)
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      expect(product.reload.channel_prices_map).to eq("mercadolibre" => 15_000.0)
+    end
+  end
+
+  it "deletes its channel prices when destroyed" do
+    product = create(:product)
+    product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+    expect { product.destroy }.to change(ProductChannelPrice, :count).by(-1)
+  end
 end

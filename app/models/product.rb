@@ -3,6 +3,7 @@ class Product < ApplicationRecord
 
   # Associations
   has_many :stock_movements
+  has_many :channel_prices, class_name: "ProductChannelPrice", dependent: :destroy
 
   # === SKU AND VARIANTS ===
   # sku represents the OEM CODE of the part (e.g.: original Honda code)
@@ -205,6 +206,20 @@ class Product < ApplicationRecord
     nivel = location_code[3]
 
     "Pasillo #{pasillo}, lado #{lado}, posición #{posicion}, nivel #{nivel}"
+  end
+
+  def price_for(channel)
+    channel_price_for(channel)&.price || price_unit
+  end
+
+  def channel_price_for(channel)
+    return unless ProductChannelPrice.own_price?(channel)
+
+    channel_prices.find { |row| row.channel == channel.to_s }
+  end
+
+  def channel_prices_map
+    channel_prices.to_h { |row| [ row.channel, row.price.to_f ] }
   end
 
   def oem?
