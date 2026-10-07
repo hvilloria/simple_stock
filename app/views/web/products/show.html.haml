@@ -103,7 +103,15 @@
             .div
               %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Precio de Venta
               %p.text-2xl.font-bold.text-slate-900= currency_ar_int(@product.price_unit || 0)
-            
+
+            - ProductChannelPrice::CHANNELS.each do |channel|
+              .div
+                %p.text-xs.font-medium.text-slate-500.uppercase.mb-1= "Precio #{ProductChannelPrice.label(channel)}"
+                - if (channel_price = @product.channel_price_for(channel))
+                  %p.text-lg.font-semibold.text-slate-900= currency_ar_int(channel_price.price)
+                - else
+                  %p.text-sm.text-slate-400 Usa el de mostrador
+
             .div
               %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
               - if @product.cost_unit.present?

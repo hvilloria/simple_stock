@@ -23,15 +23,19 @@ module Web
     def new
       @product = Product.new(active: true, cost_currency: "USD")
       authorize @product
+      @channel_price_values = channel_price_values_for(@product)
     end
 
     def create
-      @product = Product.new(sanitized_product_params)
+      @product = Product.new
       authorize @product
 
-      if @product.save
+      result = Products::Save.call(product: @product, attributes: sanitized_product_params,
+                                   channel_prices: parsed_channel_prices)
+      if result.success?
         redirect_to web_products_path, notice: "Producto creado exitosamente"
       else
+        @channel_price_values = submitted_channel_price_values
         render :new, status: :unprocessable_entity
       end
     end
@@ -39,15 +43,19 @@ module Web
     def edit
       @product = Product.find(params[:id])
       authorize @product
+      @channel_price_values = channel_price_values_for(@product)
     end
 
     def update
       @product = Product.find(params[:id])
       authorize @product
 
-      if @product.update(update_product_params)
+      result = Products::Save.call(product: @product, attributes: update_product_params,
+                                   channel_prices: parsed_channel_prices)
+      if result.success?
         redirect_to web_product_path(@product), notice: "Producto actualizado exitosamente"
       else
+        @channel_price_values = submitted_channel_price_values
         render :edit, status: :unprocessable_entity
       end
     end
@@ -101,6 +109,24 @@ module Web
       params_hash[:cost_unit]  = parse_amount(params_hash[:cost_unit]) if params_hash[:cost_unit].present?
 
       params_hash
+    end
+
+    # Blank means remove the channel price; anything else is parsed, so
+    # garbage reads as 0 and the model refuses it.
+    def parsed_channel_prices
+      submitted_channel_price_values.transform_values { |raw| raw.blank? ? nil : parse_amount(raw) }
+    end
+
+    def submitted_channel_price_values
+      raw = params.fetch(:channel_prices, {}).permit(*ProductChannelPrice::CHANNELS).to_h
+      ProductChannelPrice::CHANNELS.index_with { |channel| raw[channel].to_s }
+    end
+
+    def channel_price_values_for(product)
+      ProductChannelPrice::CHANNELS.index_with do |channel|
+        price = product.channel_price_for(channel)&.price
+        price ? helpers.number_with_precision(price, precision: 2, delimiter: ".", separator: ",") : ""
+      end
     end
   end
 end
