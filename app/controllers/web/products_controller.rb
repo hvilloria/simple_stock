@@ -72,11 +72,12 @@ module Web
       authorize Product, :search?
       @products = Product.active
                          .search(params[:q])
+                         .includes(:channel_prices)
                          .limit(10)
 
       render json: @products.as_json(
         only: [ :id, :sku, :name, :price_unit, :current_stock, :brand, :origin, :product_type ],
-        methods: []
+        methods: [ :channel_prices_map ]
       )
     end
 

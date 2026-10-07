@@ -8,6 +8,19 @@ RSpec.describe "Web::Products edit/update", type: :request do
   let(:caja)     { create(:user, role: "caja") }
   let(:product)  { create(:product, name: "Disco viejo", brand: "Generic Brand", price_unit: 100) }
 
+  describe "GET /web/products/search" do
+    before { sign_in vendedor }
+
+    it "includes each product's channel prices" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      get search_web_products_path, params: { q: product.name }
+
+      item = JSON.parse(response.body).find { |p| p["id"] == product.id }
+      expect(item["price_unit"].to_f).to eq(100.0)
+      expect(item["channel_prices_map"]).to eq("mercadolibre" => 15_000.0)
+    end
+  end
+
   describe "GET /web/products" do
     before { sign_in vendedor }
 

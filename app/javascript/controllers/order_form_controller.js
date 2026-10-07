@@ -2,8 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal"]
-  static values = { initialItems: Array }
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal", "channelSelect", "channelNotice", "channelHelp"]
+  static values = { initialItems: Array, ownPriceChannels: Array, channelLabels: Object }
 
   connect() {
     this.items = this.initialItemsValue.length > 0 ? this.initialItemsValue : []
@@ -11,6 +11,7 @@ export default class extends Controller {
     this.updateSummary()
     this.applyCreditRadioState()
     this.applyDiscountSectionVisibility(this.currentOrderType())
+    this.updateChannelHelp()
   }
 
   customerChanged(event) {
@@ -52,13 +53,17 @@ export default class extends Controller {
     if (existingIndex >= 0) {
       this.items[existingIndex].quantity += 1
     } else {
+      const channelPrices = product.channel_prices_map || {}
+      const basePrice = Number(product.price_unit) || 0
       this.items.push({
         product_id: product.id,
         sku: product.sku,
         name: product.name,
         brand: product.brand,
         quantity: 1,
-        price_unit: product.price_unit || 0,
+        price_unit: this.priceFor(channelPrices, basePrice),
+        channel_prices: channelPrices,
+        base_price: basePrice,
         max_stock: product.current_stock,
         origin: product.origin,
         product_type: product.product_type
@@ -67,6 +72,40 @@ export default class extends Controller {
 
     this.renderItems()
     this.updateSummary()
+  }
+
+  currentChannel() {
+    return this.hasChannelSelectTarget ? this.channelSelectTarget.value : "counter"
+  }
+
+  priceFor(channelPrices, basePrice) {
+    const own = (channelPrices || {})[this.currentChannel()]
+    return own ? Number(own) : basePrice
+  }
+
+  channelChanged() {
+    const label = this.channelLabelsValue[this.currentChannel()] || this.currentChannel()
+    if (this.items.length > 0) {
+      this.items.forEach(item => {
+        item.price_unit = this.priceFor(item.channel_prices, item.base_price ?? item.price_unit)
+      })
+      this.renderItems()
+      this.updateSummary()
+      this.channelNoticeTarget.textContent = `Se actualizaron los precios al canal ${label}.`
+      this.channelNoticeTarget.classList.remove("hidden")
+    }
+    this.updateChannelHelp()
+  }
+
+  updateChannelHelp() {
+    if (!this.hasChannelHelpTarget) return
+    const channel = this.currentChannel()
+    const ownPrice = this.ownPriceChannelsValue.includes(channel)
+    const label = this.channelLabelsValue[channel] || channel
+    this.channelHelpTarget.textContent = ownPrice
+      ? `En ${label} el precio que pongas actualiza el precio de ${label} del producto, no el de mostrador.`
+      : ""
+    this.channelHelpTarget.classList.toggle("hidden", !ownPrice)
   }
 
   removeItem(event) {
