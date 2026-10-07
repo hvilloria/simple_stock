@@ -47,7 +47,9 @@ RSpec.describe "Channel prices on a new sale", type: :system do
     visit new_web_order_path
     select "🛒 Mercado Libre", from: "Canal de Venta"
     fill_in placeholder: "Buscar por SKU, nombre o marca...", with: "BUJE-1"
-    find("[data-product-search-target='results'] [data-action*='selectProduct']", text: "BUJE-1").click
+    result = find("[data-product-search-target='results'] [data-action*='selectProduct']", text: "BUJE-1")
+    expect(result).to have_content("15.000")
+    result.click
 
     expect(page).to have_field(with: "15.000,00")
   end

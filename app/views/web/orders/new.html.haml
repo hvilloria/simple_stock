@@ -107,7 +107,7 @@
           %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
 
           -# Search input with dropdown
-          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
+          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, 'product-search-channel-value': "counter", 'order-form-target': "productSearch", action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
             %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
             %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
 

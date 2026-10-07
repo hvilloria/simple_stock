@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal", "channelSelect", "channelNotice", "channelHelp"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal", "channelSelect", "channelNotice", "channelHelp", "productSearch"]
   static values = { initialItems: Array, ownPriceChannels: Array, channelLabels: Object }
 
   connect() {
@@ -84,6 +84,7 @@ export default class extends Controller {
   }
 
   channelChanged() {
+    this.productSearchTarget.setAttribute("data-product-search-channel-value", this.currentChannel())
     const label = this.channelLabelsValue[this.currentChannel()] || this.currentChannel()
     if (this.items.length > 0) {
       this.items.forEach(item => {

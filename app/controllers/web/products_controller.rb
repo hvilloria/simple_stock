@@ -115,10 +115,18 @@ module Web
     # Blank means remove the channel price; anything else is parsed, so
     # garbage reads as 0 and the model refuses it.
     def parsed_channel_prices
+      return {} unless channel_prices_hash?
+
       submitted_channel_price_values.transform_values { |raw| raw.blank? ? nil : parse_amount(raw) }
     end
 
+    def channel_prices_hash?
+      !params.key?(:channel_prices) || params[:channel_prices].is_a?(ActionController::Parameters)
+    end
+
     def submitted_channel_price_values
+      return ProductChannelPrice::CHANNELS.index_with { "" } unless channel_prices_hash?
+
       raw = params.fetch(:channel_prices, {}).permit(*ProductChannelPrice::CHANNELS).to_h
       ProductChannelPrice::CHANNELS.index_with { |channel| raw[channel].to_s }
     end

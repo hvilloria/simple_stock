@@ -300,6 +300,29 @@ RSpec.describe "Web::Orders", type: :request do
       end
     end
 
+    context "price write-back by channel" do
+      let(:priced_params) do
+        base_params.deep_merge(order: { channel: "mercadolibre" }).merge(
+          purchase_items: [ { product_id: product.id, quantity: "2", unit_price: "15000" } ]
+        )
+      end
+
+      it "writes a Mercado Libre price to the channel price, not the counter price" do
+        post "/web/orders", params: priced_params
+
+        expect(response).to redirect_to(web_order_path(Order.order(:created_at).last))
+        expect(product.reload.price_unit).to eq(100)
+        expect(product.price_for("mercadolibre")).to eq(15_000)
+      end
+
+      it "writes a counter price to price_unit" do
+        post "/web/orders", params: priced_params.deep_merge(order: { channel: "counter" })
+
+        expect(product.reload.price_unit).to eq(15_000)
+        expect(product.channel_prices).to be_empty
+      end
+    end
+
     context "without paper_number" do
       it "fails and renders new" do
         params = base_params.merge(paper_number: nil)

@@ -3,7 +3,7 @@ import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
   static targets = ["input", "results"]
-  static values = { url: String, dimOutOfStock: { type: Boolean, default: true } }
+  static values = { url: String, channel: String, dimOutOfStock: { type: Boolean, default: true } }
 
   connect() {
     this.timeout = null
@@ -90,7 +90,7 @@ export default class extends Controller {
                 ${product.brand && originText ? '<span>•</span>' : ''}
                 ${originText ? `<span>${originText}</span>` : ''}
                 <span>•</span>
-                <span class="font-bold text-gray-900">$${this.formatCurrency(product.price_unit)}</span>
+                <span class="font-bold text-gray-900">$${this.formatCurrency(this.priceFor(product))}</span>
               </div>
             </div>
           </div>
@@ -127,6 +127,11 @@ export default class extends Controller {
     if (!this.element.contains(event.target)) {
       this.hideResults()
     }
+  }
+
+  priceFor(product) {
+    const own = (product.channel_prices_map || {})[this.channelValue]
+    return own ?? product.price_unit
   }
 
   formatCurrency(amount) {

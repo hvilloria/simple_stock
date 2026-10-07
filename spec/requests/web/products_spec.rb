@@ -218,6 +218,16 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(product.reload.channel_prices).to be_empty
     end
 
+    it "ignores a non-hash channel_prices param" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+
+      patch web_product_path(product), params: { product: { name: "Otro" }, channel_prices: "foo" }
+
+      expect(response).to redirect_to(web_product_path(product))
+      expect(product.reload.name).to eq("Otro")
+      expect(product.price_for("mercadolibre")).to eq(15_000)
+    end
+
     it "re-renders without saving on a negative or non-numeric ML price" do
       [ "-5", "abc" ].each do |raw|
         patch web_product_path(product), params: { product: { name: "Otro" },
