@@ -136,15 +136,68 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         expect {
           post web_customer_payments_path(customer), params: {
             allocations: {
-              "0" => { order_id: order_a.id, include: "1", amount: "9999", payment_method: "cash" }
+              "0" => { order_id: order_a.id, include: "1", amount: "9999", payment_method: "bank_transfer" }
             }
           }
         }.to change(Payment, :count).by(0)
          .and change(PaymentAllocation, :count).by(0)
 
         expect(response).to have_http_status(:unprocessable_entity)
-        expect(response.body).to match(/saldo pendiente/i)
+        expect(response.body).to include("Lo cobrado de más solo puede ser en efectivo")
       end
+    end
+
+    it "records AR-formatted cash above an order's balance as overpaid" do
+      post web_customer_payments_path(customer), params: {
+        payment_date: Date.current.iso8601,
+        allocations: { "0" => { order_id: order_a.id, include: "1", amount: "250,00", payment_method: "cash",
+                                confirmed_overpaid: "50,00" } }
+      }
+
+      expect(response).to redirect_to(web_customer_path(customer))
+      expect(order_a.reload.outstanding_balance).to eq(0)
+      expect(order_a.overpaid_amount).to eq(50)
+      expect(Payment.sole.amount).to eq(250)
+    end
+
+    it "refuses a repeated settling POST instead of booking it as overpaid" do
+      params = {
+        payment_date: Date.current.iso8601,
+        allocations: { "0" => { order_id: order_a.id, include: "1", amount: "200,00", payment_method: "cash",
+                                confirmed_overpaid: "0" } }
+      }
+      post web_customer_payments_path(customer), params: params
+      expect(response).to redirect_to(web_customer_path(customer))
+
+      expect {
+        post web_customer_payments_path(customer), params: params
+      }.not_to change(Payment, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("La orden ##{order_a.id} ya está saldada")
+      expect(order_a.reload.total_amount).to eq(200)
+      expect(order_a.overpaid_amount).to eq(0)
+    end
+
+    it "re-renders when a transfer goes above an order's balance" do
+      post web_customer_payments_path(customer), params: {
+        payment_date: Date.current.iso8601,
+        allocations: { "0" => { order_id: order_a.id, include: "1", amount: "250,00", payment_method: "bank_transfer" } }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Lo cobrado de más solo puede ser en efectivo")
+      expect(order_a.reload.payment_allocations).to be_empty
+    end
+
+    it "re-renders on a negative amount" do
+      post web_customer_payments_path(customer), params: {
+        payment_date: Date.current.iso8601,
+        allocations: { "0" => { order_id: order_a.id, include: "1", amount: "-250", payment_method: "cash" } }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(order_a.reload.payment_allocations).to be_empty
     end
 
     context "with no rows checked" do

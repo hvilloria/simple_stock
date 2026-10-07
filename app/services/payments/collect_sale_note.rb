@@ -6,37 +6,40 @@ module Payments
   # Rules:
   #   - Order must be immediate + pending.
   #   - discount_percent in {0, 5, 10}; distributed to each order_item.
-  #   - Tenders sum to effective total (original_total * (1 - discount/100)).
-  #   - If discount > 0, every tender must be `cash` AND cover full total.
+  #   - Tenders cover the effective total (original_total * (1 - discount/100));
+  #     cash may exceed it, the excess is added to the total. The excess must
+  #     match confirmed_overpaid, the one the operator saw and confirmed.
+  #   - If discount > 0, every tender must be `cash`.
   class CollectSaleNote
-    include Payments::CashRounding
-
     TOLERANCE = 0.01
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
+    BALANCE_CHANGED = "El saldo cambió mientras cobrabas. Revisá el monto."
 
-    def self.call(order:, tenders:, user:, discount_percent: 0, payment_date: Date.current)
+    def self.call(order:, tenders:, user:, discount_percent: 0, payment_date: Date.current, confirmed_overpaid: 0)
       new(
         order: order,
         tenders: tenders,
         user: user,
         discount_percent: discount_percent,
-        payment_date: payment_date
+        payment_date: payment_date,
+        confirmed_overpaid: confirmed_overpaid
       ).call
     end
 
-    def initialize(order:, tenders:, user:, discount_percent:, payment_date:)
-      @order            = order
-      @user             = user
-      @tenders          = Array(tenders).map { |t| t.to_h.symbolize_keys }
-      @discount_percent = discount_percent.to_i
-      @payment_date     = payment_date || Date.current
+    def initialize(order:, tenders:, user:, discount_percent:, payment_date:, confirmed_overpaid:)
+      @order              = order
+      @user               = user
+      @tenders            = Array(tenders).map { |t| t.to_h.symbolize_keys }
+      @discount_percent   = discount_percent.to_i
+      @payment_date       = payment_date || Date.current
+      @confirmed_overpaid = confirmed_overpaid.to_d
     end
 
     def call
       validate!
 
       ActiveRecord::Base.transaction do
-        apply_discount!
+        apply_totals!
         create_payments_and_allocations!
         @order.refresh_status_from_balance!
 
@@ -68,48 +71,55 @@ module Payments
       raise ValidationError, "Debe incluir al menos un pago" if @tenders.empty?
 
       @tenders.each do |t|
-        amount = t[:amount].to_f
+        amount = t[:amount].to_d
         raise ValidationError, "El monto debe ser mayor a cero" if amount <= 0
         unless Payment::PAYMENT_METHODS.include?(t[:payment_method])
           raise ValidationError, "Método de pago inválido: #{t[:payment_method]}"
         end
       end
 
-      tender_sum = @tenders.sum { |t| t[:amount].to_f }
-
-      if @discount_percent.positive?
-        non_cash = @tenders.any? { |t| t[:payment_method] != "cash" }
-        if non_cash || (tender_sum - effective_total).abs > TOLERANCE
-          raise ValidationError, "Descuento solo permitido si el total se paga en efectivo"
-        end
-      elsif (tender_sum - effective_total).abs > TOLERANCE
-        raise ValidationError,
-              format("La suma de los pagos ($%.2f) debe coincidir con el total ($%.2f)", tender_sum, effective_total)
+      if @discount_percent.positive? && @tenders.any? { |t| t[:payment_method] != "cash" }
+        raise ValidationError, "Descuento solo permitido si el total se paga en efectivo"
       end
+
+      if tender_sum < effective_total - TOLERANCE
+        raise ValidationError,
+              format("La suma de los pagos ($%.2f) no alcanza el total ($%.2f)", tender_sum, effective_total)
+      end
+
+      raise ValidationError, "Lo cobrado de más solo puede ser en efectivo" if overpaid > cash_sum
+      raise ValidationError, BALANCE_CHANGED if overpaid.positive? && (overpaid - @confirmed_overpaid).abs > TOLERANCE
     end
 
     def effective_total
-      @effective_total ||= begin
-        raw = (@order.original_total_amount.to_d * (1 - @discount_percent.to_d / 100)).round(2)
-        @discount_percent.positive? ? round_to_nearest_hundred(raw) : raw
+      @effective_total ||= (@order.original_total_amount.to_d * (1 - @discount_percent.to_d / 100)).round(2)
+    end
+
+    def tender_sum
+      @tender_sum ||= @tenders.sum { |t| t[:amount].to_d }
+    end
+
+    def cash_sum
+      @tenders.select { |t| t[:payment_method] == "cash" }.sum { |t| t[:amount].to_d }
+    end
+
+    def overpaid
+      @overpaid ||= begin
+        extra = tender_sum - effective_total
+        extra.positive? ? extra : 0
       end
     end
 
-    def apply_discount!
-      return if @discount_percent.zero?
+    def apply_totals!
+      @order.order_items.each { |item| item.update!(discount_percent: @discount_percent) } if @discount_percent.positive?
+      return if @discount_percent.zero? && overpaid.zero?
 
-      # order_item.discount_percent stays as display metadata; the canonical
-      # charged total is the rounded effective_total (cash nearest-hundred).
-      @order.order_items.each do |item|
-        item.update!(discount_percent: @discount_percent)
-      end
-
-      @order.update!(total_amount: effective_total)
+      @order.update!(total_amount: effective_total + overpaid)
     end
 
     def create_payments_and_allocations!
       @tenders.group_by { |t| t[:payment_method] }.each do |method, rows|
-        total = rows.sum { |r| r[:amount].to_f }
+        total = rows.sum { |r| r[:amount].to_d }
         payment = Payment.create!(
           customer:       @order.customer,
           amount:         total,
@@ -118,7 +128,8 @@ module Payments
         )
         # One allocation per method: payment_allocations is unique on
         # (payment_id, order_id), so repeated rows of the same method collapse.
-        PaymentAllocation.create!(payment: payment, order: @order, amount: total)
+        PaymentAllocation.create!(payment: payment, order: @order, amount: total,
+                                  overpaid_amount: method == "cash" ? overpaid : 0)
 
         record_in_cash!(payment)
       end

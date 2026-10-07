@@ -107,12 +107,28 @@ RSpec.describe "Pagos a cuenta", type: :system do
     expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "815.511")
 
     click_button "Saldar todo"
-    expect(find("[data-on-account-payment-target='tenderAmount']").value).to eq("1.534.000,00")
+    expect(find("[data-on-account-payment-target='tenderAmount']").value).to eq("1.533.960,00")
     expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "0,00")
 
+    find("[data-on-account-payment-target='tenderAmount']").set("1534000", clear: :backspace)
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "0,00")
+    expect(page).to have_css("[data-on-account-payment-target='overpaidLine']", text: "40,00")
+
+    accept_confirm(/Vas a cobrar .*40,00 de más en efectivo/) { click_button "Registrar cobro" }
+    expect(page).to have_content("Cobro registrado")
+    expect(big.reload.overpaid_amount).to eq(40)
+  end
+
+  it "refuses a transfer above the balance" do
+    big = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
+                 total_amount: 1_704_400, original_total_amount: 1_704_400)
+    create(:order_item, order: big, product: create(:product), quantity: 1, unit_price: 1_704_400)
+
+    visit new_web_payments_on_account_payment_path(big)
+    select "Banco Transferencia", from: "tenders[0][payment_method]"
     find("[data-on-account-payment-target='tenderAmount']").set("2000000", clear: :backspace)
-    expect(page).to have_content("Es más de lo que debe. Para saldar todo con 10% corresponde cobrar $ 1.534.000,00")
-    expect(page).to have_no_css("[data-on-account-payment-target='discountRow']", visible: :visible)
+
+    expect(page).to have_content("Es más de lo que debe")
     expect(page).to have_button("Registrar cobro", disabled: true)
   end
 end

@@ -303,6 +303,13 @@ RSpec.describe Order, type: :model do
       expect(order.errors[:original_total_amount]).to be_present
     end
 
+    it "allows total_amount above original_total_amount on update (cash collected above what was owed)" do
+      order = create(:order, :pending, total_amount: 1000, original_total_amount: 1000)
+
+      expect(order.update(total_amount: 1050)).to be(true)
+      expect(order.reload.total_amount).to eq(1050)
+    end
+
     it "is valid when original_total_amount == total_amount" do
       order = Order.new(customer: customer, order_type: "immediate", source: "live", paper_number: "9002",
                         sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed",
@@ -354,6 +361,22 @@ RSpec.describe Order, type: :model do
       order = build(:order, original_total_amount: 1000, total_amount: 1000)
       expect(order.discounts_total).to eq(0)
     end
+
+    it "does not count cash collected above what was owed as less discount" do
+      customer = Customer.mostrador
+      order = create(:order, :on_account, customer: customer, original_total_amount: 80_300, total_amount: 72_300)
+      payment = Payment.create!(customer: customer, amount: 72_300, payment_method: "cash", payment_date: Date.current)
+      PaymentAllocation.create!(payment: payment, order: order, amount: 72_300, discount_amount: 8_030, overpaid_amount: 30)
+
+      expect(order.overpaid_amount).to eq(30)
+      expect(order.discounts_total).to eq(8_030)
+    end
+  end
+
+  describe "#overpaid_amount" do
+    it "is zero without allocations" do
+      expect(build(:order).overpaid_amount).to eq(0)
+    end
   end
 
   describe "#rounding_amount" do
@@ -392,6 +415,17 @@ RSpec.describe Order, type: :model do
                             sale_date: Date.current, total_amount: 100, original_total_amount: 100, status: "confirmed",
                             user: create(:user))
       order.order_items.create!(product: product, quantity: 1, unit_price: 100, discount_percent: 0)
+      expect(order.rounding_amount).to eq(0)
+    end
+
+    it "excludes cash collected above what was owed" do
+      order = Order.create!(customer: customer, order_type: "immediate", source: "live", paper_number: "9012",
+                            sale_date: Date.current, total_amount: 72_300, original_total_amount: 80_300,
+                            status: "confirmed", user: create(:user))
+      order.order_items.create!(product: product, quantity: 1, unit_price: 80_300, discount_percent: 10)
+      payment = Payment.create!(customer: customer, amount: 72_300, payment_method: "cash", payment_date: Date.current)
+      PaymentAllocation.create!(payment: payment, order: order, amount: 72_300, overpaid_amount: 30)
+
       expect(order.rounding_amount).to eq(0)
     end
   end

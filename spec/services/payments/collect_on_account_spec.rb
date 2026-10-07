@@ -19,9 +19,10 @@ RSpec.describe Payments::CollectOnAccount do
       o
     end
 
-    def collect(order, amount, discount: 0, method: "cash")
+    def collect(order, amount, discount: 0, method: "cash", confirmed_overpaid: 0)
       described_class.call(user: cashier, order: order, discount_percent: discount,
-                           tenders: [ { payment_method: method, amount: amount } ])
+                           tenders: [ { payment_method: method, amount: amount } ],
+                           confirmed_overpaid: confirmed_overpaid)
     end
 
     it "lowers the debt by the cash received grossed up by the discount, rounded to the peso" do
@@ -52,61 +53,120 @@ RSpec.describe Payments::CollectOnAccount do
       expect(note_3738.payment_allocations.sole.discount_amount).to eq(0)
     end
 
-    # 1.704.400 × 0,90 = 1.533.960 → nearest hundred 1.534.000.
-    it "settles the whole balance when the cash is the amount to settle it all" do
-      result = collect(note_3738, 1_534_000, discount: 10)
+    # 1.704.400 × 0,90 = 1.533.960, exact.
+    it "settles the whole balance with the exact discounted cash" do
+      result = collect(note_3738, 1_533_960, discount: 10)
 
       expect(result).to be_success
-      expect(note_3738.reload.outstanding_balance).to eq(0)
+      note_3738.reload
+      expect(note_3738.outstanding_balance).to eq(0)
       expect(note_3738.status).to eq("confirmed")
-      expect(note_3738.payment_allocations.sole.discount_amount).to eq(170_400)
+      allocation = note_3738.payment_allocations.sole
+      expect(allocation.discount_amount).to eq(170_440)
+      expect(allocation.overpaid_amount).to eq(0)
     end
 
-    it "refuses cash that would cancel more than is owed, naming the amount to settle" do
-      result = collect(note_3738, 2_000_000, discount: 10)
+    it "settles the balance and records cash above the settle amount as overpaid" do
+      result = collect(note_3738, 1_534_000, discount: 10, confirmed_overpaid: 40)
+
+      expect(result).to be_success
+      note_3738.reload
+      allocation = note_3738.payment_allocations.sole
+      expect(allocation.amount).to eq(1_534_000)
+      expect(allocation.discount_amount).to eq(170_440)
+      expect(allocation.overpaid_amount).to eq(40)
+      expect(note_3738.total_amount).to eq(1_534_000)
+      expect(note_3738.discounts_total).to eq(170_440)
+      expect(note_3738.outstanding_balance).to eq(0)
+      expect(note_3738.payments.sole.amount).to eq(1_534_000)
+    end
+
+    it "settles a small balance at 10% recording the discount and the overpaid cash" do
+      small = create(:order, :on_account, customer: customer, total_amount: 60, original_total_amount: 60)
+      create(:order_item, order: small, product: product, quantity: 1, unit_price: 60)
+
+      expect(collect(small, 60, discount: 10, confirmed_overpaid: 6)).to be_success
+      small.reload
+      expect(small.outstanding_balance).to eq(0)
+      expect(small.total_amount).to eq(60)
+      expect(small.discounts_total).to eq(6)
+      expect(small.payment_allocations.sole.discount_amount).to eq(6)
+      expect(small.payment_allocations.sole.overpaid_amount).to eq(6)
+    end
+
+    it "refuses a transfer above the balance, naming the amount to settle" do
+      result = collect(order, 1_500, method: "bank_transfer")
 
       expect(result).to be_failure
-      expect(result.errors).to eq([ "Es más de lo que debe. Para saldar todo con 10% corresponde cobrar $ 1.534.000,00" ])
-      expect(note_3738.reload.outstanding_balance).to eq(1_704_400)
+      expect(result.errors).to eq([ "Es más de lo que debe. Para saldar todo corresponde cobrar $ 1.000,00" ])
+      expect(order.reload.outstanding_balance).to eq(1000)
     end
 
-    it "refuses cash just short of the settle amount whose grossed-up value exceeds the balance" do
-      result = collect(note_3738, 1_533_980, discount: 10)
-
-      expect(result).to be_failure
-      expect(result.errors.first).to include("$ 1.534.000,00")
+    it "accepts cash above the balance without a discount as overpaid" do
+      expect(collect(order, 1_500, confirmed_overpaid: 500)).to be_success
+      order.reload
+      expect(order.total_amount).to eq(1_500)
+      expect(order.overpaid_amount).to eq(500)
+      expect(order.outstanding_balance).to eq(0)
     end
 
-    context "when rounding to the hundred would exceed a small balance" do
-      let(:small_order) do
-        o = create(:order, :on_account, customer: customer,
-                   total_amount: 60, original_total_amount: 60)
-        create(:order_item, order: o, product: product, quantity: 1, unit_price: 60)
-        o
-      end
+    it "records a one-cent cash excess as overpaid" do
+      expect(collect(order, 1_000.01, confirmed_overpaid: 0.01)).to be_success
+      order.reload
+      expect(order.overpaid_amount).to eq(0.01)
+      expect(order.outstanding_balance).to eq(0)
+    end
 
-      it "settles the balance without raising the total or storing a negative discount" do
-        result = collect(small_order, 60, discount: 10)
-
-        expect(result).to be_success
-        small_order.reload
-        expect(small_order.outstanding_balance).to eq(0)
-        expect(small_order.total_amount).to eq(60)
-        expect(small_order.payment_allocations.sole.discount_amount).to eq(0)
-      end
-
-      it "names the balance as the amount to settle when more cash is offered" do
-        result = collect(small_order, 100, discount: 10)
+    [ nil, 200 ].each do |confirmed|
+      it "refuses an overpayment confirmed as #{confirmed.inspect} and writes nothing" do
+        result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                      tenders: [ { payment_method: "cash", amount: 1_500 } ],
+                                      confirmed_overpaid: confirmed)
 
         expect(result).to be_failure
-        expect(result.errors.first).to include("$ 60,00")
+        expect(result.errors).to eq([ "El saldo cambió mientras cobrabas. Revisá el monto." ])
+        expect(order.reload.total_amount).to eq(1_000)
+        expect(order.outstanding_balance).to eq(1_000)
+        expect(Payment.count).to eq(0)
+        expect(CashMovement.count).to eq(0)
       end
     end
 
-    it "refuses more than the balance without a discount" do
-      result = collect(order, 1_500)
+    it "refuses a collection on an operation that is already settled" do
+      expect(collect(order, 1_000)).to be_success
 
+      result = collect(order.reload, 1_000, confirmed_overpaid: 1_000)
+
+      expect(result).to be_failure
+      expect(result.errors).to eq([ "La operación ya está saldada" ])
+      expect(order.reload.total_amount).to eq(1_000)
+      expect(Payment.count).to eq(1)
+      expect(CashMovement.count).to eq(1)
+    end
+
+    it "collects 1 cent short of the balance as a partial without a phantom discount" do
+      expect(collect(order, 999.99, method: "bank_transfer")).to be_success
+      order.reload
+      expect(order.outstanding_balance).to eq(0.01)
+      expect(order.total_amount).to eq(1_000)
+      expect(order.payment_allocations.sole.discount_amount).to eq(0)
+    end
+
+    it "refuses a transfer 1 cent above the balance" do
+      result = collect(order, 1_000.01, method: "bank_transfer")
+
+      expect(result).to be_failure
       expect(result.errors).to eq([ "Es más de lo que debe. Para saldar todo corresponde cobrar $ 1.000,00" ])
+      expect(order.reload.outstanding_balance).to eq(1000)
+    end
+
+    it "refuses an excess the cash part does not cover" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "bank_transfer", amount: 1_100 },
+                                               { payment_method: "cash", amount: 50 } ])
+
+      expect(result).to be_failure
+      expect(order.reload.outstanding_balance).to eq(1000)
     end
 
     it "collects a partial cash payment and lowers the balance, staying pending" do

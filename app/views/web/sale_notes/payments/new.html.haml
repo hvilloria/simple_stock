@@ -12,7 +12,9 @@
   - if flash[:alert]
     .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash[:alert]
 
-  = form_with url: web_sale_note_payment_path(@note), method: :post, local: true do |f|
+  = form_with url: web_sale_note_payment_path(@note), method: :post, local: true,
+                    data: { action: "submit->sale-note-payment#confirmOverpayment" } do |f|
+    = hidden_field_tag :confirmed_overpaid, "0", data: { "sale-note-payment-target": "confirmedOverpaid" }
 
     .grid.grid-cols-1.gap-5{ class: "lg:grid-cols-[1fr_360px]" }
 
@@ -102,8 +104,9 @@
             %span Suma de pagos
             %span{ data: { "sale-note-payment-target": "summaryPaid" } } $ 0,00
           .flex.justify-between.font-medium
-            %span.text-slate-600 Por pagar
+            %span.text-slate-600{ data: { "sale-note-payment-target": "summaryDiffLabel" } } Por pagar
             %span{ data: { "sale-note-payment-target": "summaryDiff" } }= number_to_currency(@note.original_total_amount, unit: "$", separator: ",", delimiter: ".")
+          %p.text-xs.text-red-600{ data: { "sale-note-payment-target": "overpaidHelper" }, hidden: true } Lo cobrado de más solo puede ser en efectivo
 
         = f.submit "Confirmar cobro",
             data: { "sale-note-payment-target": "submitButton" },

@@ -11,10 +11,11 @@ module Web
         authorize @order, :collect?, policy_class: PaymentOnAccountPolicy
 
         result = ::Payments::CollectOnAccount.call(
-          user:             current_user,
-          order:            @order,
-          discount_percent: params[:discount_percent].to_i,
-          tenders:          parsed_tenders
+          user:               current_user,
+          order:              @order,
+          discount_percent:   params[:discount_percent].to_i,
+          tenders:            parsed_tenders,
+          confirmed_overpaid: parse_amount(params[:confirmed_overpaid])
         )
 
         if result.success?

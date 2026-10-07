@@ -35,42 +35,113 @@ RSpec.describe Payments::CollectSaleNote do
       expect(order.payment_allocations.first.payment.payment_method).to eq("cash")
     end
 
-    # Canonical money case: 710.775 × 0,90 = 639.697,5 → nearest-100 = 639.700.
-    it "rounds the discounted cash total to the nearest hundred (639.700)" do
-      big = create(:order, :pending, customer: customer, order_type: "immediate",
-                   paper_number: "CSN-100", total_amount: 710_775, original_total_amount: 710_775)
-      create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)
+    context "with a 10% cash discount on 80.300" do
+      let(:note) do
+        o = create(:order, :pending, customer: customer, order_type: "immediate",
+                   paper_number: "CSN-100", total_amount: 80_300, original_total_amount: 80_300)
+        create(:order_item, order: o, product: product, quantity: 1, unit_price: 80_300, discount_percent: 0)
+        o
+      end
 
-      result = described_class.call(
-        user: cashier,
-        order: big,
-        discount_percent: 10,
-        tenders: [ { payment_method: "cash", amount: 639_700 } ]
-      )
+      def collect(amount, confirmed_overpaid: 0)
+        described_class.call(user: cashier, order: note, discount_percent: 10,
+                             tenders: [ { payment_method: "cash", amount: amount } ],
+                             confirmed_overpaid: confirmed_overpaid)
+      end
 
-      expect(result).to be_success
-      expect(big.reload.total_amount).to eq(639_700)
-      expect(big.original_total_amount).to eq(710_775)
-      expect(big.payment_allocations.sum(:amount)).to eq(639_700)
-      expect(big.outstanding_balance).to eq(0)
-      expect(big.status).to eq("confirmed")
-      big.order_items.each { |oi| expect(oi.discount_percent).to eq(10) }
+      it "charges the exact discounted total, without rounding" do
+        expect(collect(72_270)).to be_success
+        note.reload
+        expect(note.total_amount).to eq(72_270)
+        expect(note.outstanding_balance).to eq(0)
+        expect(note.overpaid_amount).to eq(0)
+      end
+
+      it "adds cash collected above the total to the sale and records it as overpaid" do
+        expect(collect(72_300, confirmed_overpaid: 30)).to be_success
+        note.reload
+        expect(note.total_amount).to eq(72_300)
+        expect(note.original_total_amount).to eq(80_300)
+        expect(note.discount_amount).to eq(8_030)
+        expect(note.overpaid_amount).to eq(30)
+        note.order_items.each { |oi| expect(oi.discount_percent).to eq(10) }
+        expect(note.outstanding_balance).to eq(0)
+        expect(note.status).to eq("confirmed")
+        expect(note.payments.sole.amount).to eq(72_300)
+        expect(CashMovement.find_by(source_payment_id: note.payments.sole.id).amount).to eq(72_300)
+      end
+
+      it "refuses less than the exact total" do
+        expect(collect(72_200)).to be_failure
+        expect(note.reload.status).to eq("pending")
+      end
     end
 
-    it "rejects the unrounded discounted total (cashier must collect the ceil-to-100 cash)" do
-      big = create(:order, :pending, customer: customer, order_type: "immediate",
-                   paper_number: "CSN-101", total_amount: 710_775, original_total_amount: 710_775)
-      create(:order_item, order: big, product: product, quantity: 1, unit_price: 710_775, discount_percent: 0)
+    it "accepts cash above the total without a discount" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "cash", amount: 1_050 } ],
+                                    confirmed_overpaid: 50)
 
-      result = described_class.call(
-        user: cashier,
-        order: big,
-        discount_percent: 10,
-        tenders: [ { payment_method: "cash", amount: 639_697.5 } ]
-      )
+      expect(result).to be_success
+      expect(order.reload.total_amount).to eq(1_050)
+      expect(order.overpaid_amount).to eq(50)
+    end
+
+    it "records a one-cent excess as overpaid" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "cash", amount: 1_000.01 } ],
+                                    confirmed_overpaid: 0.01)
+
+      expect(result).to be_success
+      expect(order.reload.total_amount).to eq(BigDecimal("1000.01"))
+      expect(order.overpaid_amount).to eq(BigDecimal("0.01"))
+    end
+
+    it "puts the excess on the cash allocation of a mixed collection" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "bank_transfer", amount: 600 },
+                                               { payment_method: "cash", amount: 450 } ],
+                                    confirmed_overpaid: 50)
+
+      expect(result).to be_success
+      cash = order.reload.payment_allocations.joins(:payment).find_by(payments: { payment_method: "cash" })
+      expect(cash.overpaid_amount).to eq(50)
+      expect(order.total_amount).to eq(1_050)
+    end
+
+    it "refuses an excess the cash does not cover" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "bank_transfer", amount: 1_000 },
+                                               { payment_method: "cash", amount: 0.5 },
+                                               { payment_method: "mercado_pago", amount: 100 } ])
 
       expect(result).to be_failure
-      expect(big.reload.status).to eq("pending")
+      expect(result.errors).to eq([ "Lo cobrado de más solo puede ser en efectivo" ])
+      expect(order.reload.status).to eq("pending")
+    end
+
+    [ nil, 20 ].each do |confirmed|
+      it "refuses an overpayment confirmed as #{confirmed.inspect} and writes nothing" do
+        result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                      tenders: [ { payment_method: "cash", amount: 1_050 } ],
+                                      confirmed_overpaid: confirmed)
+
+        expect(result).to be_failure
+        expect(result.errors).to eq([ "El saldo cambió mientras cobrabas. Revisá el monto." ])
+        expect(order.reload.status).to eq("pending")
+        expect(order.total_amount).to eq(1_000)
+        expect(Payment.count).to eq(0)
+        expect(CashMovement.count).to eq(0)
+      end
+    end
+
+    it "ignores confirmed_overpaid when nothing is collected above the total" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "cash", amount: 1_000 } ],
+                                    confirmed_overpaid: 30)
+
+      expect(result).to be_success
+      expect(order.reload.overpaid_amount).to eq(0)
     end
 
     it "rejects discount when any tender is non-cash" do

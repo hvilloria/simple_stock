@@ -2,9 +2,7 @@
 
 module Payments
   class AllocatePayment
-    include Payments::CashRounding
-
-    TOLERANCE = 0.01
+    OVERPAID_TOLERANCE = 0.01
 
     def self.call(customer:, payment_date:, allocations:, user:, notes: nil)
       new(
@@ -30,7 +28,7 @@ module Payments
       payments = []
       ActiveRecord::Base.transaction do
         @allocations.each { |row| apply_discounts_for(row) }
-        @allocations.each { |row| check_outstanding_after_discounts!(row) }
+        @allocations.each { |row| settle_overpayment!(row) }
 
         grouped_by_method.each do |method, rows|
           total = rows.sum { |r| r[:amount].to_f }
@@ -46,7 +44,8 @@ module Payments
             PaymentAllocation.create!(
               payment: payment,
               order_id: row[:order_id],
-              amount: row[:amount].to_f
+              amount: row[:amount].to_f,
+              overpaid_amount: row[:overpaid_amount] || 0
             )
           end
 
@@ -114,6 +113,8 @@ module Payments
         unless order.credit_order_type? && !order.cancelled_status?
           raise ValidationError, "La orden ##{order.id} no es una venta a crédito activa"
         end
+
+        raise ValidationError, "La orden ##{order.id} ya está saldada" unless order.outstanding_balance.positive?
       end
     end
 
@@ -164,32 +165,28 @@ module Payments
         discount_factor = 1 - oi.discount_percent.to_d / 100
         (unit * oi.quantity * discount_factor).round(2)
       end
-      order.update!(total_amount: canonical_total(row, new_total, percents_by_item_id))
+      order.update!(total_amount: new_total)
     end
 
-    # A discounted order settled entirely in cash gets the nearest-hundred courtesy
-    # (mirrors CollectSaleNote / CollectOnAccount). The rounded value becomes the
-    # canonical total_amount so the allocation closes the balance exactly; the
-    # remainder surfaces via Order#rounding_amount. Any other case — non-cash, no
-    # discount, or a partial amount that does not match the rounded full total —
-    # keeps the exact nominal total so partial credit payments stay free-form.
-    def canonical_total(row, new_total, percents_by_item_id)
-      return new_total unless row[:payment_method] == "cash"
-      return new_total unless percents_by_item_id.values.any?(&:positive?)
-
-      rounded = round_to_nearest_hundred(new_total)
-      return new_total unless (row[:amount].to_d - rounded.to_d).abs <= TOLERANCE
-
-      rounded
-    end
-
-    def check_outstanding_after_discounts!(row)
+    def settle_overpayment!(row)
       order = Order.find(row[:order_id])
-      amount = row[:amount].to_f
-      if amount > order.outstanding_balance
-        raise ValidationError,
-              "El monto excede el saldo pendiente de la orden ##{order.id} ($#{order.outstanding_balance})"
+      outstanding = order.outstanding_balance
+      excess = row[:amount].to_d - outstanding
+      return unless excess.positive?
+
+      unless row[:payment_method] == "cash"
+        balance = ActiveSupport::NumberHelper.number_to_currency(
+          outstanding, unit: "$ ", separator: ",", delimiter: ".", precision: 2
+        )
+        raise ValidationError, "Lo cobrado de más solo puede ser en efectivo (orden ##{order.id}, saldo #{balance})"
       end
+
+      if (excess - row[:confirmed_overpaid].to_d).abs > OVERPAID_TOLERANCE
+        raise ValidationError, "El saldo cambió mientras cobrabas. Revisá el monto."
+      end
+
+      row[:overpaid_amount] = excess
+      order.update!(total_amount: order.total_amount + excess)
     end
   end
 end

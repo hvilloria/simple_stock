@@ -37,7 +37,7 @@
         = link_to "← Volver al cliente", web_customer_path(@customer), class: "inline-flex items-center gap-2 mt-6 px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
 
   - else
-    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation product-form", action: "turbo:submit-start->product-form#handleSubmit", "payment-allocation-total-debt-value": total_debt.to_s } do
+    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation product-form", action: "submit->payment-allocation#confirmOverpayment turbo:submit-start->product-form#handleSubmit", "payment-allocation-total-debt-value": total_debt.to_s } do
 
       -# Summary card
       .bg-white.border.border-slate-200.rounded-xl.p-5.mb-4
@@ -67,6 +67,7 @@
           - order_title = paper ? "Orden ##{order.id}/#{paper}" : "Orden ##{order.id}"
           .bg-white.border.border-slate-200.rounded-xl.p-4{ data: { "payment-allocation-target": "row", "pending": pending, "order-id": order.id, "locked": locked.to_s } }
             = hidden_field_tag "allocations[#{idx}][order_id]", order.id
+            = hidden_field_tag "allocations[#{idx}][confirmed_overpaid]", "0", data: { role: "confirmed-overpaid" }
             .flex.items-center.gap-3
               = check_box_tag "allocations[#{idx}][include]", "1", false,
                   class: "w-4 h-4 rounded border-slate-300",
@@ -123,6 +124,9 @@
                       disabled: true,
                       class: "px-2 py-1 text-sm border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
                       data: { "role": "method-select", action: "change->payment-allocation#methodChanged" }
+
+            .mt-2.text-right.text-xs.text-slate-600.hidden{ data: { role: "overpaid-line" } }
+            .mt-2.text-right.text-xs.text-red-600.hidden{ data: { role: "overpaid-error" } } Lo cobrado de más solo puede ser en efectivo
 
         %p.text-xs.text-slate-400.italic.mt-3
           Tildá una orden para incluirla en el cobro. Los descuentos se aplican una sola vez por orden y quedan fijos al primer cobro.

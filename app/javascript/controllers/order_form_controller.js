@@ -1,6 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
-import { roundToNearestHundred } from "helpers/cash_rounding"
 
 export default class extends Controller {
   static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal"]
@@ -301,7 +300,8 @@ export default class extends Controller {
     if (!this.hasSuggestedTotalTarget) return
     const total = this.calculateTotal()
     const discount = this.hasDiscountSelectTarget ? parseInt(this.discountSelectTarget.value) || 0 : 0
-    const suggested = discount > 0 ? roundToNearestHundred(total * (1 - discount / 100)) : total
+    // In integer cents, rounding half-up like the server.
+    const suggested = discount > 0 ? Math.round(Math.round(total * 100) * (100 - discount) / 100) / 100 : total
     this.suggestedTotalTarget.textContent = `$${this.formatAmount(suggested)}`
   }
 

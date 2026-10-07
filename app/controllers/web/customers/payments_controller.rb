@@ -70,7 +70,8 @@ module Web
             order_id: row[:order_id],
             amount: amount,
             payment_method: row[:payment_method],
-            item_discounts: discounts_hash.transform_values { |v| v.to_f }
+            item_discounts: discounts_hash.transform_values { |v| v.to_f },
+            confirmed_overpaid: parse_amount(row[:confirmed_overpaid])
           }
         end
       end
