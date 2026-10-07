@@ -93,6 +93,8 @@ export default class extends Controller {
       this.updateSummary()
       this.channelNoticeTarget.textContent = `Se actualizaron los precios al canal ${label}.`
       this.channelNoticeTarget.classList.remove("hidden")
+    } else {
+      this.channelNoticeTarget.classList.add("hidden")
     }
     this.updateChannelHelp()
   }

@@ -19,6 +19,11 @@ RSpec.describe "Channel prices on a new sale", type: :system do
     visit new_web_order_path(product_id: buje.id)
     expect(page).to have_field(with: "10.000,00")
 
+    price = find("input[data-controller='currency-input']")
+    price.send_keys([ :control, "a" ], :backspace, "12000")
+    price.send_keys(:tab)
+    expect(page).to have_field(with: "12.000,00")
+
     select "🛒 Mercado Libre", from: "Canal de Venta"
     expect(page).to have_content("Se actualizaron los precios al canal Mercado Libre.")
     expect(page).to have_content("En Mercado Libre el precio que pongas actualiza el precio de Mercado Libre del producto, no el de mostrador.")
@@ -26,6 +31,16 @@ RSpec.describe "Channel prices on a new sale", type: :system do
 
     select "🏪 Mostrador", from: "Canal de Venta"
     expect(page).to have_field(with: "10.000,00")
+  end
+
+  it "hides the notice when the lines are gone" do
+    visit new_web_order_path(product_id: buje.id)
+    select "🛒 Mercado Libre", from: "Canal de Venta"
+    expect(page).to have_content("Se actualizaron los precios al canal Mercado Libre.")
+
+    find("button[title='Eliminar']").click
+    select "💬 WhatsApp", from: "Canal de Venta"
+    expect(page).to have_no_content("Se actualizaron los precios")
   end
 
   it "prefills a searched product with the channel price" do
