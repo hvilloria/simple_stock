@@ -35,7 +35,7 @@ module Web
       if result.success?
         redirect_to web_products_path, notice: "Producto creado exitosamente"
       else
-        @channel_price_values = submitted_channel_price_values
+        @channel_price_values = echoed_channel_price_values
         render :new, status: :unprocessable_entity
       end
     end
@@ -55,7 +55,7 @@ module Web
       if result.success?
         redirect_to web_product_path(@product), notice: "Producto actualizado exitosamente"
       else
-        @channel_price_values = submitted_channel_price_values
+        @channel_price_values = echoed_channel_price_values
         render :edit, status: :unprocessable_entity
       end
     end
@@ -122,10 +122,24 @@ module Web
       ProductChannelPrice::CHANNELS.index_with { |channel| raw[channel].to_s }
     end
 
+    # Re-render values: a positive price is shown AR-formatted (the form's own
+    # cleanup leaves dots that a later unformat would misread); anything else
+    # is echoed as typed.
+    def echoed_channel_price_values
+      submitted_channel_price_values.to_h do |channel, raw|
+        amount = parse_amount(raw)
+        [ channel, amount&.positive? ? format_channel_price(amount) : raw ]
+      end
+    end
+
+    def format_channel_price(amount)
+      helpers.number_with_precision(amount, precision: 2, delimiter: ".", separator: ",")
+    end
+
     def channel_price_values_for(product)
       ProductChannelPrice::CHANNELS.index_with do |channel|
         price = product.channel_price_for(channel)&.price
-        price ? helpers.number_with_precision(price, precision: 2, delimiter: ".", separator: ",") : ""
+        price ? format_channel_price(price) : ""
       end
     end
   end

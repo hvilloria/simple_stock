@@ -228,6 +228,28 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(created.price_for("mercadolibre")).to eq(15_000)
     end
 
+    describe "re-rendering after a failed save" do
+      def ml_input_value
+        Nokogiri::HTML(response.body).at_css("input#channel_prices_mercadolibre")["value"]
+      end
+
+      it "echoes a cleaned ML price AR-formatted so a later unformat cannot misread it" do
+        patch web_product_path(product), params: { product: { name: "" },
+                                                   channel_prices: { mercadolibre: "15000.00" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(ml_input_value).to eq("15.000,00")
+      end
+
+      it "echoes an invalid ML price as typed" do
+        patch web_product_path(product), params: { product: { name: "Otro" },
+                                                   channel_prices: { mercadolibre: "abc" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(ml_input_value).to eq("abc")
+      end
+    end
+
     it "refuses to create a product on a non-numeric ML price" do
       origin = product.origin
       expect {
