@@ -226,6 +226,43 @@ RSpec.describe Sales::CreateOrder do
         expect(product.reload.price_unit).to eq(250)
         expect(product2.reload.price_unit).to eq(60)
       end
+
+      it 'writes an ML sale price to the product ML price, not the counter price' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 175 } ],
+          order_type: 'immediate', paper_number: '0002', user: user, channel: 'mercadolibre'
+        )
+
+        expect(result.success?).to be true
+        product.reload
+        expect(product.price_unit).to eq(100)
+        expect(product.price_for('mercadolibre')).to eq(175)
+      end
+
+      it 'updates an existing ML price on the next ML sale' do
+        product.channel_prices.create!(channel: 'mercadolibre', price: 150)
+
+        described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 180 } ],
+          order_type: 'immediate', paper_number: '0003', user: user, channel: 'mercadolibre'
+        )
+
+        expect(product.reload.channel_prices.sole.price).to eq(180)
+        expect(product.price_unit).to eq(100)
+      end
+
+      it 'keeps writing WhatsApp sales to the counter price' do
+        described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 120 } ],
+          order_type: 'immediate', paper_number: '0004', user: user, channel: 'whatsapp'
+        )
+
+        expect(product.reload.price_unit).to eq(120)
+        expect(product.channel_prices).to be_empty
+      end
     end
 
     context 'stock leaves the shelf with the note' do

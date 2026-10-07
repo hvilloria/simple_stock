@@ -5,8 +5,8 @@ module Sales
   # no payments, no discount. The goods leave the shelf with the note for an
   # immediate or credit sale; an on_account line leaves only when delivered.
   #
-  # unit_price must be > 0. The entered price is written back to
-  # product.price_unit inside the transaction.
+  # unit_price must be > 0. The entered price is remembered for the next sale:
+  # in the channel's own price when it has one, otherwise in product.price_unit.
   class CreateOrder
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
@@ -127,8 +127,16 @@ module Sales
           delivered_at:     (@delivered_product_ids.include?(product.id) ? Time.current : nil)
         )
 
-        product.update!(price_unit: final_price)
+        remember_price(product, final_price)
         take_from_shelf(order_item) if leaves_the_shelf?(order_item)
+      end
+    end
+
+    def remember_price(product, price)
+      if ProductChannelPrice.own_price?(@channel)
+        product.channel_prices.find_or_initialize_by(channel: @channel).update!(price: price)
+      else
+        product.update!(price_unit: price)
       end
     end
 
