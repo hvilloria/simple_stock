@@ -19,6 +19,25 @@ RSpec.describe Sales::ReplaceOrderItem do
     expect(order.original_total_amount).to eq(600)
   end
 
+  it "prices the new product with the order channel's price" do
+    order.update_column(:channel, "mercadolibre")
+    new_product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+
+    result = described_class.call(order_item: item, product_id: new_product.id, quantity: 1)
+
+    expect(result).to be_success
+    expect(item.reload.unit_price).to eq(15_000)
+  end
+
+  it "uses the counter price for an order without a channel" do
+    order.update_column(:channel, nil)
+    new_product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+
+    described_class.call(order_item: item, product_id: new_product.id, quantity: 1)
+
+    expect(item.reload.unit_price).to eq(new_product.price_unit)
+  end
+
   it "keeps the original line price on a quantity-only edit" do
     catalog_moved = item.product
     catalog_moved.update!(price_unit: 999)

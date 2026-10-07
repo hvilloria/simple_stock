@@ -18,7 +18,8 @@
                 'item-swap-original-quantity-value': @item.quantity,
                 'item-swap-unit-price-value': @item.unit_price,
                 'item-swap-order-total-value': @order.total_amount,
-                'item-swap-order-paid-value': @order.total_amount - @order.outstanding_balance } do |f|
+                'item-swap-order-paid-value': @order.total_amount - @order.outstanding_balance,
+                'item-swap-channel-value': @order.channel.to_s } do |f|
 
       = hidden_field_tag :product_id, @item.product_id, data: { 'item-swap-target': 'productId' }
 

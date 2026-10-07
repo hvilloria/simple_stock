@@ -2,8 +2,9 @@
 
 module Sales
   # Replaces the product and/or quantity of an undelivered line on an
-  # on_account order. When the product changes, the line takes the catalog
-  # price; a quantity-only edit keeps the original line price.
+  # on_account order. When the product changes, the line takes the order
+  # channel's price (counter price when it has none); a quantity-only edit
+  # keeps the original line price.
   class ReplaceOrderItem
     def self.call(order_item:, product_id:, quantity:)
       new(order_item: order_item, product_id: product_id, quantity: quantity).call
@@ -59,7 +60,7 @@ module Sales
 
       if product_changed?
         raise ValidationError, "Producto inválido" if new_product.nil?
-        unless new_product.price_unit.to_d.positive?
+        unless catalog_price.to_d.positive?
           raise ValidationError, "El producto no tiene precio de catálogo — cargalo en Productos"
         end
       end
@@ -84,8 +85,12 @@ module Sales
       @old_subtotal ||= @order_item.quantity * @order_item.unit_price
     end
 
+    def catalog_price
+      @catalog_price ||= new_product.price_for(@order.channel)
+    end
+
     def new_price
-      @new_price ||= product_changed? ? new_product.price_unit : @order_item.unit_price
+      @new_price ||= product_changed? ? catalog_price : @order_item.unit_price
     end
 
     def delta
