@@ -129,6 +129,11 @@ export default class extends Controller {
     }
   }
 
+  toggleDelivered(event) {
+    const index = parseInt(event.currentTarget.dataset.index)
+    this.items[index].delivered = event.currentTarget.checked
+  }
+
   updatePrice(event) {
     const index = parseInt(event.currentTarget.dataset.index)
 
@@ -247,7 +252,7 @@ export default class extends Controller {
           <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
           <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />
           <label class="mt-2 inline-flex items-center gap-2 text-xs text-gray-600" data-order-form-target="deliveredLabel" style="${this.isOnAccount() ? '' : 'display:none'}">
-            <input type="checkbox" name="delivered_product_ids[]" value="${item.product_id}" class="rounded border-gray-300" />
+            <input type="checkbox" name="delivered_product_ids[]" value="${item.product_id}" data-index="${index}" data-action="change->order-form#toggleDelivered" ${item.delivered ? "checked" : ""} class="rounded border-gray-300" />
             <span>se lo lleva ahora</span>
           </label>
         </div>

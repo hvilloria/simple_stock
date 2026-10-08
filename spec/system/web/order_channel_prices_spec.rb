@@ -53,4 +53,20 @@ RSpec.describe "Channel prices on a new sale", type: :system do
 
     expect(page).to have_field(with: "15.000,00")
   end
+
+  it "keeps the 'se lo lleva ahora' choice when the lines are redrawn" do
+    create(:product, sku: "ROT-1", name: "Rotula", price_unit: 5_000, current_stock: 5)
+    visit new_web_order_path(product_id: buje.id)
+    find("label[for='order_type_on_account']").click
+    check "se lo lleva ahora"
+
+    select "🛒 Mercado Libre", from: "Canal de Venta"
+    expect(page).to have_content("Se actualizaron los precios al canal Mercado Libre.")
+    expect(page).to have_checked_field("se lo lleva ahora")
+
+    fill_in placeholder: "Buscar por SKU, nombre o marca...", with: "ROT-1"
+    find("[data-product-search-target='results'] [data-action*='selectProduct']", text: "ROT-1").click
+    expect(page).to have_content("Rotula")
+    expect(all("input[name='delivered_product_ids[]']").map(&:checked?)).to eq([ true, false ])
+  end
 end
