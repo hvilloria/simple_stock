@@ -8,6 +8,19 @@ RSpec.describe "Web::Products edit/update", type: :request do
   let(:caja)     { create(:user, role: "caja") }
   let(:product)  { create(:product, name: "Disco viejo", brand: "Generic Brand", price_unit: 100) }
 
+  describe "GET /web/products/search" do
+    before { sign_in vendedor }
+
+    it "includes each product's channel prices" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      get search_web_products_path, params: { q: product.name }
+
+      item = JSON.parse(response.body).find { |p| p["id"] == product.id }
+      expect(item["price_unit"].to_f).to eq(100.0)
+      expect(item["channel_prices_map"]).to eq("mercadolibre" => 15_000.0)
+    end
+  end
+
   describe "GET /web/products" do
     before { sign_in vendedor }
 
@@ -183,6 +196,111 @@ RSpec.describe "Web::Products edit/update", type: :request do
       sign_in vendedor
       get "/web/products/#{product.id}"
       expect(response.body).not_to include(new_web_stock_adjustment_path(product_id: product.id))
+    end
+  end
+
+  describe "channel prices" do
+    before { sign_in vendedor }
+
+    it "saves an AR-formatted ML price on update" do
+      patch web_product_path(product), params: { product: { name: product.name },
+                                                 channel_prices: { mercadolibre: "15.000,00" } }
+
+      expect(response).to redirect_to(web_product_path(product))
+      expect(product.reload.price_for("mercadolibre")).to eq(15_000)
+    end
+
+    it "removes the ML price when the field is blank" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      patch web_product_path(product), params: { product: { name: product.name },
+                                                 channel_prices: { mercadolibre: "" } }
+
+      expect(product.reload.channel_prices).to be_empty
+    end
+
+    it "ignores a non-hash channel_prices param" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+
+      patch web_product_path(product), params: { product: { name: "Otro" }, channel_prices: "foo" }
+
+      expect(response).to redirect_to(web_product_path(product))
+      expect(product.reload.name).to eq("Otro")
+      expect(product.price_for("mercadolibre")).to eq(15_000)
+    end
+
+    it "re-renders without saving on a negative or non-numeric ML price" do
+      [ "-5", "abc" ].each do |raw|
+        patch web_product_path(product), params: { product: { name: "Otro" },
+                                                   channel_prices: { mercadolibre: raw } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("Precio Mercado Libre debe ser mayor a 0")
+        expect(product.reload.name).to eq("Disco viejo")
+      end
+    end
+
+    it "creates a product with its ML price" do
+      post web_products_path, params: {
+        product: { sku: "BUJE-NEW", name: "Buje", brand: "X", product_type: "aftermarket",
+                   origin: product.origin, price_unit: "10.000,00", cost_currency: "ARS", active: "1" },
+        channel_prices: { mercadolibre: "15.000,00" }
+      }
+
+      created = Product.find_by(sku: "BUJE-NEW")
+      expect(created.price_unit).to eq(10_000)
+      expect(created.price_for("mercadolibre")).to eq(15_000)
+    end
+
+    describe "re-rendering after a failed save" do
+      def ml_input_value
+        Nokogiri::HTML(response.body).at_css("input#channel_prices_mercadolibre")["value"]
+      end
+
+      it "echoes a cleaned ML price AR-formatted so a later unformat cannot misread it" do
+        patch web_product_path(product), params: { product: { name: "" },
+                                                   channel_prices: { mercadolibre: "15000.00" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(ml_input_value).to eq("15.000,00")
+      end
+
+      it "echoes an invalid ML price as typed" do
+        patch web_product_path(product), params: { product: { name: "Otro" },
+                                                   channel_prices: { mercadolibre: "abc" } }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(ml_input_value).to eq("abc")
+      end
+    end
+
+    it "refuses to create a product on a non-numeric ML price" do
+      origin = product.origin
+      expect {
+        post web_products_path, params: {
+          product: { sku: "BUJE-BAD", name: "Buje", brand: "X", product_type: "aftermarket",
+                     origin: origin, price_unit: "10.000,00", cost_currency: "ARS", active: "1" },
+          channel_prices: { mercadolibre: "abc" }
+        }
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Precio Mercado Libre debe ser mayor a 0")
+    end
+
+    it "shows the ML price on the product page, or the fallback" do
+      get web_product_path(product)
+      expect(response.body).to include("Precio Mercado Libre")
+      expect(response.body).to include("Usa el de mostrador")
+
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      get web_product_path(product)
+      expect(response.body).to include("15.000")
+    end
+
+    it "prefills the ML price on the edit form" do
+      product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
+      get edit_web_product_path(product)
+      expect(response.body).to include("15.000,00")
     end
   end
 end

@@ -2,8 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal"]
-  static values = { initialItems: Array }
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal", "channelSelect", "channelNotice", "channelHelp", "productSearch"]
+  static values = { initialItems: Array, ownPriceChannels: Array, channelLabels: Object }
 
   connect() {
     this.items = this.initialItemsValue.length > 0 ? this.initialItemsValue : []
@@ -11,6 +11,7 @@ export default class extends Controller {
     this.updateSummary()
     this.applyCreditRadioState()
     this.applyDiscountSectionVisibility(this.currentOrderType())
+    this.updateChannelHelp()
   }
 
   customerChanged(event) {
@@ -52,13 +53,17 @@ export default class extends Controller {
     if (existingIndex >= 0) {
       this.items[existingIndex].quantity += 1
     } else {
+      const channelPrices = product.channel_prices_map || {}
+      const basePrice = Number(product.price_unit) || 0
       this.items.push({
         product_id: product.id,
         sku: product.sku,
         name: product.name,
         brand: product.brand,
         quantity: 1,
-        price_unit: product.price_unit || 0,
+        price_unit: this.priceFor(channelPrices, basePrice),
+        channel_prices: channelPrices,
+        base_price: basePrice,
         max_stock: product.current_stock,
         origin: product.origin,
         product_type: product.product_type
@@ -67,6 +72,43 @@ export default class extends Controller {
 
     this.renderItems()
     this.updateSummary()
+  }
+
+  currentChannel() {
+    return this.hasChannelSelectTarget ? this.channelSelectTarget.value : "counter"
+  }
+
+  priceFor(channelPrices, basePrice) {
+    const own = (channelPrices || {})[this.currentChannel()]
+    return own ? Number(own) : basePrice
+  }
+
+  channelChanged() {
+    this.productSearchTarget.setAttribute("data-product-search-channel-value", this.currentChannel())
+    const label = this.channelLabelsValue[this.currentChannel()] || this.currentChannel()
+    if (this.items.length > 0) {
+      this.items.forEach(item => {
+        item.price_unit = this.priceFor(item.channel_prices, item.base_price ?? item.price_unit)
+      })
+      this.renderItems()
+      this.updateSummary()
+      this.channelNoticeTarget.textContent = `Se actualizaron los precios al canal ${label}.`
+      this.channelNoticeTarget.classList.remove("hidden")
+    } else {
+      this.channelNoticeTarget.classList.add("hidden")
+    }
+    this.updateChannelHelp()
+  }
+
+  updateChannelHelp() {
+    if (!this.hasChannelHelpTarget) return
+    const channel = this.currentChannel()
+    const ownPrice = this.ownPriceChannelsValue.includes(channel)
+    const label = this.channelLabelsValue[channel] || channel
+    this.channelHelpTarget.textContent = ownPrice
+      ? `En ${label} el precio que pongas actualiza el precio de ${label} del producto, no el de mostrador.`
+      : ""
+    this.channelHelpTarget.classList.toggle("hidden", !ownPrice)
   }
 
   removeItem(event) {
@@ -87,12 +129,29 @@ export default class extends Controller {
     }
   }
 
+  toggleDelivered(event) {
+    const index = parseInt(event.currentTarget.dataset.index)
+    this.items[index].delivered = event.currentTarget.checked
+  }
+
   updatePrice(event) {
     const index = parseInt(event.currentTarget.dataset.index)
 
-    this.items[index].price_unit = this.parseAmount(event.currentTarget.value)
+    this.items[index].price_unit = this.toCents(this.parseAmount(event.currentTarget.value))
     this.updateItemSubtotal(index)
     this.updateSummary()
+  }
+
+  // Shows the stored (rounded) price, so what is shown is what is sent.
+  syncPrice(event) {
+    const index = parseInt(event.currentTarget.dataset.index)
+    event.currentTarget.value = this.formatAmount(this.items[index].price_unit)
+  }
+
+  // Half-up to cents through the decimal string, avoiding float drift
+  // (15000.555 → 15000.56).
+  toCents(value) {
+    return Number(Math.round(Number(`${value}e2`)) + "e-2")
   }
 
   // AR currency format to number: "200.000,67" -> 200000.67
@@ -205,7 +264,7 @@ export default class extends Controller {
           <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
           <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />
           <label class="mt-2 inline-flex items-center gap-2 text-xs text-gray-600" data-order-form-target="deliveredLabel" style="${this.isOnAccount() ? '' : 'display:none'}">
-            <input type="checkbox" name="delivered_product_ids[]" value="${item.product_id}" class="rounded border-gray-300" />
+            <input type="checkbox" name="delivered_product_ids[]" value="${item.product_id}" data-index="${index}" data-action="change->order-form#toggleDelivered" ${item.delivered ? "checked" : ""} class="rounded border-gray-300" />
             <span>se lo lleva ahora</span>
           </label>
         </div>
@@ -230,7 +289,7 @@ export default class extends Controller {
               value="${this.formatAmount(item.price_unit)}"
               data-index="${index}"
               data-controller="currency-input"
-              data-action="input->order-form#updatePrice blur->currency-input#format focus->currency-input#unformat"
+              data-action="input->order-form#updatePrice blur->currency-input#format blur->order-form#syncPrice focus->currency-input#unformat"
               class="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-right font-semibold"
             />
           </div>

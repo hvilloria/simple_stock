@@ -5,8 +5,8 @@ module Sales
   # no payments, no discount. The goods leave the shelf with the note for an
   # immediate or credit sale; an on_account line leaves only when delivered.
   #
-  # unit_price must be > 0. The entered price is written back to
-  # product.price_unit inside the transaction.
+  # unit_price must be > 0. The entered price is remembered for the next sale:
+  # in the channel's own price when it has one, otherwise in product.price_unit.
   class CreateOrder
     Item = Struct.new(:product_id, :quantity, :unit_price, keyword_init: true)
 
@@ -88,6 +88,9 @@ module Sales
         raise ValidationError, "Product ID is required" unless item.product_id
         raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
         raise ValidationError, "El precio debe ser mayor a cero" unless item.unit_price.to_f > 0
+        if item.unit_price.to_d.round(2) != item.unit_price.to_d
+          raise ValidationError, "El precio no puede tener más de 2 decimales"
+        end
       end
     end
 
@@ -127,8 +130,22 @@ module Sales
           delivered_at:     (@delivered_product_ids.include?(product.id) ? Time.current : nil)
         )
 
-        product.update!(price_unit: final_price)
+        remember_price(product, final_price)
         take_from_shelf(order_item) if leaves_the_shelf?(order_item)
+      end
+    end
+
+    def remember_price(product, price)
+      if ProductChannelPrice.own_price?(@channel)
+        # One atomic INSERT ... ON CONFLICT, so two first ML sales of the same
+        # product cannot collide on the unique index. unit_price > 0 is already
+        # enforced above and by the table's CHECK constraint.
+        ProductChannelPrice.upsert(
+          { product_id: product.id, channel: @channel, price: price },
+          unique_by: %i[product_id channel]
+        )
+      else
+        product.update!(price_unit: price)
       end
     end
 

@@ -18,7 +18,8 @@
                 'item-swap-original-quantity-value': @item.quantity,
                 'item-swap-unit-price-value': @item.unit_price,
                 'item-swap-order-total-value': @order.total_amount,
-                'item-swap-order-paid-value': @order.total_amount - @order.outstanding_balance } do |f|
+                'item-swap-order-paid-value': @order.total_amount - @order.outstanding_balance,
+                'item-swap-channel-value': @order.channel.to_s } do |f|
 
       = hidden_field_tag :product_id, @item.product_id, data: { 'item-swap-target': 'productId' }
 
@@ -28,6 +29,7 @@
         .bg-white.border.border-slate-200.rounded-2xl.p-5
           %h3.text-sm.font-semibold.text-slate-900.mb-3 Producto
           %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path,
+                        'product-search-channel-value': @order.channel.to_s,
                         action: "click@window->product-search#clickOutside product-selected->item-swap#productSelected" },
                 class: "mb-4 relative" }
             %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off",

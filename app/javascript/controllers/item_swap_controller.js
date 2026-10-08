@@ -10,7 +10,8 @@ export default class extends Controller {
     originalQuantity: Number,
     unitPrice: Number,   // current line price
     orderTotal: Number,
-    orderPaid: Number
+    orderPaid: Number,
+    channel: String
   }
 
   connect() {
@@ -22,7 +23,8 @@ export default class extends Controller {
     const product = event.detail.product
     this.productIdTarget.value = product.id
     this.selectedNameTarget.textContent = `${product.name} · SKU ${product.sku}`
-    this.selectedCatalogPrice = Number(product.price_unit) || 0
+    const channelPrices = product.channel_prices_map || {}
+    this.selectedCatalogPrice = Number(channelPrices[this.channelValue] ?? product.price_unit) || 0
     this.selectedBadgeTarget.classList.toggle("hidden", product.id !== this.originalProductIdValue)
     this.recompute()
   }

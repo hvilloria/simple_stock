@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_06_150000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_07_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -217,6 +217,17 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_06_150000) do
     t.index ["payment_date"], name: "index_payments_on_payment_date"
   end
 
+  create_table "product_channel_prices", force: :cascade do |t|
+    t.bigint "product_id", null: false
+    t.string "channel", null: false
+    t.decimal "price", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id", "channel"], name: "index_product_channel_prices_on_product_id_and_channel", unique: true
+    t.index ["product_id"], name: "index_product_channel_prices_on_product_id"
+    t.check_constraint "price > 0::numeric", name: "product_channel_prices_price_positive"
+  end
+
   create_table "products", force: :cascade do |t|
     t.string "name", null: false
     t.string "sku", null: false
@@ -320,6 +331,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_06_150000) do
   add_foreign_key "payment_allocations", "orders"
   add_foreign_key "payment_allocations", "payments"
   add_foreign_key "payments", "customers"
+  add_foreign_key "product_channel_prices", "products"
   add_foreign_key "stock_movements", "products"
   add_foreign_key "stock_movements", "stock_locations"
   add_foreign_key "stock_movements", "users"

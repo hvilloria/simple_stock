@@ -183,6 +183,33 @@ RSpec.describe Sales::CreateOrder do
         expect(result.errors).to include('El precio debe ser mayor a cero')
       end
 
+      it 'rejects an item whose unit_price has more than two decimals' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 3, unit_price: 15_000.555 } ],
+          order_type: 'immediate',
+          paper_number: '0001',
+          user: user
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include('El precio no puede tener más de 2 decimales')
+        expect(Order.count).to eq(0)
+      end
+
+      it 'accepts an item whose unit_price has two decimals' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 3, unit_price: 15_000.56 } ],
+          order_type: 'immediate',
+          paper_number: '0001',
+          user: user
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.total_amount).to eq(result.record.order_items.sum { |i| i.quantity * i.unit_price })
+      end
+
       it 'rejects an item with nil unit_price' do
         result = described_class.call(
           customer: customer_without_credit,
@@ -225,6 +252,43 @@ RSpec.describe Sales::CreateOrder do
 
         expect(product.reload.price_unit).to eq(250)
         expect(product2.reload.price_unit).to eq(60)
+      end
+
+      it 'writes an ML sale price to the product ML price, not the counter price' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 175 } ],
+          order_type: 'immediate', paper_number: '0002', user: user, channel: 'mercadolibre'
+        )
+
+        expect(result.success?).to be true
+        product.reload
+        expect(product.price_unit).to eq(100)
+        expect(product.price_for('mercadolibre')).to eq(175)
+      end
+
+      it 'updates an existing ML price on the next ML sale' do
+        product.channel_prices.create!(channel: 'mercadolibre', price: 150)
+
+        described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 180 } ],
+          order_type: 'immediate', paper_number: '0003', user: user, channel: 'mercadolibre'
+        )
+
+        expect(product.reload.channel_prices.sole.price).to eq(180)
+        expect(product.price_unit).to eq(100)
+      end
+
+      it 'keeps writing WhatsApp sales to the counter price' do
+        described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 120 } ],
+          order_type: 'immediate', paper_number: '0004', user: user, channel: 'whatsapp'
+        )
+
+        expect(product.reload.price_unit).to eq(120)
+        expect(product.channel_prices).to be_empty
       end
     end
 
