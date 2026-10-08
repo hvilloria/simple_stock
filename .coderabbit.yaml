@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://coderabbit.ai/schema/coderabbit.json
+language: en-US
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!coverage/**"
+    - "!Gemfile.lock"
+    - "!app/assets/builds/**"
+    - "!public/assets/**"
+  path_instructions:
+    - path: "app/services/**/*.rb"
+      instructions: >-
+        Services expose .call and return a Result (success?, record, errors).
+        Stock is never mutated directly: only Inventory::AdjustStock /
+        StockMovement + recalculate_current_stock!. Money uses BigDecimal,
+        never Float comparisons.
+    - path: "app/controllers/**/*.rb"
+      instructions: >-
+        Controllers stay thin: params -> service -> render/redirect, with
+        Pundit authorize. Amounts arrive in Argentine format (1.500.000,50).
+    - path: "app/views/**/*.haml"
+      instructions: >-
+        HAML only, no queries or business logic. UI text in Spanish.
+        Tailwind classes containing [ : or / go in class: "...".
+    - path: "spec/**/*.rb"
+      instructions: >-
+        Money write paths need a request spec with hostile input (AR format,
+        negative, blank, non-numeric). Use Date.current, never Date.today.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "WORKING_CONTEXT.md"
+      - "docs/DEVELOPMENT_GUIDE.md"
+      - "docs/CODE_PATTERNS.md"
+      - "docs/UI_DESIGN_SPEC.md"
