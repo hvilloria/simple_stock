@@ -54,6 +54,18 @@ RSpec.describe "Channel prices on a new sale", type: :system do
     expect(page).to have_field(with: "15.000,00")
   end
 
+  it "sends a typed line price rounded to cents, as shown" do
+    visit new_web_order_path(product_id: buje.id)
+    price = find("input[data-controller='currency-input']")
+    price.send_keys([ :control, "a" ], :backspace, "15000,555")
+    price.send_keys(:tab)
+
+    shown = price.value.delete(".").tr(",", ".")
+    sent = find("input[name='purchase_items[][unit_price]']", visible: :all).value
+    expect(sent).to match(/\A\d+(\.\d{1,2})?\z/)
+    expect(sent.to_d).to eq(shown.to_d)
+  end
+
   it "keeps the 'se lo lleva ahora' choice when the lines are redrawn" do
     create(:product, sku: "ROT-1", name: "Rotula", price_unit: 5_000, current_stock: 5)
     visit new_web_order_path(product_id: buje.id)

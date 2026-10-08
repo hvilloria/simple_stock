@@ -88,6 +88,9 @@ module Sales
         raise ValidationError, "Product ID is required" unless item.product_id
         raise ValidationError, "Quantity must be greater than zero" unless item.quantity.to_i > 0
         raise ValidationError, "El precio debe ser mayor a cero" unless item.unit_price.to_f > 0
+        if item.unit_price.to_d.round(2) != item.unit_price.to_d
+          raise ValidationError, "El precio no puede tener más de 2 decimales"
+        end
       end
     end
 

@@ -137,9 +137,21 @@ export default class extends Controller {
   updatePrice(event) {
     const index = parseInt(event.currentTarget.dataset.index)
 
-    this.items[index].price_unit = this.parseAmount(event.currentTarget.value)
+    this.items[index].price_unit = this.toCents(this.parseAmount(event.currentTarget.value))
     this.updateItemSubtotal(index)
     this.updateSummary()
+  }
+
+  // Shows the stored (rounded) price, so what is shown is what is sent.
+  syncPrice(event) {
+    const index = parseInt(event.currentTarget.dataset.index)
+    event.currentTarget.value = this.formatAmount(this.items[index].price_unit)
+  }
+
+  // Half-up to cents through the decimal string, avoiding float drift
+  // (15000.555 → 15000.56).
+  toCents(value) {
+    return Number(Math.round(Number(`${value}e2`)) + "e-2")
   }
 
   // AR currency format to number: "200.000,67" -> 200000.67
@@ -277,7 +289,7 @@ export default class extends Controller {
               value="${this.formatAmount(item.price_unit)}"
               data-index="${index}"
               data-controller="currency-input"
-              data-action="input->order-form#updatePrice blur->currency-input#format focus->currency-input#unformat"
+              data-action="input->order-form#updatePrice blur->currency-input#format blur->order-form#syncPrice focus->currency-input#unformat"
               class="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-right font-semibold"
             />
           </div>

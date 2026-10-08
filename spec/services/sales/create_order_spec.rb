@@ -183,6 +183,33 @@ RSpec.describe Sales::CreateOrder do
         expect(result.errors).to include('El precio debe ser mayor a cero')
       end
 
+      it 'rejects an item whose unit_price has more than two decimals' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 3, unit_price: 15_000.555 } ],
+          order_type: 'immediate',
+          paper_number: '0001',
+          user: user
+        )
+
+        expect(result.success?).to be false
+        expect(result.errors).to include('El precio no puede tener más de 2 decimales')
+        expect(Order.count).to eq(0)
+      end
+
+      it 'accepts an item whose unit_price has two decimals' do
+        result = described_class.call(
+          customer: customer_without_credit,
+          items: [ { product_id: product.id, quantity: 3, unit_price: 15_000.56 } ],
+          order_type: 'immediate',
+          paper_number: '0001',
+          user: user
+        )
+
+        expect(result.success?).to be true
+        expect(result.record.total_amount).to eq(result.record.order_items.sum { |i| i.quantity * i.unit_price })
+      end
+
       it 'rejects an item with nil unit_price' do
         result = described_class.call(
           customer: customer_without_credit,
