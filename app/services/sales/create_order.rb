@@ -134,7 +134,13 @@ module Sales
 
     def remember_price(product, price)
       if ProductChannelPrice.own_price?(@channel)
-        product.channel_prices.find_or_initialize_by(channel: @channel).update!(price: price)
+        # One atomic INSERT ... ON CONFLICT, so two first ML sales of the same
+        # product cannot collide on the unique index. unit_price > 0 is already
+        # enforced above and by the table's CHECK constraint.
+        ProductChannelPrice.upsert(
+          { product_id: product.id, channel: @channel, price: price },
+          unique_by: %i[product_id channel]
+        )
       else
         product.update!(price_unit: price)
       end
