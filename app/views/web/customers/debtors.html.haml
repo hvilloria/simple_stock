@@ -10,14 +10,6 @@
       %h1.text-3xl.font-bold.text-gray-900 Cuentas por Cobrar
       %p.text-sm.text-slate-500.mt-1 Clientes con saldo pendiente, ordenados por deuda
 
-  -# Messages
-  - if flash[:notice]
-    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
-      .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
-        ✓
-      .flex-1
-        %p.text-sm.text-green-700= flash[:notice]
-
   - if @debtors.any?
     .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
       %table.min-w-full.divide-y.divide-slate-200

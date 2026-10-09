@@ -10,15 +10,6 @@
     
     %h1.text-3xl.font-bold.text-gray-900 Nueva Venta
 
-  -# Show errors if any
-  - if flash[:alert]
-    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
-      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
-        ⚠️
-      .flex-1
-        %h4.font-semibold.text-red-800.mb-1 Error
-        %p.text-sm.text-red-700= flash[:alert]
-
   - initial_items = @order.order_items.select { |oi| oi.product.present? }.map { |oi| { product_id: oi.product_id, sku: oi.product.sku, name: oi.product.name, brand: oi.product.brand, quantity: oi.quantity, price_unit: oi.unit_price.to_f, channel_prices: oi.product.channel_prices_map, base_price: oi.product.price_unit.to_f, max_stock: oi.product.current_stock, origin: oi.product.origin, product_type: oi.product.product_type } }
   = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form", order_form_initial_items_value: initial_items.to_json, order_form_own_price_channels_value: ProductChannelPrice::CHANNELS.to_json, order_form_channel_labels_value: { "counter" => "Mostrador", "whatsapp" => "WhatsApp", "mercadolibre" => "Mercado Libre" }.to_json } do |f|
     = hidden_field_tag :source, "from_paper"

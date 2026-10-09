@@ -13,23 +13,6 @@
         %span +
         %span Nuevo Cliente
 
-  -# Messages
-  - if flash[:notice]
-    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
-      .w-10.h-10.rounded-xl.bg-green-500.flex.items-center.justify-center.text-white.flex-shrink-0
-        ✓
-      .flex-1
-        %h4.font-semibold.text-green-800.mb-1 Éxito
-        %p.text-sm.text-green-700= flash[:notice]
-
-  - if flash[:alert]
-    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
-      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
-        ⚠️
-      .flex-1
-        %h4.font-semibold.text-red-800.mb-1 Error
-        %p.text-sm.text-red-700= flash[:alert]
-
   -# Customer list in table
   - if @customers.any?
     .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
