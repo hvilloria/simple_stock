@@ -105,6 +105,7 @@
             %span.text-slate-600{ data: { "sale-note-payment-target": "summaryDiffLabel" } } Por pagar
             %span{ data: { "sale-note-payment-target": "summaryDiff" } }= number_to_currency(@note.original_total_amount, unit: "$", separator: ",", delimiter: ".")
           %p.text-xs.text-red-600{ data: { "sale-note-payment-target": "overpaidHelper" }, hidden: true } Lo cobrado de más solo puede ser en efectivo
+          %p.text-xs.text-slate-500{ data: { "sale-note-payment-target": "roundingHint" }, hidden: true }
 
         = f.submit "Confirmar cobro",
             data: { "sale-note-payment-target": "submitButton" },

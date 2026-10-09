@@ -6,7 +6,8 @@ module Payments
   # Caja enters what the customer hands over; the debt drops by that amount,
   # or, with a cash-only discount, by the amount grossed up by the discount and
   # rounded to the peso. Cash equal to the amount that settles the whole
-  # balance (balance × (1 − discount)) settles it; cash above that amount also
+  # balance (balance × (1 − discount)) settles it, and so does that amount
+  # rounded down to the hundred when there is a discount; cash above it also
   # settles it and the excess is added to the total as overpaid, provided it
   # matches confirmed_overpaid, the excess the operator saw and confirmed.
   # The discount lowers total_amount; the allocation records the cash received.
@@ -116,7 +117,15 @@ module Payments
     end
 
     def settles_all?
-      received == settle_all_cash || overpaid.positive?
+      received == settle_all_cash || overpaid.positive? || rounded_down?
+    end
+
+    # With a cash discount the settling cash may be rounded down to the hundred.
+    def rounded_down?
+      return false unless @discount_percent.positive?
+
+      floor = (settle_all_cash / 100).floor * 100
+      floor.positive? && received >= floor && received < settle_all_cash
     end
 
     # What this collection takes off the debt.
