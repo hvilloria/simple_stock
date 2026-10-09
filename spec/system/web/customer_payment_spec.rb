@@ -24,6 +24,7 @@ RSpec.describe "Credit account collection", type: :system do
   it "flags cash above the balance on the card and confirms it" do
     visit new_web_customer_payment_path(customer)
     find("[data-role='include-checkbox']").check
+    find("[data-role='method-select']").select("Efectivo")
     find("[data-role='amount-input']").set("80400", clear: :backspace)
 
     expect(page).to have_css("[data-role='overpaid-line']", text: "Cobrado de más")
@@ -42,5 +43,17 @@ RSpec.describe "Credit account collection", type: :system do
 
     expect(page).to have_css("[data-role='overpaid-error']", visible: :visible)
     expect(page).to have_button("Registrar Cobro", disabled: true)
+  end
+
+  it "keeps submit disabled until the ticked order has a payment method" do
+    visit new_web_customer_payment_path(customer)
+    find("[data-role='include-checkbox']").check
+
+    expect(page).to have_button("Registrar Cobro", disabled: true)
+    expect(page).to have_content("Falta seleccionar el medio de pago")
+
+    find("[data-role='method-select']").select("Mercado Pago")
+    expect(page).to have_button("Registrar Cobro", disabled: false)
+    expect(page).to have_no_content("Falta seleccionar el medio de pago")
   end
 end

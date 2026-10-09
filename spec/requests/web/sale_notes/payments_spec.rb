@@ -22,6 +22,14 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
   before { sign_in cashier }
 
   describe "GET new" do
+    it "starts the payment method on the prompt, with nothing preselected" do
+      get new_web_sale_note_payment_path(note)
+
+      select = Nokogiri::HTML(response.body).at_css("select[name='tenders[0][payment_method]']")
+      expect(select.at_css("option[selected]").text).to eq("Seleccionar medio")
+      expect(select.at_css("option[selected]")["value"]).to eq("")
+    end
+
     it "renders the cobro form" do
       get "/web/sale_notes/#{note.id}/payment/new"
       expect(response).to have_http_status(:ok)
@@ -36,6 +44,18 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
   end
 
   describe "POST create" do
+    it "refuses a tender without a payment method and leaves the note pending" do
+      expect {
+        post "/web/sale_notes/#{note.id}/payment", params: {
+          discount_percent: "0", tenders: { "0" => { amount: "200,00" } }
+        }
+      }.not_to change(Payment, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("No se puede guardar el cobro sin medio de pago")
+      expect(note.reload.status).to eq("pending")
+    end
+
     it "cobra full cash and confirms the note" do
       post "/web/sale_notes/#{note.id}/payment", params: {
         discount_percent: "0",

@@ -20,6 +20,16 @@ RSpec.describe Payments::CollectSaleNote do
   end
 
   describe ".call" do
+    it "refuses a tender without a payment method and records nothing" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: nil, amount: 1000 } ])
+
+      expect(result.failure?).to be true
+      expect(result.errors).to eq([ "No se puede guardar el cobro sin medio de pago" ])
+      expect(Payment.count).to eq(0)
+      expect(order.reload).to be_pending_status
+    end
+
     it "creates payment + allocation and promotes order to confirmed when paid exactly" do
       result = described_class.call(
         user: cashier,

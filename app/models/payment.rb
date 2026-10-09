@@ -22,6 +22,7 @@ class Payment < ApplicationRecord
   }.freeze
 
   PAYMENT_METHODS = PAYMENT_METHOD_LABELS.keys.freeze
+  MISSING_METHOD_ERROR = "No se puede guardar el cobro sin medio de pago"
 
   INVOICE_TYPE_LABELS = {
     "a"    => "Factura A",

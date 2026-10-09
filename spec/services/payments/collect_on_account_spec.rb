@@ -25,6 +25,14 @@ RSpec.describe Payments::CollectOnAccount do
                            confirmed_overpaid: confirmed_overpaid)
     end
 
+    it "refuses a tender without a payment method and records nothing" do
+      result = collect(order, 400, method: "")
+
+      expect(result.failure?).to be true
+      expect(result.errors).to eq([ "No se puede guardar el cobro sin medio de pago" ])
+      expect(Payment.count).to eq(0)
+    end
+
     it "lowers the debt by the cash received grossed up by the discount, rounded to the peso" do
       result = collect(note_3738, 800_000, discount: 10)
 

@@ -19,10 +19,23 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(response.body).to include("¿Cuánto recibís?")
       expect(Nokogiri::HTML(response.body).at_css("input[name='tenders[0][amount]']")["value"]).to be_blank
       expect(response.body).to include("Saldar todo")
+      select = Nokogiri::HTML(response.body).at_css("select[name='tenders[0][payment_method]']")
+      expect(select.at_css("option[selected]").text).to eq("Seleccionar medio")
     end
   end
 
   describe "POST create" do
+    it "refuses a tender without a payment method" do
+      sign_in caja
+      expect {
+        post web_payments_on_account_payment_path(order),
+             params: { discount_percent: "0", tenders: { "0" => { amount: "400" } } }
+      }.not_to change(Payment, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("No se puede guardar el cobro sin medio de pago")
+    end
+
     it "lets caja collect a partial payment" do
       sign_in caja
       post web_payments_on_account_payment_path(order),
