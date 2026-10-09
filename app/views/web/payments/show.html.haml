@@ -15,6 +15,7 @@
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     .lg:col-span-2.space-y-6
+      = render "web/payments/payment_method", payment: @payment, error: @method_error
       = render "web/payments/invoice", payment: @payment, open: @form_open, error: @error,
                                        invoice_type: @invoice_type, invoice_number: @invoice_number
       = render "web/payments/allocations", payment: @payment

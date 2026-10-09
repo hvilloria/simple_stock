@@ -97,4 +97,92 @@ RSpec.describe "Web::Payments", type: :request do
       expect(payment.reload).not_to be_billed
     end
   end
+
+  describe "payment method card" do
+    let!(:movement) do
+      create(:cash_movement, source_payment: payment, business_date: date, channel: "mercado_pago",
+                             account: "mercado_pago", amount: 264_100)
+    end
+
+    before { sign_in caja }
+
+    it "offers to change the method on an open day" do
+      get "/web/payments/#{payment.id}"
+
+      card = page_html.at_css("#payment-method")
+      expect(card.text).to include("Medio de pago", "Mercado Pago", "Cambiar")
+      expect(card.at_css("input[name='payment_method'][value='mercado_pago'][checked]")).to be_present
+    end
+
+    it "explains a closed day instead of offering the change" do
+      create(:daily_closing, business_date: date)
+
+      get "/web/payments/#{payment.id}"
+
+      card = page_html.at_css("#payment-method")
+      expect(card.text).to include("El día 01/10/2026 ya se cerró: el medio de pago no se puede cambiar.")
+      expect(card.text).not_to include("Cambiar")
+    end
+
+    it "explains a cash discount instead of offering the change" do
+      payment.update!(payment_method: "cash")
+      movement.update!(channel: "cash", account: "drawer")
+      payment.allocations.first.update!(discount_amount: 1_000)
+
+      get "/web/payments/#{payment.id}"
+
+      card = page_html.at_css("#payment-method")
+      expect(card.text).to include("Este cobro tuvo descuento en efectivo: no se puede pasar a otro medio.")
+      expect(card.text).not_to include("Cambiar")
+    end
+  end
+
+  describe "PATCH /web/payments/:id/payment_method" do
+    let!(:movement) do
+      create(:cash_movement, source_payment: payment, business_date: date, channel: "mercado_pago",
+                             account: "mercado_pago", amount: 264_100)
+    end
+
+    it "changes the method and comes back with a notice" do
+      sign_in caja
+
+      patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: "cash" }
+
+      expect(response).to redirect_to("/web/payments/#{payment.id}")
+      follow_redirect!
+      expect(response.body).to include("Medio de pago actualizado", "Cobro · Efectivo · 264.100,00")
+      expect(movement.reload).to have_attributes(channel: "cash", account: "drawer")
+    end
+
+    it "re-renders with the error and the form open when the method is unchanged" do
+      sign_in caja
+
+      patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: "mercado_pago" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      card = page_html.at_css("#payment-method")
+      expect(card["data-payment-invoice-open-value"]).to eq("true")
+      expect(card.text).to include("El cobro ya está registrado con ese medio de pago")
+    end
+
+    it "refuses when the day was closed after the page loaded" do
+      sign_in caja
+      create(:daily_closing, business_date: date)
+
+      patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: "cash" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El día 01/10/2026 ya se cerró: el medio de pago no se puede cambiar.")
+      expect(payment.reload.payment_method).to eq("mercado_pago")
+    end
+
+    it "keeps the seller out" do
+      sign_in create(:user, :vendedor)
+
+      patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: "cash" }
+
+      expect(response).to have_http_status(:redirect)
+      expect(payment.reload.payment_method).to eq("mercado_pago")
+    end
+  end
 end

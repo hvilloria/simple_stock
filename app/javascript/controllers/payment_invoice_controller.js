@@ -21,6 +21,7 @@ export default class extends Controller {
   }
 
   typeChanged() {
+    if (!this.hasNumberTarget) return
     const selected = this.formTarget.querySelector("input[name='invoice_type']:checked")
     const needsNumber = selected !== null && ["a", "b"].includes(selected.value)
     this.numberTarget.classList.toggle("hidden", !needsNumber)

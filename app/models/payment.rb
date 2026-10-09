@@ -62,6 +62,24 @@ class Payment < ApplicationRecord
   def original_cash_movement = cash_movements.find(&:inflow?)
   def reversal_movement = cash_movements.find(&:reversal?)
 
+  # Only cash may carry a discount or cash above the total; credit item
+  # discounts are not cash-only.
+  def cash_discounted?
+    return false unless payment_method == "cash"
+
+    allocations.any? { |a| a.discount_amount.positive? || a.overpaid_amount.positive? } ||
+      orders.any? { |o| o.immediate_order_type? && o.discount_amount.positive? }
+  end
+
+  def method_change_block
+    movement = original_cash_movement
+    return :locked if movement.nil? || reversal_movement
+    return :closed if movement.sealed? || DailyClosing.exists?(business_date: movement.business_date)
+    return :cash_discount if cash_discounted?
+
+    nil
+  end
+
   private
 
   def invoice_number_matches_invoice_type

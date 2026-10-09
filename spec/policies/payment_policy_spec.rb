@@ -62,4 +62,16 @@ RSpec.describe PaymentPolicy do
       expect(policy.update?).to be(false)
     end
   end
+
+  describe "#change_method?" do
+    it "lets caja and admin change a payment's method" do
+      %i[caja admin].each do |role|
+        expect(described_class.new(build(:user, role), payment).change_method?).to be(true)
+      end
+    end
+
+    it "keeps the seller out" do
+      expect(described_class.new(build(:user, :vendedor), payment).change_method?).to be(false)
+    end
+  end
 end
