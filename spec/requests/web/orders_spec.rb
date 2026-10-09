@@ -431,7 +431,7 @@ RSpec.describe "Web::Orders", type: :request do
       expect(response.body).not_to include("Redondeo")
     end
 
-    it "does not show an on-account order's per-collection discount as its subtotal" do
+    it "explains an on-account order's collection discount as its own line" do
       order = create(:order, :on_account, customer: Customer.mostrador,
                      total_amount: 80_300, original_total_amount: 80_300)
       create(:order_item, order: order, product: create(:product), quantity: 1, unit_price: 80_300)
@@ -440,11 +440,25 @@ RSpec.describe "Web::Orders", type: :request do
 
       get web_order_path(order)
 
-      subtotal = Nokogiri::HTML(response.body).css(".flex.justify-between.text-sm")
-                         .find { |row| row.text.include?("Subtotal") }
-      expect(subtotal.text).to include("72.270,00")
-      expect(subtotal.text).not_to include("80.300,00")
+      rows = Nokogiri::HTML(response.body).css(".flex.justify-between.text-sm").map { |row| row.text.squish }
+      expect(rows).to include(a_string_including("Subtotal", "80.300,00"))
+      expect(rows).to include(a_string_including("Descuentos", "−ARS 8.030,00"))
+      footer = Nokogiri::HTML(response.body).css("tfoot tr").map { |row| row.text.squish }
+      expect(footer).to include(a_string_including("Subtotal", "80.300,00"))
+      expect(footer).to include(a_string_including("Descuentos", "−ARS 8.030,00"))
+      expect(response.body).to include("ARS 72.270,00")
+      expect(response.body).not_to include("Redondeo")
       expect(response.body).not_to include("Cobrado de más")
+    end
+
+    it "names an on-account order's sale type" do
+      order = create(:order, :on_account, customer: Customer.mostrador,
+                     total_amount: 1_000, original_total_amount: 1_000)
+
+      get web_order_path(order)
+
+      expect(response.body).to include("Pago a cuenta")
+      expect(response.body).not_to include("Cuenta Corriente")
     end
   end
 end
