@@ -176,6 +176,20 @@ RSpec.describe "Web::Payments", type: :request do
       expect(payment.reload.payment_method).to eq("mercado_pago")
     end
 
+    [ [ "", "No se puede guardar el cobro sin medio de pago" ],
+      [ "bitcoin", "Método de pago inválido: bitcoin" ] ].each do |hostile, message|
+      it "refuses #{hostile.inspect} as a payment method and writes nothing" do
+        sign_in caja
+
+        patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: hostile }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include(message)
+        expect(payment.reload.payment_method).to eq("mercado_pago")
+        expect(movement.reload).to have_attributes(channel: "mercado_pago", account: "mercado_pago")
+      end
+    end
+
     it "keeps the seller out" do
       sign_in create(:user, :vendedor)
 
