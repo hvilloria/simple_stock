@@ -10,15 +10,6 @@
     
     %h1.text-3xl.font-bold.text-gray-900 Nueva factura
 
-  -# Errors
-  - if flash[:alert]
-    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6.flex.items-start.gap-3
-      .w-10.h-10.rounded-xl.bg-red-500.flex.items-center.justify-center.text-white.flex-shrink-0
-        ⚠️
-      .flex-1
-        %h4.font-semibold.text-red-800.mb-1 Error
-        %p.text-sm.text-red-700= flash[:alert]
-
   - non_supplier = (params[:expense_type].presence || "supplier") != "supplier"
 
   = form_with url: web_invoices_path, method: :post, local: true, data: { controller: "invoice-form", action: "submit->invoice-form#handleFormSubmit lines-changed->invoice-form#linesChanged" } do |f|

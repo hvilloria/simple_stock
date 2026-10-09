@@ -9,9 +9,6 @@
         %h1.text-3xl.font-semibold.text-slate-900 Cambiar producto
       = link_to "← Volver a la operación", web_payments_on_account_path(@order), class: "text-sm text-slate-500 hover:text-slate-900"
 
-    - if flash.now[:alert]
-      .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash.now[:alert]
-
     = form_with url: web_payments_on_account_item_path(@order, @item), method: :patch,
         data: { controller: "item-swap",
                 'item-swap-original-product-id-value': @item.product_id,

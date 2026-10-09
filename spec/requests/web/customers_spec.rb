@@ -10,6 +10,16 @@ RSpec.describe 'Web::Customers', type: :request do
 
   before { sign_in admin }
 
+  describe 'flash after a redirect' do
+    it 'renders the notice once, from the layout' do
+      customer = create(:customer)
+      patch web_customer_path(customer), params: { customer: { name: 'Renamed' } }
+      follow_redirect!
+
+      expect(response.body.scan('Cliente actualizado exitosamente.').size).to eq(1)
+    end
+  end
+
   describe 'GET /web/customers/debtors' do
     let!(:debtor) { create(:customer, :with_credit) }
     let!(:paid_customer) { create(:customer, :with_credit) }

@@ -10,15 +10,6 @@
       = link_to new_web_credit_note_path, class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors" do
         %span + Nueva Nota de Crédito
 
-  -# Notices/Alerts
-  - if flash[:notice]
-    .bg-green-50.border-l-4.border-green-500.p-4.rounded-lg.mb-6
-      %p.text-sm.text-green-700= flash[:notice]
-  
-  - if flash[:alert]
-    .bg-red-50.border-l-4.border-red-500.p-4.rounded-lg.mb-6
-      %p.text-sm.text-red-700= flash[:alert]
-
   -# Filters
   .bg-white.border.border-slate-200.rounded-lg.p-6.mb-6
     = form_with url: web_credit_notes_path, method: :get, data: { controller: "filter-form" } do |f|
