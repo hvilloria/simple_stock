@@ -12,6 +12,7 @@ Only includes behavior that is important for implementing features safely.
 * Rails **web** UI lives under the **`Web`** namespace (URLs prefixed with `/web/…` per `config/routes.rb`).
 * **Devise**: sign-in only; **registrations are skipped** (`devise_for :users, skip: [:registrations]`).
 * **Pundit** is included in `ApplicationController`; unauthorized access redirects with a flash.
+* **Flash renders only from the layout:** `layouts/application.html.haml` shows `flash[:notice]` (success) and `flash[:alert]` (error) through `shared/_flash` above every signed-in page, for redirects and `flash.now` alike. Views must not render flash themselves (it showed twice). The one exception is `devise/sessions/new`: signed out, the layout skips flash, so the login view renders its own.
 * **`User#role`**: `vendedor`, `caja`, `admin` (string-backed enum). Policies in `app/policies/` gate actions.
 * **Turbo Streams exist in exactly one place: the cash day screen.** Every other form in the app submits in full and redirects. The only actions that answer `turbo_stream` are `Web::Cash::MovementsController#create/edit/update/destroy` and `Web::Cash::TransfersController#create` (templates `app/views/web/cash/{movements,transfers}/*.turbo_stream.haml`). Turbo Drive is active app-wide; that is unrelated.
 
