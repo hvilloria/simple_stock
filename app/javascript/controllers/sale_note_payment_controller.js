@@ -9,7 +9,7 @@ export default class extends Controller {
     "tenderRows", "tenderRow", "tenderMethod", "tenderAmount",
     "summaryDiscount", "summaryTotal", "summaryPaid", "summaryDiff", "summaryDiffLabel",
     "overpaidHelper", "confirmedOverpaid",
-    "submitButton"
+    "submitButton", "methodHint"
   ]
 
   static values = {
@@ -39,7 +39,7 @@ export default class extends Controller {
 
   recalc() {
     const tenders    = this._readTenders()
-    const hasNonCash = tenders.some(t => t.method !== "cash")
+    const hasNonCash = tenders.some(t => t.method && t.method !== "cash")
     let   discount   = parseInt(this.discountSelectTarget.value, 10) || 0
 
     // Cash-only discount rule: a non-cash tender forces the discount back to 0.
@@ -67,7 +67,9 @@ export default class extends Controller {
     this.summaryDiffTarget.classList.toggle("text-emerald-600", settled)
     this.summaryDiffTarget.classList.toggle("text-red-600", !settled)
     this.overpaidHelperTarget.hidden = overpaid === 0 || inCash
-    this.submitButtonTarget.disabled = diff >= 0.01 || !inCash
+    const missingMethod = tenders.some(t => t.amount > 0 && !t.method)
+    this.methodHintTarget.hidden = !missingMethod
+    this.submitButtonTarget.disabled = diff >= 0.01 || !inCash || missingMethod
   }
 
   confirmOverpayment(event) {
@@ -82,7 +84,9 @@ export default class extends Controller {
     event.preventDefault()
     const idx = this._tenderIdx++
     const row = this.tenderRowTargets[0].cloneNode(true)
-    row.querySelector("select").name = `tenders[${idx}][payment_method]`
+    const select = row.querySelector("select")
+    select.name = `tenders[${idx}][payment_method]`
+    select.selectedIndex = 0
     const input = row.querySelector("input")
     input.name  = `tenders[${idx}][amount]`
     input.value = ""

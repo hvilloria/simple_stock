@@ -34,6 +34,8 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         expect(response.body).to include("Registrar Cobro")
         # "Órdenes pendientes" heading was removed when the table was replaced with per-order cards
         expect(response.body).to include("Orden #")
+        select = Nokogiri::HTML(response.body).at_css("select[name='allocations[0][payment_method]']")
+        expect(select.at_css("option[selected]").text).to eq("Seleccionar medio")
       end
     end
 
@@ -75,6 +77,19 @@ RSpec.describe "Web::Customers::Payments", type: :request do
         paper_number: "L-0011",
         user: user
       ).record
+    end
+
+    context "without a payment method" do
+      it "refuses the collection naming the order" do
+        expect {
+          post web_customer_payments_path(customer), params: {
+            allocations: { "0" => { order_id: order_a.id, include: "1", amount: "200" } }
+          }
+        }.not_to change(Payment, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("No se puede guardar el cobro sin medio de pago (orden ##{order_a.id})")
+      end
     end
 
     context "with valid single-method input" do

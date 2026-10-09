@@ -82,6 +82,7 @@ RSpec.describe "Pagos a cuenta", type: :system do
     rows = all("[data-on-account-payment-target='tenderRow']")
     # currency-input unformats on focus, which drops Capybara's select-all;
     # backspacing clears the field regardless.
+    within(rows[0]) { select "Efectivo" }
     rows[0].find("input").set("300", clear: :backspace)
     within(rows[1]) { select "Banco Transferencia" }
     rows[1].find("input").set("200", clear: :backspace)
@@ -100,6 +101,7 @@ RSpec.describe "Pagos a cuenta", type: :system do
     create(:order_item, order: big, product: create(:product), quantity: 1, unit_price: 1_704_400)
 
     visit new_web_payments_on_account_payment_path(big)
+    select "Efectivo", from: "tenders[0][payment_method]"
     find("[data-on-account-payment-target='tenderAmount']").set("800000", clear: :backspace)
     select "10%", from: "discount_percent"
 
@@ -130,5 +132,20 @@ RSpec.describe "Pagos a cuenta", type: :system do
 
     expect(page).to have_content("Es más de lo que debe")
     expect(page).to have_button("Registrar cobro", disabled: true)
+  end
+
+  it "keeps submit disabled until a payment method is picked, and Enter does not submit" do
+    visit new_web_payments_on_account_payment_path(order)
+    amount = find("[data-on-account-payment-target='tenderAmount']")
+    amount.set("400", clear: :backspace)
+    amount.send_keys(:enter)
+
+    expect(amount.value).to eq("400,00")
+    expect(page).to have_button("Registrar cobro", disabled: true)
+    expect(page).to have_content("Falta seleccionar el medio de pago")
+
+    select "Efectivo", from: "tenders[0][payment_method]"
+    expect(page).to have_button("Registrar cobro", disabled: false)
+    expect(Payment.count).to eq(0)
   end
 end

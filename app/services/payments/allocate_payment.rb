@@ -98,6 +98,9 @@ module Payments
 
         amount = row[:amount].to_f
         raise ValidationError, "El monto debe ser mayor a cero" if amount <= 0
+        if row[:payment_method].blank?
+          raise ValidationError, "#{Payment::MISSING_METHOD_ERROR} (orden ##{row[:order_id]})"
+        end
 
         unless Payment::PAYMENT_METHODS.include?(row[:payment_method])
           raise ValidationError, "Método de pago inválido: #{row[:payment_method]}"

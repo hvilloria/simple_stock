@@ -6,7 +6,7 @@ import { Controller } from "@hotwired/stimulus"
 // - Discount selects only run when the order is unlocked (no prior allocations).
 // - Locked cards render their percentages as plain "(fijado)" text in HAML; this controller never enables their selects.
 export default class extends Controller {
-  static targets = ["row", "totalCharging", "remainingBalance", "selectedCount", "submitButton"]
+  static targets = ["row", "totalCharging", "remainingBalance", "selectedCount", "submitButton", "methodHint"]
   static values = { totalDebt: Number }
 
   connect() {
@@ -120,6 +120,7 @@ export default class extends Controller {
     let totalDiscount = 0
     let selected = 0
     let blocked = false
+    let missingMethod = false
     this._overpaid = []
     this._overpaidByRow = new Map()
 
@@ -139,6 +140,7 @@ export default class extends Controller {
       applied += Math.min(v, pending)
       totalDiscount += parseFloat(row.dataset.discountForgiven) || 0
       if (v > 0) selected += 1
+      if (v > 0 && !row.querySelector("[data-role='method-select']").value) missingMethod = true
 
       if (excess >= 0.01) {
         const isCash = row.querySelector("[data-role='method-select']").value === "cash"
@@ -160,8 +162,9 @@ export default class extends Controller {
     this.remainingBalanceTarget.textContent = this.formatMoney(remaining)
     this.selectedCountTarget.textContent = selected
 
+    if (this.hasMethodHintTarget) this.methodHintTarget.hidden = !missingMethod
     if (this.hasSubmitButtonTarget) {
-      this.submitButtonTarget.disabled = selected === 0 || blocked
+      this.submitButtonTarget.disabled = selected === 0 || blocked || missingMethod
     }
   }
 

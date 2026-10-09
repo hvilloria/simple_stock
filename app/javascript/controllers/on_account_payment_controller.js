@@ -12,7 +12,7 @@ export default class extends Controller {
     "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "settleAllButton",
     "receivedLine", "discountRow", "discountLabel", "discountLine",
     "resultRows", "settledLine", "balanceAfter", "overpaidRow", "overpaidLine",
-    "excessNotice", "confirmedOverpaid", "submitButton"
+    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint"
   ]
   static values = { balance: Number, pendingDelivery: Boolean }
 
@@ -22,7 +22,7 @@ export default class extends Controller {
   }
 
   recalculate() {
-    const hasNonCash = this._readTenders().some(t => t.method !== "cash")
+    const hasNonCash = this._readTenders().some(t => t.method && t.method !== "cash")
     this.discountTarget.disabled = hasNonCash
     if (hasNonCash) this.discountTarget.value = "0"
     this.discountHelperTarget.classList.toggle("hidden", !hasNonCash)
@@ -51,7 +51,9 @@ export default class extends Controller {
     this.excessNoticeTarget.textContent =
       `Es más de lo que debe. Para saldar todo${withDiscount} corresponde cobrar ${this.format(settleAll)}`
 
-    this.submitButtonTarget.disabled = received <= 0 || excess
+    const missingMethod = tenders.some(t => t.amount > 0 && !t.method)
+    this.methodHintTarget.hidden = !missingMethod
+    this.submitButtonTarget.disabled = received <= 0 || excess || missingMethod
   }
 
   settleAll(event) {
@@ -65,7 +67,9 @@ export default class extends Controller {
     event.preventDefault()
     const idx = this._tenderIdx++
     const row = this.tenderRowTargets[0].cloneNode(true)
-    row.querySelector("select").name = `tenders[${idx}][payment_method]`
+    const select = row.querySelector("select")
+    select.name = `tenders[${idx}][payment_method]`
+    select.selectedIndex = 0
     const input = row.querySelector("input")
     input.name = `tenders[${idx}][amount]`
     input.value = ""

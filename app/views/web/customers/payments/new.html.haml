@@ -37,7 +37,7 @@
         = link_to "← Volver al cliente", web_customer_path(@customer), class: "inline-flex items-center gap-2 mt-6 px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
 
   - else
-    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation product-form", action: "submit->payment-allocation#confirmOverpayment turbo:submit-start->product-form#handleSubmit", "payment-allocation-total-debt-value": total_debt.to_s } do
+    = form_with url: web_customer_payments_path(@customer), method: :post, local: true, data: { controller: "payment-allocation product-form enter-blur", action: "submit->payment-allocation#confirmOverpayment turbo:submit-start->product-form#handleSubmit keydown->enter-blur#blur", "payment-allocation-total-debt-value": total_debt.to_s } do
 
       -# Summary card
       .bg-white.border.border-slate-200.rounded-xl.p-5.mb-4
@@ -120,7 +120,7 @@
                       class: "w-32 px-2 py-1 text-right text-sm font-semibold border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
                       data: { controller: "currency-input", "role": "amount-input", action: "input->payment-allocation#recalc blur->currency-input#format focus->currency-input#unformat" }
                   = select_tag "allocations[#{idx}][payment_method]",
-                      options_for_select(Payment.method_options, "cash"),
+                      payment_method_options_with_prompt,
                       disabled: true,
                       class: "px-2 py-1 text-sm border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-400",
                       data: { "role": "method-select", action: "change->payment-allocation#methodChanged" }
@@ -142,9 +142,11 @@
           = text_field_tag :notes, "",
               placeholder: "Referencia, comentarios…",
               class: "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500"
-        .flex.gap-2
-          = link_to "Cancelar", web_customer_path(@customer), class: "px-5 py-2.5 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
-          = submit_tag "Registrar Cobro",
-              class: "px-6 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors",
-              data: { "payment-allocation-target": "submitButton" },
-              disabled: true
+        .flex.flex-col.items-end.gap-1
+          .flex.gap-2
+            = link_to "Cancelar", web_customer_path(@customer), class: "px-5 py-2.5 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+            = submit_tag "Registrar Cobro",
+                class: "px-6 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors",
+                data: { "payment-allocation-target": "submitButton" },
+                disabled: true
+          %p.text-xs.text-slate-500{ data: { "payment-allocation-target": "methodHint" }, hidden: true } Falta seleccionar el medio de pago

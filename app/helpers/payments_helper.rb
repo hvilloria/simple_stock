@@ -32,6 +32,12 @@ module PaymentsHelper
     "#{CashMovement.account_label(movement.account)} · #{state}"
   end
 
+  # Nothing is preselected: the operator has to pick the method on purpose.
+  def payment_method_options_with_prompt
+    tag.option("Seleccionar medio", value: "", disabled: true, selected: true) +
+      options_for_select(Payment.method_options)
+  end
+
   # The cash discount a collection carried, as a whole percentage; nil when none.
   def payment_allocation_discount_percent(allocation)
     return nil unless allocation.discount_amount.positive?
