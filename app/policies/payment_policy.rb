@@ -21,6 +21,10 @@ class PaymentPolicy < ApplicationPolicy
     show?  # Caja and admin record or correct the invoice
   end
 
+  def change_method?
+    show?
+  end
+
   def destroy?
     false  # Payments are not deleted
   end

@@ -27,6 +27,20 @@ module Web
       end
     end
 
+    def change_method
+      authorize @payment, :change_method?
+
+      result = ::Payments::ChangeMethod.call(payment: @payment, payment_method: params[:payment_method])
+
+      if result.success?
+        redirect_to web_payment_path(@payment), notice: "Medio de pago actualizado"
+      else
+        @payment.reload
+        @method_error = result.errors.join(", ")
+        render_show(open: false, status: :unprocessable_entity)
+      end
+    end
+
     private
 
     def set_payment

@@ -1,0 +1,33 @@
+- block = payment.method_change_block
+#payment-method.bg-white.border.border-slate-200.rounded-lg.p-5{ data: { controller: "payment-invoice", "payment-invoice-open-value": error.present?.to_s } }
+  %h2.text-sm.font-semibold.text-slate-900 Medio de pago
+
+  %div{ data: { "payment-invoice-target": "summary" } }
+    .mt-3.flex.items-center.justify-between
+      %p.text-lg.font-semibold.text-slate-900= Payment.method_label(payment.payment_method)
+      - if block.nil?
+        %button.text-sm.font-medium.text-slate-600.hover:text-slate-900{ type: "button", data: { action: "payment-invoice#show" } } Cambiar
+    - case block
+    - when :closed
+      %p.mt-1.text-xs.text-slate-500= "El día #{payment.original_cash_movement.business_date.strftime('%d/%m/%Y')} ya se cerró: el medio de pago no se puede cambiar."
+    - when :cash_discount
+      %p.mt-1.text-xs.text-slate-500 Este cobro tuvo descuento en efectivo: no se puede pasar a otro medio.
+
+  - if block.nil? || error.present?
+    = form_with url: payment_method_web_payment_path(payment), method: :patch, class: "mt-4 space-y-4 hidden",
+                data: { "payment-invoice-target": "form" } do
+      - if error.present?
+        .p-3.rounded-lg.bg-red-50.border-l-4.border-red-500
+          %p.text-sm.text-red-700= error
+
+      %fieldset
+        %legend.text-sm.font-medium.text-slate-700.mb-2 Medio
+        .flex.flex-wrap.gap-2
+          - Payment.method_options.each do |label, key|
+            %label.inline-flex.items-center.px-3.py-2.border.border-slate-300.rounded-lg.text-sm.text-slate-700.cursor-pointer.has-focus-visible:ring-2.has-focus-visible:ring-slate-400.has-checked:border-slate-700.has-checked:font-semibold.has-checked:text-slate-900
+              = radio_button_tag :payment_method, key, payment.payment_method == key, class: "sr-only"
+              = label
+
+      .flex.gap-2
+        = submit_tag "Guardar medio de pago", class: "btn-primary cursor-pointer"
+        %button.btn-secondary{ type: "button", data: { action: "payment-invoice#hide" } } Cancelar

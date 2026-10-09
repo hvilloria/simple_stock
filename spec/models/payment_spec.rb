@@ -158,4 +158,101 @@ RSpec.describe Payment, type: :model do
       expect(payment.reversal_movement).to be_nil
     end
   end
+
+  describe "#cash_discounted?" do
+    let(:payment) { create(:payment, payment_method: "cash", amount: 900) }
+
+    it "is false for a plain cash collection" do
+      order = create(:order, :pending, customer: payment.customer, order_type: "immediate", total_amount: 900, original_total_amount: 900)
+      create(:order_item, order: order, quantity: 1, unit_price: 900, discount_percent: 0)
+      create(:payment_allocation, payment: payment, order: order, amount: 900)
+
+      expect(payment.cash_discounted?).to be(false)
+    end
+
+    it "is true when an immediate sale note carried the cash discount" do
+      order = create(:order, :pending, customer: payment.customer, order_type: "immediate", total_amount: 900, original_total_amount: 1000)
+      create(:order_item, order: order, quantity: 1, unit_price: 1000, discount_percent: 10)
+      create(:payment_allocation, payment: payment, order: order, amount: 900)
+
+      expect(payment.cash_discounted?).to be(true)
+    end
+
+    it "is true when an on-account collection carried a cash discount" do
+      order = create(:order, :on_account, customer: payment.customer, total_amount: 1000, original_total_amount: 1000)
+      create(:payment_allocation, payment: payment, order: order, amount: 900, discount_amount: 100)
+
+      expect(payment.cash_discounted?).to be(true)
+    end
+
+    it "is true when cash was collected above the total" do
+      order = create(:order, :on_account, customer: payment.customer, total_amount: 950, original_total_amount: 950)
+      create(:payment_allocation, payment: payment, order: order, amount: 950, overpaid_amount: 50)
+
+      expect(payment.cash_discounted?).to be(true)
+    end
+
+    it "ignores credit item discounts, which are not cash-only" do
+      order = create(:order, :credit_order, customer: payment.customer, total_amount: 900, original_total_amount: 1000)
+      create(:order_item, order: order, quantity: 1, unit_price: 1000, discount_percent: 10)
+      create(:payment_allocation, payment: payment, order: order, amount: 900)
+
+      expect(payment.cash_discounted?).to be(false)
+    end
+
+    it "is false for a non-cash payment" do
+      payment.update!(payment_method: "mercado_pago")
+      order = create(:order, :on_account, customer: payment.customer, total_amount: 1000, original_total_amount: 1000)
+      create(:payment_allocation, payment: payment, order: order, amount: 900, discount_amount: 100)
+
+      expect(payment.cash_discounted?).to be(false)
+    end
+  end
+
+  describe "#method_change_block" do
+    let(:date) { Date.new(2026, 10, 1) }
+    let(:payment) { create(:payment, payment_method: "cash", amount: 900, payment_date: date) }
+
+    def collect!
+      create(:cash_movement, source_payment: payment, business_date: date, amount: 900)
+    end
+
+    it "is nil for a collection on an open day" do
+      collect!
+
+      expect(payment.method_change_block).to be_nil
+    end
+
+    it "is :locked without a cash movement" do
+      expect(payment.method_change_block).to eq(:locked)
+    end
+
+    it "is :locked once reversed" do
+      collect!
+      create(:cash_movement, source_payment: payment, business_date: date, amount: -900)
+
+      expect(payment.reload.method_change_block).to eq(:locked)
+    end
+
+    it "is :closed when the day has a closing" do
+      collect!
+      create(:daily_closing, business_date: date)
+
+      expect(payment.method_change_block).to eq(:closed)
+    end
+
+    it "is :closed when the movement is sealed" do
+      create(:cash_movement, :sealed, source_payment: payment, business_date: date, amount: 900)
+
+      expect(payment.method_change_block).to eq(:closed)
+    end
+
+    it "is :cash_discount for a cash collection with a cash discount" do
+      collect!
+      order = create(:order, :on_account, customer: payment.customer, total_amount: 1000, original_total_amount: 1000)
+      create(:payment_allocation, payment: payment, order: order, amount: 900, discount_amount: 100)
+
+      expect(payment.method_change_block).to eq(:cash_discount)
+    end
+  end
 end

@@ -52,7 +52,9 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :payments, only: [ :show, :update ]
+    resources :payments, only: [ :show, :update ] do
+      patch :payment_method, on: :member, action: :change_method
+    end
 
     resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do
       collection do
