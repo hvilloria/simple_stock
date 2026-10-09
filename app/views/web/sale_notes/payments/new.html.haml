@@ -9,11 +9,9 @@
       %h1.text-3xl.font-semibold.text-slate-900= @note.paper_number
     = link_to "← Volver al listado", web_sale_notes_path, class: "text-sm text-slate-500 hover:text-slate-900"
 
-  - if flash[:alert]
-    .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash[:alert]
-
   = form_with url: web_sale_note_payment_path(@note), method: :post, local: true,
-                    data: { action: "submit->sale-note-payment#confirmOverpayment" } do |f|
+                    data: { controller: "enter-blur",
+                            action: "submit->sale-note-payment#confirmOverpayment keydown->enter-blur#blur" } do |f|
     = hidden_field_tag :confirmed_overpaid, "0", data: { "sale-note-payment-target": "confirmedOverpaid" }
 
     .grid.grid-cols-1.gap-5{ class: "lg:grid-cols-[1fr_360px]" }
@@ -64,7 +62,7 @@
           .space-y-2{ data: { "sale-note-payment-target": "tenderRows" } }
             .flex.gap-2.items-center{ data: { "sale-note-payment-target": "tenderRow" } }
               = select_tag "tenders[0][payment_method]",
-                  options_for_select(Payment.method_options, "cash"),
+                  payment_method_options_with_prompt,
                   data: { "sale-note-payment-target": "tenderMethod",
                           action: "change->sale-note-payment#recalc" },
                   class: "flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm"
@@ -111,6 +109,7 @@
         = f.submit "Confirmar cobro",
             data: { "sale-note-payment-target": "submitButton" },
             class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        %p.text-xs.text-slate-500.mt-2{ data: { "sale-note-payment-target": "methodHint" }, hidden: true } Falta seleccionar el medio de pago
 
     -# Cancel button OUTSIDE the charge form (it's a different POST)
     = button_to "Cancelar nota",

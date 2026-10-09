@@ -119,6 +119,18 @@ RSpec.describe Payments::AllocatePayment, type: :service do
         expect(result.errors.join).to match(/método de pago/i)
       end
 
+      it "fails naming the order when payment_method is missing" do
+        result = described_class.call(
+          user: cashier,
+          customer: customer,
+          payment_date: Date.current,
+          allocations: [ { order_id: order_a.id, amount: 50, payment_method: nil } ]
+        )
+        expect(result.failure?).to be true
+        expect(result.errors).to eq([ "No se puede guardar el cobro sin medio de pago (orden ##{order_a.id})" ])
+        expect(Payment.count).to eq(0)
+      end
+
       it "rejects an Argentine-formatted amount string instead of silently truncating it (backstop)" do
         result = described_class.call(
           user: cashier,

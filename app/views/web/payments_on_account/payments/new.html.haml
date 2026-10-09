@@ -8,10 +8,9 @@
       %h1.text-3xl.font-semibold.text-slate-900= @order.paper_number
     = link_to "← Volver al listado", web_payments_on_account_path(@order), class: "text-sm text-slate-500 hover:text-slate-900"
 
-  - if flash.now[:alert]
-    .bg-red-50.border.border-red-200.text-red-700.text-sm.rounded-xl.px-4.py-3.mb-4= flash.now[:alert]
-
-  = form_with url: web_payments_on_account_payment_path(@order), method: :post, data: { action: "submit->on-account-payment#confirmSettle" } do |f|
+  = form_with url: web_payments_on_account_payment_path(@order), method: :post,
+                    data: { controller: "enter-blur",
+                            action: "submit->on-account-payment#confirmSettle keydown->enter-blur#blur" } do |f|
     = hidden_field_tag :confirmed_overpaid, "0", data: { "on-account-payment-target": "confirmedOverpaid" }
 
     .grid.grid-cols-1.gap-5{ class: "lg:grid-cols-[1fr_360px]" }
@@ -54,7 +53,7 @@
           .space-y-2{ data: { "on-account-payment-target": "tenderRows" } }
             .flex.gap-2.items-center{ data: { "on-account-payment-target": "tenderRow" } }
               = select_tag "tenders[0][payment_method]",
-                  options_for_select(Payment.method_options, "cash"),
+                  payment_method_options_with_prompt,
                   data: { "on-account-payment-target": "tenderMethod",
                           action: "change->on-account-payment#recalculate" },
                   class: "flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm"
@@ -121,3 +120,4 @@
         = f.submit "Registrar cobro",
             data: { "on-account-payment-target": "submitButton" },
             class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        %p.text-xs.text-slate-500.mt-2{ data: { "on-account-payment-target": "methodHint" }, hidden: true } Falta seleccionar el medio de pago

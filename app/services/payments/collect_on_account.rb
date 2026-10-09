@@ -74,6 +74,7 @@ module Payments
 
       @tenders.each do |t|
         raise ValidationError, "El monto debe ser mayor a cero" unless t[:amount].to_d.positive?
+        raise ValidationError, Payment::MISSING_METHOD_ERROR if t[:payment_method].blank?
         unless Payment::PAYMENT_METHODS.include?(t[:payment_method])
           raise ValidationError, "Método de pago inválido: #{t[:payment_method]}"
         end

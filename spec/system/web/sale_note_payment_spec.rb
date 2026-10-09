@@ -23,6 +23,7 @@ RSpec.describe "Sale note collection", type: :system do
   it "shows the exact discounted total and confirms cash above it" do
     visit new_web_sale_note_payment_path(note)
     select "10%", from: "discount_percent"
+    select "Efectivo", from: "tenders[0][payment_method]"
 
     expect(page).to have_css("[data-sale-note-payment-target='summaryTotal']", text: "72.270,00")
     find("[data-sale-note-payment-target='tenderAmount']").set("72300", clear: :backspace)
@@ -41,6 +42,7 @@ RSpec.describe "Sale note collection", type: :system do
 
     visit new_web_sale_note_payment_path(odd)
     select "5%", from: "discount_percent"
+    select "Efectivo", from: "tenders[0][payment_method]"
 
     expect(page).to have_css("[data-sale-note-payment-target='summaryTotal']", text: "1.172,78")
     expect(find("[data-sale-note-payment-target='tenderAmount']").value).to eq("1.172,78")
@@ -57,5 +59,39 @@ RSpec.describe "Sale note collection", type: :system do
     visit new_web_sale_note_payment_path(note)
     find("[data-sale-note-payment-target='tenderAmount']").set("80000", clear: :backspace)
     expect(page).to have_button("Confirmar cobro", disabled: true)
+  end
+
+  it "keeps submit disabled until a payment method is picked" do
+    visit new_web_sale_note_payment_path(note)
+    expect(page).to have_select("tenders[0][payment_method]", selected: "Seleccionar medio")
+
+    find("[data-sale-note-payment-target='tenderAmount']").set("80300", clear: :backspace)
+    expect(page).to have_button("Confirmar cobro", disabled: true)
+    expect(page).to have_content("Falta seleccionar el medio de pago")
+
+    select "Mercado Pago", from: "tenders[0][payment_method]"
+    expect(page).to have_button("Confirmar cobro", disabled: false)
+    expect(page).to have_no_content("Falta seleccionar el medio de pago")
+  end
+
+  it "starts an added method row without a method" do
+    visit new_web_sale_note_payment_path(note)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    click_button "+ Agregar método"
+
+    expect(page).to have_select("tenders[1][payment_method]", selected: "Seleccionar medio")
+  end
+
+  it "formats the amount on Enter instead of submitting" do
+    visit new_web_sale_note_payment_path(note)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    amount = find("[data-sale-note-payment-target='tenderAmount']")
+    amount.set("80300", clear: :backspace)
+    amount.send_keys(:enter)
+
+    expect(amount.value).to eq("80.300,00")
+    expect(page).to have_button("Confirmar cobro", disabled: false)
+    expect(Payment.count).to eq(0)
+    expect(note.reload.status).to eq("pending")
   end
 end
