@@ -10,8 +10,8 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 
 - `Sales::CreateOrder` — per-item `unit_price` + write-back to `product.price_unit`
 - `Payments::AllocatePayment` — per-order amounts + `item_discounts`
-- `Payments::CollectSaleNote` — 0/5/10 cash-only discount, multi-tender
-- `Payments::CollectOnAccount` — `amount_to_settle`, discount, lowers `total_amount`
+- `Payments::CollectSaleNote` — 0/5/10 cash-only discount, multi-tender, rounding down to the hundred under a discount (below the rounded hundred must be refused)
+- `Payments::CollectOnAccount` — tenders, cash discount, overpaid, rounding down to the hundred under a discount; lowers `total_amount`
 - `Invoices::CreateInvoice` — the typed `amount`, and per-line `quantity` + `unit_cost` that become the amount and the stock; the hostile-input case is a unit cost of `"abc"`, which must be refused and never read as a free line
 - `Invoices::CancelInvoice` — the floored stock reversal (no input to attack; what it must get right is the floor and the transaction)
 - `Invoices::PayInvoices` — amounts + `AppliedCredit`

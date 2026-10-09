@@ -7,8 +7,10 @@ module Payments
   #   - Order must be immediate + pending.
   #   - discount_percent in {0, 5, 10}; distributed to each order_item.
   #   - Tenders cover the effective total (original_total * (1 - discount/100));
-  #     cash may exceed it, the excess is added to the total. The excess must
-  #     match confirmed_overpaid, the one the operator saw and confirmed.
+  #     with a discount they may fall short of it down to the hundred, and the
+  #     note closes at what was charged. Cash may exceed it, the excess is
+  #     added to the total. The excess must match confirmed_overpaid, the one
+  #     the operator saw and confirmed.
   #   - If discount > 0, every tender must be `cash`.
   class CollectSaleNote
     TOLERANCE = 0.01
@@ -83,7 +85,7 @@ module Payments
         raise ValidationError, "Descuento solo permitido si el total se paga en efectivo"
       end
 
-      if tender_sum < effective_total - TOLERANCE
+      if tender_sum < minimum_charge - TOLERANCE
         raise ValidationError,
               format("La suma de los pagos ($%.2f) no alcanza el total ($%.2f)", tender_sum, effective_total)
       end
@@ -94,6 +96,14 @@ module Payments
 
     def effective_total
       @effective_total ||= (@order.original_total_amount.to_d * (1 - @discount_percent.to_d / 100)).round(2)
+    end
+
+    # With a cash discount the charge may be rounded down to the hundred.
+    def minimum_charge
+      return effective_total unless @discount_percent.positive?
+
+      floor = (effective_total / 100).floor * 100
+      floor.positive? ? floor : effective_total
     end
 
     def tender_sum
@@ -115,7 +125,7 @@ module Payments
       @order.order_items.each { |item| item.update!(discount_percent: @discount_percent) } if @discount_percent.positive?
       return if @discount_percent.zero? && overpaid.zero?
 
-      @order.update!(total_amount: effective_total + overpaid)
+      @order.update!(total_amount: tender_sum < effective_total ? tender_sum : effective_total + overpaid)
     end
 
     def create_payments_and_allocations!
