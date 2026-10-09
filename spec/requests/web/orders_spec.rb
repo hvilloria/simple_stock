@@ -443,6 +443,9 @@ RSpec.describe "Web::Orders", type: :request do
       rows = Nokogiri::HTML(response.body).css(".flex.justify-between.text-sm").map { |row| row.text.squish }
       expect(rows).to include(a_string_including("Subtotal", "80.300,00"))
       expect(rows).to include(a_string_including("Descuentos", "−ARS 8.030,00"))
+      footer = Nokogiri::HTML(response.body).css("tfoot tr").map { |row| row.text.squish }
+      expect(footer).to include(a_string_including("Subtotal", "80.300,00"))
+      expect(footer).to include(a_string_including("Descuentos", "−ARS 8.030,00"))
       expect(response.body).to include("ARS 72.270,00")
       expect(response.body).not_to include("Redondeo")
       expect(response.body).not_to include("Cobrado de más")
