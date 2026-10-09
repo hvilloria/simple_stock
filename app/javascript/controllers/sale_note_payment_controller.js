@@ -9,7 +9,7 @@ export default class extends Controller {
     "tenderRows", "tenderRow", "tenderMethod", "tenderAmount",
     "summaryDiscount", "summaryTotal", "summaryPaid", "summaryDiff", "summaryDiffLabel",
     "overpaidHelper", "confirmedOverpaid",
-    "submitButton", "methodHint"
+    "submitButton", "methodHint", "roundingHint"
   ]
 
   static values = {
@@ -54,6 +54,8 @@ export default class extends Controller {
     const cashSum    = tenders.filter(t => t.method === "cash").reduce((s, t) => s + t.amount, 0)
     const diff       = +(finalTotal - paidSum).toFixed(2)
     const overpaid   = diff <= -0.01 ? -diff : 0
+    const minimum    = this._minimumCharge(finalTotal, discount)
+    const rounding   = diff >= 0.01 && paidSum >= minimum - 0.001 ? diff : 0
     const inCash     = overpaid <= cashSum + 0.001
     this._overpaid   = inCash ? overpaid : 0
 
@@ -61,15 +63,18 @@ export default class extends Controller {
     this.summaryDiscountTarget.textContent  = `−${this._fmt(nominalDiscount)}`
     this.summaryTotalTarget.textContent     = this._fmt(finalTotal)
     this.summaryPaidTarget.textContent      = this._fmt(paidSum)
-    this.summaryDiffLabelTarget.textContent = overpaid > 0 ? "Cobrado de más" : "Por pagar"
-    this.summaryDiffTarget.textContent      = overpaid > 0 ? `+${this._fmt(overpaid)}` : this._fmt(diff)
-    const settled = Math.abs(diff) < 0.01 || (overpaid > 0 && inCash)
+    this.summaryDiffLabelTarget.textContent = overpaid > 0 ? "Cobrado de más" : rounding > 0 ? "Redondeo" : "Por pagar"
+    this.summaryDiffTarget.textContent      = overpaid > 0 ? `+${this._fmt(overpaid)}` : rounding > 0 ? `−${this._fmt(rounding)}` : this._fmt(diff)
+    const settled = Math.abs(diff) < 0.01 || (overpaid > 0 && inCash) || rounding > 0
+    const short   = diff >= 0.01 && rounding === 0
+    this.roundingHintTarget.hidden = !(short && minimum < finalTotal && paidSum > 0)
+    this.roundingHintTarget.textContent = `Con descuento se puede redondear hasta ${this._fmt(minimum)}.`
     this.summaryDiffTarget.classList.toggle("text-emerald-600", settled)
     this.summaryDiffTarget.classList.toggle("text-red-600", !settled)
     this.overpaidHelperTarget.hidden = overpaid === 0 || inCash
     const missingMethod = tenders.some(t => t.amount > 0 && !t.method)
     this.methodHintTarget.hidden = !missingMethod
-    this.submitButtonTarget.disabled = diff >= 0.01 || !inCash || missingMethod
+    this.submitButtonTarget.disabled = short || !inCash || missingMethod
   }
 
   confirmOverpayment(event) {
@@ -104,6 +109,13 @@ export default class extends Controller {
   // In integer cents, rounding half-up like the server.
   _finalTotal(discount) {
     return Math.round(Math.round(this.originalTotalValue * 100) * (100 - discount) / 100) / 100
+  }
+
+  // Mirrors Payments::CollectSaleNote#minimum_charge.
+  _minimumCharge(finalTotal, discount) {
+    if (discount === 0) return finalTotal
+    const floor = Math.floor(finalTotal / 100) * 100
+    return floor > 0 ? floor : finalTotal
   }
 
   _readTenders() {

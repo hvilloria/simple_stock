@@ -81,8 +81,26 @@ RSpec.describe Payments::CollectSaleNote do
         expect(CashMovement.find_by(source_payment_id: note.payments.sole.id).amount).to eq(72_300)
       end
 
-      it "refuses less than the exact total" do
-        expect(collect(72_200)).to be_failure
+      it "accepts the total rounded down to the hundred and closes the note at what was charged" do
+        expect(collect(72_200)).to be_success
+        note.reload
+        expect(note.total_amount).to eq(72_200)
+        expect(note.discount_amount).to eq(8_030)
+        expect(note.rounding_amount).to eq(-70)
+        expect(note.overpaid_amount).to eq(0)
+        expect(note.outstanding_balance).to eq(0)
+        expect(note.status).to eq("confirmed")
+        expect(CashMovement.find_by(source_payment_id: note.payments.sole.id).amount).to eq(72_200)
+      end
+
+      it "accepts any amount between the rounded and the exact total" do
+        expect(collect(72_250)).to be_success
+        expect(note.reload.total_amount).to eq(72_250)
+        expect(note.outstanding_balance).to eq(0)
+      end
+
+      it "refuses less than the total rounded down to the hundred" do
+        expect(collect(72_190)).to be_failure
         expect(note.reload.status).to eq("pending")
       end
     end
@@ -179,6 +197,14 @@ RSpec.describe Payments::CollectSaleNote do
       )
 
       expect(result).to be_failure
+    end
+
+    it "does not round down without a discount" do
+      result = described_class.call(user: cashier, order: order, discount_percent: 0,
+                                    tenders: [ { payment_method: "cash", amount: 900 } ])
+
+      expect(result).to be_failure
+      expect(order.reload.status).to eq("pending")
     end
 
     it "rejects when tender sum != effective total (no discount)" do

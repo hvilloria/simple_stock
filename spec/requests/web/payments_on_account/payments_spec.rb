@@ -25,6 +25,19 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
   end
 
   describe "POST create" do
+    it "settles the operation with the discounted cash rounded down to the hundred" do
+      big = create(:order, :on_account, total_amount: 100_400, original_total_amount: 100_400)
+      create(:order_item, order: big, product: product, quantity: 1, unit_price: 100_400)
+      sign_in caja
+
+      post web_payments_on_account_payment_path(big),
+           params: { discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "90.300,00" } } }
+
+      expect(response).to redirect_to(web_payments_on_account_path(big))
+      expect(big.reload.outstanding_balance).to eq(0)
+      expect(big.payment_allocations.sole.discount_amount).to eq(10_100)
+    end
+
     it "refuses a tender without a payment method" do
       sign_in caja
       expect {

@@ -74,6 +74,32 @@ RSpec.describe Payments::CollectOnAccount do
       expect(allocation.overpaid_amount).to eq(0)
     end
 
+    it "settles the whole balance with the discounted cash rounded down to the hundred" do
+      result = collect(note_3738, 1_533_900, discount: 10)
+
+      expect(result).to be_success
+      note_3738.reload
+      expect(note_3738.outstanding_balance).to eq(0)
+      expect(note_3738.status).to eq("confirmed")
+      expect(note_3738.total_amount).to eq(1_533_900)
+      allocation = note_3738.payment_allocations.sole
+      expect(allocation.discount_amount).to eq(170_500)
+      expect(allocation.overpaid_amount).to eq(0)
+    end
+
+    it "keeps cash below the rounded hundred as a partial collection" do
+      expect(collect(note_3738, 1_533_899, discount: 10)).to be_success
+
+      expect(note_3738.reload.outstanding_balance).to eq(68)
+      expect(note_3738.status).to eq("pending")
+    end
+
+    it "does not round down without a discount" do
+      expect(collect(note_3738, 1_704_300)).to be_success
+
+      expect(note_3738.reload.outstanding_balance).to eq(100)
+    end
+
     it "settles the balance and records cash above the settle amount as overpaid" do
       result = collect(note_3738, 1_534_000, discount: 10, confirmed_overpaid: 40)
 

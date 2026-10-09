@@ -94,4 +94,24 @@ RSpec.describe "Sale note collection", type: :system do
     expect(Payment.count).to eq(0)
     expect(note.reload.status).to eq("pending")
   end
+
+  it "accepts the discounted total rounded down to the hundred as a rounding" do
+    visit new_web_sale_note_payment_path(note)
+    select "10%", from: "discount_percent"
+    select "Efectivo", from: "tenders[0][payment_method]"
+    amount = find("[data-sale-note-payment-target='tenderAmount']")
+
+    amount.set("72100", clear: :backspace)
+    expect(page).to have_button("Confirmar cobro", disabled: true)
+    expect(page).to have_content(/Con descuento se puede redondear hasta \$\s72\.200,00\./)
+
+    amount.set("72200", clear: :backspace)
+    expect(page).to have_css("[data-sale-note-payment-target='summaryDiffLabel']", text: "Redondeo")
+    expect(page).to have_css("[data-sale-note-payment-target='summaryDiff']", text: "70,00")
+    expect(page).to have_no_content("Con descuento se puede redondear")
+
+    click_button "Confirmar cobro"
+    expect(page).to have_content("Nota SN-1 cobrada")
+    expect(note.reload.total_amount).to eq(72_200)
+  end
 end

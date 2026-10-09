@@ -44,6 +44,34 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
   end
 
   describe "POST create" do
+    context "with a 10% cash discount on 100.400 (exact total 90.360)" do
+      let!(:big) do
+        o = create(:order, :pending, order_type: "immediate", paper_number: "G-2001",
+                   total_amount: 100_400, original_total_amount: 100_400)
+        create(:order_item, order: o, product: product, quantity: 1, unit_price: 100_400, discount_percent: 0)
+        o
+      end
+
+      it "accepts the total rounded down to the hundred, typed in AR format" do
+        post "/web/sale_notes/#{big.id}/payment", params: {
+          discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "90.300,00" } }
+        }
+
+        expect(response).to redirect_to(web_sale_notes_path)
+        expect(big.reload).to have_attributes(status: "confirmed", total_amount: 90_300)
+      end
+
+      it "refuses less than the rounded hundred" do
+        post "/web/sale_notes/#{big.id}/payment", params: {
+          discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "90.299,00" } }
+        }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(big.reload.status).to eq("pending")
+        expect(Payment.count).to eq(0)
+      end
+    end
+
     it "refuses a tender without a payment method and leaves the note pending" do
       expect {
         post "/web/sale_notes/#{note.id}/payment", params: {

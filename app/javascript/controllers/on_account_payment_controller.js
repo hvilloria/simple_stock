@@ -12,7 +12,7 @@ export default class extends Controller {
     "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "settleAllButton",
     "receivedLine", "discountRow", "discountLabel", "discountLine",
     "resultRows", "settledLine", "balanceAfter", "overpaidRow", "overpaidLine",
-    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint"
+    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint", "roundingRow", "roundingLine"
   ]
   static values = { balance: Number, pendingDelivery: Boolean }
 
@@ -32,14 +32,17 @@ export default class extends Controller {
     const received = tenders.reduce((sum, t) => sum + t.amount, 0)
     const settleAll = this._settleAllCash(discount)
     const overpaid = this._overpaid(tenders, settleAll)
-    const settled = this._settled(received, discount, settleAll, overpaid)
+    const rounding = this._rounding(received, discount, settleAll)
+    const settled = this._settled(received, discount, settleAll, overpaid, rounding)
     const excess = settled > this.balanceValue + 0.001
 
     this.settleAllButtonTarget.textContent = `Saldar todo: cobrar ${this.format(settleAll)}`
     this.receivedLineTarget.textContent = this.format(received)
     this.discountRowTarget.hidden = discount === 0 || excess
     this.discountLabelTarget.textContent = `Descuento ${discount}% en efectivo`
-    this.discountLineTarget.textContent = this.format(settled - received + overpaid)
+    this.discountLineTarget.textContent = this.format(settled - received + overpaid - rounding)
+    this.roundingRowTarget.hidden = rounding === 0 || excess
+    this.roundingLineTarget.textContent = this.format(rounding)
     this.settledLineTarget.textContent = this.format(settled)
     this.balanceAfterTarget.textContent = this.format(this.balanceValue - settled)
     this.overpaidRowTarget.hidden = overpaid === 0
@@ -90,7 +93,7 @@ export default class extends Controller {
     const received = tenders.reduce((sum, t) => sum + t.amount, 0)
     const settleAll = this._settleAllCash(discount)
     const overpaid = this._overpaid(tenders, settleAll)
-    const settled = this._settled(received, discount, settleAll, overpaid)
+    const settled = this._settled(received, discount, settleAll, overpaid, this._rounding(received, discount, settleAll))
 
     this.confirmedOverpaidTarget.value = overpaid > 0 ? this._fmtPlain(overpaid) : "0"
 
@@ -118,8 +121,16 @@ export default class extends Controller {
     return extra >= 0.01 && extra <= cash + 0.001 ? extra : 0
   }
 
-  _settled(received, discount, settleAll, overpaid) {
-    if (Math.abs(received - settleAll) < 0.005 || overpaid > 0) return this.balanceValue
+  // Mirrors Payments::CollectOnAccount#rounded_down?: with a discount, cash
+  // down to the hundred below the settle amount still settles the balance.
+  _rounding(received, discount, settleAll) {
+    if (discount === 0) return 0
+    const floor = Math.floor(settleAll / 100) * 100
+    return floor > 0 && received >= floor && received < settleAll - 0.005 ? +(settleAll - received).toFixed(2) : 0
+  }
+
+  _settled(received, discount, settleAll, overpaid, rounding) {
+    if (Math.abs(received - settleAll) < 0.005 || overpaid > 0 || rounding > 0) return this.balanceValue
     if (discount === 0) return received
     return Math.round(received * 100 / (100 - discount))
   }

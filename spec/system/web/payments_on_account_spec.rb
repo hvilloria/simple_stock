@@ -148,4 +148,23 @@ RSpec.describe "Pagos a cuenta", type: :system do
     expect(page).to have_button("Registrar cobro", disabled: false)
     expect(Payment.count).to eq(0)
   end
+
+  it "settles with the discounted cash rounded down to the hundred, showing the rounding" do
+    big = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
+                 total_amount: 1_704_400, original_total_amount: 1_704_400)
+    create(:order_item, order: big, product: create(:product), quantity: 1, unit_price: 1_704_400)
+
+    visit new_web_payments_on_account_payment_path(big)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    select "10%", from: "discount_percent"
+    find("[data-on-account-payment-target='tenderAmount']").set("1533900", clear: :backspace)
+
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "0,00")
+    expect(page).to have_css("[data-on-account-payment-target='roundingLine']", text: "60,00")
+    expect(page).to have_css("[data-on-account-payment-target='discountLine']", text: "170.440,00")
+
+    accept_confirm(/faltan productos por entregar/) { click_button "Registrar cobro" }
+    expect(page).to have_content("Cobro registrado")
+    expect(big.reload.outstanding_balance).to eq(0)
+  end
 end
