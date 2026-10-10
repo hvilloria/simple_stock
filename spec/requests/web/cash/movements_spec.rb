@@ -179,6 +179,39 @@ RSpec.describe "Web::Cash::Movements", type: :request do
     end
   end
 
+  describe "an outflow needs a description" do
+    [
+      { category: "suppliers" },
+      { category: "fixed_expense", subcategory: "store_expenses" },
+      { category: "partner", direction: "withdrawal", account: "main_cash" }
+    ].each do |outflow|
+      it "refuses a #{outflow[:category]} outflow with a blank description and writes nothing" do
+        expect {
+          post_movement(outflow.merge(description: "  ", amount: "100.000,00"))
+        }.not_to change(CashMovement, :count)
+
+        expect(response.body).to include("La descripción es obligatoria en una salida.")
+      end
+    end
+
+    it "still takes an inflow without a description" do
+      expect {
+        post_movement(category: "sale", channel: "cash", amount: "1.000,00")
+      }.to change(CashMovement, :count).by(1)
+    end
+
+    it "refuses clearing the description of an outflow on correction" do
+      outflow = create(:cash_movement, :store_expense, business_date: Date.new(2026, 8, 3), user: admin)
+
+      patch "/web/cash/movements/#{outflow.id}",
+            params: { category: "fixed_expense", subcategory: "store_expenses", description: "", amount: "13.000,00" },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include("La descripción es obligatoria en una salida.")
+      expect(outflow.reload.description).to eq("Mundo de la Bolsa — 100 bolsas")
+    end
+  end
+
   describe "every category the drawer zone offers" do
     it "loads each one end to end" do
       post_movement(category: "sale", channel: "cash", description: "Venta", amount: "1.000,00")

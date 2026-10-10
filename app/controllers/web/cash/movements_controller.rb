@@ -7,6 +7,7 @@ module Web
       include SupplierOptions
 
       OUTFLOW_CATEGORIES = %w[suppliers fixed_expense].freeze
+      DESCRIPTION_REQUIRED = "La descripción es obligatoria en una salida."
 
       def create
         authorize CashMovement, :create?
@@ -18,6 +19,7 @@ module Web
         return refuse("El día está cerrado.") if day_closed?
         return refuse("Esa categoría no se carga en esta zona.") unless zone_category?
         return refuse("Indicá si el socio retira o aporta.") unless partner_direction?
+        return refuse(DESCRIPTION_REQUIRED) if missing_outflow_description?
 
         amount = signed_amount
         return refuse("El monto no es un número.") if amount.nil?
@@ -57,6 +59,7 @@ module Web
         return refuse_closed_day if day_closed?
         return refuse_edit("Esa categoría no se carga en esta zona.") unless zone_category?
         return refuse_edit("Indicá si el socio retira o aporta.") unless partner_direction?
+        return refuse_edit(DESCRIPTION_REQUIRED) if missing_outflow_description?
 
         amount = signed_amount
         return refuse_edit("El monto no es un número.") if amount.nil?
@@ -165,6 +168,10 @@ module Web
 
       # partner is the one category that goes both ways, so the direction comes
       # from the named field beside it rather than from the category.
+      def missing_outflow_description?
+        outflow_submission? && params[:description].blank?
+      end
+
       def outflow_submission?
         return params[:direction] == "withdrawal" if params[:category] == "partner"
 
