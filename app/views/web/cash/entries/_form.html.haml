@@ -77,7 +77,7 @@
         %label.block.flex-1.min-w-40
           %span{ class: label_text } Descripción
           = text_field_tag :description, out_fields[:description], id: "#{key}-out-description",
-                           placeholder: "Opcional", autocomplete: "off", class: control
+                           placeholder: "Obligatoria", required: true, autocomplete: "off", class: control
         %label.block.w-44
           %span{ class: label_text } Qué es
           %select{ id: "#{key}-out-kind", class: control, data: { "cash-entry-target": "kind", action: refresh } }

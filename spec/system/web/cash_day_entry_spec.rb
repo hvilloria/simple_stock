@@ -137,7 +137,7 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
 
       it "stores what #{answers.compact.join(' · ')} means" do
         visit day_path
-        load_entry(**row.except(:stores))
+        load_entry(**row.except(:stores).reverse_merge(description: "Carga de prueba"))
 
         expect(page).to have_css("#day-entries tr", count: 1)
 
@@ -153,6 +153,14 @@ RSpec.describe "Caja - fila de carga del día", type: :system do
         ).to eq(expected)
         expect(movement.amount.abs).to eq(1500)
       end
+    end
+
+    it "does not submit a Salida without a description" do
+      visit day_path
+      load_entry(mode: "out", kind: "Proveedor", method: "Efectivo", pile: "Caja del día", amount: "100000")
+
+      expect(page).to have_css("#day-entry-out-description:invalid")
+      expect(CashMovement.count).to eq(0)
     end
 
     it "stores an Entre arcas movement as two legs, from one arca to the other" do
