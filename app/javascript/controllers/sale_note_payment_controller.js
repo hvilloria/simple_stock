@@ -73,7 +73,7 @@ export default class extends Controller {
     this.summaryDiffTarget.classList.toggle("text-red-600", !settled)
     this.overpaidHelperTarget.hidden = overpaid === 0 || inCash
     const missingMethod = tenders.some(t => t.amount > 0 && !t.method)
-    const missingInvoiceNumber = tenders.some(t => ["a", "b"].includes(t.invoiceType) && !t.invoiceNumber)
+    const missingInvoiceNumber = tenders.some(t => t.amount > 0 && ["a", "b"].includes(t.invoiceType) && !t.invoiceNumber)
     this.methodHintTarget.hidden = !missingMethod
     this.invoiceHintTarget.hidden = !missingInvoiceNumber
     this.submitButtonTarget.disabled = short || !inCash || missingMethod || missingInvoiceNumber

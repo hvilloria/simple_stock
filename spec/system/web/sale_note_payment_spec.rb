@@ -160,6 +160,17 @@ RSpec.describe "Sale note collection", type: :system do
     expect(page).to have_no_field("tenders[1][invoice_number]")
   end
 
+  it "does not ask for the number on an empty row" do
+    visit new_web_sale_note_payment_path(note)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    find("[data-sale-note-payment-target='tenderAmount']").set("80300", clear: :backspace)
+    click_button "+ Agregar método"
+    select "Factura B", from: "tenders[1][invoice_type]"
+
+    expect(page).to have_no_content("Falta el número de factura")
+    expect(page).to have_button("Confirmar cobro", disabled: false)
+  end
+
   [ [ 1280, 800 ], [ 1366, 768 ] ].each do |width, height|
     it "does not overflow the page horizontally at #{width}x#{height} with an invoice number" do
       visit new_web_sale_note_payment_path(note)
