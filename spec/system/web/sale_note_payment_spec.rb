@@ -159,4 +159,15 @@ RSpec.describe "Sale note collection", type: :system do
     expect(page).to have_select("tenders[1][invoice_type]", selected: "Factura")
     expect(page).to have_no_field("tenders[1][invoice_number]")
   end
+
+  [ [ 1280, 800 ], [ 1366, 768 ] ].each do |width, height|
+    it "does not overflow the page horizontally at #{width}x#{height} with an invoice number" do
+      visit new_web_sale_note_payment_path(note)
+      page.current_window.resize_to(width, height)
+      select "Banco Transferencia", from: "tenders[0][payment_method]"
+      select "Factura B", from: "tenders[0][invoice_type]"
+
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    end
+  end
 end
