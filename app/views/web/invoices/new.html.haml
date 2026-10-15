@@ -163,7 +163,7 @@
           .flex.items-center.gap-2.mb-2
             %h3.text-lg.font-semibold.text-gray-900 Productos
             %span.text-sm.text-slate-500{ data: { invoice_lines_target: "counter" } } opcional
-          %p.text-sm.text-slate-600.mb-4 Si cargás los productos de la factura, la factura suma ese stock y el monto se calcula solo.
+          %p.text-sm.text-slate-600.mb-4 Si se cargan los productos de la factura, la factura suma ese stock y el monto se calcula solo.
 
           %div{ data: { controller: "product-search", product_search_url_value: search_web_products_path, product_search_dim_out_of_stock_value: "false", action: "click@window->product-search#clickOutside" }, class: "mb-4 relative" }
             %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { product_search_target: "input", action: "input->product-search#search" } }

@@ -55,12 +55,12 @@ module Invoices
 
     def validate!
       raise ValidationError, "Debe haber al menos una factura para pagar" if @invoices.empty?
-      raise ValidationError, "Elegí de dónde sale la plata" unless ACCOUNTS.include?(@account)
+      raise ValidationError, "Seleccionar de dónde sale el dinero" unless ACCOUNTS.include?(@account)
       raise ValidationError, "La fecha de pago es obligatoria" if @payment_date.nil?
       raise ValidationError, "La fecha de pago no puede ser futura" if @payment_date > Date.current
 
       if DailyClosing.exists?(business_date: @payment_date)
-        raise ValidationError, "El día #{@payment_date.strftime('%d/%m/%Y')} está cerrado. Usá una fecha abierta."
+        raise ValidationError, "El día #{@payment_date.strftime('%d/%m/%Y')} está cerrado. Usar una fecha abierta."
       end
 
       @invoices.each { |invoice| validate_invoice(invoice) }
@@ -69,7 +69,7 @@ module Invoices
         raise ValidationError, "Todas las facturas deben ser del mismo proveedor"
       end
       if @invoices.map(&:expense_type).uniq.size > 1
-        raise ValidationError, "Pagá por separado las facturas de distinto tipo"
+        raise ValidationError, "Las facturas de distinto tipo se pagan por separado"
       end
 
       validate_credit_notes if @credit_note_ids.any?

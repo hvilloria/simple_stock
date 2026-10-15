@@ -30,7 +30,7 @@ RSpec.describe "Credit account collection", type: :system do
     expect(page).to have_css("[data-role='overpaid-line']", text: "Cobrado de más")
     expect(page).to have_css("[data-payment-allocation-target='remainingBalance']", text: "$0")
 
-    accept_confirm(/Vas a cobrar de más en efectivo/) { click_button "Registrar Cobro" }
+    accept_confirm(/Se cobrará de más en efectivo/) { click_button "Registrar Cobro" }
     expect(page).to have_current_path(web_customer_path(customer), ignore_query: true)
     expect(order.reload.overpaid_amount).to eq(100)
   end

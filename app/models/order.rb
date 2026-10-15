@@ -99,6 +99,16 @@ class Order < ApplicationRecord
     payment_allocations.sum(:overpaid_amount)
   end
 
+  # Percent of the last collection, recovered from what it took off the debt.
+  def last_collection_discount_percent
+    last = payment_allocations.order(:id).last
+    return 0 if last.nil? || last.discount_amount.zero?
+
+    lowered = last.amount + last.discount_amount - last.overpaid_amount
+    percent = last.discount_amount / lowered * 100
+    Payments::CollectOnAccount::ALLOWED_DISCOUNTS.min_by { |d| (d - percent).abs }
+  end
+
   def from_paper?
     source == "from_paper"
   end

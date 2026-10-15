@@ -330,7 +330,7 @@ RSpec.describe "Web::Cash::Days", type: :request do
       channels = group("in").css("[data-cash-entry-target='channel'] option").map(&:text)
       supplier = group("in").at("[data-cash-entry-target='supplier']")
 
-      expect(channels).to include("Compensación — no entra plata")
+      expect(channels).to include("Compensación — no entra dinero")
       expect(supplier.key?("disabled")).to be(true)
       expect(supplier.ancestors("label").first.key?("hidden")).to be(true)
     end

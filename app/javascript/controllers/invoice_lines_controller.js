@@ -130,7 +130,7 @@ export default class extends Controller {
       this.linesTarget.innerHTML = `
         <div class="rounded-lg border border-dashed border-slate-300 px-6 py-8 text-center">
           <p class="text-sm font-medium text-slate-700">No hay productos cargados.</p>
-          <p class="mt-1 text-xs text-slate-500">Buscá y agregá si querés que esta factura sume stock.</p>
+          <p class="mt-1 text-xs text-slate-500">Agregar productos solo si esta factura debe sumar stock.</p>
         </div>
       `
       return

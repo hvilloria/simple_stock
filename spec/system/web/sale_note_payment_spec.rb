@@ -30,7 +30,7 @@ RSpec.describe "Sale note collection", type: :system do
     expect(page).to have_css("[data-sale-note-payment-target='summaryDiffLabel']", text: "Cobrado de más")
     expect(page).to have_css("[data-sale-note-payment-target='summaryDiff']", text: "30,00")
 
-    accept_confirm(/Vas a cobrar .*30,00 de más en efectivo/) { click_button "Confirmar cobro" }
+    accept_confirm(/Se cobrará .*30,00 de más en efectivo/) { click_button "Confirmar cobro" }
     expect(page).to have_content("Nota SN-1 cobrada")
     expect(note.reload.total_amount).to eq(72_300)
   end

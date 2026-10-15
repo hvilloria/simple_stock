@@ -452,7 +452,7 @@ RSpec.describe Payments::AllocatePayment, type: :service do
                                                        confirmed_overpaid: confirmed } ])
 
         expect(result.success?).to be false
-        expect(result.errors).to eq([ "El saldo cambió mientras cobrabas. Revisá el monto." ])
+        expect(result.errors).to eq([ "El saldo cambió durante el cobro. Revisar el monto." ])
         expect(order_a.reload.total_amount).to eq(300)
         expect(order_a.payment_allocations).to be_empty
         expect(Payment.count).to eq(0)

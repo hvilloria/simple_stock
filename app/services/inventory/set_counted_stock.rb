@@ -34,7 +34,7 @@ module Inventory
       Result.new(success?: false, record: nil, errors: [ "Producto no encontrado" ])
     rescue ActiveRecord::Deadlocked
       Result.new(success?: false, record: nil,
-                 errors: [ "Otro movimiento de stock se guardó al mismo tiempo. Probá guardar el ajuste de nuevo." ])
+                 errors: [ "Otro movimiento de stock se guardó al mismo tiempo. Volver a guardar el ajuste." ])
     rescue StandardError => e
       Rails.logger.error("Error in Inventory::SetCountedStock: #{e.message}")
       Result.new(success?: false, record: nil, errors: [ "Error guardando el ajuste" ])
@@ -46,7 +46,7 @@ module Inventory
 
     def validate!
       raise ValidationError, "El motivo es obligatorio" if @note.empty?
-      raise ValidationError, "Agregá al menos un producto" if @lines.empty?
+      raise ValidationError, "Falta agregar al menos un producto" if @lines.empty?
 
       seen = []
       @lines.each do |line|

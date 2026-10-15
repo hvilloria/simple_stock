@@ -379,6 +379,42 @@ RSpec.describe Order, type: :model do
     end
   end
 
+  describe "#last_collection_discount_percent" do
+    let(:customer) { Customer.mostrador }
+    let(:order) { create(:order, :on_account, customer: customer, original_total_amount: 89_000, total_amount: 89_000) }
+
+    def allocate(amount:, discount: 0, overpaid: 0, method: "cash")
+      payment = Payment.create!(customer: customer, amount: amount, payment_method: method, payment_date: Date.current)
+      PaymentAllocation.create!(payment: payment, order: order, amount: amount,
+                                discount_amount: discount, overpaid_amount: overpaid)
+    end
+
+    it "is zero without collections" do
+      expect(order.last_collection_discount_percent).to eq(0)
+    end
+
+    it "is the percent of the last collection" do
+      allocate(amount: 40_000, discount: 4_444)
+      expect(order.last_collection_discount_percent).to eq(10)
+    end
+
+    it "recognizes a 5% collection" do
+      allocate(amount: 40_000, discount: 2_105)
+      expect(order.last_collection_discount_percent).to eq(5)
+    end
+
+    it "is zero when the last collection had no discount" do
+      allocate(amount: 40_000, discount: 4_444)
+      allocate(amount: 10_000, method: "bank_transfer")
+      expect(order.last_collection_discount_percent).to eq(0)
+    end
+
+    it "ignores cash collected above what was owed" do
+      allocate(amount: 72_300, discount: 8_030, overpaid: 30)
+      expect(order.last_collection_discount_percent).to eq(10)
+    end
+  end
+
   describe "#rounding_amount" do
     let(:customer) { Customer.create!(name: "T", customer_type: "retail") }
     let(:product) { Product.create!(sku: "X", name: "P", price_unit: 100, cost_unit: 50, cost_currency: "ARS") }

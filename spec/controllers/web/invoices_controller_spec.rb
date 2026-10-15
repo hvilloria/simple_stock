@@ -422,7 +422,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
 
         expect(invoice.reload.pending_status?).to be true
         follow_redirect!
-        expect(response.body).to include("Elegí de dónde sale la plata")
+        expect(response.body).to include("Seleccionar de dónde sale el dinero")
       end
     end
 
@@ -638,7 +638,7 @@ RSpec.describe "Web::InvoicesController - Filters", type: :request do
           payment_date: Date.current.to_s, account: "main_cash"
         }
 
-        expect(flash[:notice]).to include("No salió plata de ninguna arca.")
+        expect(flash[:notice]).to include("No salió dinero de ninguna arca.")
       end
     end
 

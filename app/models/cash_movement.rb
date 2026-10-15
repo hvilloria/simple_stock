@@ -209,14 +209,14 @@ class CashMovement < ApplicationRecord
         errors.add(:base, "Una venta por compensación no lleva arca: no entra dinero a ninguna caja.")
       end
     elsif account.blank?
-      errors.add(:base, "Falta el arca: indicá a qué caja entra o de cuál sale el dinero.")
+      errors.add(:base, "Falta el arca: indicar a qué caja entra o de cuál sale el dinero.")
     end
   end
 
   def channel_only_on_sales
     if sale_category?
       if channel.blank?
-        errors.add(:base, "Falta el canal: indicá cómo entró el dinero de la venta.")
+        errors.add(:base, "Falta el canal: indicar cómo entró el dinero de la venta.")
       end
     elsif channel.present?
       errors.add(:base, "El canal solo corresponde a una venta.")
@@ -226,7 +226,7 @@ class CashMovement < ApplicationRecord
   def subcategory_only_on_fixed_expenses
     if fixed_expense_category?
       if subcategory.blank?
-        errors.add(:base, "Falta la subcategoría: indicá de qué tipo de gasto fijo se trata.")
+        errors.add(:base, "Falta la subcategoría: indicar de qué tipo de gasto fijo se trata.")
       end
     elsif subcategory.present?
       errors.add(:base, "La subcategoría solo corresponde a un gasto fijo.")
@@ -244,7 +244,7 @@ class CashMovement < ApplicationRecord
   def supplier_only_on_compensation_sales
     if compensation_channel?
       if supplier.blank?
-        errors.add(:base, "Falta el proveedor: indicá a quién se le descuenta la deuda por la compensación.")
+        errors.add(:base, "Falta el proveedor: indicar a quién se le descuenta la deuda por la compensación.")
       end
     elsif supplier.present?
       errors.add(:base, "El proveedor solo corresponde a una venta por compensación.")

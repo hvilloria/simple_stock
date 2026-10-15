@@ -88,7 +88,7 @@ RSpec.describe "Web::Suppliers", type: :request do
       }.not_to change(Supplier, :count)
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Elegí al menos un tipo de factura")
+      expect(response.body).to include("Falta seleccionar al menos un tipo de factura")
     end
   end
 
@@ -154,7 +154,7 @@ RSpec.describe "Web::Suppliers", type: :request do
       patch web_supplier_path(supplier), params: { supplier: { expense_types: [ "" ] } }
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Elegí al menos un tipo de factura")
+      expect(response.body).to include("Falta seleccionar al menos un tipo de factura")
       expect(supplier.reload.expense_types).to eq([ "supplier" ])
     end
 
