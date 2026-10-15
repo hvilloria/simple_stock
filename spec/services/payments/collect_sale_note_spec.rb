@@ -292,6 +292,73 @@ RSpec.describe Payments::CollectSaleNote do
       expect(order.payment_allocations.sum(:amount)).to eq(1000)
       expect(order.payments.map(&:payment_method)).to eq([ "cash" ])
     end
+
+    context "with an invoice per tender" do
+      def collect(*tenders)
+        described_class.call(user: cashier, order: order, discount_percent: 0, tenders: tenders)
+      end
+
+      it "bills each method's payment with its own invoice" do
+        result = collect({ payment_method: "cash", amount: 600, invoice_type: "none" },
+                         { payment_method: "bank_card", amount: 400, invoice_type: "b", invoice_number: "1452" })
+
+        expect(result).to be_success
+        payments = order.reload.payments.index_by(&:payment_method)
+        expect(payments["cash"]).to have_attributes(invoice_type: "none", invoice_number: nil)
+        expect(payments["bank_card"]).to have_attributes(invoice_type: "b", invoice_number: "1452")
+      end
+
+      it "leaves a payment unbilled when its row has no invoice type" do
+        result = collect({ payment_method: "cash", amount: 1000, invoice_type: nil, invoice_number: nil })
+
+        expect(result).to be_success
+        expect(order.reload.payments.sole.invoice_type).to be_nil
+      end
+
+      it "drops a stray number on Sin factura" do
+        result = collect({ payment_method: "cash", amount: 1000, invoice_type: "none", invoice_number: "99" })
+
+        expect(result).to be_success
+        expect(order.reload.payments.sole).to have_attributes(invoice_type: "none", invoice_number: nil)
+      end
+
+      it "refuses Factura A or B without a number and writes nothing" do
+        result = collect({ payment_method: "cash", amount: 600, invoice_type: "none" },
+                         { payment_method: "bank_card", amount: 400, invoice_type: "b", invoice_number: "   " })
+
+        expect(result).to be_failure
+        expect(result.errors).to eq([ "El número es obligatorio para Factura A o B" ])
+        expect(Payment.count).to eq(0)
+        expect(PaymentAllocation.count).to eq(0)
+        expect(CashMovement.count).to eq(0)
+        expect(order.reload).to be_pending_status
+      end
+
+      it "refuses two rows of one method with different invoices" do
+        result = collect({ payment_method: "cash", amount: 600, invoice_type: "b", invoice_number: "1" },
+                         { payment_method: "cash", amount: 400, invoice_type: "b", invoice_number: "2" })
+
+        expect(result).to be_failure
+        expect(result.errors).to eq([ "Las filas de Efectivo tienen facturas distintas" ])
+        expect(Payment.count).to eq(0)
+      end
+
+      it "refuses two rows of one method when only one has an invoice" do
+        result = collect({ payment_method: "cash", amount: 600, invoice_type: "b", invoice_number: "1" },
+                         { payment_method: "cash", amount: 400 })
+
+        expect(result).to be_failure
+        expect(result.errors).to eq([ "Las filas de Efectivo tienen facturas distintas" ])
+      end
+
+      it "accepts two rows of one method with the same invoice as one billed payment" do
+        result = collect({ payment_method: "cash", amount: 600, invoice_type: "b", invoice_number: "7" },
+                         { payment_method: "cash", amount: 400, invoice_type: "b", invoice_number: " 7 " })
+
+        expect(result).to be_success
+        expect(order.reload.payments.sole).to have_attributes(amount: 1000, invoice_type: "b", invoice_number: "7")
+      end
+    end
   end
 
   describe "cash movements" do

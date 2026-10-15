@@ -40,7 +40,8 @@ module Web
         rows.to_unsafe_h.values.filter_map do |row|
           amount = parse_amount(row[:amount])
           next if amount <= 0
-          { payment_method: row[:payment_method], amount: amount }
+          { payment_method: row[:payment_method], amount: amount,
+            invoice_type: row[:invoice_type].presence, invoice_number: row[:invoice_number].to_s.strip.presence }
         end
       end
 

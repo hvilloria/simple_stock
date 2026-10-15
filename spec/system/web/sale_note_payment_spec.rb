@@ -114,4 +114,71 @@ RSpec.describe "Sale note collection", type: :system do
     expect(page).to have_content("Nota SN-1 cobrada")
     expect(note.reload.total_amount).to eq(72_200)
   end
+
+  it "asks for the number only on Factura A or B and blocks submit without it" do
+    visit new_web_sale_note_payment_path(note)
+    select "Banco Tarjeta", from: "tenders[0][payment_method]"
+    find("[data-sale-note-payment-target='tenderAmount']").set("80300", clear: :backspace)
+    expect(page).to have_no_field("tenders[0][invoice_number]")
+
+    select "Factura B", from: "tenders[0][invoice_type]"
+    expect(page).to have_field("tenders[0][invoice_number]")
+    expect(page).to have_button("Confirmar cobro", disabled: true)
+    expect(page).to have_content("Falta el número de factura")
+
+    fill_in "tenders[0][invoice_number]", with: "1452"
+    expect(page).to have_button("Confirmar cobro", disabled: false)
+    expect(page).to have_no_content("Falta el número de factura")
+
+    click_button "Confirmar cobro"
+    expect(page).to have_content("Nota SN-1 cobrada")
+    expect(note.reload.payments.sole.invoice_label).to eq("Factura B · 1452")
+  end
+
+  it "clears the number when the row goes back to no invoice" do
+    visit new_web_sale_note_payment_path(note)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    find("[data-sale-note-payment-target='tenderAmount']").set("80300", clear: :backspace)
+    select "Factura A", from: "tenders[0][invoice_type]"
+    fill_in "tenders[0][invoice_number]", with: "55"
+
+    select "Factura", from: "tenders[0][invoice_type]"
+    expect(page).to have_no_field("tenders[0][invoice_number]")
+
+    click_button "Confirmar cobro"
+    expect(page).to have_content("Nota SN-1 cobrada")
+    expect(note.reload.payments.sole).to have_attributes(invoice_type: nil, invoice_number: nil)
+  end
+
+  it "starts an added method row without an invoice" do
+    visit new_web_sale_note_payment_path(note)
+    select "Factura B", from: "tenders[0][invoice_type]"
+    fill_in "tenders[0][invoice_number]", with: "9"
+    click_button "+ Agregar método"
+
+    expect(page).to have_select("tenders[1][invoice_type]", selected: "Factura")
+    expect(page).to have_no_field("tenders[1][invoice_number]")
+  end
+
+  it "does not ask for the number on an empty row" do
+    visit new_web_sale_note_payment_path(note)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    find("[data-sale-note-payment-target='tenderAmount']").set("80300", clear: :backspace)
+    click_button "+ Agregar método"
+    select "Factura B", from: "tenders[1][invoice_type]"
+
+    expect(page).to have_no_content("Falta el número de factura")
+    expect(page).to have_button("Confirmar cobro", disabled: false)
+  end
+
+  [ [ 1280, 800 ], [ 1366, 768 ] ].each do |width, height|
+    it "does not overflow the page horizontally at #{width}x#{height} with an invoice number" do
+      visit new_web_sale_note_payment_path(note)
+      page.current_window.resize_to(width, height)
+      select "Banco Transferencia", from: "tenders[0][payment_method]"
+      select "Factura B", from: "tenders[0][invoice_type]"
+
+      expect(page.evaluate_script("document.documentElement.scrollWidth <= document.documentElement.clientWidth")).to be(true)
+    end
+  end
 end

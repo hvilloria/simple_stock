@@ -6,10 +6,10 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [
     "discountSelect", "discountHelper",
-    "tenderRows", "tenderRow", "tenderMethod", "tenderAmount",
+    "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "tenderInvoiceType", "tenderInvoiceNumber",
     "summaryDiscount", "summaryTotal", "summaryPaid", "summaryDiff", "summaryDiffLabel",
     "overpaidHelper", "confirmedOverpaid",
-    "submitButton", "methodHint", "roundingHint"
+    "submitButton", "methodHint", "invoiceHint", "roundingHint"
   ]
 
   static values = {
@@ -31,7 +31,7 @@ export default class extends Controller {
     // doesn't have to retype the amount after picking a discount.
     if (discount > 0 && this.tenderRowTargets.length === 1) {
       const finalTotal = this._finalTotal(discount)
-      this.tenderRowTargets[0].querySelector("input").value = this._fmtPlain(finalTotal)
+      this._rowField(this.tenderRowTargets[0], "tenderAmount").value = this._fmtPlain(finalTotal)
     }
 
     this.recalc()
@@ -73,8 +73,19 @@ export default class extends Controller {
     this.summaryDiffTarget.classList.toggle("text-red-600", !settled)
     this.overpaidHelperTarget.hidden = overpaid === 0 || inCash
     const missingMethod = tenders.some(t => t.amount > 0 && !t.method)
+    const missingInvoiceNumber = tenders.some(t => t.amount > 0 && ["a", "b"].includes(t.invoiceType) && !t.invoiceNumber)
     this.methodHintTarget.hidden = !missingMethod
-    this.submitButtonTarget.disabled = short || !inCash || missingMethod
+    this.invoiceHintTarget.hidden = !missingInvoiceNumber
+    this.submitButtonTarget.disabled = short || !inCash || missingMethod || missingInvoiceNumber
+  }
+
+  invoiceTypeChanged(event) {
+    const row = event.target.closest("[data-sale-note-payment-target='tenderRow']")
+    const number = this._rowField(row, "tenderInvoiceNumber")
+    const needsNumber = ["a", "b"].includes(event.target.value)
+    number.classList.toggle("hidden", !needsNumber)
+    if (!needsNumber) number.value = ""
+    this.recalc()
   }
 
   confirmOverpayment(event) {
@@ -89,12 +100,19 @@ export default class extends Controller {
     event.preventDefault()
     const idx = this._tenderIdx++
     const row = this.tenderRowTargets[0].cloneNode(true)
-    const select = row.querySelector("select")
-    select.name = `tenders[${idx}][payment_method]`
-    select.selectedIndex = 0
-    const input = row.querySelector("input")
-    input.name  = `tenders[${idx}][amount]`
-    input.value = ""
+    const method = this._rowField(row, "tenderMethod")
+    method.name = `tenders[${idx}][payment_method]`
+    method.selectedIndex = 0
+    const amount = this._rowField(row, "tenderAmount")
+    amount.name  = `tenders[${idx}][amount]`
+    amount.value = ""
+    const invoiceType = this._rowField(row, "tenderInvoiceType")
+    invoiceType.name = `tenders[${idx}][invoice_type]`
+    invoiceType.selectedIndex = 0
+    const invoiceNumber = this._rowField(row, "tenderInvoiceNumber")
+    invoiceNumber.name  = `tenders[${idx}][invoice_number]`
+    invoiceNumber.value = ""
+    invoiceNumber.classList.add("hidden")
     this.tenderRowsTarget.appendChild(row)
     this.recalc()
   }
@@ -120,11 +138,17 @@ export default class extends Controller {
 
   _readTenders() {
     return this.tenderRowTargets.map(row => {
-      const method = row.querySelector("select").value
-      const raw    = row.querySelector("input").value.replace(/\./g, "").replace(/,/g, ".")
+      const method = this._rowField(row, "tenderMethod").value
+      const raw    = this._rowField(row, "tenderAmount").value.replace(/\./g, "").replace(/,/g, ".")
       const amount = parseFloat(raw) || 0
-      return { method, amount }
+      const invoiceType   = this._rowField(row, "tenderInvoiceType").value
+      const invoiceNumber = this._rowField(row, "tenderInvoiceNumber").value.trim()
+      return { method, amount, invoiceType, invoiceNumber }
     })
+  }
+
+  _rowField(row, target) {
+    return row.querySelector(`[data-sale-note-payment-target='${target}']`)
   }
 
   _fmt(n) {

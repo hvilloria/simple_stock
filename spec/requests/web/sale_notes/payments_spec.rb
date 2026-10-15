@@ -36,14 +36,40 @@ RSpec.describe "Web::SaleNotes::Payments", type: :request do
       expect(response.body).to include("G-2000")
     end
 
-    it "no longer asks for the invoice while collecting" do
+    it "offers an optional invoice on each tender row" do
       get new_web_sale_note_payment_path(note)
 
-      expect(response.body).not_to include("invoice_type")
+      select = Nokogiri::HTML(response.body).at_css("select[name='tenders[0][invoice_type]']")
+      expect(select.css("option").map(&:text)).to eq([ "Factura", "Factura A", "Factura B", "Sin factura" ])
+      expect(select.at_css("option")["value"]).to eq("")
     end
   end
 
   describe "POST create" do
+    it "records the invoice typed on each tender row" do
+      post "/web/sale_notes/#{note.id}/payment", params: {
+        discount_percent: "0",
+        tenders: { "0" => { payment_method: "cash", amount: "100,00", invoice_type: "none" },
+                   "1" => { payment_method: "bank_card", amount: "100,00",
+                            invoice_type: "b", invoice_number: " 1452 " } }
+      }
+
+      expect(response).to redirect_to(web_sale_notes_path)
+      expect(note.reload.payments.map(&:invoice_label)).to contain_exactly("Sin factura", "Factura B · 1452")
+    end
+
+    it "refuses Factura B without a number and collects nothing" do
+      post "/web/sale_notes/#{note.id}/payment", params: {
+        discount_percent: "0",
+        tenders: { "0" => { payment_method: "cash", amount: "200,00", invoice_type: "b", invoice_number: "" } }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El número es obligatorio para Factura A o B")
+      expect(note.reload.status).to eq("pending")
+      expect(Payment.count).to eq(0)
+    end
+
     context "with a 10% cash discount on 100.400 (exact total 90.360)" do
       let!(:big) do
         o = create(:order, :pending, order_type: "immediate", paper_number: "G-2001",

@@ -60,7 +60,7 @@
             %span.text-xs.font-medium.text-slate-700.bg-slate-100.px-2.py-0.5.rounded Requerido
 
           .space-y-2{ data: { "sale-note-payment-target": "tenderRows" } }
-            .flex.gap-2.items-center{ data: { "sale-note-payment-target": "tenderRow" } }
+            .flex.flex-wrap.gap-2.items-center{ data: { "sale-note-payment-target": "tenderRow" } }
               = select_tag "tenders[0][payment_method]",
                   payment_method_options_with_prompt,
                   data: { "sale-note-payment-target": "tenderMethod",
@@ -72,6 +72,17 @@
                           controller: "currency-input",
                           action: "blur->currency-input#format focus->currency-input#unformat input->sale-note-payment#recalc" },
                   class: "w-32 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right"
+              = select_tag "tenders[0][invoice_type]",
+                  options_for_select(Payment::INVOICE_TYPE_LABELS.map { |key, label| [ label, key ] }),
+                  prompt: "Factura",
+                  data: { "sale-note-payment-target": "tenderInvoiceType",
+                          action: "change->sale-note-payment#invoiceTypeChanged" },
+                  class: "w-36 px-3 py-2 border border-slate-300 rounded-xl text-sm"
+              = text_field_tag "tenders[0][invoice_number]", nil,
+                  placeholder: "Número", autocomplete: "off",
+                  data: { "sale-note-payment-target": "tenderInvoiceNumber",
+                          action: "input->sale-note-payment#recalc" },
+                  class: "hidden w-28 px-3 py-2 border border-slate-300 rounded-xl text-sm"
               %button{ type: "button",
                        data: { action: "click->sale-note-payment#removeTender" },
                        class: "text-slate-400 hover:text-red-500 text-lg px-1" } ×
@@ -111,6 +122,7 @@
             data: { "sale-note-payment-target": "submitButton" },
             class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         %p.text-xs.text-slate-500.mt-2{ data: { "sale-note-payment-target": "methodHint" }, hidden: true } Falta seleccionar el medio de pago
+        %p.text-xs.text-slate-500.mt-2{ data: { "sale-note-payment-target": "invoiceHint" }, hidden: true } Falta el número de factura
 
     -# Cancel button OUTSIDE the charge form (it's a different POST)
     = button_to "Cancelar nota",
