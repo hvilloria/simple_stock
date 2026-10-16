@@ -202,7 +202,11 @@
                 - history.each do |a|
                   %tr.hover:bg-gray-50.transition-colors{ class: ("opacity-60" if a.voided?) }
                     %td.px-6.py-4.whitespace-nowrap
-                      = link_to l(a.payment.payment_date, format: :default), web_payment_path(a.payment), class: "text-sm text-gray-900 underline"
+                      - date = l(a.payment.payment_date, format: :default)
+                      - if policy(a.payment).show?
+                        = link_to date, web_payment_path(a.payment), class: "text-sm text-gray-900 underline"
+                      - else
+                        %span.text-sm.text-gray-900= date
 
                     %td.px-6.py-4.whitespace-nowrap
                       - if a.payment.payment_method == "cash"
