@@ -103,6 +103,28 @@ RSpec.describe Payments::CollectSaleNote do
         expect(collect(72_190)).to be_failure
         expect(note.reload.status).to eq("pending")
       end
+
+      it "records the cash discount on the allocation" do
+        expect(collect(72_270)).to be_success
+        expect(note.payment_allocations.sole.discount_amount).to eq(8_030)
+      end
+
+      it "counts the round-down shortfall in the allocation discount" do
+        expect(collect(72_200)).to be_success
+        expect(note.payment_allocations.sole.discount_amount).to eq(8_100)
+      end
+
+      it "keeps the allocation discount at the cash discount when cash exceeds the total" do
+        expect(collect(72_300, confirmed_overpaid: 30)).to be_success
+        expect(note.payment_allocations.sole).to have_attributes(discount_amount: 8_030, overpaid_amount: 30)
+      end
+    end
+
+    it "records no discount on the allocation without a cash discount" do
+      described_class.call(user: cashier, order: order, discount_percent: 0,
+                           tenders: [ { payment_method: "cash", amount: 1000 } ])
+
+      expect(order.payment_allocations.sole.discount_amount).to eq(0)
     end
 
     it "accepts cash above the total without a discount" do

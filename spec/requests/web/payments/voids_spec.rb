@@ -36,6 +36,19 @@ RSpec.describe "Web::Payments::Voids", type: :request do
       expect(button["data-turbo-confirm"]).to eq("¿Anular 2 cobros por $ 80.100,00?")
     end
 
+    it "shows what a discounted sale note collection settled, not just its cash" do
+      note = create(:order, :pending, order_type: "immediate", paper_number: "5120",
+                                      total_amount: 113_000, original_total_amount: 113_000)
+      create(:order_item, order: note, quantity: 1, unit_price: 113_000, discount_percent: 0)
+      Payments::CollectSaleNote.call(order: note, user: caja, discount_percent: 10,
+                                     tenders: [ { payment_method: "cash", amount: 101_700 } ])
+
+      get "/web/payments/#{note.payments.sole.id}/void/new"
+
+      row = page_html.css("tbody tr").sole
+      expect(row.css("td").map { |td| td.text.strip }).to include("101.700,00", "113.000,00")
+    end
+
     it "shows the block and no form on a closed day" do
       create(:daily_closing, business_date: day)
 
