@@ -72,6 +72,16 @@ RSpec.describe "Web::Payments::Voids", type: :request do
       expect(response.body).to include("Los cobros a anular cambiaron. Revisar la lista.")
     end
 
+    it "refuses a list carrying another customer's payment and voids nothing" do
+      stranger = create(:payment, amount: 500)
+
+      post "/web/payments/#{first.id}/void", params: { reason: "x", payment_ids: ids + [ stranger.id ] }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Los cobros a anular cambiaron. Revisar la lista.")
+      expect([ first.reload, second.reload, stranger.reload ]).to all(be_active_status)
+    end
+
     it "refuses a payment already voided" do
       post "/web/payments/#{first.id}/void", params: { reason: "x", payment_ids: ids }
       post "/web/payments/#{first.id}/void", params: { reason: "x", payment_ids: [ first.id ] }
