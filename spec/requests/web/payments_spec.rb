@@ -40,6 +40,31 @@ RSpec.describe "Web::Payments", type: :request do
       expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
     end
 
+    it "lists a collection reversed by a sale cancellation as voided, outside the totals" do
+      reversed = create(:payment, customer: payment.customer, payment_method: "cash", amount: 50_000, payment_date: date)
+      cancelled = create(:order, customer: payment.customer, paper_number: "5106", total_amount: 50_000)
+      create(:payment_allocation, payment: reversed, order: cancelled, amount: 50_000)
+      create(:cash_movement, source_payment: reversed, business_date: date, amount: 50_000)
+      expect(Sales::CancelOrder.call(order: cancelled, user: caja).success?).to be true
+      sign_in caja
+
+      get "/web/payments"
+
+      expect(page_html.css("tbody tr").map(&:text).join).not_to include("##{reversed.id}")
+      expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
+
+      get "/web/payments", params: { status: "voided" }
+
+      row = page_html.css("tbody tr").find { |tr| tr.text.include?("##{reversed.id}") }
+      expect(row.text).to include("Anulado", "Venta anulada", "5106")
+      expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
+
+      get "/web/payments/#{reversed.id}"
+
+      expect(response.body).to include("Motivo: Venta anulada")
+      expect(response.body).not_to include("Anular cobro")
+    end
+
     it "shows the empty state" do
       sign_in caja
 
@@ -98,7 +123,7 @@ RSpec.describe "Web::Payments", type: :request do
 
       expect(response.body).to include("Anulado", "Cobro anulado el 02/10/2026 por Caja Turno Tarde. Motivo: Monto mal cargado",
                                        "Notas que cubría", "4429")
-      expect(response.body).not_to include("Anular cobro", "Facturar", "porque se anuló la venta")
+      expect(response.body).not_to include("Anular cobro", "Facturar")
     end
 
     it "opens the invoice form when asked to invoice" do
@@ -121,17 +146,6 @@ RSpec.describe "Web::Payments", type: :request do
       get "/web/payments/#{payment.id}"
 
       expect(page_html.at_css("#payment-invoice").text).to include("Factura B · 1452", "Corregir")
-    end
-
-    it "says when the collection was reversed" do
-      create(:cash_movement, source_payment: payment, business_date: date, amount: 264_100)
-      travel_to(date + 2) do
-        create(:cash_movement, source_payment: payment, business_date: date + 2, amount: -264_100)
-      end
-
-      get "/web/payments/#{payment.id}"
-
-      expect(response.body).to include("Este cobro se revirtió el 03/10/2026 porque se anuló la venta.")
     end
 
     it "says so when the payment has no cash movement" do

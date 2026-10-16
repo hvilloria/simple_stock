@@ -33,6 +33,8 @@ module Sales
 
     class ValidationError < StandardError; end
 
+    VOID_REASON = "Venta anulada"
+
     def validate_params
       raise ValidationError, "Order is already cancelled" if @order.cancelled_status?
       raise ValidationError, "El usuario es obligatorio" if @user.blank?
@@ -56,7 +58,7 @@ module Sales
     # the payments. Cash::ReversePayment mirrors a movement whole, so it can only
     # be used on a payment this order owns outright: a payment split across
     # several orders is left standing, because its money still backs the ones
-    # that survive.
+    # that survive. A reversed payment is voided, keeping a copy of what it covered.
     def reverse_cash_movements
       exclusively_allocated_payments.each do |payment|
         next unless CashMovement.exists?(source_payment_id: payment.id)
@@ -64,7 +66,20 @@ module Sales
         result = Cash::ReversePayment.call(payment: payment, user: @user)
 
         raise ValidationError, result.errors.join(", ") if result.failure?
+
+        void_payment!(payment)
       end
+    end
+
+    def void_payment!(payment)
+      payment.allocations.each do |allocation|
+        VoidedPaymentAllocation.create!(payment: payment, order_id: allocation.order_id,
+                                        amount: allocation.amount,
+                                        discount_amount: allocation.discount_amount,
+                                        overpaid_amount: allocation.overpaid_amount)
+      end
+
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: @user, void_reason: VOID_REASON)
     end
 
     def exclusively_allocated_payments

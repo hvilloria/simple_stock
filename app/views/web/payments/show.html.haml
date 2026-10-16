@@ -16,9 +16,6 @@
   - if @payment.voided_status?
     .mb-6.p-4.rounded-lg.border.border-slate-300.border-l-4.border-l-slate-600.bg-white
       %p.text-sm.text-slate-700= "Cobro anulado el #{@payment.voided_at.to_date.strftime('%d/%m/%Y')} por #{@payment.voided_by&.name}. Motivo: #{@payment.void_reason}"
-  - elsif (reversal = @payment.reversal_movement)
-    .mb-6.p-4.rounded-lg.border.border-slate-200.bg-white
-      %p.text-sm.text-slate-700= "Este cobro se revirtió el #{reversal.business_date.strftime('%d/%m/%Y')} porque se anuló la venta."
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     .lg:col-span-2.space-y-6
