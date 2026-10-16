@@ -11,10 +11,11 @@ module Cash
       new(**params).call
     end
 
-    def initialize(payment:, user:, business_date: Date.current)
+    def initialize(payment:, user:, business_date: Date.current, description: nil)
       @payment       = payment
       @user          = user
       @business_date = business_date
+      @description   = description
     end
 
     def call
@@ -26,7 +27,7 @@ module Cash
         amount:         -original.amount,
         category:       original.category,
         channel:        original.channel,
-        description:    reversal_description,
+        description:    @description || reversal_description,
         source_payment: @payment,
         user:           @user
       )
