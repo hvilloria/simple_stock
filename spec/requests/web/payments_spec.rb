@@ -25,7 +25,8 @@ RSpec.describe "Web::Payments", type: :request do
       expect(response).to have_http_status(:ok)
       row = page_html.at_css("tbody tr")
       expect(row.text).to include("##{payment.id}", "4429", "Mercado Pago", "264.100,00", "Vigente")
-      expect(page_html.at_css("[data-payments-totals]").text).to include("Mercado Pago", "Total", "264.100,00")
+      expect(page_html.at_css("[data-payments-totals]").text.squish)
+        .to start_with("Cobros vigentes:").and include("Mercado Pago", "Total", "264.100,00")
     end
 
     it "shows voided collections dimmed, outside the totals" do

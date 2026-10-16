@@ -32,6 +32,7 @@
         en todo el historial — el período no se aplica.
 
   .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6.flex.flex-wrap.gap-6.text-sm{ data: { payments_totals: true } }
+    %span.text-slate-500 Cobros vigentes:
     - @totals.each do |method, amount|
       %span.text-slate-600
         = Payment.method_label(method)
