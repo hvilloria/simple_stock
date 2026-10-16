@@ -32,6 +32,10 @@ RSpec.describe "Web::Payments::Voids", type: :request do
       expect(response.body).to include("Anular cobro ##{first.id}", "##{second.id}", "80.100,00", "89.000,00",
                                        "El cobro ##{second.id} tiene Factura B · 0003-00012345",
                                        "Motivo *")
+      expect(page_html.text.squish).to include(
+        "Se anulan este cobro y los que van con él: los posteriores de las mismas notas y, " \
+        "en una nota de pedido, todos sus cobros. Las notas vuelven a quedar con saldo y se cobran de nuevo."
+      )
       button = page_html.at_css("button[type=submit], input[type=submit]")
       expect(button["data-turbo-confirm"]).to eq("¿Anular 2 cobros por $ 80.100,00?")
     end
