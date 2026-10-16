@@ -206,7 +206,7 @@ RSpec.describe Supplier, type: :model do
     it "requires at least one type" do
       supplier = build(:supplier, expense_types: [])
       expect(supplier).not_to be_valid
-      expect(supplier.errors[:base]).to include("Elegí al menos un tipo de factura")
+      expect(supplier.errors[:base]).to include("Falta seleccionar al menos un tipo de factura")
     end
 
     it "refuses an unknown type" do

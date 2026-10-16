@@ -2,6 +2,7 @@ module Web
   module PaymentsOnAccount
     class PaymentsController < ApplicationController
       before_action :set_order
+      helper_method :last_discount_percent
 
       def new
         authorize @order, :collect?, policy_class: PaymentOnAccountPolicy
@@ -30,6 +31,10 @@ module Web
 
       def set_order
         @order = Order.on_account.find(params[:payments_on_account_id])
+      end
+
+      def last_discount_percent
+        @last_discount_percent ||= @order.last_collection_discount_percent
       end
 
       # Tenders arrive as `tenders[0][payment_method]=cash&tenders[0][amount]=1.500,00`.

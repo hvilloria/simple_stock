@@ -132,7 +132,7 @@ RSpec.describe Inventory::SetCountedStock do
     end
 
     it "requires at least one line" do
-      expect(refused([])).to eq([ "Agregá al menos un producto" ])
+      expect(refused([])).to eq([ "Falta agregar al menos un producto" ])
     end
 
     it "refuses a blank count" do
@@ -191,7 +191,7 @@ RSpec.describe Inventory::SetCountedStock do
       allow(Inventory::AdjustStock).to receive(:call).and_raise(ActiveRecord::Deadlocked)
 
       expect(refused([ { product_id: filter.id, counted: "2" } ]))
-        .to eq([ "Otro movimiento de stock se guardó al mismo tiempo. Probá guardar el ajuste de nuevo." ])
+        .to eq([ "Otro movimiento de stock se guardó al mismo tiempo. Volver a guardar el ajuste." ])
     end
 
     it "rolls every line back when one movement fails" do

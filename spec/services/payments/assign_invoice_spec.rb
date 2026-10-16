@@ -44,7 +44,7 @@ RSpec.describe Payments::AssignInvoice do
   it "refuses a missing type" do
     result = assign("", "1452")
 
-    expect(result.errors).to eq([ "Elegí el tipo de factura" ])
+    expect(result.errors).to eq([ "Falta seleccionar el tipo de factura" ])
   end
 
   it "refuses an unknown type" do

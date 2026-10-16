@@ -129,7 +129,7 @@ RSpec.describe Sales::ReplaceOrderItem do
     result = described_class.call(order_item: item, product_id: no_price.id, quantity: 2)
 
     expect(result).to be_failure
-    expect(result.errors).to include("El producto no tiene precio de catálogo — cargalo en Productos")
+    expect(result.errors).to include("El producto no tiene precio de catálogo — cargarlo en Productos")
   end
 
   it "rejects a swap that would drive the order total negative" do

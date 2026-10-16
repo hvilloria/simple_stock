@@ -16,15 +16,49 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       get new_web_payments_on_account_payment_path(order)
 
       expect(response.body).not_to include("amount_to_settle")
-      expect(response.body).to include("¿Cuánto recibís?")
+      expect(response.body).to include("¿Cuánto se recibe?")
       expect(Nokogiri::HTML(response.body).at_css("input[name='tenders[0][amount]']")["value"]).to be_blank
       expect(response.body).to include("Saldar todo")
       select = Nokogiri::HTML(response.body).at_css("select[name='tenders[0][payment_method]']")
       expect(select.at_css("option[selected]").text).to eq("Seleccionar medio")
     end
+
+    it "opens the discount at 0% on the first collection, without a hint" do
+      sign_in caja
+      get new_web_payments_on_account_payment_path(order)
+
+      select = Nokogiri::HTML(response.body).at_css("select[name='discount_percent']")
+      expect(select.at_css("option[selected]")["value"]).to eq("0")
+      expect(response.body).not_to include("El cobro anterior fue con")
+    end
+
+    it "preselects the discount of the last collection" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order),
+           params: { discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "400" } } }
+
+      get new_web_payments_on_account_payment_path(order)
+
+      select = Nokogiri::HTML(response.body).at_css("select[name='discount_percent']")
+      expect(select.at_css("option[selected]")["value"]).to eq("10")
+      expect(response.body).to include("El cobro anterior fue con 10%")
+    end
   end
 
   describe "POST create" do
+    it "keeps the last collection's discount preselected on a refused collection" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order),
+           params: { discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "400" } } }
+
+      post web_payments_on_account_payment_path(order),
+           params: { discount_percent: "0", tenders: { "0" => { amount: "100" } } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      select = Nokogiri::HTML(response.body).at_css("select[name='discount_percent']")
+      expect(select.at_css("option[selected]")["value"]).to eq("10")
+    end
+
     it "settles the operation with the discounted cash rounded down to the hundred" do
       big = create(:order, :on_account, total_amount: 100_400, original_total_amount: 100_400)
       create(:order_item, order: big, product: product, quantity: 1, unit_price: 100_400)
@@ -185,7 +219,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       }.not_to change(Payment, :count)
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("El saldo cambió mientras cobrabas. Revisá el monto.")
+      expect(response.body).to include("El saldo cambió durante el cobro. Revisar el monto.")
       expect(order.reload.outstanding_balance).to eq(600)
     end
 

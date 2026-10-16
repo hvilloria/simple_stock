@@ -210,7 +210,7 @@ namespace :import_sales do
     seller_names = tickets.map { |t| t[:seller] }.compact.uniq
     users = seller_names.index_with { |n| User.find_by(name: n) }
     if (missing = users.select { |_, u| u.nil? }.keys).any?
-      abort "❌ Vendedores no encontrados: #{missing.inspect}. Corré import_sales:verify_sellers."
+      abort "❌ Vendedores no encontrados: #{missing.inspect}. Ejecutar import_sales:verify_sellers."
     end
     if (no_seller = tickets.select { |t| t[:seller].nil? }).any?
       abort "❌ Tickets sin vendedor: #{no_seller.map { |t| t[:number] }.inspect}."

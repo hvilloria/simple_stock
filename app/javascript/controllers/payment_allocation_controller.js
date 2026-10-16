@@ -174,7 +174,7 @@ export default class extends Controller {
       row.querySelector("[data-role='confirmed-overpaid']").value = excess ? this.formatAmount(excess) : "0"
     })
     if (this._overpaid && this._overpaid.length > 0 &&
-        !window.confirm(`Vas a cobrar de más en efectivo:\n${this._overpaid.join("\n")}\n¿Confirmás?`)) {
+        !window.confirm(`Se cobrará de más en efectivo:\n${this._overpaid.join("\n")}\n¿Confirmar el cobro?`)) {
       event.preventDefault()
     }
   }

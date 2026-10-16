@@ -99,7 +99,7 @@ class Supplier < ApplicationRecord
 
   def expense_types_are_billable
     if expense_types.empty?
-      errors.add(:base, "Elegí al menos un tipo de factura")
+      errors.add(:base, "Falta seleccionar al menos un tipo de factura")
     elsif (expense_types - Invoice::EXPENSE_TYPE_LABELS.keys).any?
       errors.add(:base, "Tipo de factura inválido")
     end

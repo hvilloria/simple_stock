@@ -4,7 +4,7 @@
   .flex.flex-col.md:flex-row.md:items-end.md:justify-between.gap-4.mb-6
     %div
       %h1.text-3xl.font-bold.text-slate-900 Balance general
-      %p.text-sm.text-slate-600.mt-1 Cuánta plata hay, y dónde.
+      %p.text-sm.text-slate-600.mt-1 Cuánto dinero hay, y dónde.
 
     = form_with url: web_cash_balance_report_path, method: :get, data: { controller: "filter-form" }, class: "flex items-center gap-2" do
       = label_tag :on, "al", class: "text-sm text-slate-600"

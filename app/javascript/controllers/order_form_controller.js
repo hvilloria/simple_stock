@@ -240,7 +240,7 @@ export default class extends Controller {
         <div class="text-center py-12 text-gray-400">
           <p class="text-5xl mb-3">📦</p>
           <p class="text-gray-600 font-medium">No hay productos agregados</p>
-          <p class="text-sm text-gray-500 mt-1">Buscá y seleccioná productos usando el campo de arriba</p>
+          <p class="text-sm text-gray-500 mt-1">Buscar y seleccionar productos con el campo de arriba</p>
         </div>
       `
       return

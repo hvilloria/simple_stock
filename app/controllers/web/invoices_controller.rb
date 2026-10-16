@@ -236,7 +236,7 @@ module Web
     end
 
     def payment_notice(movement)
-      return "No salió plata de ninguna arca." if movement.nil?
+      return "No salió dinero de ninguna arca." if movement.nil?
 
       "Salió $ #{helpers.number_ar(movement.amount.abs)} de #{CashMovement.account_label(movement.account)}."
     end

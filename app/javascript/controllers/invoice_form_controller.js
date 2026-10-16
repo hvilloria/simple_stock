@@ -207,7 +207,7 @@ export default class extends Controller {
       this.amountTarget.readOnly = true
       this.amountTarget.classList.add("bg-slate-50", "text-slate-600")
       this.amountTarget.value = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total)
-      this.amountCaptionTarget.textContent = "Calculado desde los productos. Quitá todas las líneas para escribirlo a mano."
+      this.amountCaptionTarget.textContent = "Calculado desde los productos. Para escribirlo a mano, quitar todas las líneas."
       this.stockTitleTarget.textContent = `Suma stock: ${units} ${units === 1 ? "unidad" : "unidades"} en ${products} ${products === 1 ? "producto" : "productos"}`
       this.stockNoteTarget.textContent = "El stock se suma al registrar. El costo promedio no cambia."
       this.stockListTarget.innerHTML = lines.map(line =>

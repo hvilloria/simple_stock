@@ -12,7 +12,7 @@ export default class extends Controller {
     const origin = this.element.querySelector("input[name='account']:checked")
     this.submitTarget.disabled = !origin
     const label = origin ? origin.closest("label").textContent.trim() : null
-    this.originTarget.textContent = label ? `Sale de ${label}` : "Elegí de dónde sale la plata"
+    this.originTarget.textContent = label ? `Sale de ${label}` : "Seleccionar de dónde sale el dinero"
     this.amountTarget.textContent = this.format(this.due())
   }
 

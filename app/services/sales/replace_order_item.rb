@@ -61,7 +61,7 @@ module Sales
       if product_changed?
         raise ValidationError, "Producto inválido" if new_product.nil?
         unless catalog_price.to_d.positive?
-          raise ValidationError, "El producto no tiene precio de catálogo — cargalo en Productos"
+          raise ValidationError, "El producto no tiene precio de catálogo — cargarlo en Productos"
         end
       end
 

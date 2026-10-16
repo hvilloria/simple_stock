@@ -158,7 +158,7 @@ RSpec.describe Payments::CollectOnAccount do
                                       confirmed_overpaid: confirmed)
 
         expect(result).to be_failure
-        expect(result.errors).to eq([ "El saldo cambió mientras cobrabas. Revisá el monto." ])
+        expect(result.errors).to eq([ "El saldo cambió durante el cobro. Revisar el monto." ])
         expect(order.reload.total_amount).to eq(1_000)
         expect(order.outstanding_balance).to eq(1_000)
         expect(Payment.count).to eq(0)
