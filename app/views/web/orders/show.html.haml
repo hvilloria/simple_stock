@@ -187,21 +187,22 @@
         .px-6.py-4.border-b.border-gray-100
           %h3.text-lg.font-semibold.text-gray-900 Resumen de Pagos
 
-        - allocations = @order.payment_allocations.includes(:payment).joins(:payment).order("payments.payment_date ASC")
-        - if allocations.any?
+        - history = @order.payment_history
+        - if history.any?
           .overflow-x-auto
-            %table.min-w-full.divide-y.divide-gray-200
+            %table.min-w-full.divide-y.divide-gray-200{ data: { payments_summary: true } }
               %thead.bg-gray-50
                 %tr
                   %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider FECHA
                   %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider MÉTODO
                   %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider MONTO
+                  %th.px-6.py-3
 
               %tbody.divide-y.divide-gray-100.bg-white
-                - allocations.each do |a|
-                  %tr.hover:bg-gray-50.transition-colors
+                - history.each do |a|
+                  %tr.hover:bg-gray-50.transition-colors{ class: ("opacity-60" if a.voided?) }
                     %td.px-6.py-4.whitespace-nowrap
-                      %span.text-sm.text-gray-900= l(a.payment.payment_date, format: :default)
+                      = link_to l(a.payment.payment_date, format: :default), web_payment_path(a.payment), class: "text-sm text-gray-900 underline"
 
                     %td.px-6.py-4.whitespace-nowrap
                       - if a.payment.payment_method == "cash"
@@ -210,17 +211,23 @@
                         %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-blue-50.text-blue-700= Payment.method_label(a.payment.payment_method)
 
                     %td.px-6.py-4.whitespace-nowrap.text-right
-                      %span.text-sm.font-medium.text-gray-900= currency_ar(a.amount)
+                      %span.text-sm.font-medium.text-gray-900{ class: ("line-through" if a.voided?) }= currency_ar(a.amount)
+
+                    %td.px-6.py-4.whitespace-nowrap.text-right
+                      - if a.voided?
+                        %span.inline-flex.px-2.py-0.5.rounded-md.border.border-slate-300.text-xs.text-slate-600 Anulado
 
               %tfoot.bg-gray-50
                 %tr
                   %td.px-6.py-3.text-right.text-sm.text-gray-600{colspan: "2"} Total cobrado
-                  %td.px-6.py-3.text-right.text-sm.font-medium.text-gray-900= currency_ar(allocations.sum(:amount))
+                  %td.px-6.py-3.text-right.text-sm.font-medium.text-gray-900= currency_ar(@order.payment_allocations.sum(:amount))
+                  %td
                 - unless @order.cancelled_status?
                   %tr
                     %td.px-6.py-3.text-right.text-sm.text-gray-600{colspan: "2"} Pendiente
                     - pending = @order.outstanding_balance
                     %td.px-6.py-3.text-right.text-sm.font-bold{ class: pending > 0 ? 'text-amber-600' : 'text-emerald-600' }= currency_ar(pending)
+                    %td
         - else
           .p-12.text-center
             .inline-flex.w-16.h-16.rounded-full.bg-gray-100.items-center.justify-center.text-3xl.mb-3

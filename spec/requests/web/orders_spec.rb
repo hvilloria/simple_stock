@@ -461,4 +461,24 @@ RSpec.describe "Web::Orders", type: :request do
       expect(response.body).not_to include("Cuenta Corriente")
     end
   end
+
+  describe "payments summary with a voided collection" do
+    it "shows the voided row and leaves it out of Total cobrado" do
+      admin = create(:user, :admin)
+      order = create(:order, total_amount: 102_600, original_total_amount: 114_000)
+      voided = create(:payment, :voided, customer: order.customer, amount: 102_560)
+      create(:voided_payment_allocation, payment: voided, order: order, amount: 102_560)
+      live = create(:payment, customer: order.customer, amount: 102_600)
+      create(:payment_allocation, payment: live, order: order, amount: 102_600)
+      sign_in admin
+
+      get "/web/orders/#{order.id}"
+
+      html = Nokogiri::HTML(response.body)
+      expect(html.text).to include("Anulado", "102.560,00")
+      expect(html.at_css("a[href='/web/payments/#{voided.id}']")).to be_present
+      expect(html.at_css("[data-payments-summary] tfoot").text).to include("102.600,00")
+      expect(html.at_css("[data-payments-summary] tfoot").text).not_to include("205.160")
+    end
+  end
 end
