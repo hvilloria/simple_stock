@@ -107,6 +107,14 @@ RSpec.describe "Web::Payments", type: :request do
       expect(page_html.at_css("#payment-invoice")["data-payment-invoice-open-value"]).to eq("true")
     end
 
+    it "keeps the invoice card closed on a voided payment even when asked to invoice" do
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: caja, void_reason: "x")
+
+      get "/web/payments/#{payment.id}", params: { facturar: 1 }
+
+      expect(page_html.at_css("#payment-invoice")["data-payment-invoice-open-value"]).to eq("false")
+    end
+
     it "shows the recorded invoice with a way to correct it" do
       payment.update!(invoice_type: "b", invoice_number: "1452")
 
@@ -150,6 +158,16 @@ RSpec.describe "Web::Payments", type: :request do
       expect(response).to redirect_to("/web/payments/#{payment.id}")
       expect(flash[:notice]).to eq("Factura guardada")
       expect(payment.reload.invoice_label).to eq("Factura B · 1452")
+    end
+
+    it "refuses a voided payment and keeps the invoice card closed" do
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: caja, void_reason: "x")
+
+      patch "/web/payments/#{payment.id}", params: { invoice_type: "b", invoice_number: "1452" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El cobro está anulado")
+      expect(page_html.at_css("#payment-invoice")["data-payment-invoice-open-value"]).to eq("false")
     end
 
     it "re-renders the open form with the error when the number is missing" do
