@@ -52,7 +52,7 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :payments, only: [ :show, :update ] do
+    resources :payments, only: [ :index, :show, :update ] do
       patch :payment_method, on: :member, action: :change_method
     end
 

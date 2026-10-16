@@ -14,6 +14,58 @@ RSpec.describe "Web::Payments", type: :request do
 
   def page_html = Nokogiri::HTML(response.body)
 
+  describe "GET /web/payments" do
+    around { |example| travel_to(date) { example.run } }
+
+    it "lists today's collections with their totals" do
+      sign_in caja
+
+      get "/web/payments"
+
+      expect(response).to have_http_status(:ok)
+      row = page_html.at_css("tbody tr")
+      expect(row.text).to include("##{payment.id}", "4429", "Mercado Pago", "264.100,00", "Vigente")
+      expect(page_html.at_css("[data-payments-totals]").text).to include("Mercado Pago", "Total", "264.100,00")
+    end
+
+    it "shows voided collections dimmed, outside the totals" do
+      voided = create(:payment, :voided, customer: payment.customer, amount: 50_000, payment_date: date)
+      create(:voided_payment_allocation, payment: voided, order: order, amount: 50_000)
+      sign_in caja
+
+      get "/web/payments", params: { status: "all" }
+
+      voided_row = page_html.css("tbody tr").find { |tr| tr.text.include?("##{voided.id}") }
+      expect(voided_row.text).to include("Anulado", "Monto mal cargado")
+      expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
+    end
+
+    it "shows the empty state" do
+      sign_in caja
+
+      get "/web/payments", params: { period: "yesterday" }
+
+      expect(response.body).to include("No hay cobros para estos filtros. Probar con otro período o quitar los filtros.")
+    end
+
+    it "ignores a malformed custom range and hostile filters" do
+      sign_in caja
+
+      get "/web/payments", params: { period: "custom", from: "31/02/2026", to: "x", payment_method: "'; DROP", status: "zzz" }
+
+      expect(response).to have_http_status(:ok)
+      expect(page_html.at_css("tbody tr").text).to include("##{payment.id}")
+    end
+
+    it "is not for vendedor" do
+      sign_in create(:user, :vendedor)
+
+      get "/web/payments"
+
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+
   describe "GET /web/payments/:id" do
     before { sign_in caja }
 

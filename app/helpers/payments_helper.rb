@@ -44,4 +44,18 @@ module PaymentsHelper
 
     (allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)).round
   end
+
+  def payment_notes(payment)
+    payment.shown_allocations.map { |a| a.order.paper_number }.compact.join(", ")
+  end
+
+  def payment_types(payment)
+    payment.shown_allocations.map { |a| Order.type_label(a.order.order_type) }.uniq.join(", ")
+  end
+
+  # An on-account operation is known by its contact, not by the counter customer.
+  def payment_contact(payment)
+    payment.shown_allocations.map(&:order).find(&:on_account_order_type?)&.contact_name.presence ||
+      payment.customer.name
+  end
 end

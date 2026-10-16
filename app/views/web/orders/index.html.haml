@@ -98,22 +98,4 @@
       %p.text-slate-600.mb-6 Probá con otro período o quitá los filtros.
       = link_to "✕ Limpiar filtros", web_orders_path, class: "inline-flex items-center justify-center px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors"
 
-  - if @pagy.pages > 1
-    .flex.items-center.justify-center.gap-1.mt-6.pb-2
-      - if @pagy.prev
-        = link_to "← Anterior", pagy_url_for(@pagy, @pagy.prev), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-      - else
-        %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed ← Anterior
-
-      - @pagy.series.each do |item|
-        - if item.is_a?(Integer)
-          = link_to item, pagy_url_for(@pagy, item), class: "inline-flex items-center justify-center w-9 h-9 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-        - elsif item.is_a?(String)
-          %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.font-semibold.text-white.bg-slate-700.border.border-slate-700.rounded-lg= item
-        - elsif item == :gap
-          %span.inline-flex.items-center.justify-center.w-9.h-9.text-sm.text-slate-400 …
-
-      - if @pagy.next
-        = link_to "Siguiente →", pagy_url_for(@pagy, @pagy.next), class: "inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-      - else
-        %span.inline-flex.items-center.px-3.py-2.text-sm.font-medium.text-slate-300.bg-white.border.border-slate-200.rounded-lg.cursor-not-allowed Siguiente →
+  = render "shared/pagination", pagy: @pagy
