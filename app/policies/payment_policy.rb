@@ -25,6 +25,10 @@ class PaymentPolicy < ApplicationPolicy
     show?
   end
 
+  def void?
+    show?  # Caja and admin void collections
+  end
+
   def destroy?
     false  # Payments are not deleted
   end

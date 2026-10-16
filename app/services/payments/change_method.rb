@@ -9,6 +9,7 @@ module Payments
     NO_MOVEMENT   = "Este cobro no tiene movimiento de caja"
     REVERSED      = "Este cobro fue revertido: no se puede cambiar el medio de pago"
     CLOSED_DAY    = "El día %s ya se cerró: el medio de pago no se puede cambiar."
+    VOIDED        = "El cobro está anulado"
     CASH_DISCOUNT = "Este cobro tuvo descuento en efectivo: no se puede pasar a otro medio."
 
     def self.call(**params)
@@ -48,6 +49,7 @@ module Payments
     class ValidationError < StandardError; end
 
     def validate!
+      raise ValidationError, VOIDED if @payment.voided_status?
       raise ValidationError, Payment::MISSING_METHOD_ERROR if @payment_method.nil?
       unless Payment::PAYMENT_METHODS.include?(@payment_method)
         raise ValidationError, "Método de pago inválido: #{@payment_method}"

@@ -63,6 +63,18 @@ RSpec.describe PaymentPolicy do
     end
   end
 
+  describe "#void?" do
+    it "lets caja and admin void a payment" do
+      %i[caja admin].each do |role|
+        expect(described_class.new(build(:user, role), payment).void?).to be(true)
+      end
+    end
+
+    it "keeps the seller out" do
+      expect(described_class.new(build(:user, :vendedor), payment).void?).to be(false)
+    end
+  end
+
   describe "#change_method?" do
     it "lets caja and admin change a payment's method" do
       %i[caja admin].each do |role|
