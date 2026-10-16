@@ -71,5 +71,33 @@ RSpec.describe 'Web::Customers', type: :request do
       get debtors_web_customers_path
       expect(response.body).not_to include(no_credit_customer.name)
     end
+
+    it 'reads the last payment from live payments only' do
+      create(:payment, :voided, customer: debtor, payment_date: Date.current)
+
+      get debtors_web_customers_path
+
+      row = Nokogiri::HTML(response.body).css('tbody tr').find { |tr| tr.text.include?(debtor.name) }
+      expect(row.text).to include('Sin pagos')
+      expect(row.text).not_to include('Hoy')
+    end
+  end
+
+  describe 'GET /web/customers/:id payments card' do
+    let(:customer) { create(:customer, :with_credit) }
+
+    it 'lists a voided payment as Anulado outside the count' do
+      create(:payment, customer: customer, amount: 300, payment_date: Date.current)
+      create(:payment, :voided, customer: customer, amount: 777, payment_date: Date.current)
+
+      get web_customer_path(customer)
+
+      card = Nokogiri::HTML(response.body).css('h3').find { |h| h.text.include?('Pagos') }
+      expect(card.text.squish).to include('(1)')
+      row = Nokogiri::HTML(response.body).css('tbody tr').find { |tr| tr.text.include?('777') }
+      expect(row.text).to include('Anulado')
+      expect(row.at_css('.line-through')).to be_present
+      expect(row['class']).to include('text-slate-400')
+    end
   end
 end

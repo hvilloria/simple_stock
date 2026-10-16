@@ -105,7 +105,7 @@
         %h3.text-lg.font-semibold.text-gray-900.mb-4
           Pagos
           %span.text-sm.font-normal.text-gray-500
-            (#{@payments.count})
+            (#{@payments.active_status.count})
 
         - if @payments.any?
           .overflow-x-auto
@@ -119,18 +119,21 @@
 
               %tbody.divide-y.divide-slate-100
                 - @payments.each do |payment|
-                  %tr.hover:bg-slate-50.transition-colors
-                    %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
+                  - live = payment.active_status?
+                  %tr.transition-colors{ class: live ? "hover:bg-slate-50" : "text-slate-400" }
+                    %td.px-3.py-2.whitespace-nowrap.text-sm{ class: live ? "text-slate-700" : "text-slate-400" }
                       = l(payment.payment_date, format: :default)
-                    %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold.text-emerald-700
+                    %td.px-3.py-2.whitespace-nowrap.text-right.text-sm.font-semibold{ class: live ? "text-emerald-700" : "text-slate-400 line-through" }
                       = currency_ar_int(payment.amount)
                     %td.px-3.py-2.whitespace-nowrap.text-sm.text-slate-700
                       %span.inline-flex.items-center.rounded-full.text-xs.font-medium{ class: [ "px-2.5 py-1", payment_method_badge_class(h(payment.payment_method)) ] }
                         = payment_method_label(payment.payment_method)
-                    %td.px-3.py-2.text-sm.text-slate-600
+                    %td.px-3.py-2.text-sm{ class: live ? "text-slate-600" : "text-slate-400" }
+                      - unless live
+                        %span.inline-flex.px-2.py-0.5.rounded-md.border.border-slate-300.text-xs.mr-1 Anulado
                       - if payment.notes.present?
                         = payment.notes
-                      - else
+                      - elsif live
                         %span.text-xs.text-slate-400.italic -
         - else
           %p.text-sm.text-slate-500.italic No hay pagos registrados.

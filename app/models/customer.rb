@@ -67,7 +67,7 @@ class Customer < ApplicationRecord
   end
 
   def last_payment_date
-    payments.maximum(:payment_date)
+    payments.active_status.maximum(:payment_date)
   end
 
   def days_without_paying
