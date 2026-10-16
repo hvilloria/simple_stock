@@ -41,5 +41,12 @@ FactoryBot.define do
     trait :no_invoice do
       invoice_type { "none" }
     end
+
+    trait :voided do
+      status { "voided" }
+      voided_at { Time.current }
+      void_reason { "Monto mal cargado" }
+      association :voided_by, factory: [ :user, :caja ]
+    end
   end
 end

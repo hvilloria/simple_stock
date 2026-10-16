@@ -5,6 +5,8 @@ class Payment < ApplicationRecord
   belongs_to :customer
   has_many :allocations, class_name: "PaymentAllocation", dependent: :destroy
   has_many :orders, through: :allocations
+  has_many :voided_allocations, class_name: "VoidedPaymentAllocation", dependent: :destroy
+  belongs_to :voided_by, class_name: "User", optional: true
   has_many :cash_movements, -> { order(:id) }, foreign_key: :source_payment_id,
            inverse_of: :source_payment, dependent: nil
 
@@ -31,6 +33,7 @@ class Payment < ApplicationRecord
   }.freeze
 
   enum :invoice_type, { a: "a", b: "b", none: "none" }, suffix: true
+  enum :status, { active: "active", voided: "voided" }, suffix: true
 
   def self.method_label(key)
     PAYMENT_METHOD_LABELS.fetch(key.to_s, key.to_s.humanize)
@@ -45,12 +48,15 @@ class Payment < ApplicationRecord
   validates :payment_method, presence: true, inclusion: { in: PAYMENT_METHODS }
   validates :payment_date, presence: true
   validate :invoice_number_matches_invoice_type
+  validates :void_reason, presence: true, if: :voided_status?
 
   # Scopes
   scope :by_customer, ->(customer) { where(customer: customer) }
   scope :recent, -> { order(payment_date: :desc, created_at: :desc) }
 
   def billed? = invoice_type.present?
+
+  def shown_allocations = voided_status? ? voided_allocations : allocations
 
   def invoice_label
     return nil unless billed?

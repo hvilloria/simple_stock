@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_07_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -213,8 +213,14 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_07_120000) do
     t.datetime "updated_at", null: false
     t.string "invoice_type"
     t.string "invoice_number"
+    t.string "status", default: "active", null: false
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.text "void_reason"
     t.index ["customer_id"], name: "index_payments_on_customer_id"
     t.index ["payment_date"], name: "index_payments_on_payment_date"
+    t.index ["status"], name: "index_payments_on_status"
+    t.index ["voided_by_id"], name: "index_payments_on_voided_by_id"
   end
 
   create_table "product_channel_prices", force: :cascade do |t|
@@ -309,6 +315,18 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_07_120000) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  create_table "voided_payment_allocations", force: :cascade do |t|
+    t.bigint "payment_id", null: false
+    t.bigint "order_id", null: false
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.decimal "discount_amount", precision: 10, scale: 2, default: "0.0", null: false
+    t.decimal "overpaid_amount", precision: 10, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_voided_payment_allocations_on_order_id"
+    t.index ["payment_id"], name: "index_voided_payment_allocations_on_payment_id"
+  end
+
   add_foreign_key "applied_credits", "credit_notes"
   add_foreign_key "applied_credits", "invoices"
   add_foreign_key "cash_movements", "daily_closings"
@@ -331,8 +349,11 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_07_120000) do
   add_foreign_key "payment_allocations", "orders"
   add_foreign_key "payment_allocations", "payments"
   add_foreign_key "payments", "customers"
+  add_foreign_key "payments", "users", column: "voided_by_id"
   add_foreign_key "product_channel_prices", "products"
   add_foreign_key "stock_movements", "products"
   add_foreign_key "stock_movements", "stock_locations"
   add_foreign_key "stock_movements", "users"
+  add_foreign_key "voided_payment_allocations", "orders"
+  add_foreign_key "voided_payment_allocations", "payments"
 end
