@@ -112,13 +112,17 @@ RSpec.describe Cash::DayQuery do
         create(:payment_allocation, payment: payment, order: order, amount: 100)
         create(:cash_movement, business_date: date, source_payment: payment)
       end
+      voided = create(:payment, :voided, customer: customer, amount: 100)
+      voided_order = create(:order, customer: customer, paper_number: "0300", total_amount: 100)
+      create(:voided_payment_allocation, payment: voided, order: voided_order, amount: 100)
+      create(:cash_movement, business_date: date, source_payment: voided)
       transfer_pair(from: "main_cash", to: "bank", amount: 1_000)
 
       entries = query.entries
 
       queries = capture_sql { entries.flat_map(&:movements).flat_map(&:paper_numbers) }
 
-      expect(entries.size).to eq(4)
+      expect(entries.size).to eq(5)
       expect(queries).to be_empty
     end
   end
