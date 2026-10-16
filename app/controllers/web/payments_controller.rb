@@ -91,7 +91,8 @@ module Web
     end
 
     def set_payment
-      @payment = Payment.includes(:customer, allocations: :order, cash_movements: :user).find(params[:id])
+      @payment = Payment.includes(:customer, :voided_by, allocations: :order, voided_allocations: :order,
+                                  cash_movements: :user).find(params[:id])
     end
 
     def render_show(open:, type: @payment.invoice_type, number: @payment.invoice_number, status: :ok)

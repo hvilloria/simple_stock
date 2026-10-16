@@ -14,8 +14,14 @@ module PaymentsHelper
     ].compact.join(" · ")
   end
 
-  def payment_back_date(payment)
-    payment.original_cash_movement&.business_date || payment.payment_date
+  # How far a collection lowered the debt of the notes it covered.
+  def payment_debt_lowered(payment)
+    payment.shown_allocations.sum { |a| a.amount + a.discount_amount - a.overpaid_amount }
+  end
+
+  def void_confirm_message(cascade)
+    total = number_ar(cascade.total)
+    cascade.payments.one? ? "¿Anular el cobro por $ #{total}?" : "¿Anular #{cascade.payments.size} cobros por $ #{total}?"
   end
 
   def payment_order_label(order)

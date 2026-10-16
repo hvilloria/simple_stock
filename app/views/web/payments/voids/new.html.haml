@@ -1,0 +1,57 @@
+- content_for :page_title, "Anular cobro ##{@payment.id}"
+- count = @cascade.payments.size
+
+.container.mx-auto.px-6.py-6.max-w-5xl
+  = link_to "← Cobro ##{@payment.id}", web_payment_path(@payment), class: "text-sm text-slate-600 hover:text-slate-900"
+
+  %h1.mt-2.text-2xl.font-bold.text-slate-900= "Anular cobro ##{@payment.id}"
+  %p.mt-1.mb-6.text-sm.text-slate-500 Se anulan este cobro y los posteriores de las mismas notas. Las notas vuelven a quedar con saldo y se cobran de nuevo.
+
+  .bg-white.border.border-slate-200.rounded-lg.overflow-hidden.mb-6
+    %table.min-w-full.divide-y.divide-slate-100
+      %thead.bg-slate-50
+        %tr
+          - [ "Fecha", "N°", "Notas", "Medio" ].each do |header|
+            %th.px-4.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider= header
+          %th.px-4.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Monto
+          %th.px-4.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Bajó la deuda
+          %th.px-4.py-2.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Factura
+      %tbody.divide-y.divide-slate-100
+        - @cascade.payments.reverse_each do |payment|
+          %tr
+            %td.px-4.py-2.text-sm= payment.payment_date.strftime("%d/%m/%Y")
+            %td.px-4.py-2.text-sm.font-mono= link_to "##{payment.id}", web_payment_path(payment), class: "underline"
+            %td.px-4.py-2.text-sm.font-mono= payment_notes(payment)
+            %td.px-4.py-2.text-sm= Payment.method_label(payment.payment_method)
+            %td.px-4.py-2.text-sm.text-right= number_ar(payment.amount)
+            %td.px-4.py-2.text-sm.text-right= number_ar(payment_debt_lowered(payment))
+            %td.px-4.py-2.text-sm= payment.invoice_label || "—"
+      %tfoot.bg-slate-50
+        %tr
+          %td.px-4.py-2.text-sm.font-semibold{ colspan: 4 }= count == 1 ? "1 cobro" : "#{count} cobros"
+          %td.px-4.py-2.text-sm.text-right.font-semibold= number_ar(@cascade.total)
+          %td.px-4.py-2.text-sm.text-right.font-semibold= number_ar(@cascade.payments.sum { |p| payment_debt_lowered(p) })
+          %td
+
+  - if @cascade.blocked?
+    .mb-6.p-4.rounded-lg.border.border-slate-300.border-l-4.border-l-slate-600.bg-white
+      %p.text-sm.text-slate-700= @cascade.block
+    = link_to "Volver", web_payment_path(@payment), class: "btn-secondary"
+  - else
+    - @cascade.payments.reverse.select { |p| %w[a b].include?(p.invoice_type) }.each do |payment|
+      .mb-3.p-4.rounded-lg.border.border-slate-300.border-l-4.border-l-slate-600.bg-white
+        %p.text-sm.text-slate-700= "El cobro ##{payment.id} tiene #{payment.invoice_label}: hay que emitir la nota de crédito por fuera del sistema."
+
+    = form_with url: web_payment_void_path(@payment), method: :post, class: "bg-white border border-slate-200 rounded-lg p-5 space-y-4" do
+      - if @error.present?
+        .p-3.rounded-lg.bg-red-50.border-l-4.border-red-500
+          %p.text-sm.text-red-700= @error
+      - @cascade.ids.each do |id|
+        = hidden_field_tag "payment_ids[]", id, id: nil
+      = label_tag :reason, "Motivo *", class: "block text-sm font-medium text-slate-700"
+      = text_area_tag :reason, @reason, rows: 3, placeholder: "Ej.: se anotó 102.560 y se cobró 102.600",
+                      class: "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+      .flex.gap-2
+        = button_tag count == 1 ? "Anular cobro" : "Anular #{count} cobros", type: "submit",
+                     class: "btn-primary cursor-pointer", data: { turbo_confirm: void_confirm_message(@cascade) }
+        = link_to "Volver", web_payment_path(@payment), class: "btn-secondary"

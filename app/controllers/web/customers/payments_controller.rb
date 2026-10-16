@@ -18,7 +18,7 @@ module Web
       def create
         authorize Payment.new(customer: @customer), :new?
 
-        result = Payments::AllocatePayment.call(
+        result = ::Payments::AllocatePayment.call(
           user: current_user,
           customer: @customer,
           payment_date: params[:payment_date].presence || Date.current,

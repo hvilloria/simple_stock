@@ -76,8 +76,29 @@ RSpec.describe "Web::Payments", type: :request do
       get "/web/payments/#{payment.id}"
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Cobro · Mercado Pago · 264.100,00", "4429", "Caja del 01/10/2026", "Día abierto")
+      expect(response.body).to include("Cobro · Mercado Pago · 264.100,00", "4429", "01/10/2026", "Día abierto")
       expect(page_html.at_css("#payment-invoice").text).to include("Sin facturar", "Facturar")
+    end
+
+    it "goes back to Cobros and offers to void an active collection" do
+      get "/web/payments/#{payment.id}"
+
+      expect(page_html.css("a[href='/web/payments']").map(&:text).join).to include("← Cobros")
+      expect(page_html.at_css("a[href='/web/payments/#{payment.id}/void/new']").text).to include("Anular cobro")
+    end
+
+    it "shows a voided collection without actions" do
+      voider = create(:user, :caja, name: "Caja Turno Tarde")
+      create(:voided_payment_allocation, payment: payment, order: order, amount: 264_100)
+      order.payment_allocations.destroy_all
+      payment.update!(status: "voided", voided_at: Time.zone.local(2026, 10, 2, 10), voided_by: voider,
+                      void_reason: "Monto mal cargado")
+
+      get "/web/payments/#{payment.id}"
+
+      expect(response.body).to include("Anulado", "Cobro anulado el 02/10/2026 por Caja Turno Tarde. Motivo: Monto mal cargado",
+                                       "Notas que cubría", "4429")
+      expect(response.body).not_to include("Anular cobro", "Facturar", "porque se anuló la venta")
     end
 
     it "opens the invoice form when asked to invoice" do
@@ -105,10 +126,10 @@ RSpec.describe "Web::Payments", type: :request do
       expect(response.body).to include("Este cobro se revirtió el 03/10/2026 porque se anuló la venta.")
     end
 
-    it "falls back to the payment date when the payment has no cash movement" do
+    it "says so when the payment has no cash movement" do
       get "/web/payments/#{payment.id}"
 
-      expect(response.body).to include("Caja del 01/10/2026", "Sin movimiento de caja")
+      expect(response.body).to include("Sin movimiento de caja")
     end
 
     it "keeps the seller out" do
