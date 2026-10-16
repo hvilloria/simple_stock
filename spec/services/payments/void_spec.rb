@@ -64,6 +64,19 @@ RSpec.describe Payments::Void do
       expect(order.reload.total_amount).to eq(89_000)
     end
 
+    it "gives the total back when a mixed-tender settling collection is voided from its transfer" do
+      mixed = create(:order, :on_account, total_amount: 1_000)
+      Payments::CollectOnAccount.call(order: mixed, user: caja, discount_percent: 0, confirmed_overpaid: 100,
+                                      tenders: [ { payment_method: "cash", amount: 600 },
+                                                 { payment_method: "bank_transfer", amount: 500 } ])
+      expect(mixed.reload.total_amount).to eq(1_100)
+
+      void(Payment.find_by!(payment_method: "bank_transfer"))
+
+      expect(mixed.reload.total_amount).to eq(1_000)
+      expect(mixed.outstanding_balance).to eq(1_000)
+    end
+
     it "reverses each payment's cash on the day it was collected" do
       collected_on = Date.new(2026, 10, 12)
       payment = collect_on_account(order, 40_000, date: collected_on)

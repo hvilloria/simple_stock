@@ -68,6 +68,18 @@ RSpec.describe Payments::VoidCascade do
     expect(cascade.payments).not_to include(earlier_b)
   end
 
+  it "takes the payment that carries an order's overpaid cash along with its sibling" do
+    order = create(:order, :on_account, total_amount: 1_000)
+    result = Payments::CollectOnAccount.call(order: order, user: caja, discount_percent: 0, confirmed_overpaid: 100,
+                                             tenders: [ { payment_method: "cash", amount: 600 },
+                                                        { payment_method: "bank_transfer", amount: 500 } ])
+    raise result.errors.to_sentence if result.failure?
+    cash = Payment.find_by!(payment_method: "cash")
+    transfer = Payment.find_by!(payment_method: "bank_transfer")
+
+    expect(described_class.call(payment: transfer).payments).to contain_exactly(transfer, cash)
+  end
+
   describe "blocks" do
     it "refuses a payment already voided" do
       payment = create(:payment, :voided)

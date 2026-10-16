@@ -46,7 +46,10 @@ module Payments
     def later_ids(ids)
       PaymentAllocation.where(payment_id: ids.to_a).includes(:order).group_by(&:order).flat_map do |order, allocations|
         scope = PaymentAllocation.where(order_id: order.id)
-        scope = scope.where(payment_id: allocations.map(&:payment_id).min..) unless order.immediate_order_type?
+        unless order.immediate_order_type?
+          scope = scope.where(payment_id: allocations.map(&:payment_id).min..)
+                       .or(scope.where("overpaid_amount > 0"))
+        end
         scope.pluck(:payment_id)
       end
     end
