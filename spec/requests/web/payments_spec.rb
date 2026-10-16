@@ -281,6 +281,21 @@ RSpec.describe "Web::Payments", type: :request do
       end
     end
 
+    it "refuses a voided payment without opening the form" do
+      sign_in caja
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: caja, void_reason: "x")
+
+      patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: "cash" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      card = page_html.at_css("#payment-method")
+      expect(card["data-payment-invoice-open-value"]).to eq("false")
+      expect(card.text).to include("El cobro está anulado")
+      expect(response.body).not_to include("Guardar medio de pago")
+      expect(card.text).not_to include("Cambiar")
+      expect(payment.reload.payment_method).to eq("mercado_pago")
+    end
+
     it "keeps the seller out" do
       sign_in create(:user, :vendedor)
 
