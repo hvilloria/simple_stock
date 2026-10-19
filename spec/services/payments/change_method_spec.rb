@@ -82,6 +82,12 @@ RSpec.describe Payments::ChangeMethod do
       expect_refused(change("cash"), "El cobro ya está registrado con ese medio de pago")
     end
 
+    it "refuses a voided payment" do
+      payment.update!(status: "voided", voided_at: Time.current, void_reason: "Monto mal cargado")
+
+      expect_refused(change("mercado_pago"), "El cobro está anulado")
+    end
+
     it "refuses a reversed collection" do
       create(:cash_movement, source_payment: payment, business_date: date, amount: -60_000)
 

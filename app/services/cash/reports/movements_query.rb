@@ -35,7 +35,7 @@ module Cash
       # A relation and not an array: the controller paginates it, so the page
       # is cut in SQL rather than in Ruby.
       def relation
-        filtered.includes(:supplier, :transfer_legs, paid_invoices: :supplier, source_payment: :orders)
+        filtered.includes(:supplier, :transfer_legs, paid_invoices: :supplier, source_payment: { allocations: :order, voided_allocations: :order })
                 .order(business_date: :desc, created_at: :desc, id: :desc)
       end
 

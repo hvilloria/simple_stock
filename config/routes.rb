@@ -52,8 +52,9 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :payments, only: [ :show, :update ] do
+    resources :payments, only: [ :index, :show, :update ] do
       patch :payment_method, on: :member, action: :change_method
+      resource :void, only: [ :new, :create ], controller: "payments/voids"
     end
 
     resources :customers, only: [ :index, :new, :create, :show, :edit, :update ] do

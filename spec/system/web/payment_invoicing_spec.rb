@@ -29,7 +29,7 @@ RSpec.describe "Caja - facturar un cobro", type: :system do
     expect(page).to have_content("Factura guardada")
     expect(page).to have_content("Factura B · 1455")
 
-    click_link "← Caja del #{date.strftime('%d/%m/%Y')}"
+    click_link date.strftime("%d/%m/%Y")
     expect(find("#day-entries")).to have_content("B · 1455")
   end
 

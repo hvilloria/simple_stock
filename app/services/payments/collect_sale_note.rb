@@ -146,11 +146,21 @@ module Payments
         assign_invoice!(payment, rows.first)
         # One allocation per method: payment_allocations is unique on
         # (payment_id, order_id), so repeated rows of the same method collapse.
+        cash = method == "cash"
         PaymentAllocation.create!(payment: payment, order: @order, amount: total,
-                                  overpaid_amount: method == "cash" ? overpaid : 0)
+                                  discount_amount: cash ? allocation_discount : 0,
+                                  overpaid_amount: cash ? overpaid : 0)
 
         record_in_cash!(payment)
       end
+    end
+
+    # What the debt dropped beyond the cash: the discount plus any round-down.
+    # A discount makes every tender cash, so it lands on the single cash payment.
+    def allocation_discount
+      return 0 unless @discount_percent.positive?
+
+      @order.original_total_amount.to_d - tender_sum + overpaid
     end
 
     def record_in_cash!(payment)

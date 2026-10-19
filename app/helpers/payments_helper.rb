@@ -14,8 +14,14 @@ module PaymentsHelper
     ].compact.join(" · ")
   end
 
-  def payment_back_date(payment)
-    payment.original_cash_movement&.business_date || payment.payment_date
+  # How far a collection lowered the debt of the notes it covered.
+  def payment_debt_lowered(payment)
+    payment.shown_allocations.sum { |a| a.amount + a.discount_amount - a.overpaid_amount }
+  end
+
+  def void_confirm_message(cascade)
+    total = number_ar(cascade.total)
+    cascade.payments.one? ? "¿Anular el cobro por $ #{total}?" : "¿Anular #{cascade.payments.size} cobros por $ #{total}?"
   end
 
   def payment_order_label(order)
@@ -43,5 +49,19 @@ module PaymentsHelper
     return nil unless allocation.discount_amount.positive?
 
     (allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)).round
+  end
+
+  def payment_notes(payment)
+    payment.shown_allocations.map { |a| a.order.paper_number }.compact.join(", ")
+  end
+
+  def payment_types(payment)
+    payment.shown_allocations.map { |a| Order.type_label(a.order.order_type) }.uniq.join(", ")
+  end
+
+  # An on-account operation is known by its contact, not by the counter customer.
+  def payment_contact(payment)
+    payment.shown_allocations.map(&:order).find(&:on_account_order_type?)&.contact_name.presence ||
+      payment.customer.name
   end
 end

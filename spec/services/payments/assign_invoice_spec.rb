@@ -47,6 +47,15 @@ RSpec.describe Payments::AssignInvoice do
     expect(result.errors).to eq([ "Falta seleccionar el tipo de factura" ])
   end
 
+  it "refuses a voided payment" do
+    payment = create(:payment, :voided)
+
+    result = described_class.call(payment: payment, invoice_type: "b", invoice_number: "1452")
+
+    expect(result.errors).to eq([ "El cobro está anulado" ])
+    expect(payment.reload.invoice_type).to be_nil
+  end
+
   it "refuses an unknown type" do
     result = assign("c", "1452")
 

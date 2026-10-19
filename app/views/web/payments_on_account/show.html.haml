@@ -48,7 +48,8 @@
 
       .bg-white.border.border-slate-200.rounded-2xl.p-5
         %h3.text-sm.font-semibold.text-slate-900.mb-3 Historial de cobros
-        - if @order.payment_allocations.any?
+        - history = @order.payment_history
+        - if history.any?
           %table.w-full.text-sm{ data: { history: true } }
             %thead
               %tr.text-slate-500.text-left
@@ -56,14 +57,23 @@
                 %th.py-1.5.font-medium.border-b.border-slate-100 Método
                 %th.py-1.5.font-medium.border-b.border-slate-100.text-right Recibido
                 %th.py-1.5.font-medium.border-b.border-slate-100.text-right Bajó la deuda
+                %th.py-1.5.border-b.border-slate-100
             %tbody
-              - @order.payment_allocations.sort_by { |a| a.payment.payment_date }.each do |allocation|
+              - history.each do |allocation|
                 - percent = payment_allocation_discount_percent(allocation)
-                %tr
-                  %td.py-2.text-slate-600= l(allocation.payment.payment_date, format: :default)
+                - date = l(allocation.payment.payment_date, format: :default)
+                %tr{ class: ("text-slate-400" if allocation.voided?) }
+                  %td.py-2.text-slate-600
+                    - if policy(allocation.payment).show?
+                      = link_to date, web_payment_path(allocation.payment), class: "underline hover:text-slate-900"
+                    - else
+                      = date
                   %td.py-2= [ payment_method_label(allocation.payment.payment_method), ("#{percent}%" if percent) ].compact.join(" · ")
-                  %td.py-2.text-right= number_to_currency(allocation.amount, unit: "$", separator: ",", delimiter: ".")
-                  %td.py-2.text-right= number_to_currency(allocation.amount + allocation.discount_amount - allocation.overpaid_amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right{ class: ("line-through" if allocation.voided?) }= number_to_currency(allocation.amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right{ class: ("line-through" if allocation.voided?) }= number_to_currency(allocation.amount + allocation.discount_amount - allocation.overpaid_amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right
+                    - if allocation.voided?
+                      %span.inline-flex.px-2.py-0.5.rounded-md.border.border-slate-300.text-xs Anulado
         - else
           %p.text-sm.text-slate-500 Sin cobros todavía.
 

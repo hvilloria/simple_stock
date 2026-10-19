@@ -5,6 +5,7 @@ class Order < ApplicationRecord
   has_many :products, through: :order_items
   has_many :payment_allocations, dependent: :destroy
   has_many :payments, through: :payment_allocations
+  has_many :voided_payment_allocations, dependent: :destroy
   has_many :stock_movements, as: :reference, dependent: :nullify
 
   accepts_nested_attributes_for :order_items, allow_destroy: true, reject_if: :all_blank
@@ -97,6 +98,12 @@ class Order < ApplicationRecord
   # Cash collected above what was owed; it is part of total_amount.
   def overpaid_amount
     payment_allocations.sum(:overpaid_amount)
+  end
+
+  # Live and voided collections together, oldest first, for the histories.
+  def payment_history
+    (payment_allocations.includes(:payment).to_a + voided_payment_allocations.includes(:payment).to_a)
+      .sort_by { |a| [ a.payment.payment_date, a.payment_id ] }
   end
 
   # Percent of the last collection, recovered from what it took off the debt.

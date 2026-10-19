@@ -255,4 +255,31 @@ RSpec.describe Payment, type: :model do
       expect(payment.method_change_block).to eq(:cash_discount)
     end
   end
+
+  describe "void" do
+    it "is active by default" do
+      expect(create(:payment)).to be_active_status
+    end
+
+    it "requires a reason once voided" do
+      payment = build(:payment, :voided, void_reason: "")
+
+      expect(payment).not_to be_valid
+      expect(payment.errors[:void_reason]).to be_present
+    end
+
+    it "shows the live allocations while active and the voided ones after" do
+      order = create(:order, :pending, customer: Customer.mostrador, total_amount: 50_000)
+      payment = create(:payment, customer: Customer.mostrador, amount: 50_000)
+      live = create(:payment_allocation, payment: payment, order: order, amount: 50_000)
+
+      expect(payment.shown_allocations).to eq([ live ])
+
+      voided = create(:voided_payment_allocation, payment: payment, order: order, amount: 50_000)
+      live.destroy!
+      payment.update!(status: "voided", voided_at: Time.current, void_reason: "Monto mal cargado")
+
+      expect(payment.reload.shown_allocations).to eq([ voided ])
+    end
+  end
 end

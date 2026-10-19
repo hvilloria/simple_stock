@@ -1,0 +1,74 @@
+- content_for :page_title, "Cobros"
+- show_reason = @payments.any?(&:voided_status?)
+
+.container.mx-auto.px-6.py-6
+  %h1.text-3xl.font-bold.text-slate-900.mb-6 Cobros
+
+  .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6
+    = form_with url: web_payments_path, method: :get, data: { controller: "filter-form" }, class: "flex flex-col md:flex-row md:flex-wrap gap-3" do
+      = text_field_tag :q, @search, placeholder: "🔍 Nota o cliente…", autofocus: @search.present?,
+                       class: "flex-1 min-w-56 px-4 py-2.5 border border-slate-300 rounded-xl",
+                       data: { action: "input->filter-form#submitWithDebounce" }
+      = select_tag :period, options_for_select(Web::PaymentsController::PERIOD_OPTIONS, @period),
+                   disabled: @search.present?,
+                   class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm disabled:bg-slate-50 disabled:text-slate-400",
+                   data: { action: "change->filter-form#submit" }
+      - if @period == "custom" && @search.blank?
+        = date_field_tag :from, @from, class: "px-3 py-2 border border-slate-300 rounded-xl text-sm",
+                         data: { action: "change->filter-form#submit" }
+        = date_field_tag :to, @to, class: "px-3 py-2 border border-slate-300 rounded-xl text-sm",
+                         data: { action: "change->filter-form#submit" }
+      = select_tag :payment_method, options_for_select([ [ "Todos los medios", "" ] ] + Payment.method_options, @payment_method),
+                   class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm",
+                   data: { action: "change->filter-form#submit" }
+      = select_tag :status, options_for_select(Web::PaymentsController::STATUS_OPTIONS, @status),
+                   class: "px-4 py-2.5 border border-slate-300 rounded-xl text-sm",
+                   data: { action: "change->filter-form#submit" }
+      = link_to "Limpiar filtros", web_payments_path, class: "self-center text-sm text-slate-600 underline hover:text-slate-900"
+    - if @search.present?
+      %p.text-xs.text-slate-600.mt-3
+        Buscando
+        %b= "“#{@search}”"
+        en todo el historial — el período no se aplica.
+
+  .bg-white.border.border-slate-200.rounded-lg.p-4.mb-6.flex.flex-wrap.gap-6.text-sm{ data: { payments_totals: true } }
+    %span.text-slate-500 Cobros vigentes:
+    - @totals.each do |method, amount|
+      %span.text-slate-600
+        = Payment.method_label(method)
+        %b.text-slate-900.ml-1= number_ar(amount)
+    %span.text-slate-600
+      Total
+      %b.text-slate-900.ml-1= number_ar(@totals.values.sum)
+
+  - if @payments.any?
+    .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
+      %table.min-w-full.divide-y.divide-slate-200
+        %thead.bg-slate-50
+          %tr
+            - [ "Fecha", "N°", "Cliente / contacto", "Notas", "Tipo", "Medio" ].each do |header|
+              %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider= header
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Monto
+            %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Estado
+            - if show_reason
+              %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Motivo
+        %tbody.divide-y.divide-slate-100.bg-white
+          - @payments.each do |payment|
+            - voided = payment.voided_status?
+            %tr.hover:bg-slate-50{ class: voided ? "text-slate-400" : "text-slate-900" }
+              %td.px-4.py-3.text-sm.whitespace-nowrap= payment.payment_date.strftime("%d/%m/%Y")
+              %td.px-4.py-3.text-sm.font-mono= link_to "##{payment.id}", web_payment_path(payment), class: "underline hover:text-slate-900"
+              %td.px-4.py-3.text-sm= payment_contact(payment)
+              %td.px-4.py-3.text-sm.font-mono= payment_notes(payment)
+              %td.px-4.py-3.text-sm= payment_types(payment)
+              %td.px-4.py-3.text-sm= Payment.method_label(payment.payment_method)
+              %td.px-4.py-3.text-sm.text-right.whitespace-nowrap{ class: ("line-through" if voided) }= number_ar(payment.amount)
+              %td.px-4.py-3.text-sm
+                %span.inline-flex.px-2.py-0.5.rounded-md.border.border-slate-300.text-xs= voided ? "Anulado" : "Vigente"
+              - if show_reason
+                %td.px-4.py-3.text-sm= payment.void_reason
+  - else
+    .bg-white.border.border-slate-200.rounded-lg.p-16.text-center
+      %p.text-slate-600 No hay cobros para estos filtros. Probar con otro período o quitar los filtros.
+
+  = render "shared/pagination", pagy: @pagy

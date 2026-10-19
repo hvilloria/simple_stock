@@ -61,6 +61,12 @@
         - if open_on_account_count > 0
           %span.ml-auto.inline-flex.items-center.justify-center.w-5.h-5.rounded-full.bg-amber-100.text-amber-700.text-xs.font-bold= open_on_account_count
 
+    - if policy(Payment).index?
+      - payments_active = controller_path == 'web/payments' || controller_path.start_with?('web/payments/')
+      = link_to web_payments_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{payments_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+        %span.text-base 💵
+        %span Cobros
+
     - if current_user&.vendedor? || current_user&.caja? || current_user&.admin?
       - debtors_count = Customer.with_outstanding_balance.count
       - debtors_active = controller_name == 'customers' && action_name == 'debtors'

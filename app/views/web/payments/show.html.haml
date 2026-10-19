@@ -1,17 +1,21 @@
 - content_for :page_title, "Cobro ##{@payment.id}"
-- back_date = payment_back_date(@payment)
 
 .container.mx-auto.px-6.py-6.max-w-5xl
-  = link_to "← Caja del #{back_date.strftime('%d/%m/%Y')}", web_cash_day_path(back_date),
-            class: "text-sm text-slate-600 hover:text-slate-900"
+  = link_to "← Cobros", web_payments_path, class: "text-sm text-slate-600 hover:text-slate-900"
 
-  .mt-2.mb-6
-    %h1.text-2xl.font-bold.text-slate-900= payment_title(@payment)
-    %p.text-sm.text-slate-500.mt-1= payment_subtitle(@payment)
+  .mt-2.mb-6.flex.items-start.justify-between.gap-4
+    %div
+      %h1.text-2xl.font-bold.text-slate-900
+        = payment_title(@payment)
+        - if @payment.voided_status?
+          %span.ml-2.align-middle.inline-flex.px-2.py-0.5.rounded-md.border.border-slate-300.text-xs.font-medium.text-slate-600 Anulado
+      %p.text-sm.text-slate-500.mt-1= payment_subtitle(@payment)
+    - if @payment.active_status? && policy(@payment).void?
+      = link_to "Anular cobro", new_web_payment_void_path(@payment), class: "btn-secondary"
 
-  - if (reversal = @payment.reversal_movement)
-    .mb-6.p-4.rounded-lg.border.border-slate-200.bg-white
-      %p.text-sm.text-slate-700= "Este cobro se revirtió el #{reversal.business_date.strftime('%d/%m/%Y')} porque se anuló la venta."
+  - if @payment.voided_status?
+    .mb-6.p-4.rounded-lg.border.border-slate-300.border-l-4.border-l-slate-600.bg-white
+      %p.text-sm.text-slate-700= "Cobro anulado el #{@payment.voided_at.to_date.strftime('%d/%m/%Y')} por #{@payment.voided_by&.name}. Motivo: #{@payment.void_reason}"
 
   .grid.grid-cols-1.lg:grid-cols-3.gap-6
     .lg:col-span-2.space-y-6

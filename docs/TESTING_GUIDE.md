@@ -21,6 +21,7 @@ A flow that creates, persists, or computes amounts, discounts, balances, or pric
 - `Cash::RecordTransfer` — a caller-supplied `amount` split into two signed legs between arcas; the amount is hostile input and must be positive on the way in
 - `Cash::ReversePayment` — writes the mirror of an existing sale movement (its amount comes from the persisted movement, so there is no hostile input to attack; what it must get right is the sign, the arca and refusing a double reversal)
 - `Payments::ChangeMethod` — moves a collection's cash movement to the arca of a new payment method; the method is hostile input (blank or unknown must be refused with nothing written), and it must never touch a closed day or move a cash-discounted collection off cash
+- `Payments::Void` — voids a collection and its later ones on the same notes; gives each note back what the collection took (on-account discount/overpaid, credit overpaid, sale note reset to its original total) and reverses the cash on the collection's day. Hostile input: blank reason, forged or stale `payment_ids`, an already voided payment — all refused with nothing written
 
 ### Read-money (no input to attack, but calculation correctness is critical → unit/request with seeded data)
 

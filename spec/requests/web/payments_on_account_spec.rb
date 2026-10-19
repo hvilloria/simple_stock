@@ -120,6 +120,40 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
     end
   end
 
+  describe "history with a voided collection" do
+    it "lists the voided collection dimmed and leaves it out of the summary" do
+      caja = create(:user, :caja)
+      order = create(:order, :on_account, total_amount: 89_000)
+      voided = create(:payment, :voided, customer: order.customer, amount: 40_000, payment_date: Date.new(2026, 10, 9))
+      create(:voided_payment_allocation, payment: voided, order: order, amount: 40_000, discount_amount: 4_444)
+      live = create(:payment, customer: order.customer, amount: 30_000, payment_date: Date.new(2026, 10, 15))
+      create(:payment_allocation, payment: live, order: order, amount: 30_000)
+      sign_in caja
+
+      get "/web/payments_on_account/#{order.id}"
+
+      rows = Nokogiri::HTML(response.body).css("[data-history] tbody tr")
+      expect(rows.size).to eq(2)
+      expect(rows.first.text).to include("Anulado", "40.000,00")
+      expect(rows.first.at_css("a[href='/web/payments/#{voided.id}']")).to be_present
+      expect(Nokogiri::HTML(response.body).at_css("[data-summary]").text).not_to include("40.000")
+    end
+
+    it "shows the history to a vendedor without links to the collections" do
+      order = create(:order, :on_account, total_amount: 89_000)
+      voided = create(:payment, :voided, customer: order.customer, amount: 40_000)
+      create(:voided_payment_allocation, payment: voided, order: order, amount: 40_000)
+      sign_in vendedor
+
+      get "/web/payments_on_account/#{order.id}"
+
+      expect(response).to have_http_status(:ok)
+      history = Nokogiri::HTML(response.body).at_css("[data-history]")
+      expect(history.text).to include("Anulado")
+      expect(history.at_css("a")).to be_nil
+    end
+  end
+
   describe "POST deliver" do
     let!(:location) { create(:stock_location) }
 

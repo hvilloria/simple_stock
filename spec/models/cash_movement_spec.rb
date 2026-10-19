@@ -354,6 +354,16 @@ RSpec.describe CashMovement, type: :model do
       expect(movement.paper_numbers).to eq([ "0042" ])
     end
 
+    it "keeps the notes of a voided payment, read from what it covered" do
+      voided = create(:payment, :voided, customer: customer, amount: 100)
+      order = create(:order, customer: customer, paper_number: "0042", total_amount: 100)
+      create(:voided_payment_allocation, payment: voided, order: order, amount: 100)
+
+      movement = create(:cash_movement, source_payment: voided)
+
+      expect(movement.paper_numbers).to eq([ "0042" ])
+    end
+
     it "is empty on a row the cashier typed, which has no payment behind it" do
       expect(create(:cash_movement).paper_numbers).to eq([])
     end

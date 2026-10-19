@@ -8,6 +8,8 @@ class PaymentAllocation < ApplicationRecord
   validate :order_belongs_to_payment_customer
   validate :amount_within_order_outstanding_balance
 
+  def voided? = false
+
   private
 
   def order_belongs_to_payment_customer

@@ -203,6 +203,22 @@ RSpec.describe Sales::CancelOrder do
         expect(CashMovement.where(source_payment_id: payment.id).sum(:amount)).to eq(0)
       end
 
+      it 'voids the payment it reverses, keeping a copy of its allocation' do
+        order = credit_order('L-3006')
+        payment = collect([ { order_id: order.id, amount: 200, payment_method: 'cash' } ])
+
+        expect(described_class.call(order: order, user: user).success?).to be true
+
+        payment.reload
+        expect(payment).to be_voided_status
+        expect(payment.void_reason).to eq('Venta anulada')
+        expect(payment.voided_by).to eq(user)
+        expect(payment.voided_at).to be_present
+        expect(payment.allocations).to be_empty
+        expect(payment.voided_allocations.map { |a| [ a.order_id, a.amount ] }).to eq([ [ order.id, 200 ] ])
+        expect(CashMovement.where(source_payment_id: payment.id).count).to eq(2)
+      end
+
       it 'writes nothing when the order was never collected' do
         order = credit_order('L-3002')
 
@@ -223,7 +239,8 @@ RSpec.describe Sales::CancelOrder do
           expect(described_class.call(order: cancelled, user: user).success?).to be true
         }.not_to change { CashMovement.where(source_payment_id: payment.id).count }
 
-        expect(Payment.find_by(id: payment.id)).to be_present
+        expect(payment.reload).to be_active_status
+        expect(payment.voided_allocations).to be_empty
         expect(surviving.reload.payment_allocations.sum(:amount)).to eq(300)
         expect(cancelled.reload.payment_allocations).to be_empty
       end

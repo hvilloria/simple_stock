@@ -804,4 +804,17 @@ RSpec.describe Order, type: :model do
       expect(order.sale_movements).not_to include(theirs)
     end
   end
+
+  describe "#payment_history" do
+    it "lists live and voided allocations together, oldest payment first" do
+      order = create(:order, :on_account, total_amount: 89_000)
+      older = create(:payment, customer: order.customer, amount: 40_000, payment_date: Date.new(2026, 10, 9))
+      newer = create(:payment, customer: order.customer, amount: 40_100, payment_date: Date.new(2026, 10, 15))
+      voided = create(:voided_payment_allocation, payment: older, order: order, amount: 40_000)
+      live = create(:payment_allocation, payment: newer, order: order, amount: 40_100)
+
+      expect(order.payment_history).to eq([ voided, live ])
+      expect(order.payment_history.map(&:voided?)).to eq([ true, false ])
+    end
+  end
 end

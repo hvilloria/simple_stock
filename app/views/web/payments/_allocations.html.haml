@@ -1,6 +1,6 @@
 .bg-white.border.border-slate-200.rounded-lg.overflow-hidden
   .px-5.py-3.border-b.border-slate-200
-    %h2.text-sm.font-semibold.text-slate-900 Notas que cubre
+    %h2.text-sm.font-semibold.text-slate-900= payment.voided_status? ? "Notas que cubría" : "Notas que cubre"
   %table.min-w-full.divide-y.divide-slate-100
     %thead.bg-slate-50
       %tr
@@ -9,7 +9,7 @@
         %th.px-3.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Total nota
         %th.px-5.py-2.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Aplicado
     %tbody.divide-y.divide-slate-100
-      - payment.allocations.each do |allocation|
+      - payment.shown_allocations.each do |allocation|
         - order = allocation.order
         %tr
           %td.px-5.py-2.text-sm.font-mono= link_to order.paper_number, web_order_path(order), class: "text-slate-700 underline hover:text-slate-900"

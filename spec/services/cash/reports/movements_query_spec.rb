@@ -222,13 +222,13 @@ RSpec.describe Cash::Reports::MovementsQuery do
   # through their own preload, so a page of rows must cost the same round
   # trips as a single row.
   describe "the cost of a page" do
-    it "costs six round trips, not one per row" do
+    it "costs seven round trips, not one per row" do
       3.times { movement(:from_collection, account: "drawer", amount: 10_000) }
       movement(account: "drawer", amount: 20_000)
       movement(:compensation_sale)
       transfer_pair
 
-      expect(round_trips).to eq(6)
+      expect(round_trips).to eq(7)
     end
 
     it "costs the same however many rows the page holds" do

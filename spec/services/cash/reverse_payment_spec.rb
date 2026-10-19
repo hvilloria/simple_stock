@@ -16,6 +16,15 @@ RSpec.describe Cash::ReversePayment do
   end
 
   describe "the reversing movement" do
+    it "takes a description when given one" do
+      payment, = collected_payment
+
+      result = described_class.call(payment: payment, user: user, business_date: today,
+                                    description: "Anulación del cobro ##{payment.id}: monto mal cargado")
+
+      expect(result.record.description).to eq("Anulación del cobro ##{payment.id}: monto mal cargado")
+    end
+
     it "mirrors the original with the opposite sign, same arca, channel and payment" do
       payment, original = collected_payment(method: "bank_card", amount: 54_700)
 

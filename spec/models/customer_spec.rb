@@ -355,6 +355,12 @@ RSpec.describe Customer, type: :model do
       create(:payment, customer: customer, payment_date: 2.days.ago.to_date)
       expect(customer.last_payment_date).to eq(2.days.ago.to_date)
     end
+
+    it 'ignores voided payments' do
+      create(:payment, customer: customer, payment_date: 5.days.ago.to_date)
+      create(:payment, :voided, customer: customer, payment_date: 2.days.ago.to_date)
+      expect(customer.last_payment_date).to eq(5.days.ago.to_date)
+    end
   end
 
   describe '#days_without_paying' do

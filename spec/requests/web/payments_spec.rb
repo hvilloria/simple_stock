@@ -14,6 +14,84 @@ RSpec.describe "Web::Payments", type: :request do
 
   def page_html = Nokogiri::HTML(response.body)
 
+  describe "GET /web/payments" do
+    around { |example| travel_to(date) { example.run } }
+
+    it "lists today's collections with their totals" do
+      sign_in caja
+
+      get "/web/payments"
+
+      expect(response).to have_http_status(:ok)
+      row = page_html.at_css("tbody tr")
+      expect(row.text).to include("##{payment.id}", "4429", "Mercado Pago", "264.100,00", "Vigente")
+      expect(page_html.at_css("[data-payments-totals]").text.squish)
+        .to start_with("Cobros vigentes:").and include("Mercado Pago", "Total", "264.100,00")
+    end
+
+    it "shows voided collections dimmed, outside the totals" do
+      voided = create(:payment, :voided, customer: payment.customer, amount: 50_000, payment_date: date)
+      create(:voided_payment_allocation, payment: voided, order: order, amount: 50_000)
+      sign_in caja
+
+      get "/web/payments", params: { status: "all" }
+
+      voided_row = page_html.css("tbody tr").find { |tr| tr.text.include?("##{voided.id}") }
+      expect(voided_row.text).to include("Anulado", "Monto mal cargado")
+      expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
+    end
+
+    it "lists a collection reversed by a sale cancellation as voided, outside the totals" do
+      reversed = create(:payment, customer: payment.customer, payment_method: "cash", amount: 50_000, payment_date: date)
+      cancelled = create(:order, customer: payment.customer, paper_number: "5106", total_amount: 50_000)
+      create(:payment_allocation, payment: reversed, order: cancelled, amount: 50_000)
+      create(:cash_movement, source_payment: reversed, business_date: date, amount: 50_000)
+      expect(Sales::CancelOrder.call(order: cancelled, user: caja).success?).to be true
+      sign_in caja
+
+      get "/web/payments"
+
+      expect(page_html.css("tbody tr").map(&:text).join).not_to include("##{reversed.id}")
+      expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
+
+      get "/web/payments", params: { status: "voided" }
+
+      row = page_html.css("tbody tr").find { |tr| tr.text.include?("##{reversed.id}") }
+      expect(row.text).to include("Anulado", "Venta anulada", "5106")
+      expect(page_html.at_css("[data-payments-totals]").text).not_to include("50.000,00")
+
+      get "/web/payments/#{reversed.id}"
+
+      expect(response.body).to include("Motivo: Venta anulada")
+      expect(response.body).not_to include("Anular cobro")
+    end
+
+    it "shows the empty state" do
+      sign_in caja
+
+      get "/web/payments", params: { period: "yesterday" }
+
+      expect(response.body).to include("No hay cobros para estos filtros. Probar con otro período o quitar los filtros.")
+    end
+
+    it "ignores a malformed custom range and hostile filters" do
+      sign_in caja
+
+      get "/web/payments", params: { period: "custom", from: "31/02/2026", to: "x", payment_method: "'; DROP", status: "zzz" }
+
+      expect(response).to have_http_status(:ok)
+      expect(page_html.at_css("tbody tr").text).to include("##{payment.id}")
+    end
+
+    it "is not for vendedor" do
+      sign_in create(:user, :vendedor)
+
+      get "/web/payments"
+
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+
   describe "GET /web/payments/:id" do
     before { sign_in caja }
 
@@ -24,14 +102,43 @@ RSpec.describe "Web::Payments", type: :request do
       get "/web/payments/#{payment.id}"
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Cobro · Mercado Pago · 264.100,00", "4429", "Caja del 01/10/2026", "Día abierto")
+      expect(response.body).to include("Cobro · Mercado Pago · 264.100,00", "4429", "01/10/2026", "Día abierto")
       expect(page_html.at_css("#payment-invoice").text).to include("Sin facturar", "Facturar")
+    end
+
+    it "goes back to Cobros and offers to void an active collection" do
+      get "/web/payments/#{payment.id}"
+
+      expect(page_html.css("a[href='/web/payments']").map(&:text).join).to include("← Cobros")
+      expect(page_html.at_css("a[href='/web/payments/#{payment.id}/void/new']").text).to include("Anular cobro")
+    end
+
+    it "shows a voided collection without actions" do
+      voider = create(:user, :caja, name: "Caja Turno Tarde")
+      create(:voided_payment_allocation, payment: payment, order: order, amount: 264_100)
+      order.payment_allocations.destroy_all
+      payment.update!(status: "voided", voided_at: Time.zone.local(2026, 10, 2, 10), voided_by: voider,
+                      void_reason: "Monto mal cargado")
+
+      get "/web/payments/#{payment.id}"
+
+      expect(response.body).to include("Anulado", "Cobro anulado el 02/10/2026 por Caja Turno Tarde. Motivo: Monto mal cargado",
+                                       "Notas que cubría", "4429")
+      expect(response.body).not_to include("Anular cobro", "Facturar")
     end
 
     it "opens the invoice form when asked to invoice" do
       get "/web/payments/#{payment.id}", params: { facturar: 1 }
 
       expect(page_html.at_css("#payment-invoice")["data-payment-invoice-open-value"]).to eq("true")
+    end
+
+    it "keeps the invoice card closed on a voided payment even when asked to invoice" do
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: caja, void_reason: "x")
+
+      get "/web/payments/#{payment.id}", params: { facturar: 1 }
+
+      expect(page_html.at_css("#payment-invoice")["data-payment-invoice-open-value"]).to eq("false")
     end
 
     it "shows the recorded invoice with a way to correct it" do
@@ -42,21 +149,10 @@ RSpec.describe "Web::Payments", type: :request do
       expect(page_html.at_css("#payment-invoice").text).to include("Factura B · 1452", "Corregir")
     end
 
-    it "says when the collection was reversed" do
-      create(:cash_movement, source_payment: payment, business_date: date, amount: 264_100)
-      travel_to(date + 2) do
-        create(:cash_movement, source_payment: payment, business_date: date + 2, amount: -264_100)
-      end
-
+    it "says so when the payment has no cash movement" do
       get "/web/payments/#{payment.id}"
 
-      expect(response.body).to include("Este cobro se revirtió el 03/10/2026 porque se anuló la venta.")
-    end
-
-    it "falls back to the payment date when the payment has no cash movement" do
-      get "/web/payments/#{payment.id}"
-
-      expect(response.body).to include("Caja del 01/10/2026", "Sin movimiento de caja")
+      expect(response.body).to include("Sin movimiento de caja")
     end
 
     it "keeps the seller out" do
@@ -77,6 +173,16 @@ RSpec.describe "Web::Payments", type: :request do
       expect(response).to redirect_to("/web/payments/#{payment.id}")
       expect(flash[:notice]).to eq("Factura guardada")
       expect(payment.reload.invoice_label).to eq("Factura B · 1452")
+    end
+
+    it "refuses a voided payment and keeps the invoice card closed" do
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: caja, void_reason: "x")
+
+      patch "/web/payments/#{payment.id}", params: { invoice_type: "b", invoice_number: "1452" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El cobro está anulado")
+      expect(page_html.at_css("#payment-invoice")["data-payment-invoice-open-value"]).to eq("false")
     end
 
     it "re-renders the open form with the error when the number is missing" do
@@ -188,6 +294,21 @@ RSpec.describe "Web::Payments", type: :request do
         expect(payment.reload.payment_method).to eq("mercado_pago")
         expect(movement.reload).to have_attributes(channel: "mercado_pago", account: "mercado_pago")
       end
+    end
+
+    it "refuses a voided payment without opening the form" do
+      sign_in caja
+      payment.update!(status: "voided", voided_at: Time.current, voided_by: caja, void_reason: "x")
+
+      patch "/web/payments/#{payment.id}/payment_method", params: { payment_method: "cash" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      card = page_html.at_css("#payment-method")
+      expect(card["data-payment-invoice-open-value"]).to eq("false")
+      expect(card.text).to include("El cobro está anulado")
+      expect(response.body).not_to include("Guardar medio de pago")
+      expect(card.text).not_to include("Cambiar")
+      expect(payment.reload.payment_method).to eq("mercado_pago")
     end
 
     it "keeps the seller out" do

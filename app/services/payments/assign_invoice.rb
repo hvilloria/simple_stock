@@ -31,6 +31,7 @@ module Payments
     class ValidationError < StandardError; end
 
     def validate!
+      raise ValidationError, "El cobro está anulado" if @payment.voided_status?
       raise ValidationError, "Falta seleccionar el tipo de factura" if @invoice_type.nil?
       raise ValidationError, "Tipo de factura inválido" unless Payment.invoice_types.key?(@invoice_type)
       return unless %w[a b].include?(@invoice_type) && @invoice_number.nil?

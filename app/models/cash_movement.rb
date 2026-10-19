@@ -189,7 +189,7 @@ class CashMovement < ApplicationRecord
   def paper_numbers
     return [] if source_payment.nil?
 
-    source_payment.orders.map(&:paper_number).sort
+    source_payment.shown_allocations.map { |allocation| allocation.order.paper_number }.sort
   end
 
   private
