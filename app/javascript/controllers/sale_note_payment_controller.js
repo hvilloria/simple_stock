@@ -91,7 +91,7 @@ export default class extends Controller {
   confirmOverpayment(event) {
     this.confirmedOverpaidTarget.value = this._overpaid > 0 ? this._fmtPlain(this._overpaid) : "0"
     if (this._overpaid > 0 &&
-        !window.confirm(`Vas a cobrar ${this._fmt(this._overpaid)} de más en efectivo. ¿Confirmás?`)) {
+        !window.confirm(`Se cobrará ${this._fmt(this._overpaid)} de más en efectivo. ¿Confirmar el cobro?`)) {
       event.preventDefault()
     }
   }

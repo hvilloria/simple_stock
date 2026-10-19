@@ -85,7 +85,7 @@ export default class extends Controller {
     if (this.lines.length === 0) {
       this.linesTarget.innerHTML = `
         <div class="rounded-lg border border-dashed border-slate-300 px-6 py-8 text-center">
-          <p class="text-sm text-slate-500">Buscá un producto para agregarlo al ajuste.</p>
+          <p class="text-sm text-slate-500">Buscar un producto para agregarlo al ajuste.</p>
         </div>
       `
       return

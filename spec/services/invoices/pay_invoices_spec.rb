@@ -222,14 +222,14 @@ RSpec.describe Invoices::PayInvoices do
 
     it "refuses a missing or unknown arca" do
       [ nil, "", "usd", "change_fund" ].each do |account|
-        expect_refusal("Elegí de dónde sale la plata") { pay([ invoice ], account: account) }
+        expect_refusal("Seleccionar de dónde sale el dinero") { pay([ invoice ], account: account) }
       end
       expect(invoice.reload.pending_status?).to be true
     end
 
     it "refuses a closed day" do
       create(:daily_closing, business_date: Date.current - 1)
-      expect_refusal("El día #{(Date.current - 1).strftime('%d/%m/%Y')} está cerrado. Usá una fecha abierta.") do
+      expect_refusal("El día #{(Date.current - 1).strftime('%d/%m/%Y')} está cerrado. Usar una fecha abierta.") do
         pay([ invoice ], payment_date: Date.current - 1)
       end
     end
@@ -246,7 +246,7 @@ RSpec.describe Invoices::PayInvoices do
 
     it "refuses mixed types" do
       taxes = pending_invoice(supplier: supplier, amount: 5_000, expense_type: "taxes")
-      expect_refusal("Pagá por separado las facturas de distinto tipo") { pay([ invoice, taxes ]) }
+      expect_refusal("Las facturas de distinto tipo se pagan por separado") { pay([ invoice, taxes ]) }
     end
 
     it "refuses mixed suppliers" do

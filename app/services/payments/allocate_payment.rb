@@ -185,7 +185,7 @@ module Payments
       end
 
       if (excess - row[:confirmed_overpaid].to_d).abs > OVERPAID_TOLERANCE
-        raise ValidationError, "El saldo cambió mientras cobrabas. Revisá el monto."
+        raise ValidationError, "El saldo cambió durante el cobro. Revisar el monto."
       end
 
       row[:overpaid_amount] = excess

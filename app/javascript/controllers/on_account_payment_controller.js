@@ -12,7 +12,8 @@ export default class extends Controller {
     "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "settleAllButton",
     "receivedLine", "discountRow", "discountLabel", "discountLine",
     "resultRows", "settledLine", "balanceAfter", "overpaidRow", "overpaidLine",
-    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint", "roundingRow", "roundingLine"
+    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint", "roundingRow", "roundingLine",
+    "cashToChargeRow", "cashToChargeLabel", "cashToChargeLine"
   ]
   static values = { balance: Number, pendingDelivery: Boolean }
 
@@ -36,7 +37,11 @@ export default class extends Controller {
     const settled = this._settled(received, discount, settleAll, overpaid, rounding)
     const excess = settled > this.balanceValue + 0.001
 
-    this.settleAllButtonTarget.textContent = `Saldar todo: cobrar ${this.format(settleAll)}`
+    const chargeCash = this._chargeCash(discount)
+    this.settleAllButtonTarget.textContent = `Saldar todo: cobrar ${this.format(chargeCash)}`
+    this.cashToChargeRowTarget.hidden = discount === 0
+    this.cashToChargeLabelTarget.textContent = `En efectivo con ${discount}%`
+    this.cashToChargeLineTarget.textContent = this.format(chargeCash)
     this.receivedLineTarget.textContent = this.format(received)
     this.discountRowTarget.hidden = discount === 0 || excess
     this.discountLabelTarget.textContent = `Descuento ${discount}% en efectivo`
@@ -62,7 +67,7 @@ export default class extends Controller {
   settleAll(event) {
     event.preventDefault()
     const first = this.tenderAmountTargets[0]
-    first.value = this._fmtPlain(this._settleAllCash(this._discount()))
+    first.value = this._fmtPlain(this._chargeCash(this._discount()))
     this.recalculate()
   }
 
@@ -98,7 +103,7 @@ export default class extends Controller {
     this.confirmedOverpaidTarget.value = overpaid > 0 ? this._fmtPlain(overpaid) : "0"
 
     const messages = []
-    if (overpaid > 0) messages.push(`Vas a cobrar ${this.format(overpaid)} de más en efectivo. ¿Confirmás?`)
+    if (overpaid > 0) messages.push(`Se cobrará ${this.format(overpaid)} de más en efectivo. ¿Confirmar el cobro?`)
     if (this.balanceValue - settled <= 0 && this.pendingDeliveryValue) {
       messages.push("La operación queda pagada pero faltan productos por entregar. ¿Confirmar?")
     }
@@ -112,6 +117,15 @@ export default class extends Controller {
   // In integer cents, rounding half-up like the server.
   _settleAllCash(discount) {
     return Math.round(Math.round(this.balanceValue * 100) * (100 - discount) / 100) / 100
+  }
+
+  // With a discount, the settle-all cash rounded down to the hundred, which
+  // the server also accepts as settling the balance.
+  _chargeCash(discount) {
+    const settleAll = this._settleAllCash(discount)
+    if (discount === 0) return settleAll
+    const floor = Math.floor(settleAll / 100) * 100
+    return floor > 0 ? floor : settleAll
   }
 
   _overpaid(tenders, settleAll) {

@@ -101,7 +101,7 @@
       .inline-flex.w-20.h-20.rounded-full.bg-slate-100.items-center.justify-center.text-4xl.mb-4
         👤
       %h3.text-xl.font-bold.text-slate-900.mb-2 No hay clientes registrados
-      %p.text-slate-600.mb-6 Creá tu primer cliente para comenzar a gestionar cuentas corrientes
+      %p.text-slate-600.mb-6 Crear el primer cliente para comenzar a gestionar cuentas corrientes
       - if policy(Customer.new).new?
         = link_to new_web_customer_path, class: "inline-flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors" do
           %span +

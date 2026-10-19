@@ -376,7 +376,7 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(html.at("#invoice_amount")["readonly"]).to be_present
       expect(response.body).to include("Calculado desde los productos; no se edita.")
       expect(html.at("#invoice-lines")).to be_present
-      expect(response.body).to include("Las líneas no se editan. Si la factura está mal cargada, cancelala y registrala de nuevo.")
+      expect(response.body).to include("Las líneas no se editan. Si la factura está mal cargada, cancelarla y registrarla de nuevo.")
     end
 
     it "keeps the amount editable on an amount-only invoice" do
@@ -788,7 +788,7 @@ RSpec.describe "Web::Invoices", type: :request do
       Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current,
                                  user: create(:user, :admin), credit_note_ids: [ credit.id ])
       get web_invoice_path(invoice)
-      expect(response.body).to include("con notas de crédito · no salió plata")
+      expect(response.body).to include("con notas de crédito · no salió dinero")
     end
 
     it "says no money left when a USD note rounded up to cover the invoice" do
@@ -797,7 +797,7 @@ RSpec.describe "Web::Invoices", type: :request do
       Invoices::PayInvoices.call(invoices: [ invoice ], account: "main_cash", payment_date: Date.current,
                                  user: create(:user, :admin), credit_note_ids: [ credit.id ])
       get web_invoice_path(invoice)
-      expect(response.body).to include("no salió plata")
+      expect(response.body).to include("no salió dinero")
     end
 
     it "does not claim that no money left for a legacy invoice paid partly with credits" do
@@ -807,7 +807,7 @@ RSpec.describe "Web::Invoices", type: :request do
       invoice.update!(status: "paid", paid_at: Date.current)
       get web_invoice_path(invoice)
       expect(response.body).to include("Pagada el #{Date.current.strftime('%d/%m/%Y')}")
-      expect(response.body).not_to include("no salió plata")
+      expect(response.body).not_to include("no salió dinero")
     end
 
     it "shows only the date for an invoice paid before invoices wrote outflows" do

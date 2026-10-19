@@ -18,7 +18,7 @@ module Web
         @suppliers = supplier_options
         return refuse("El día está cerrado.") if day_closed?
         return refuse("Esa categoría no se carga en esta zona.") unless zone_category?
-        return refuse("Indicá si el socio retira o aporta.") unless partner_direction?
+        return refuse("Falta indicar si el socio retira o aporta.") unless partner_direction?
         return refuse(DESCRIPTION_REQUIRED) if missing_outflow_description?
 
         amount = signed_amount
@@ -58,7 +58,7 @@ module Web
         deny_forbidden_category!
         return refuse_closed_day if day_closed?
         return refuse_edit("Esa categoría no se carga en esta zona.") unless zone_category?
-        return refuse_edit("Indicá si el socio retira o aporta.") unless partner_direction?
+        return refuse_edit("Falta indicar si el socio retira o aporta.") unless partner_direction?
         return refuse_edit(DESCRIPTION_REQUIRED) if missing_outflow_description?
 
         amount = signed_amount

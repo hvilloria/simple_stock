@@ -14,7 +14,7 @@ module Payments
   class CollectOnAccount
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
     TOLERANCE = 0.01
-    BALANCE_CHANGED = "El saldo cambió mientras cobrabas. Revisá el monto."
+    BALANCE_CHANGED = "El saldo cambió durante el cobro. Revisar el monto."
 
     def self.call(order:, tenders:, user:, discount_percent: 0, payment_date: Date.current, confirmed_overpaid: 0)
       new(

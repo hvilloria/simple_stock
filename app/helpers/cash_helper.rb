@@ -114,7 +114,7 @@ module CashHelper
 
   def cash_channel_options
     CashMovement::CHANNEL_LABELS.map do |key, label|
-      [ key == "compensation" ? "Compensación — no entra plata" : label, key ]
+      [ key == "compensation" ? "Compensación — no entra dinero" : label, key ]
     end
   end
 

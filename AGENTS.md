@@ -118,6 +118,7 @@ Always:
 - keep UI consistent with existing views
 - keep business logic out of views
 - keep UI-facing text (labels, flash messages, buttons) in Spanish; code and comments in English
+- write all Spanish text (UI labels, hints, flash and validation messages, confirm dialogs, task output) in **neutral Spanish**: never Argentine voseo or regionalisms ("Elegí", "Revisá", "Podés", "plata"); prefer impersonal phrasing ("Seleccionar medio", "Falta seleccionar el medio de pago"). Voseo found in text you touch or near it is fixed in the same change, never left as "existing"
 
 Never:
 - introduce a new UI paradigm without reason

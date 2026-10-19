@@ -119,7 +119,7 @@ RSpec.describe CashMovement, type: :model do
         movement = build(:cash_movement, account: nil)
         expect(movement).not_to be_valid
         expect(movement.errors[:base]).to include(
-          "Falta el arca: indicá a qué caja entra o de cuál sale el dinero."
+          "Falta el arca: indicar a qué caja entra o de cuál sale el dinero."
         )
       end
 
@@ -141,7 +141,7 @@ RSpec.describe CashMovement, type: :model do
         movement = build(:cash_movement, category: "sale", channel: nil)
         expect(movement).not_to be_valid
         expect(movement.errors[:base]).to include(
-          "Falta el canal: indicá cómo entró el dinero de la venta."
+          "Falta el canal: indicar cómo entró el dinero de la venta."
         )
       end
 
@@ -159,7 +159,7 @@ RSpec.describe CashMovement, type: :model do
         movement = build(:cash_movement, :store_expense, subcategory: nil)
         expect(movement).not_to be_valid
         expect(movement.errors[:base]).to include(
-          "Falta la subcategoría: indicá de qué tipo de gasto fijo se trata."
+          "Falta la subcategoría: indicar de qué tipo de gasto fijo se trata."
         )
       end
 
@@ -177,7 +177,7 @@ RSpec.describe CashMovement, type: :model do
         movement = build(:cash_movement, :compensation_sale, supplier: nil)
         expect(movement).not_to be_valid
         expect(movement.errors[:base]).to include(
-          "Falta el proveedor: indicá a quién se le descuenta la deuda por la compensación."
+          "Falta el proveedor: indicar a quién se le descuenta la deuda por la compensación."
         )
       end
 

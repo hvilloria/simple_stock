@@ -3,7 +3,7 @@
 .max-w-5xl.mx-auto
   .mb-6
     %h1.text-2xl.font-semibold.text-slate-900 Ajuste de stock
-    %p.text-sm.text-slate-600.mt-1 Cargá cuántas unidades hay ahora en el local. La diferencia se guarda como ajuste.
+    %p.text-sm.text-slate-600.mt-1 Cargar cuántas unidades hay ahora en el local. La diferencia se guarda como ajuste.
 
   = form_with url: web_stock_adjustments_path, method: :post, local: true,
               data: { controller: "stock-adjustment-lines",

@@ -43,7 +43,7 @@ RSpec.describe "Web::StockAdjustments", type: :request do
         get new_web_stock_adjustment_path
 
         expect(response).to redirect_to(authenticated_root_path)
-        expect(flash[:alert]).to eq("No tenés permiso para realizar esta acción.")
+        expect(flash[:alert]).to eq("No tiene permiso para realizar esta acción.")
       end
     end
   end
@@ -90,7 +90,7 @@ RSpec.describe "Web::StockAdjustments", type: :request do
       post web_stock_adjustments_path, params: { note: "Conteo", lines: "garbage" }
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Agregá al menos un producto")
+      expect(response.body).to include("Falta agregar al menos un producto")
     end
 
     it "keeps vendedor and caja out" do

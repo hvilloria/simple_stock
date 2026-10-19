@@ -668,7 +668,7 @@ RSpec.describe "Web::Cash::Movements", type: :request do
       }.not_to change(CashMovement, :count)
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.body).to include("Indicá si el socio retira o aporta.")
+      expect(response.body).to include("Falta indicar si el socio retira o aporta.")
     end
 
     it "refuses one in the drawer zone, where it never belonged" do
