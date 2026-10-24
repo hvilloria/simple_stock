@@ -22,6 +22,12 @@ RSpec.describe PaymentsHelper, type: :helper do
       expect(percent_for(100_000, 5_000)).to eq(5)
     end
 
+    it "reads a settling collection's discount against what it covered" do
+      allocation = build(:payment_allocation, amount: 50_000, discount_amount: 5_000, covered_amount: 100_000)
+
+      expect(helper.payment_allocation_discount_percent(allocation)).to eq(5)
+    end
+
     it "is nil without a discount" do
       expect(percent_for(100_000, 0)).to be_nil
     end

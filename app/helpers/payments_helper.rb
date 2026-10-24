@@ -48,7 +48,9 @@ module PaymentsHelper
   def payment_allocation_discount_percent(allocation)
     return nil unless allocation.discount_amount.positive?
 
-    percent = allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)
+    covered = allocation.try(:covered_amount) ||
+              allocation.amount + allocation.discount_amount - allocation.overpaid_amount
+    percent = allocation.discount_amount * 100 / covered
     Payments::CollectOnAccount::ALLOWED_DISCOUNTS.select(&:positive?).min_by { |d| (d - percent).abs }
   end
 
