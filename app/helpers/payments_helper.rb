@@ -14,9 +14,8 @@ module PaymentsHelper
     ].compact.join(" · ")
   end
 
-  # How far a collection lowered the debt of the notes it covered.
-  def payment_debt_lowered(payment)
-    payment.shown_allocations.sum { |a| a.amount + a.discount_amount - a.overpaid_amount }
+  def payment_discount(payment)
+    payment.shown_allocations.sum(&:discount_amount)
   end
 
   def void_confirm_message(cascade)
