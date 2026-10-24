@@ -361,7 +361,7 @@ RSpec.describe Payments::CollectOnAccount do
         expect(collect(note_4647, 230_000, discount: 10, confirmed_overpaid: 1_200)).to be_success
 
         note_4647.reload
-        expect(last_allocation(note_4647).overpaid_amount).to eq(1_200)
+        expect(last_allocation(note_4647)).to have_attributes(overpaid_amount: 1_200, covered_amount: 282_000)
         expect(note_4647.outstanding_balance).to eq(0)
       end
 

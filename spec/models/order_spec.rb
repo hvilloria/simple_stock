@@ -383,10 +383,10 @@ RSpec.describe Order, type: :model do
     let(:customer) { Customer.mostrador }
     let(:order) { create(:order, :on_account, customer: customer, original_total_amount: 89_000, total_amount: 89_000) }
 
-    def allocate(amount:, discount: 0, overpaid: 0, method: "cash")
+    def allocate(amount:, discount: 0, overpaid: 0, covered: nil, method: "cash")
       payment = Payment.create!(customer: customer, amount: amount, payment_method: method, payment_date: Date.current)
       PaymentAllocation.create!(payment: payment, order: order, amount: amount,
-                                discount_amount: discount, overpaid_amount: overpaid)
+                                discount_amount: discount, overpaid_amount: overpaid, covered_amount: covered)
     end
 
     it "is zero without collections" do
@@ -412,6 +412,11 @@ RSpec.describe Order, type: :model do
     it "ignores cash collected above what was owed" do
       allocate(amount: 72_300, discount: 8_030, overpaid: 30)
       expect(order.last_collection_discount_percent).to eq(10)
+    end
+
+    it "reads the percent against what the settling collection covered" do
+      allocate(amount: 50_000, discount: 5_000, covered: 100_000)
+      expect(order.last_collection_discount_percent).to eq(5)
     end
   end
 

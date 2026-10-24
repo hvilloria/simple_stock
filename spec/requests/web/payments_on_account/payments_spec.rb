@@ -290,8 +290,9 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       collect("228.800,00")
 
       settle = Payment.order(:id).last
+      expect(settle).to have_attributes(payment_method: "cash", amount: 228_800)
       expect(settle.allocations.sole).to have_attributes(amount: 228_800, discount_amount: 28_200,
-                                                         covered_amount: 282_000)
+                                                         covered_amount: 282_000, overpaid_amount: 0)
       expect(note.reload).to have_attributes(total_amount: 478_800, status: "confirmed",
                                              settled_on: settle.payment_date)
       expect(note.outstanding_balance).to eq(0)
@@ -302,10 +303,14 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
     it "stores the digital settle" do
       collect("257.000,00", method: "bank_transfer", discount: "0")
 
-      expect(Payment.order(:id).last.allocations.sole).to have_attributes(amount: 257_000, discount_amount: 0,
-                                                                          covered_amount: 282_000)
-      expect(note.reload).to have_attributes(total_amount: 507_000, status: "confirmed")
+      settle = Payment.order(:id).last
+      expect(settle).to have_attributes(payment_method: "bank_transfer", amount: 257_000)
+      expect(settle.allocations.sole).to have_attributes(amount: 257_000, discount_amount: 0,
+                                                         covered_amount: 282_000, overpaid_amount: 0)
+      expect(note.reload).to have_attributes(total_amount: 507_000, status: "confirmed",
+                                             settled_on: settle.payment_date)
       expect(note.outstanding_balance).to eq(0)
+      expect(CashMovement.where(source_payment: settle).sole.amount).to eq(257_000)
     end
   end
 end
