@@ -56,21 +56,25 @@
                 %th.py-1.5.font-medium.border-b.border-slate-100 Fecha
                 %th.py-1.5.font-medium.border-b.border-slate-100 Método
                 %th.py-1.5.font-medium.border-b.border-slate-100.text-right Recibido
-                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Bajó la deuda
+                %th.py-1.5.font-medium.border-b.border-slate-100.text-right Descuento
                 %th.py-1.5.border-b.border-slate-100
             %tbody
               - history.each do |allocation|
                 - percent = payment_allocation_discount_percent(allocation)
-                - date = l(allocation.payment.payment_date, format: :default)
+                - date = allocation.payment.payment_date.strftime("%d/%m/%Y")
                 %tr{ class: ("text-slate-400" if allocation.voided?) }
                   %td.py-2.text-slate-600
                     - if policy(allocation.payment).show?
                       = link_to date, web_payment_path(allocation.payment), class: "underline hover:text-slate-900"
                     - else
                       = date
-                  %td.py-2= [ payment_method_label(allocation.payment.payment_method), ("#{percent}%" if percent) ].compact.join(" · ")
+                  %td.py-2= payment_method_label(allocation.payment.payment_method)
                   %td.py-2.text-right{ class: ("line-through" if allocation.voided?) }= number_to_currency(allocation.amount, unit: "$", separator: ",", delimiter: ".")
-                  %td.py-2.text-right{ class: ("line-through" if allocation.voided?) }= number_to_currency(allocation.amount + allocation.discount_amount - allocation.overpaid_amount, unit: "$", separator: ",", delimiter: ".")
+                  %td.py-2.text-right{ class: ("line-through" if allocation.voided?) }
+                    - if percent
+                      = "#{number_to_currency(allocation.discount_amount, unit: '$', separator: ',', delimiter: '.')} · #{percent}%"
+                    - else
+                      —
                   %td.py-2.text-right
                     - if allocation.voided?
                       %span.inline-flex.px-2.py-0.5.rounded-md.border.border-slate-300.text-xs Anulado
@@ -83,20 +87,40 @@
         .flex.justify-between.text-slate-600
           %span Total de la venta
           %span= number_to_currency(@order.original_total_amount, unit: "$", separator: ",", delimiter: ".")
-        - if @order.discounts_total.positive?
+        - if outstanding_balance.positive?
           .flex.justify-between.text-slate-600
-            %span Descuentos
-            %span= "−#{number_to_currency(@order.discounts_total, unit: '$', separator: ',', delimiter: '.')}"
-        - if @order.overpaid_amount.positive?
+            %span Pagado
+            %span= number_to_currency(@order.total_amount - outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+          .border-t.border-slate-200.my-2
           .flex.justify-between.text-slate-600
-            %span Cobrado de más
-            %span= "+#{number_to_currency(@order.overpaid_amount, unit: '$', separator: ',', delimiter: '.')}"
-        .flex.justify-between.text-slate-600
-          %span Pagado
-          %span= number_to_currency(@order.total_amount - @order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
-        .flex.justify-between.font-semibold
-          %span Saldo
-          %span= number_to_currency(@order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+            %span Resta pagar
+            %span= number_to_currency(remaining_to_pay, unit: "$", separator: ",", delimiter: ".")
+          - if earned_discount.positive?
+            .flex.justify-between.text-slate-600
+              %span Descuento ya ganado
+              %span= "−#{number_to_currency(earned_discount, unit: '$', separator: ',', delimiter: '.')}"
+          .flex.justify-between.font-semibold
+            %span Saldo (en digital)
+            %span= number_to_currency(outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+          - if last_discount_percent.positive?
+            .flex.justify-between.font-semibold
+              %span= "En efectivo con #{last_discount_percent}%"
+              %span= number_to_currency(cash_settle_amount, unit: "$", separator: ",", delimiter: ".")
+        - else
+          - if @order.discounts_total.positive?
+            .flex.justify-between.text-slate-600
+              %span Descuentos
+              %span= "−#{number_to_currency(@order.discounts_total, unit: '$', separator: ',', delimiter: '.')}"
+          - if @order.overpaid_amount.positive?
+            .flex.justify-between.text-slate-600
+              %span Cobrado de más
+              %span= "+#{number_to_currency(@order.overpaid_amount, unit: '$', separator: ',', delimiter: '.')}"
+          .flex.justify-between.text-slate-600
+            %span Pagado
+            %span= number_to_currency(@order.total_amount - outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+          .flex.justify-between.font-semibold
+            %span Saldo
+            %span= number_to_currency(outstanding_balance, unit: "$", separator: ",", delimiter: ".")
         .border-t.border-slate-200.my-2
         .flex.justify-between.text-slate-600
           %span Entrega
@@ -104,5 +128,5 @@
         .flex.justify-between.text-slate-600
           %span Vendedor
           %span= @order.user.name
-      - if @can_collect && @order.outstanding_balance.positive?
+      - if @can_collect && outstanding_balance.positive?
         = link_to "Cobrar →", new_web_payments_on_account_payment_path(@order), class: "mt-4 block text-center w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-medium"

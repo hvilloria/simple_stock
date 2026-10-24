@@ -44,11 +44,12 @@ module PaymentsHelper
       options_for_select(Payment.method_options)
   end
 
-  # The cash discount a collection carried, as a whole percentage; nil when none.
+  # The cash discount a collection carried, as one of the allowed percents; nil when none.
   def payment_allocation_discount_percent(allocation)
     return nil unless allocation.discount_amount.positive?
 
-    (allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)).round
+    percent = allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)
+    Payments::CollectOnAccount::ALLOWED_DISCOUNTS.select(&:positive?).min_by { |d| (d - percent).abs }
   end
 
   def payment_notes(payment)
