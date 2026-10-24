@@ -15,6 +15,18 @@ RSpec.describe PaymentAllocation, type: :model do
     it { should validate_numericality_of(:amount).is_greater_than(0) }
   end
 
+  describe "#covered" do
+    it "is the stored covered amount" do
+      allocation = build(:payment_allocation, amount: 250_000, discount_amount: 25_000, covered_amount: 250_000)
+      expect(allocation.covered).to eq(250_000)
+    end
+
+    it "falls back to what a legacy collection lowered the debt by" do
+      allocation = build(:payment_allocation, amount: 250_000, discount_amount: 27_778, overpaid_amount: 0, covered_amount: nil)
+      expect(allocation.covered).to eq(277_778)
+    end
+  end
+
   describe "order_belongs_to_payment_customer" do
     let!(:stock_location) { create(:stock_location) }
     let(:customer_a) { create(:customer, :with_credit) }
