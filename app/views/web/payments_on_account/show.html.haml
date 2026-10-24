@@ -90,7 +90,7 @@
         - if outstanding_balance.positive?
           .flex.justify-between.text-slate-600
             %span Pagado
-            %span= number_to_currency(@order.total_amount - outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+            %span= number_to_currency(@order.paid_amount, unit: "$", separator: ",", delimiter: ".")
           .border-t.border-slate-200.my-2
           .flex.justify-between.text-slate-600
             %span Resta pagar
@@ -117,7 +117,7 @@
               %span= "+#{number_to_currency(@order.overpaid_amount, unit: '$', separator: ',', delimiter: '.')}"
           .flex.justify-between.text-slate-600
             %span Pagado
-            %span= number_to_currency(@order.total_amount - outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+            %span= number_to_currency(@order.paid_amount, unit: "$", separator: ",", delimiter: ".")
           .flex.justify-between.font-semibold
             %span Saldo
             %span= number_to_currency(outstanding_balance, unit: "$", separator: ",", delimiter: ".")

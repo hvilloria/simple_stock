@@ -379,6 +379,24 @@ RSpec.describe Order, type: :model do
     end
   end
 
+  describe "#paid_amount" do
+    let(:customer) { Customer.mostrador }
+    let(:order) { create(:order, :on_account, customer: customer, original_total_amount: 89_000, total_amount: 89_000) }
+
+    it "is zero without collections" do
+      expect(order.paid_amount).to eq(0)
+    end
+
+    it "sums the cash received, without the discounts it earned" do
+      [ 40_000, 10_000 ].each do |amount|
+        payment = Payment.create!(customer: customer, amount: amount, payment_method: "cash", payment_date: Date.current)
+        PaymentAllocation.create!(payment: payment, order: order, amount: amount, discount_amount: amount / 10)
+      end
+
+      expect(order.paid_amount).to eq(50_000)
+    end
+  end
+
   describe "#last_collection_discount_percent" do
     let(:customer) { Customer.mostrador }
     let(:order) { create(:order, :on_account, customer: customer, original_total_amount: 89_000, total_amount: 89_000) }

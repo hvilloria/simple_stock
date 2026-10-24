@@ -90,6 +90,10 @@ class Order < ApplicationRecord
     total_amount - payment_allocations.sum(:amount)
   end
 
+  def paid_amount
+    payment_allocations.sum(:amount)
+  end
+
   def remaining_to_pay
     original_total_amount -
       payment_allocations.sum("COALESCE(covered_amount, amount + discount_amount - overpaid_amount)")
