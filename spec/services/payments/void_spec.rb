@@ -38,7 +38,7 @@ RSpec.describe Payments::Void do
       expect(order.outstanding_balance).to eq(89_000)
       expect(order.payment_allocations).to be_empty
       expect(order.voided_payment_allocations.pluck(:amount, :discount_amount))
-        .to contain_exactly([ 40_000, 4_444 ], [ 40_100, 4_456 ])
+        .to contain_exactly([ 40_000, 4_000 ], [ 40_100, 4_900 ])
       expect([ first.reload, second.reload ]).to all(have_attributes(status: "voided", voided_by: caja,
                                                                      void_reason: "Monto mal cargado"))
     end
@@ -50,9 +50,9 @@ RSpec.describe Payments::Void do
       void(voided)
 
       expect(kept.reload).to be_active_status
-      expect(order.reload.total_amount).to eq(89_000 - 4_444)
-      expect(order.outstanding_balance).to eq(44_556)
-      expect(order.discounts_total).to eq(4_444)
+      expect(order.reload.total_amount).to eq(89_000 - 4_000)
+      expect(order.outstanding_balance).to eq(45_000)
+      expect(order.discounts_total).to eq(4_000)
     end
 
     it "takes the overpaid cash back out of the total" do

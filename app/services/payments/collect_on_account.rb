@@ -4,13 +4,14 @@ module Payments
   # Collects a partial, repeatable payment on an on_account sale.
   #
   # Caja enters what the customer hands over; the debt drops by that amount,
-  # or, with a cash-only discount, by the amount grossed up by the discount and
-  # rounded to the peso. Cash equal to the amount that settles the whole
-  # balance (balance × (1 − discount)) settles it, and so does that amount
-  # rounded down to the hundred when there is a discount; cash above it also
+  # plus, with a cash-only discount, that percent of it rounded to the peso.
+  # Cash equal to Order#cash_settle_amount settles the whole balance (what is
+  # left to pay discounted, minus the discount already earned), and so does that
+  # amount rounded down to the hundred when there is a discount; cash above it also
   # settles it and the excess is added to the total as overpaid, provided it
   # matches confirmed_overpaid, the excess the operator saw and confirmed.
-  # The discount lowers total_amount; the allocation records the cash received.
+  # The discount lowers total_amount; the allocation records the cash received
+  # and how much of the sale it covered (all that was left, when it settles).
   class CollectOnAccount
     ALLOWED_DISCOUNTS = [ 0, 5, 10 ].freeze
     TOLERANCE = 0.01
@@ -38,10 +39,11 @@ module Payments
 
     def call
       validate!
+      covered = covered_by_method
 
       ActiveRecord::Base.transaction do
         apply_totals!
-        create_payments_and_allocations!
+        create_payments_and_allocations!(covered)
         @order.refresh_status_from_balance!
 
         Result.new(success?: true, record: @order, errors: [])
@@ -97,16 +99,12 @@ module Payments
       @balance ||= @order.outstanding_balance
     end
 
-    def factor
-      1 - (@discount_percent.to_d / 100)
-    end
-
     def cash_received
       @tenders.select { |t| t[:payment_method] == "cash" }.sum { |t| t[:amount].to_d }
     end
 
     def settle_all_cash
-      @settle_all_cash ||= (balance * factor).round(2)
+      @settle_all_cash ||= @order.cash_settle_amount(@discount_percent)
     end
 
     def overpaid
@@ -133,7 +131,7 @@ module Payments
       @settled ||=
         if settles_all? then balance
         elsif @discount_percent.zero? then received
-        else (received / factor).round(0)
+        else received + (received * @discount_percent / 100).round(0)
         end
     end
 
@@ -155,9 +153,24 @@ module Payments
       @order.update!(total_amount: @order.total_amount - discount + overpaid)
     end
 
-    def create_payments_and_allocations!
-      @tenders.group_by { |t| t[:payment_method] }.each do |method, rows|
-        total = rows.sum { |r| r[:amount].to_d }
+    def received_by_method
+      @received_by_method ||= @tenders.group_by { |t| t[:payment_method] }
+                                      .transform_values { |rows| rows.sum { |r| r[:amount].to_d } }
+    end
+
+    # A settling collection covers all that was left; the cash allocation (else
+    # the first one) carries the discounts earlier collections had earned.
+    def covered_by_method
+      covered = received_by_method.dup
+      return covered unless settles_all?
+
+      carrier = covered.key?("cash") ? "cash" : covered.keys.first
+      covered[carrier] = @order.remaining_to_pay - (received - covered[carrier])
+      covered
+    end
+
+    def create_payments_and_allocations!(covered)
+      received_by_method.each do |method, total|
         payment = Payment.create!(
           customer:       @order.customer,
           amount:         total,
@@ -169,6 +182,7 @@ module Payments
         # A discount only exists on an all-cash collection, so it lands here,
         # and overpaid cash is always on the cash allocation.
         PaymentAllocation.create!(payment: payment, order: @order, amount: total,
+                                  covered_amount: covered[method],
                                   discount_amount: method == "cash" ? discount : 0,
                                   overpaid_amount: method == "cash" ? overpaid : 0)
 
