@@ -1,6 +1,6 @@
 - content_for :page_title, "Cobrar pago a cuenta"
 
-.container.mx-auto.px-6.py-6{ data: { controller: "on-account-payment", "on-account-payment-balance-value": @order.outstanding_balance, "on-account-payment-pending-delivery-value": (!@order.fully_delivered?).to_s } }
+.container.mx-auto.px-6.py-6{ data: { controller: "on-account-payment", "on-account-payment-balance-value": outstanding_balance, "on-account-payment-remaining-value": remaining_to_pay, "on-account-payment-earned-value": earned_discount, "on-account-payment-pending-delivery-value": (!@order.fully_delivered?).to_s } }
 
   .flex.items-baseline.justify-between.mb-6
     %div
@@ -97,32 +97,47 @@
 
         .space-y-2.text-sm
           .flex.justify-between.text-slate-600
-            %span Debe hoy
-            %span= number_to_currency(@order.outstanding_balance, unit: "$", separator: ",", delimiter: ".")
+            %span Resta pagar
+            %span= number_to_currency(remaining_to_pay, unit: "$", separator: ",", delimiter: ".")
+          - if earned_discount.positive?
+            .flex.justify-between.text-slate-600
+              %span Descuento ya ganado
+              %span= "−#{number_to_currency(earned_discount, unit: '$', separator: ',', delimiter: '.')}"
+          .border-t.border-slate-200.my-2
+          .flex.justify-between.text-slate-600
+            %span En digital
+            %span= number_to_currency(outstanding_balance, unit: "$", separator: ",", delimiter: ".")
           .flex.justify-between.font-semibold.text-slate-900{ data: { "on-account-payment-target": "cashToChargeRow" }, hidden: true }
             %span{ data: { "on-account-payment-target": "cashToChargeLabel" } } En efectivo
             %span{ data: { "on-account-payment-target": "cashToChargeLine" } } $ 0,00
+
+          .border-t.border-slate-200.my-2
+          %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Este cobro
           .flex.justify-between.text-slate-600
             %span Recibido
             %span{ data: { "on-account-payment-target": "receivedLine" } } $ 0,00
           .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "discountRow" }, hidden: true }
-            %span{ data: { "on-account-payment-target": "discountLabel" } } Descuento en efectivo
+            %span{ data: { "on-account-payment-target": "discountLabel" } } Gana de descuento
             %span{ data: { "on-account-payment-target": "discountLine" } } $ 0,00
           .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "roundingRow" }, hidden: true }
             %span Redondeo
             %span{ data: { "on-account-payment-target": "roundingLine" } } $ 0,00
-          %div{ data: { "on-account-payment-target": "resultRows" } }
+          .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "overpaidRow" }, hidden: true }
+            %span Cobrado de más
+            %span{ data: { "on-account-payment-target": "overpaidLine" } } $ 0,00
+
+          .space-y-2{ data: { "on-account-payment-target": "resultRows" } }
             .border-t.border-slate-200.my-2
-            .flex.justify-between.font-semibold.text-slate-900
-              %span Baja la deuda en
-              %span{ data: { "on-account-payment-target": "settledLine" } } $ 0,00
-            .border-t.border-slate-200.my-2
+            %p.text-xs.font-medium.uppercase.tracking-wider.text-slate-500 Después de este cobro
+            .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "remainingAfterRow" } }
+              %span Resta pagar
+              %span{ data: { "on-account-payment-target": "remainingAfterLine" } } $ 0,00
+            .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "earnedAfterRow" }, hidden: true }
+              %span Descuento ya ganado
+              %span{ data: { "on-account-payment-target": "earnedAfterLine" } } $ 0,00
             .flex.justify-between.font-semibold.text-slate-900
               %span Queda debiendo
               %span{ data: { "on-account-payment-target": "balanceAfter" } } $ 0,00
-            .flex.justify-between.text-slate-600{ data: { "on-account-payment-target": "overpaidRow" }, hidden: true }
-              %span Cobrado de más
-              %span{ data: { "on-account-payment-target": "overpaidLine" } } $ 0,00
           %p.mt-3.p-3.rounded-lg.border.border-slate-300.bg-slate-50.text-slate-700{ data: { "on-account-payment-target": "excessNotice" }, hidden: true }
 
         = f.submit "Registrar cobro",

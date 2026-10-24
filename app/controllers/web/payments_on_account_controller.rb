@@ -1,5 +1,7 @@
 module Web
   class PaymentsOnAccountController < ApplicationController
+    helper_method :remaining_to_pay, :earned_discount, :outstanding_balance, :last_discount_percent, :cash_settle_amount
+
     def index
       authorize Order, :index?, policy_class: PaymentOnAccountPolicy
       @operations = Order.open_on_account
@@ -33,6 +35,28 @@ module Web
       else
         redirect_to web_payments_on_account_path(@order), alert: result.errors.join(", ")
       end
+    end
+
+    private
+
+    def remaining_to_pay
+      @remaining_to_pay ||= @order.remaining_to_pay
+    end
+
+    def earned_discount
+      @earned_discount ||= @order.earned_discount
+    end
+
+    def outstanding_balance
+      @outstanding_balance ||= @order.outstanding_balance
+    end
+
+    def last_discount_percent
+      @last_discount_percent ||= @order.last_collection_discount_percent
+    end
+
+    def cash_settle_amount
+      @cash_settle_amount ||= @order.cash_settle_amount(last_discount_percent)
     end
   end
 end

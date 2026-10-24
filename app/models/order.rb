@@ -90,6 +90,27 @@ class Order < ApplicationRecord
     total_amount - payment_allocations.sum(:amount)
   end
 
+  def paid_amount
+    payment_allocations.sum(:amount)
+  end
+
+  def remaining_to_pay
+    original_total_amount -
+      payment_allocations.sum("COALESCE(covered_amount, amount + discount_amount - overpaid_amount)")
+  end
+
+  def earned_discount
+    remaining_to_pay - outstanding_balance
+  end
+
+  # Cash that settles the sale when the remainder is discounted by the given percent.
+  def cash_settle_amount(discount_percent)
+    return outstanding_balance if discount_percent.to_d.zero?
+
+    settle = (remaining_to_pay * (1 - discount_percent.to_d / 100)).round(2) - earned_discount
+    settle.positive? ? settle : outstanding_balance
+  end
+
   # What cash discounts took off the original total.
   def discounts_total
     original_total_amount - total_amount + overpaid_amount
@@ -111,8 +132,7 @@ class Order < ApplicationRecord
     last = payment_allocations.order(:id).last
     return 0 if last.nil? || last.discount_amount.zero?
 
-    lowered = last.amount + last.discount_amount - last.overpaid_amount
-    percent = last.discount_amount / lowered * 100
+    percent = last.discount_amount / last.covered * 100
     Payments::CollectOnAccount::ALLOWED_DISCOUNTS.min_by { |d| (d - percent).abs }
   end
 

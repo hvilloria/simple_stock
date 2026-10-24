@@ -33,24 +33,32 @@ RSpec.describe Payments::CollectOnAccount do
       expect(Payment.count).to eq(0)
     end
 
-    it "lowers the debt by the cash received grossed up by the discount, rounded to the peso" do
+    it "lowers the debt by the cash received plus the discount on it" do
       result = collect(note_3738, 800_000, discount: 10)
 
       expect(result).to be_success
       note_3738.reload
       allocation = note_3738.payment_allocations.sole
       expect(allocation.amount).to eq(800_000)
-      expect(allocation.discount_amount).to eq(88_889)
-      expect(note_3738.total_amount).to eq(1_615_511)
-      expect(note_3738.outstanding_balance).to eq(815_511)
+      expect(allocation.discount_amount).to eq(80_000)
+      expect(allocation.covered_amount).to eq(800_000)
+      expect(note_3738.total_amount).to eq(1_624_400)
+      expect(note_3738.outstanding_balance).to eq(824_400)
       expect(note_3738.payments.sole.amount).to eq(800_000)
     end
 
     it "rounds what the payment cancels to the peso" do
       collect(note_3738, 100_000, discount: 10)
 
-      expect(note_3738.reload.payment_allocations.sole.discount_amount).to eq(11_111)
-      expect(note_3738.outstanding_balance).to eq(1_593_289)
+      expect(note_3738.reload.payment_allocations.sole.discount_amount).to eq(10_000)
+      expect(note_3738.outstanding_balance).to eq(1_594_400)
+
+      twin = create(:order, :on_account, customer: customer,
+                    total_amount: 1_704_400, original_total_amount: 1_704_400)
+      collect(twin, 12_345, discount: 10)
+
+      expect(twin.reload.payment_allocations.sole.discount_amount).to eq(1_235)
+      expect(twin.outstanding_balance).to eq(1_704_400 - 13_580)
     end
 
     it "lowers the debt by exactly what was received without a discount" do
@@ -90,7 +98,7 @@ RSpec.describe Payments::CollectOnAccount do
     it "keeps cash below the rounded hundred as a partial collection" do
       expect(collect(note_3738, 1_533_899, discount: 10)).to be_success
 
-      expect(note_3738.reload.outstanding_balance).to eq(68)
+      expect(note_3738.reload.outstanding_balance).to eq(17_111)
       expect(note_3738.status).to eq("pending")
     end
 
@@ -276,6 +284,174 @@ RSpec.describe Payments::CollectOnAccount do
       result = described_class.call(user: cashier, order: immediate,
                                     discount_percent: 0, tenders: [ { payment_method: "cash", amount: 100 } ])
       expect(result).to be_failure
+    end
+  end
+
+  describe "note 4647: the discount on the cash handed over" do
+    def sale(total)
+      o = create(:order, :on_account, customer: customer, total_amount: total, original_total_amount: total)
+      create(:order_item, order: o, product: product, quantity: 1, unit_price: total)
+      o
+    end
+
+    def collect(order, amount, discount: 0, method: "cash", confirmed_overpaid: 0)
+      described_class.call(user: cashier, order: order.reload, discount_percent: discount,
+                           tenders: [ { payment_method: method, amount: amount } ],
+                           confirmed_overpaid: confirmed_overpaid)
+    end
+
+    def last_allocation(order)
+      order.payment_allocations.order(:id).last
+    end
+
+    let(:note_4647) { sale(532_000) }
+
+    it "records note 4647's first collection under the new rule" do
+      expect(collect(note_4647, 250_000, discount: 10)).to be_success
+
+      note_4647.reload
+      allocation = note_4647.payment_allocations.sole
+      expect(allocation.discount_amount).to eq(25_000)
+      expect(allocation.covered_amount).to eq(250_000)
+      expect(note_4647.total_amount).to eq(507_000)
+      expect(note_4647.outstanding_balance).to eq(257_000)
+      expect(note_4647.status).to eq("pending")
+    end
+
+    context "after the first 250.000 in cash at 10%" do
+      before { collect(note_4647, 250_000, discount: 10) }
+
+      it "settles the rest in cash with 10% of what is left" do
+        expect(collect(note_4647, 228_800, discount: 10)).to be_success
+
+        note_4647.reload
+        allocation = last_allocation(note_4647)
+        expect(allocation.discount_amount).to eq(28_200)
+        expect(allocation.covered_amount).to eq(282_000)
+        expect(note_4647.outstanding_balance).to eq(0)
+        expect(note_4647.status).to eq("confirmed")
+        expect(note_4647.payments.sum(:amount)).to eq(478_800)
+      end
+
+      it "keeps 228.700 as a partial when the settle amount is already a round hundred" do
+        expect(collect(note_4647, 228_700, discount: 10)).to be_success
+
+        note_4647.reload
+        expect(last_allocation(note_4647).discount_amount).to eq(22_870)
+        expect(note_4647.outstanding_balance).to eq(5_430)
+        expect(note_4647.status).to eq("pending")
+      end
+
+      it "settles the rest by transfer with the digital balance" do
+        expect(collect(note_4647, 257_000, method: "bank_transfer")).to be_success
+
+        note_4647.reload
+        expect(note_4647.outstanding_balance).to eq(0)
+        expect(last_allocation(note_4647).covered_amount).to eq(282_000)
+      end
+
+      it "refuses a transfer above the digital balance" do
+        result = collect(note_4647, 260_000, method: "bank_transfer")
+
+        expect(result).to be_failure
+        expect(result.errors).to eq([ "Es más de lo que debe. Para saldar todo corresponde cobrar $ 257.000,00" ])
+      end
+
+      it "books cash above the settle amount as overpaid" do
+        expect(collect(note_4647, 230_000, discount: 10, confirmed_overpaid: 1_200)).to be_success
+
+        note_4647.reload
+        expect(last_allocation(note_4647)).to have_attributes(overpaid_amount: 1_200, covered_amount: 282_000)
+        expect(note_4647.outstanding_balance).to eq(0)
+      end
+
+      it "accumulates the earned discount over two partials" do
+        expect(collect(note_4647, 100_000, discount: 10)).to be_success
+
+        note_4647.reload
+        expect(note_4647.earned_discount).to eq(35_000)
+        expect(note_4647.remaining_to_pay).to eq(182_000)
+        expect(note_4647.cash_settle_amount(10)).to eq(128_800)
+      end
+
+      it "spreads the used-up discount onto one allocation when settling with two methods" do
+        result = described_class.call(user: cashier, order: note_4647.reload, discount_percent: 0,
+                                      tenders: [ { payment_method: "cash", amount: 157_000 },
+                                                 { payment_method: "bank_transfer", amount: 100_000 } ])
+
+        expect(result).to be_success
+        note_4647.reload
+        expect(note_4647.outstanding_balance).to eq(0)
+        new_allocations = note_4647.payment_allocations.order(:id).last(2)
+        expect(new_allocations.sum(&:covered_amount)).to eq(282_000)
+        cash = new_allocations.find { |a| a.payment.payment_method == "cash" }
+        expect(cash.covered_amount).to eq(157_000 + 25_000)
+      end
+
+      it "starts from scratch after a settled operation is reopened by an item swap" do
+        collect(note_4647, 228_800, discount: 10)
+        pricier = create(:product, price_unit: 542_000)
+
+        swap = Sales::ReplaceOrderItem.call(order_item: note_4647.order_items.sole,
+                                            product_id: pricier.id, quantity: 1)
+
+        expect(swap).to be_success
+        note_4647.reload
+        expect(note_4647.remaining_to_pay).to eq(10_000)
+        expect(note_4647.earned_discount).to eq(0)
+        expect(note_4647.cash_settle_amount(10)).to eq(9_000)
+      end
+
+      it "restores remaining, earned discount and cash to settle after a void" do
+        collect(note_4647, 100_000, discount: 10)
+        second = Payment.order(:id).last
+
+        voided = Payments::Void.call(payment: second, user: cashier, reason: "Monto mal cargado",
+                                     payment_ids: Payments::VoidCascade.call(payment: second).ids)
+
+        expect(voided).to be_success
+        note_4647.reload
+        expect(note_4647.remaining_to_pay).to eq(282_000)
+        expect(note_4647.earned_discount).to eq(25_000)
+        expect(note_4647.cash_settle_amount(10)).to eq(228_800)
+      end
+    end
+
+    it "settles with the cash rounded down to the hundred" do
+      note = sale(532_050)
+      collect(note, 250_000, discount: 10)
+      expect(note.reload.cash_settle_amount(10)).to eq(228_845)
+
+      expect(collect(note, 228_800, discount: 10)).to be_success
+      expect(note.reload.outstanding_balance).to eq(0)
+    end
+
+    it "keeps the whole sale at 95% in cash at 5%" do
+      collect(note_4647, 250_000, discount: 5)
+
+      expect(collect(note_4647, note_4647.reload.cash_settle_amount(5), discount: 5)).to be_success
+      note_4647.reload
+      expect(note_4647.payments.sum(:amount)).to eq(505_400)
+      expect(note_4647.outstanding_balance).to eq(0)
+    end
+
+    it "finishes a legacy gross-up operation as today" do
+      legacy = sale(532_000)
+      payment = Payment.create!(customer: customer, amount: 250_000, payment_method: "cash",
+                                payment_date: Date.current)
+      PaymentAllocation.create!(payment: payment, order: legacy, amount: 250_000, discount_amount: 27_778)
+      legacy.update!(total_amount: 504_222)
+      expect(legacy.cash_settle_amount(10)).to eq(BigDecimal("228799.80"))
+
+      expect(collect(legacy, 228_700, discount: 10)).to be_success
+      expect(legacy.reload.outstanding_balance).to eq(0)
+    end
+
+    it "keeps the one-go cash price at 90%" do
+      expect(note_4647.cash_settle_amount(10)).to eq(478_800)
+
+      expect(collect(note_4647, 478_800, discount: 10)).to be_success
+      expect(note_4647.reload.outstanding_balance).to eq(0)
     end
   end
 

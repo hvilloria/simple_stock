@@ -10,6 +10,11 @@ class PaymentAllocation < ApplicationRecord
 
   def voided? = false
 
+  # How much of the sale this collection settled; legacy rows predate the column.
+  def covered
+    covered_amount || amount + discount_amount - overpaid_amount
+  end
+
   private
 
   def order_belongs_to_payment_customer

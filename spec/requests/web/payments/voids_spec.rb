@@ -29,7 +29,7 @@ RSpec.describe "Web::Payments::Voids", type: :request do
       get "/web/payments/#{first.id}/void/new"
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Anular cobro ##{first.id}", "##{second.id}", "80.100,00", "89.000,00",
+      expect(response.body).to include("Anular cobro ##{first.id}", "##{second.id}", "80.100,00", "8.900,00",
                                        "El cobro ##{second.id} tiene Factura B · 0003-00012345",
                                        "Motivo *")
       expect(page_html.text.squish).to include(
@@ -40,7 +40,7 @@ RSpec.describe "Web::Payments::Voids", type: :request do
       expect(button["data-turbo-confirm"]).to eq("¿Anular 2 cobros por $ 80.100,00?")
     end
 
-    it "shows what a discounted sale note collection settled, not just its cash" do
+    it "shows the discount a sale note collection carried next to its cash" do
       note = create(:order, :pending, order_type: "immediate", paper_number: "5120",
                                       total_amount: 113_000, original_total_amount: 113_000)
       create(:order_item, order: note, quantity: 1, unit_price: 113_000, discount_percent: 0)
@@ -50,7 +50,7 @@ RSpec.describe "Web::Payments::Voids", type: :request do
       get "/web/payments/#{note.payments.sole.id}/void/new"
 
       row = page_html.css("tbody tr").sole
-      expect(row.css("td").map { |td| td.text.strip }).to include("101.700,00", "113.000,00")
+      expect(row.css("td").map { |td| td.text.strip }).to include("101.700,00", "11.300,00")
     end
 
     it "shows the block and no form on a closed day" do

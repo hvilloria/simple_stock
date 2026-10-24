@@ -67,7 +67,7 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
   describe "GET show collection summary and history" do
     before { sign_in caja }
 
-    it "shows the sale total, the discounts, what was paid and the balance, and how far each collection lowered the debt" do
+    it "shows what is left, the earned discount and each collection's discount" do
       note = create(:order, :on_account, customer: Customer.mostrador,
                     total_amount: 1_704_400, original_total_amount: 1_704_400)
       create(:order_item, order: note, product: create(:product), quantity: 1, unit_price: 1_704_400)
@@ -78,11 +78,12 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
 
       html = Nokogiri::HTML(response.body)
       summary = html.at_css("[data-summary]").text.squish
-      expect(summary).to include("Total de la venta $1.704.400,00", "Descuentos −$88.889,00",
-                                 "Pagado $800.000,00", "Saldo $815.511,00")
-      expect(summary).not_to include("Total acordado")
+      expect(summary).to include("Total de la venta $1.704.400,00", "Pagado $800.000,00",
+                                 "Resta pagar $904.400,00", "Descuento ya ganado −$80.000,00",
+                                 "Saldo (en digital) $824.400,00", "En efectivo con 10% $733.960,00")
       history = html.at_css("[data-history]").text.squish
-      expect(history).to include("Efectivo · 10%", "$800.000,00", "$888.889,00")
+      expect(history).to include("$800.000,00", "$80.000,00 · 10%", Date.current.strftime("%d/%m/%Y"))
+      expect(response.body).not_to include("Bajó la deuda")
     end
 
     it "shows an old collection without a recorded discount as received, with no percentage" do
@@ -96,8 +97,9 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
 
       history = Nokogiri::HTML(response.body).at_css("[data-history]").text.squish
       expect(history).not_to include("%")
-      expect(history.scan("$400,00").size).to eq(2)
-      expect(Nokogiri::HTML(response.body).at_css("[data-summary]").text).not_to include("Descuentos")
+      expect(history.scan("$400,00").size).to eq(1)
+      expect(history).to include("—")
+      expect(Nokogiri::HTML(response.body).at_css("[data-summary]").text).not_to include("Descuento ya ganado")
     end
 
     it "shows the overpaid cash and keeps the discount and debt figures right" do
@@ -114,9 +116,8 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       expect(summary).to include("+$30,00")
       expect(summary).to include("8.030,00")
       expect(summary).to include("72.300,00")
-      history = Nokogiri::HTML(response.body).at_css("[data-history]").text
-      expect(history).to include("80.300,00")
-      expect(history).not_to include("80.330,00")
+      history = Nokogiri::HTML(response.body).at_css("[data-history]").text.squish
+      expect(history).to include("$72.300,00", "$8.030,00 · 10%")
     end
   end
 

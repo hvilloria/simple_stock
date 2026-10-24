@@ -379,14 +379,32 @@ RSpec.describe Order, type: :model do
     end
   end
 
+  describe "#paid_amount" do
+    let(:customer) { Customer.mostrador }
+    let(:order) { create(:order, :on_account, customer: customer, original_total_amount: 89_000, total_amount: 89_000) }
+
+    it "is zero without collections" do
+      expect(order.paid_amount).to eq(0)
+    end
+
+    it "sums the cash received, without the discounts it earned" do
+      [ 40_000, 10_000 ].each do |amount|
+        payment = Payment.create!(customer: customer, amount: amount, payment_method: "cash", payment_date: Date.current)
+        PaymentAllocation.create!(payment: payment, order: order, amount: amount, discount_amount: amount / 10)
+      end
+
+      expect(order.paid_amount).to eq(50_000)
+    end
+  end
+
   describe "#last_collection_discount_percent" do
     let(:customer) { Customer.mostrador }
     let(:order) { create(:order, :on_account, customer: customer, original_total_amount: 89_000, total_amount: 89_000) }
 
-    def allocate(amount:, discount: 0, overpaid: 0, method: "cash")
+    def allocate(amount:, discount: 0, overpaid: 0, covered: nil, method: "cash")
       payment = Payment.create!(customer: customer, amount: amount, payment_method: method, payment_date: Date.current)
       PaymentAllocation.create!(payment: payment, order: order, amount: amount,
-                                discount_amount: discount, overpaid_amount: overpaid)
+                                discount_amount: discount, overpaid_amount: overpaid, covered_amount: covered)
     end
 
     it "is zero without collections" do
@@ -412,6 +430,61 @@ RSpec.describe Order, type: :model do
     it "ignores cash collected above what was owed" do
       allocate(amount: 72_300, discount: 8_030, overpaid: 30)
       expect(order.last_collection_discount_percent).to eq(10)
+    end
+
+    it "reads the percent against what the settling collection covered" do
+      allocate(amount: 50_000, discount: 5_000, covered: 100_000)
+      expect(order.last_collection_discount_percent).to eq(5)
+    end
+  end
+
+  describe "remaining, earned discount and cash to settle" do
+    let(:customer) { Customer.mostrador }
+
+    def collect(order, amount:, discount: 0, covered: nil)
+      payment = Payment.create!(customer: customer, amount: amount, payment_method: "cash", payment_date: Date.current)
+      PaymentAllocation.create!(payment: payment, order: order, amount: amount,
+                                discount_amount: discount, covered_amount: covered)
+    end
+
+    it "reads note 4647 under the new rule" do
+      order = create(:order, :on_account, customer: customer, original_total_amount: 532_000, total_amount: 532_000)
+      collect(order, amount: 250_000, discount: 25_000, covered: 250_000)
+      order.update!(total_amount: 507_000)
+
+      expect(order.remaining_to_pay).to eq(282_000)
+      expect(order.earned_discount).to eq(25_000)
+      expect(order.cash_settle_amount(10)).to eq(228_800)
+      expect(order.cash_settle_amount(0)).to eq(257_000)
+    end
+
+    it "reads a legacy gross-up collection as today" do
+      order = create(:order, :on_account, customer: customer, original_total_amount: 532_000, total_amount: 532_000)
+      collect(order, amount: 250_000, discount: 27_778)
+      order.update!(total_amount: 504_222)
+
+      expect(order.remaining_to_pay).to eq(254_222)
+      expect(order.earned_discount).to eq(0)
+      expect(order.cash_settle_amount(10)).to eq(BigDecimal("228799.80"))
+    end
+
+    it "ignores voided collections" do
+      order = create(:order, :on_account, customer: customer, original_total_amount: 532_000, total_amount: 532_000)
+      collect(order, amount: 250_000, discount: 25_000, covered: 250_000)
+      voided_payment = Payment.create!(customer: customer, amount: 100_000, payment_method: "cash", payment_date: Date.current)
+
+      expect {
+        create(:voided_payment_allocation, payment: voided_payment, order: order, amount: 100_000)
+      }.not_to change { order.remaining_to_pay }
+    end
+
+    it "falls back to the balance when the discounted settle amount is not positive" do
+      order = create(:order, :on_account, customer: customer, original_total_amount: 100_000, total_amount: 100_000)
+      collect(order, amount: 95_000, covered: 1_000)
+
+      expect(order.remaining_to_pay).to eq(99_000)
+      expect(order.outstanding_balance).to eq(5_000)
+      expect(order.cash_settle_amount(10)).to eq(5_000)
     end
   end
 

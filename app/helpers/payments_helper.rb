@@ -14,9 +14,8 @@ module PaymentsHelper
     ].compact.join(" · ")
   end
 
-  # How far a collection lowered the debt of the notes it covered.
-  def payment_debt_lowered(payment)
-    payment.shown_allocations.sum { |a| a.amount + a.discount_amount - a.overpaid_amount }
+  def payment_discount(payment)
+    payment.shown_allocations.sum(&:discount_amount)
   end
 
   def void_confirm_message(cascade)
@@ -44,11 +43,14 @@ module PaymentsHelper
       options_for_select(Payment.method_options)
   end
 
-  # The cash discount a collection carried, as a whole percentage; nil when none.
+  # The cash discount a collection carried, as one of the allowed percents; nil when none.
   def payment_allocation_discount_percent(allocation)
     return nil unless allocation.discount_amount.positive?
 
-    (allocation.discount_amount * 100 / (allocation.amount + allocation.discount_amount)).round
+    covered = allocation.try(:covered_amount) ||
+              allocation.amount + allocation.discount_amount - allocation.overpaid_amount
+    percent = allocation.discount_amount * 100 / covered
+    Payments::CollectOnAccount::ALLOWED_DISCOUNTS.select(&:positive?).min_by { |d| (d - percent).abs }
   end
 
   def payment_notes(payment)

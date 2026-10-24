@@ -23,6 +23,21 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(select.at_css("option[selected]").text).to eq("Seleccionar medio")
     end
 
+    it "hands the form what is left to pay and the discount already earned" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order),
+           params: { discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "400" } } }
+
+      get new_web_payments_on_account_payment_path(order)
+
+      form = Nokogiri::HTML(response.body).at_css("[data-controller='on-account-payment']")
+      expect(form["data-on-account-payment-remaining-value"].to_d).to eq(600)
+      expect(form["data-on-account-payment-earned-value"].to_d).to eq(40)
+      expect(form["data-on-account-payment-balance-value"].to_d).to eq(560)
+      expect(response.body).not_to include("Debe hoy")
+      expect(response.body).not_to include("Baja la deuda en")
+    end
+
     it "opens the discount at 0% on the first collection, without a hint" do
       sign_in caja
       get new_web_payments_on_account_payment_path(order)
@@ -124,7 +139,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(order.reload.payments.map(&:payment_method)).to eq([ "cash" ])
     end
 
-    it "takes the cash received and lowers the debt by it grossed up by the discount" do
+    it "takes the cash received and lowers the debt by it plus the discount on it" do
       big = create(:order, :on_account, customer: Customer.mostrador,
                    total_amount: 1_704_400, original_total_amount: 1_704_400)
       create(:order_item, order: big, product: create(:product), quantity: 1, unit_price: 1_704_400)
@@ -135,7 +150,7 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
                      tenders: { "0" => { payment_method: "cash", amount: "800.000,00" } } }
 
       expect(response).to redirect_to(web_payments_on_account_path(big))
-      expect(big.reload.outstanding_balance).to eq(815_511)
+      expect(big.reload.outstanding_balance).to eq(824_400)
       expect(big.payment_allocations.sum(:amount)).to eq(800_000)
     end
 
@@ -240,6 +255,62 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
            params: { discount_percent: "0",
                      tenders: { "0" => { payment_method: "cash", amount: "400" } } }
       expect(order.reload.outstanding_balance).to eq(1000)
+    end
+  end
+
+  describe "note 4647 stored through the collect endpoint" do
+    let(:note) do
+      o = create(:order, :on_account, customer: Customer.mostrador,
+                 total_amount: 532_000, original_total_amount: 532_000)
+      create(:order_item, order: o, product: create(:product), quantity: 1, unit_price: 532_000)
+      o
+    end
+
+    def collect(amount, method: "cash", discount: "10")
+      post web_payments_on_account_payment_path(note),
+           params: { discount_percent: discount, tenders: { "0" => { payment_method: method, amount: amount } } }
+    end
+
+    before do
+      sign_in caja
+      collect("250.000,00")
+    end
+
+    it "stores the first collection with the discount on the cash handed over" do
+      payment = Payment.sole
+      expect(payment).to have_attributes(payment_method: "cash", amount: 250_000)
+      expect(payment.allocations.sole).to have_attributes(amount: 250_000, discount_amount: 25_000,
+                                                          covered_amount: 250_000, overpaid_amount: 0)
+      expect(note.reload).to have_attributes(total_amount: 507_000, status: "pending", settled_on: nil)
+      expect(note.outstanding_balance).to eq(257_000)
+      expect(CashMovement.where(source_payment: payment).sole.amount).to eq(250_000)
+    end
+
+    it "stores the cash settle" do
+      collect("228.800,00")
+
+      settle = Payment.order(:id).last
+      expect(settle).to have_attributes(payment_method: "cash", amount: 228_800)
+      expect(settle.allocations.sole).to have_attributes(amount: 228_800, discount_amount: 28_200,
+                                                         covered_amount: 282_000, overpaid_amount: 0)
+      expect(note.reload).to have_attributes(total_amount: 478_800, status: "confirmed",
+                                             settled_on: settle.payment_date)
+      expect(note.outstanding_balance).to eq(0)
+      expect(note.payment_allocations.sum(:amount)).to eq(478_800)
+      expect(CashMovement.where(source_payment: note.payments).sum(:amount)).to eq(478_800)
+    end
+
+    it "stores the digital settle" do
+      collect("257.000,00", method: "bank_transfer", discount: "0")
+
+      settle = Payment.order(:id).last
+      expect(settle).to have_attributes(payment_method: "bank_transfer", amount: 257_000)
+      expect(settle.allocations.sole).to have_attributes(amount: 257_000, discount_amount: 0,
+                                                         covered_amount: 282_000, overpaid_amount: 0)
+      expect(note.reload).to have_attributes(total_amount: 507_000, status: "confirmed",
+                                             settled_on: settle.payment_date)
+      expect(note.outstanding_balance).to eq(0)
+      expect(CashMovement.where(source_payment: settle).sole.amount).to eq(257_000)
     end
   end
 end
