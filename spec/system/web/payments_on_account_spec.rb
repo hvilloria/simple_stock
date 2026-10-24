@@ -285,6 +285,75 @@ RSpec.describe "Pagos a cuenta", type: :system do
     end
   end
 
+  it "collects note 4647 in two steps and shows the account right at every step" do
+    note = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
+                  contact_name: "Marta Gómez", contact_phone: "11 4444 5678",
+                  total_amount: 532_000, original_total_amount: 532_000)
+    create(:order_item, order: note, product: create(:product), quantity: 1, unit_price: 532_000)
+    login_as(create(:user, :caja), scope: :user)
+    today = Date.current.strftime("%d/%m/%Y")
+    amount = -> { find("[data-on-account-payment-target='tenderAmount']") }
+
+    visit new_web_payments_on_account_payment_path(note)
+    expect(page).to have_content(/Resta pagar\s+\$532\.000,00/)
+    expect(page).to have_no_content("Descuento ya ganado")
+
+    select "Efectivo", from: "tenders[0][payment_method]"
+    amount.call.set("250000", clear: :backspace)
+    select "10%", from: "discount_percent"
+    expect(page).to have_css("[data-on-account-payment-target='discountLabel']", text: "Gana de descuento (10%)")
+    expect(page).to have_css("[data-on-account-payment-target='discountLine']", text: "25.000,00")
+    expect(page).to have_content(/Después de este cobro/i)
+    expect(page).to have_css("[data-on-account-payment-target='remainingAfterLine']", text: "282.000,00")
+    expect(page).to have_css("[data-on-account-payment-target='earnedAfterLine']", text: /−\$\s?25\.000,00/)
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "257.000,00")
+    click_button "Registrar cobro"
+    expect(page).to have_content("Cobro registrado")
+
+    within("[data-summary]") do
+      expect(page).to have_content(/Pagado\s+\$250\.000,00/)
+      expect(page).to have_content(/Resta pagar\s+\$282\.000,00/)
+      expect(page).to have_content(/Descuento ya ganado\s+−\$25\.000,00/)
+      expect(page).to have_content(/Saldo \(en digital\)\s+\$257\.000,00/)
+      expect(page).to have_content(/En efectivo con 10%\s+\$228\.800,00/)
+    end
+    rows = all("[data-history] tbody tr")
+    expect(rows.size).to eq(1)
+    expect(rows[0]).to have_content(/#{Regexp.escape(today)}\s+Efectivo\s+\$250\.000,00\s+\$25\.000,00 · 10%/)
+
+    visit new_web_payments_on_account_payment_path(note)
+    expect(page).to have_select("discount_percent", selected: "10%")
+    expect(page).to have_content("El cobro anterior fue con 10%")
+    expect(page).to have_content(/Resta pagar\s+\$282\.000,00/)
+    expect(page).to have_content(/Descuento ya ganado\s+−\$25\.000,00/)
+    expect(page).to have_content(/En digital\s+\$257\.000,00/)
+    expect(page).to have_css("[data-on-account-payment-target='cashToChargeLabel']", text: "En efectivo con 10%")
+    expect(page).to have_css("[data-on-account-payment-target='cashToChargeLine']", text: "228.800,00")
+
+    select "Efectivo", from: "tenders[0][payment_method]"
+    expect(page).to have_button(text: /Saldar todo: cobrar \$\s?228\.800,00/)
+    click_button "Saldar todo"
+    expect(amount.call.value).to eq("228.800,00")
+    expect(page).to have_css("[data-on-account-payment-target='discountLabel']", text: "Descuento 10% de lo que resta")
+    expect(page).to have_css("[data-on-account-payment-target='discountLine']", text: "28.200,00")
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "0,00")
+    accept_confirm(/faltan productos por entregar/) { click_button "Registrar cobro" }
+    expect(page).to have_content("Cobro registrado")
+
+    within("[data-summary]") do
+      expect(page).to have_content(/Total de la venta\s+\$532\.000,00/)
+      expect(page).to have_content(/Descuentos\s+−\$53\.200,00/)
+      expect(page).to have_content(/Pagado\s+\$478\.800,00/)
+      expect(page).to have_content(/Saldo\s+\$0,00/)
+      expect(page).to have_no_content("Resta pagar")
+    end
+    rows = all("[data-history] tbody tr")
+    expect(rows.size).to eq(2)
+    expect(rows[0]).to have_content(/\$250\.000,00\s+\$25\.000,00 · 10%/)
+    expect(rows[1]).to have_content(/#{Regexp.escape(today)}\s+Efectivo\s+\$228\.800,00\s+\$28\.200,00 · 10%/)
+    expect(page).to have_no_link("Cobrar →")
+  end
+
   it "shows the server's cash-to-settle amount when it has cents" do
     odd = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
                  total_amount: 12_345, original_total_amount: 12_345)
