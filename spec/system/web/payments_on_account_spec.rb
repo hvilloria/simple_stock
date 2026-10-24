@@ -105,8 +105,9 @@ RSpec.describe "Pagos a cuenta", type: :system do
     find("[data-on-account-payment-target='tenderAmount']").set("800000", clear: :backspace)
     select "10%", from: "discount_percent"
 
-    expect(page).to have_css("[data-on-account-payment-target='settledLine']", text: "888.889")
-    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "815.511")
+    expect(page).to have_css("[data-on-account-payment-target='discountLabel']", text: "Gana de descuento (10%)")
+    expect(page).to have_css("[data-on-account-payment-target='discountLine']", text: "80.000,00")
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "824.400,00")
 
     click_button "Saldar todo"
     expect(find("[data-on-account-payment-target='tenderAmount']").value).to eq("1.533.900,00")
@@ -182,7 +183,7 @@ RSpec.describe "Pagos a cuenta", type: :system do
     select "Efectivo", from: "tenders[0][payment_method]"
     find("[data-on-account-payment-target='tenderAmount']").set("40000", clear: :backspace)
     select "10%", from: "discount_percent"
-    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "44.556,00")
+    expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "45.000,00")
     click_button "Registrar cobro"
     expect(page).to have_content("Cobro registrado")
 
@@ -233,5 +234,72 @@ RSpec.describe "Pagos a cuenta", type: :system do
     select "Banco Transferencia", from: "tenders[0][payment_method]"
     expect(page).to have_select("discount_percent", selected: "0%", disabled: true)
     expect(page).to have_no_css("[data-on-account-payment-target='cashToChargeRow']", visible: true)
+  end
+
+  describe "after note 4647's first 250.000 in cash at 10%" do
+    let!(:note) do
+      o = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
+                 total_amount: 532_000, original_total_amount: 532_000)
+      create(:order_item, order: o, product: create(:product), quantity: 1, unit_price: 532_000)
+      Payments::CollectOnAccount.call(user: admin, order: o, discount_percent: 10,
+                                      tenders: [ { payment_method: "cash", amount: 250_000 } ])
+      o
+    end
+
+    it "shows note 4647's account and the cash to settle" do
+      visit new_web_payments_on_account_payment_path(note)
+
+      expect(page).to have_content(/Resta pagar\s+\$282\.000,00/)
+      expect(page).to have_content(/Descuento ya ganado\s+−\$25\.000,00/)
+      expect(page).to have_content(/En digital\s+\$257\.000,00/)
+      expect(page).to have_no_content("Debe hoy")
+      expect(page).to have_no_content("Baja la deuda en")
+
+      select "Efectivo", from: "tenders[0][payment_method]"
+      select "10%", from: "discount_percent"
+      expect(page).to have_css("[data-on-account-payment-target='cashToChargeLabel']", text: "En efectivo con 10%")
+      expect(page).to have_css("[data-on-account-payment-target='cashToChargeLine']", text: "228.800,00")
+      expect(page).to have_button(text: /Saldar todo: cobrar .*228\.800,00/)
+
+      click_button "Saldar todo"
+      expect(page).to have_css("[data-on-account-payment-target='discountLabel']", text: "Descuento 10% de lo que resta")
+      expect(page).to have_css("[data-on-account-payment-target='discountLine']", text: "28.200,00")
+      expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "0,00")
+      expect(page).to have_no_css("[data-on-account-payment-target='remainingAfterRow']", visible: true)
+      expect(page).to have_no_css("[data-on-account-payment-target='earnedAfterRow']", visible: true)
+    end
+
+    it "previews a partial and what is left after it" do
+      visit new_web_payments_on_account_payment_path(note)
+      select "Efectivo", from: "tenders[0][payment_method]"
+      select "10%", from: "discount_percent"
+      find("[data-on-account-payment-target='tenderAmount']").set("100000", clear: :backspace)
+
+      expect(page).to have_css("[data-on-account-payment-target='discountLabel']", text: "Gana de descuento (10%)")
+      expect(page).to have_css("[data-on-account-payment-target='discountLine']", text: "10.000,00")
+      expect(page).to have_content(/Después de este cobro/i)
+      expect(page).to have_css("[data-on-account-payment-target='remainingAfterLine']", text: "182.000,00")
+      expect(page).to have_css("[data-on-account-payment-target='earnedAfterLine']", text: /−\$\s?35\.000,00/)
+      expect(page).to have_content("Queda debiendo")
+      expect(page).to have_css("[data-on-account-payment-target='balanceAfter']", text: "147.000,00")
+    end
+  end
+
+  it "shows the server's cash-to-settle amount when it has cents" do
+    odd = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
+                 total_amount: 12_345, original_total_amount: 12_345)
+    create(:order_item, order: odd, product: create(:product), quantity: 1, unit_price: 12_345)
+    expected = ActiveSupport::NumberHelper.number_to_currency(
+      odd.cash_settle_amount(10), unit: "", separator: ",", delimiter: "."
+    )
+    expect(expected).to eq("11.110,50")
+
+    visit new_web_payments_on_account_payment_path(odd)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    select "10%", from: "discount_percent"
+
+    expect(page).to have_css("[data-on-account-payment-target='cashToChargeLine']", text: expected)
+    click_button "Saldar todo"
+    expect(find("[data-on-account-payment-target='tenderAmount']").value).to eq("11.100,00")
   end
 end

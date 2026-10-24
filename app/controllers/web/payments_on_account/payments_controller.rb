@@ -2,7 +2,7 @@ module Web
   module PaymentsOnAccount
     class PaymentsController < ApplicationController
       before_action :set_order
-      helper_method :last_discount_percent
+      helper_method :last_discount_percent, :remaining_to_pay, :earned_discount, :outstanding_balance
 
       def new
         authorize @order, :collect?, policy_class: PaymentOnAccountPolicy
@@ -35,6 +35,18 @@ module Web
 
       def last_discount_percent
         @last_discount_percent ||= @order.last_collection_discount_percent
+      end
+
+      def remaining_to_pay
+        @remaining_to_pay ||= @order.remaining_to_pay
+      end
+
+      def outstanding_balance
+        @outstanding_balance ||= @order.outstanding_balance
+      end
+
+      def earned_discount
+        @earned_discount ||= @order.earned_discount
       end
 
       # Tenders arrive as `tenders[0][payment_method]=cash&tenders[0][amount]=1.500,00`.

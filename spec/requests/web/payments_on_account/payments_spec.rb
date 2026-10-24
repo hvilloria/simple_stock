@@ -23,6 +23,21 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(select.at_css("option[selected]").text).to eq("Seleccionar medio")
     end
 
+    it "hands the form what is left to pay and the discount already earned" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order),
+           params: { discount_percent: "10", tenders: { "0" => { payment_method: "cash", amount: "400" } } }
+
+      get new_web_payments_on_account_payment_path(order)
+
+      form = Nokogiri::HTML(response.body).at_css("[data-controller='on-account-payment']")
+      expect(form["data-on-account-payment-remaining-value"].to_d).to eq(600)
+      expect(form["data-on-account-payment-earned-value"].to_d).to eq(40)
+      expect(form["data-on-account-payment-balance-value"].to_d).to eq(560)
+      expect(response.body).not_to include("Debe hoy")
+      expect(response.body).not_to include("Baja la deuda en")
+    end
+
     it "opens the discount at 0% on the first collection, without a hint" do
       sign_in caja
       get new_web_payments_on_account_payment_path(order)
