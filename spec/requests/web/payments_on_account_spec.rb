@@ -26,6 +26,18 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       get web_payments_on_account_index_path, params: { q: "Juan" }
       expect(response.body).to include("Juan Pérez")
     end
+
+    it "shows the sale total, which a cash discount does not lower" do
+      sale = create(:order, :on_account, paper_number: "4647", total_amount: 532_000, original_total_amount: 532_000)
+      Payments::CollectOnAccount.call(order: sale, user: caja, discount_percent: 10,
+                                      tenders: [ { payment_method: "cash", amount: 250_000 } ])
+      sign_in caja
+
+      get web_payments_on_account_index_path
+
+      row = Nokogiri::HTML(response.body).css("tbody tr").find { |tr| tr.text.include?("4647") }
+      expect(row.css("td").map { |td| td.text.strip }).to include("$532.000,00", "$250.000,00", "$257.000,00")
+    end
   end
 
   describe "GET show role-based controls" do
