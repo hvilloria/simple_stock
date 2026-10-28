@@ -344,6 +344,10 @@ RSpec.describe Product, type: :model do
       it 'ignores extra spaces' do
         expect(Product.search('  cable   buji  ')).to contain_exactly(cables)
       end
+
+      it 'only reads the first 8 distinct words' do
+        expect(Product.search("cable cable buji #{%w[a b c d e h].join(' ')} zzz")).to contain_exactly(cables)
+      end
     end
 
     it 'treats % and _ as plain characters' do

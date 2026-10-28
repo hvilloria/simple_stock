@@ -47,6 +47,7 @@ class Product < ApplicationRecord
   # [aisle: 1-9][side: I/D][position: 0-9][level: 0-9]
   # Example: "2D31" = Aisle 2, Right, position 3, level 1
   LOCATION_FORMAT = /\A[1-9][ID][0-9][0-9]\z/
+  SEARCH_MAX_WORDS = 8
 
   # Validations
   # SKU is the OEM code, it may repeat across variants.
@@ -100,7 +101,7 @@ class Product < ApplicationRecord
   scope :aftermarket, -> { where(product_type: "aftermarket") }
   # Every word must appear, in any order, in the sku, name or brand.
   scope :search, lambda { |query|
-    query.to_s.split.reduce(all) do |scope, word|
+    query.to_s.split.uniq.first(SEARCH_MAX_WORDS).reduce(all) do |scope, word|
       scope.where("unaccent(sku) ILIKE unaccent(:q) OR unaccent(name) ILIKE unaccent(:q) OR unaccent(brand) ILIKE unaccent(:q)",
                   q: "%#{sanitize_sql_like(word)}%")
     end
