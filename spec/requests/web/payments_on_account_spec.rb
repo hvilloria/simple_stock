@@ -36,7 +36,8 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       get web_payments_on_account_index_path
 
       row = Nokogiri::HTML(response.body).css("tbody tr").find { |tr| tr.text.include?("4647") }
-      expect(row.css("td").map { |td| td.text.strip }).to include("$532.000,00", "$250.000,00", "$257.000,00")
+      total, paid, balance = row.css("td").map { |td| td.text.strip }.values_at(4, 5, 6)
+      expect([ total, paid, balance ]).to eq([ "$532.000,00", "$250.000,00", "$257.000,00" ])
     end
   end
 
