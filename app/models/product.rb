@@ -98,9 +98,12 @@ class Product < ApplicationRecord
   }
   scope :oem, -> { where(product_type: "oem") }
   scope :aftermarket, -> { where(product_type: "aftermarket") }
+  # Every word must appear, in any order, in the sku, name or brand.
   scope :search, lambda { |query|
-    where("unaccent(sku) ILIKE unaccent(:q) OR unaccent(name) ILIKE unaccent(:q) OR unaccent(brand) ILIKE unaccent(:q)",
-          q: "%#{query}%") if query.present?
+    query.to_s.split.reduce(all) do |scope, word|
+      scope.where("unaccent(sku) ILIKE unaccent(:q) OR unaccent(name) ILIKE unaccent(:q) OR unaccent(brand) ILIKE unaccent(:q)",
+                  q: "%#{sanitize_sql_like(word)}%")
+    end
   }
   scope :at_location, ->(code) { where(location_code: code) if code.present? }
   scope :sorted_by, lambda { |sort_column, direction|
