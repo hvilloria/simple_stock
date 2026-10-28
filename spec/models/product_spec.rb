@@ -320,6 +320,40 @@ RSpec.describe Product, type: :model do
     it 'still matches the SKU, whatever the case' do
       expect(Product.search('cor-03')).to contain_exactly(belt)
     end
+
+    context 'with several words' do
+      let!(:cables) { create(:product, sku: 'CAB-0100', name: 'Cables de Bujía Honda', brand: 'Taiwan') }
+
+      it 'finds a product holding every word, even as part of a longer one' do
+        expect(Product.search('cable buji')).to contain_exactly(cables)
+      end
+
+      it 'matches the words in any order' do
+        expect(Product.search('buji cable')).to contain_exactly(cables)
+      end
+
+      it 'matches each word in any of sku, name or brand' do
+        expect(Product.search('iridium ngk')).to contain_exactly(plug)
+        expect(Product.search('buj-1180 iridium')).to contain_exactly(plug)
+      end
+
+      it 'leaves out a product missing one of the words' do
+        expect(Product.search('cable gates')).to be_empty
+      end
+
+      it 'ignores extra spaces' do
+        expect(Product.search('  cable   buji  ')).to contain_exactly(cables)
+      end
+
+      it 'only reads the first 8 distinct words' do
+        expect(Product.search("cable cable buji #{%w[a b c d e h].join(' ')} zzz")).to contain_exactly(cables)
+      end
+    end
+
+    it 'treats % and _ as plain characters' do
+      expect(Product.search('%')).to be_empty
+      expect(Product.search('_')).to be_empty
+    end
   end
 
   describe '#low_stock?' do
