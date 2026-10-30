@@ -315,12 +315,13 @@ RSpec.describe Payments::CollectOnAccount do
       end
 
       it "refuses Factura A without a number and records nothing" do
-        result = collect_rows({ payment_method: "bank_transfer", amount: 400, invoice_type: "a", invoice_number: "  " })
+        result = collect_rows({ payment_method: "cash", amount: 300, invoice_type: "none" },
+                              { payment_method: "bank_transfer", amount: 200, invoice_type: "a", invoice_number: "  " })
 
         expect(result).to be_failure
         expect(result.errors).to eq([ "El número es obligatorio para Factura A o B" ])
         expect(order.reload.total_amount).to eq(1000)
-        expect(order.payments).to be_empty
+        expect(Payment.count).to eq(0)
         expect(PaymentAllocation.where(order: order)).to be_empty
         expect(CashMovement.count).to eq(0)
       end

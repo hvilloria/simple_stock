@@ -23,6 +23,7 @@ module Web
           redirect_to web_payments_on_account_path(@order), notice: "Cobro registrado"
         else
           flash.now[:alert] = result.errors.join(", ")
+          @order.reload # a rolled-back collection leaves its totals on the in-memory order
           render :new, status: :unprocessable_entity
         end
       end
