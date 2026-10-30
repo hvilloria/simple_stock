@@ -68,6 +68,11 @@ module Cash
       if DailyClosing.exists?(business_date: @business_date)
         raise ValidationError, "El día #{I18n.l(@business_date.to_date)} ya fue cerrado"
       end
+      pending = DayQuery.new(@business_date).unbilled_payments.size
+      if pending.positive?
+        raise ValidationError, "Hay #{pending} #{'cobro'.pluralize(pending)} sin factura decidida. " \
+                               "Elegir Factura A, Factura B o Sin factura en cada uno."
+      end
     end
 
     def create_closing!
