@@ -63,7 +63,7 @@
           %p.text-xs.text-slate-500.mb-3 Lo que entrega el cliente, por método
 
           .space-y-2{ data: { "on-account-payment-target": "tenderRows" } }
-            .flex.gap-2.items-center{ data: { "on-account-payment-target": "tenderRow" } }
+            .flex.flex-wrap.gap-2.items-center{ data: { "on-account-payment-target": "tenderRow" } }
               = select_tag "tenders[0][payment_method]",
                   payment_method_options_with_prompt,
                   data: { "on-account-payment-target": "tenderMethod",
@@ -76,6 +76,17 @@
                           controller: "currency-input",
                           action: "blur->currency-input#format focus->currency-input#unformat input->on-account-payment#recalculate" },
                   class: "w-36 px-3 py-2 border border-slate-300 rounded-xl text-sm text-right bg-white"
+              = select_tag "tenders[0][invoice_type]",
+                  options_for_select(Payment::INVOICE_TYPE_LABELS.map { |key, label| [ label, key ] }),
+                  prompt: "Factura",
+                  data: { "on-account-payment-target": "tenderInvoiceType",
+                          action: "change->on-account-payment#invoiceTypeChanged" },
+                  class: "w-36 px-3 py-2 border border-slate-300 rounded-xl text-sm"
+              = text_field_tag "tenders[0][invoice_number]", nil,
+                  placeholder: "Número", autocomplete: "off",
+                  data: { "on-account-payment-target": "tenderInvoiceNumber",
+                          action: "input->on-account-payment#recalculate" },
+                  class: "hidden w-28 px-3 py-2 border border-slate-300 rounded-xl text-sm"
               %button{ type: "button",
                        data: { action: "click->on-account-payment#removeTender" },
                        class: "text-slate-400 hover:text-red-500 text-lg px-1" } ×
@@ -144,3 +155,4 @@
             data: { "on-account-payment-target": "submitButton" },
             class: "mt-5 w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         %p.text-xs.text-slate-500.mt-2{ data: { "on-account-payment-target": "methodHint" }, hidden: true } Falta seleccionar el medio de pago
+        %p.text-xs.text-slate-500.mt-2{ data: { "on-account-payment-target": "invoiceHint" }, hidden: true } Falta el número de factura

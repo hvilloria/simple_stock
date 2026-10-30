@@ -95,6 +95,52 @@ RSpec.describe "Pagos a cuenta", type: :system do
     expect(order.payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
   end
 
+  it "shows the invoice number only for Factura A or B and clears it otherwise" do
+    visit new_web_payments_on_account_payment_path(order)
+    expect(page).to have_no_field("tenders[0][invoice_number]")
+
+    select "Factura B", from: "tenders[0][invoice_type]"
+    expect(page).to have_field("tenders[0][invoice_number]")
+    fill_in "tenders[0][invoice_number]", with: "55"
+
+    select "Sin factura", from: "tenders[0][invoice_type]"
+    expect(page).to have_no_field("tenders[0][invoice_number]")
+
+    select "Efectivo", from: "tenders[0][payment_method]"
+    find("[data-on-account-payment-target='tenderAmount']").set("300", clear: :backspace)
+    click_button "Registrar cobro"
+    expect(page).to have_content("Cobro registrado")
+    expect(order.reload.payments.sole).to have_attributes(invoice_type: "none", invoice_number: nil)
+  end
+
+  it "blocks submit until an A or B invoice has its number" do
+    visit new_web_payments_on_account_payment_path(order)
+    select "Efectivo", from: "tenders[0][payment_method]"
+    find("[data-on-account-payment-target='tenderAmount']").set("300", clear: :backspace)
+    select "Factura A", from: "tenders[0][invoice_type]"
+
+    expect(page).to have_button("Registrar cobro", disabled: true)
+    expect(page).to have_content("Falta el número de factura")
+
+    fill_in "tenders[0][invoice_number]", with: "0001-00000010"
+    expect(page).to have_button("Registrar cobro", disabled: false)
+    expect(page).to have_no_content("Falta el número de factura")
+
+    click_button "Registrar cobro"
+    expect(page).to have_content("Cobro registrado")
+    expect(order.reload.payments.sole.invoice_label).to eq("Factura A · 0001-00000010")
+  end
+
+  it "starts an added method row without an invoice" do
+    visit new_web_payments_on_account_payment_path(order)
+    select "Factura B", from: "tenders[0][invoice_type]"
+    fill_in "tenders[0][invoice_number]", with: "9"
+    click_button "+ Agregar método"
+
+    expect(page).to have_select("tenders[1][invoice_type]", selected: "Factura")
+    expect(page).to have_no_field("tenders[1][invoice_number]")
+  end
+
   it "shows how far the cash lowers the debt with the cash discount, and offers to settle it all" do
     big = create(:order, :on_account, customer: Customer.mostrador, user: create(:user, :vendedor),
                  total_amount: 1_704_400, original_total_amount: 1_704_400)
