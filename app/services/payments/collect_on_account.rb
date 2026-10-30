@@ -83,6 +83,12 @@ module Payments
         end
       end
 
+      @tenders.group_by { |t| t[:payment_method] }.each do |method, rows|
+        next if rows.map { |r| invoice_of(r) }.uniq.one?
+
+        raise ValidationError, "Las filas de #{Payment.method_label(method)} tienen facturas distintas"
+      end
+
       if @discount_percent.positive? && @tenders.any? { |t| t[:payment_method] != "cash" }
         raise ValidationError, "Descuento solo permitido si el cobro es en efectivo"
       end
@@ -177,6 +183,7 @@ module Payments
           payment_method: method,
           payment_date:   @payment_date
         )
+        assign_invoice!(payment, @tenders.find { |t| t[:payment_method] == method })
         # One allocation per method: payment_allocations is unique on
         # (payment_id, order_id), so repeated rows of the same method collapse.
         # A discount only exists on an all-cash collection, so it lands here,
@@ -198,6 +205,23 @@ module Payments
       )
 
       raise ValidationError, result.errors.join(", ") if result.failure?
+    end
+
+    def assign_invoice!(payment, row)
+      invoice_type, invoice_number = invoice_of(row)
+      return if invoice_type.nil?
+
+      result = Payments::AssignInvoice.call(payment: payment, invoice_type: invoice_type,
+                                            invoice_number: invoice_number)
+      raise ValidationError, result.errors.join(", ") if result.failure?
+    end
+
+    # The number only counts for A and B, so a stray one on "none" does not
+    # make two rows of the same method disagree.
+    def invoice_of(row)
+      invoice_type = row[:invoice_type].presence
+      number = row[:invoice_number].to_s.strip.presence if %w[a b].include?(invoice_type)
+      [ invoice_type, number ]
     end
 
     def cash_description
