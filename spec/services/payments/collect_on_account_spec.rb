@@ -285,6 +285,77 @@ RSpec.describe Payments::CollectOnAccount do
                                     discount_percent: 0, tenders: [ { payment_method: "cash", amount: 100 } ])
       expect(result).to be_failure
     end
+
+    describe "an invoice per tender" do
+      def collect_rows(*tenders, discount: 0, target: order)
+        described_class.call(user: cashier, order: target, discount_percent: discount, tenders: tenders)
+      end
+
+      it "bills each method's payment with its own invoice" do
+        result = collect_rows({ payment_method: "cash", amount: 600, invoice_type: "none" },
+                              { payment_method: "bank_transfer", amount: 400, invoice_type: "b", invoice_number: "1452" })
+
+        expect(result).to be_success
+        payments = order.reload.payments.index_by(&:payment_method)
+        expect(payments["cash"]).to have_attributes(invoice_type: "none", invoice_number: nil)
+        expect(payments["bank_transfer"]).to have_attributes(invoice_type: "b", invoice_number: "1452")
+      end
+
+      it "leaves a payment unbilled when its row has no invoice type" do
+        expect(collect_rows({ payment_method: "cash", amount: 400 })).to be_success
+        expect(order.reload.payments.sole.invoice_type).to be_nil
+      end
+
+      it "ignores a number sent with Sin factura" do
+        result = collect_rows({ payment_method: "cash", amount: 300, invoice_type: "none", invoice_number: "99" },
+                              { payment_method: "cash", amount: 100, invoice_type: "none" })
+
+        expect(result).to be_success
+        expect(order.reload.payments.sole).to have_attributes(amount: 400, invoice_type: "none", invoice_number: nil)
+      end
+
+      it "refuses Factura A without a number and records nothing" do
+        result = collect_rows({ payment_method: "cash", amount: 300, invoice_type: "none" },
+                              { payment_method: "bank_transfer", amount: 200, invoice_type: "a", invoice_number: "  " })
+
+        expect(result).to be_failure
+        expect(result.errors).to eq([ "El número es obligatorio para Factura A o B" ])
+        expect(order.reload.total_amount).to eq(1000)
+        expect(Payment.count).to eq(0)
+        expect(PaymentAllocation.where(order: order)).to be_empty
+        expect(CashMovement.count).to eq(0)
+      end
+
+      it "refuses two rows of one method with different invoices" do
+        result = collect_rows({ payment_method: "cash", amount: 300, invoice_type: "b", invoice_number: "1" },
+                              { payment_method: "cash", amount: 100, invoice_type: "b", invoice_number: "2" })
+
+        expect(result.errors).to eq([ "Las filas de Efectivo tienen facturas distintas" ])
+        expect(order.reload.payments).to be_empty
+      end
+
+      it "accepts two rows of one method with the same invoice as one billed payment" do
+        result = collect_rows({ payment_method: "cash", amount: 300, invoice_type: "b", invoice_number: "7" },
+                              { payment_method: "cash", amount: 100, invoice_type: "b", invoice_number: " 7 " })
+
+        expect(result).to be_success
+        expect(order.reload.payments.sole).to have_attributes(amount: 400, invoice_type: "b", invoice_number: "7")
+      end
+
+      it "keeps the settle math when the settling cash is billed" do
+        collect(order, 400, discount: 10)                       # partial: earns 40, balance 560
+        settle = order.reload.cash_settle_amount(10)            # (600 × 0.9) − 40 = 500
+
+        result = collect_rows({ payment_method: "cash", amount: settle, invoice_type: "a", invoice_number: "0001-00000010" },
+                              discount: 10)
+
+        expect(result).to be_success
+        allocation = order.reload.payment_allocations.order(:id).last
+        expect(allocation).to have_attributes(amount: 500, discount_amount: 60, covered_amount: 600)
+        expect(order.outstanding_balance).to eq(0)
+        expect(allocation.payment).to have_attributes(invoice_type: "a", invoice_number: "0001-00000010")
+      end
+    end
   end
 
   describe "note 4647: the discount on the cash handed over" do

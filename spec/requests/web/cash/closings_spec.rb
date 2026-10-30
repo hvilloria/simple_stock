@@ -46,7 +46,7 @@ RSpec.describe "Web::Cash::Closings", type: :request do
       expect(response.body).to include("1 nota de pedido sin cobrar")
     end
 
-    it "lists the day's unbilled collections, each with a link to invoice it, and still lets the day close" do
+    it "lists the day's undecided collections and disables the close" do
       payment = create(:payment, payment_method: "mercado_pago", amount: 264_100)
       order = create(:order, customer: payment.customer, paper_number: "4429", total_amount: 264_100)
       create(:payment_allocation, payment: payment, order: order, amount: 264_100)
@@ -55,9 +55,12 @@ RSpec.describe "Web::Cash::Closings", type: :request do
 
       get_new
 
-      expect(response.body).to include("1 cobro sin facturar", "4429 · Mercado Pago · 264.100,00")
+      expect(response.body).to include("Hay 1 cobro sin factura decidida.", "4429 · Mercado Pago · 264.100,00")
       expect(response.body).to include("/web/payments/#{payment.id}?facturar=1")
-      expect(response.body).to include("No impide cerrar")
+      expect(response.body).to include("Para cerrar el día, cada cobro necesita Factura A, Factura B o")
+      expect(response.body).not_to include("No impide cerrar: se puede facturar")
+      submit = Nokogiri::HTML(response.body).at_css("input[type=submit][value='Cerrar día']")
+      expect(submit["disabled"]).not_to be_nil
     end
 
     it "says nothing about invoices when every collection is billed" do
@@ -66,7 +69,9 @@ RSpec.describe "Web::Cash::Closings", type: :request do
 
       get_new
 
-      expect(response.body).not_to include("sin facturar")
+      expect(response.body).not_to include("sin factura decidida")
+      submit = Nokogiri::HTML(response.body).at_css("input[type=submit][value='Cerrar día']")
+      expect(submit["disabled"]).to be_nil
     end
 
     it "shows no uncollected-notes warning when the day is complete" do
@@ -162,6 +167,17 @@ RSpec.describe "Web::Cash::Closings", type: :request do
 
       expect(response).to redirect_to(web_cash_day_path(date))
       expect(DailyClosing.exists?(business_date: date)).to be true
+    end
+
+    it "refuses the POST even when the modal showed nothing pending" do
+      payment = create(:payment)
+      create(:cash_movement, business_date: date, source_payment: payment, amount: payment.amount)
+
+      post_closing(counted_cash: "10.000,00")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("Hay 1 cobro sin factura decidida. Elegir Factura A, Factura B o Sin factura en cada uno.")
+      expect(DailyClosing.count).to eq(0)
     end
 
     it "refuses to close an already-closed day and writes nothing" do

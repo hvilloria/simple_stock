@@ -7,11 +7,12 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [
     "discount", "discountHelper",
-    "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "settleAllButton",
+    "tenderRows", "tenderRow", "tenderMethod", "tenderAmount", "tenderInvoiceType", "tenderInvoiceNumber",
+    "settleAllButton",
     "receivedLine", "discountRow", "discountLabel", "discountLine",
     "resultRows", "remainingAfterRow", "remainingAfterLine", "earnedAfterRow", "earnedAfterLine",
     "balanceAfter", "overpaidRow", "overpaidLine",
-    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint", "roundingRow", "roundingLine",
+    "excessNotice", "confirmedOverpaid", "submitButton", "methodHint", "invoiceHint", "roundingRow", "roundingLine",
     "cashToChargeRow", "cashToChargeLabel", "cashToChargeLine"
   ]
   static values = { balance: Number, remaining: Number, earned: Number, pendingDelivery: Boolean }
@@ -66,8 +67,19 @@ export default class extends Controller {
       `Es más de lo que debe. Para saldar todo${withDiscount} corresponde cobrar ${this.format(settleAll)}`
 
     const missingMethod = tenders.some(t => t.amount > 0 && !t.method)
+    const missingInvoiceNumber = tenders.some(t => t.amount > 0 && ["a", "b"].includes(t.invoiceType) && !t.invoiceNumber)
     this.methodHintTarget.hidden = !missingMethod
-    this.submitButtonTarget.disabled = received <= 0 || excess || missingMethod
+    this.invoiceHintTarget.hidden = !missingInvoiceNumber
+    this.submitButtonTarget.disabled = received <= 0 || excess || missingMethod || missingInvoiceNumber
+  }
+
+  invoiceTypeChanged(event) {
+    const row = event.target.closest("[data-on-account-payment-target='tenderRow']")
+    const number = this._rowField(row, "tenderInvoiceNumber")
+    const needsNumber = ["a", "b"].includes(event.target.value)
+    number.classList.toggle("hidden", !needsNumber)
+    if (!needsNumber) number.value = ""
+    this.recalculate()
   }
 
   settleAll(event) {
@@ -81,12 +93,19 @@ export default class extends Controller {
     event.preventDefault()
     const idx = this._tenderIdx++
     const row = this.tenderRowTargets[0].cloneNode(true)
-    const select = row.querySelector("select")
-    select.name = `tenders[${idx}][payment_method]`
-    select.selectedIndex = 0
-    const input = row.querySelector("input")
-    input.name = `tenders[${idx}][amount]`
-    input.value = ""
+    const method = this._rowField(row, "tenderMethod")
+    method.name = `tenders[${idx}][payment_method]`
+    method.selectedIndex = 0
+    const amount = this._rowField(row, "tenderAmount")
+    amount.name = `tenders[${idx}][amount]`
+    amount.value = ""
+    const invoiceType = this._rowField(row, "tenderInvoiceType")
+    invoiceType.name = `tenders[${idx}][invoice_type]`
+    invoiceType.selectedIndex = 0
+    const invoiceNumber = this._rowField(row, "tenderInvoiceNumber")
+    invoiceNumber.name = `tenders[${idx}][invoice_number]`
+    invoiceNumber.value = ""
+    invoiceNumber.classList.add("hidden")
     this.tenderRowsTarget.appendChild(row)
     this.recalculate()
   }
@@ -164,9 +183,15 @@ export default class extends Controller {
 
   _readTenders() {
     return this.tenderRowTargets.map(row => ({
-      method: row.querySelector("select").value,
-      amount: this.parse(row.querySelector("input").value)
+      method: this._rowField(row, "tenderMethod").value,
+      amount: this.parse(this._rowField(row, "tenderAmount").value),
+      invoiceType: this._rowField(row, "tenderInvoiceType").value,
+      invoiceNumber: this._rowField(row, "tenderInvoiceNumber").value.trim()
     }))
+  }
+
+  _rowField(row, target) {
+    return row.querySelector(`[data-on-account-payment-target='${target}']`)
   }
 
   parse(value) {

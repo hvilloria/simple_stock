@@ -58,6 +58,14 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(select.at_css("option[selected]")["value"]).to eq("10")
       expect(response.body).to include("El cobro anterior fue con 10%")
     end
+
+    it "renders an invoice select on each tender row" do
+      sign_in caja
+      get new_web_payments_on_account_payment_path(order)
+
+      select = Nokogiri::HTML(response.body).at_css("select[name='tenders[0][invoice_type]']")
+      expect(select.css("option").map(&:text)).to eq([ "Factura", "Factura A", "Factura B", "Sin factura" ])
+    end
   end
 
   describe "POST create" do
@@ -126,6 +134,51 @@ RSpec.describe "Web::PaymentsOnAccount::Payments", type: :request do
       expect(order.outstanding_balance).to eq(600)
       expect(order.payment_allocations.sum(:amount)).to eq(400)
       expect(order.payments.map(&:payment_method)).to contain_exactly("cash", "bank_transfer")
+    end
+
+    it "stores the invoice typed on each row" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order), params: { discount_percent: "0", tenders: {
+        "0" => { payment_method: "cash", amount: "300", invoice_type: "none" },
+        "1" => { payment_method: "bank_transfer", amount: "200", invoice_type: "b", invoice_number: " 0003-00001452 " }
+      } }
+
+      payments = order.reload.payments.index_by(&:payment_method)
+      expect(payments["cash"].invoice_type).to eq("none")
+      expect(payments["bank_transfer"]).to have_attributes(invoice_type: "b", invoice_number: "0003-00001452")
+    end
+
+    it "refuses an A invoice without a number with 422 and keeps the order untouched" do
+      sign_in caja
+      payments_before = Payment.count
+      movements_before = CashMovement.count
+      post web_payments_on_account_payment_path(order), params: { discount_percent: "0", tenders: {
+        "0" => { payment_method: "cash", amount: "300", invoice_type: "none" },
+        "1" => { payment_method: "bank_transfer", amount: "200", invoice_type: "a", invoice_number: "" }
+      } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El número es obligatorio para Factura A o B")
+      expect(Payment.count).to eq(payments_before)
+      expect(CashMovement.count).to eq(movements_before)
+      expect(PaymentAllocation.where(order: order)).to be_empty
+      expect(order.reload.total_amount).to eq(1000)
+    end
+
+    it "re-renders a refused discounted collection with the stored balance" do
+      sign_in caja
+      post web_payments_on_account_payment_path(order), params: { discount_percent: "10", tenders: {
+        "0" => { payment_method: "cash", amount: "400", invoice_type: "a", invoice_number: "" }
+      } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      page = Nokogiri::HTML(response.body)
+      form = page.at_css("[data-controller='on-account-payment']")
+      expect(form["data-on-account-payment-balance-value"].to_d).to eq(1000)
+      expect(form["data-on-account-payment-earned-value"].to_d).to eq(0)
+      digital = page.xpath("//span[text()='En digital']/following-sibling::span").first
+      expect(digital.text).to eq("$1.000,00")
+      expect(response.body.scan("Descuento ya ganado").size).to eq(1) # only the hidden after-collection row
     end
 
     it "ignores blank tender rows left behind by the form" do

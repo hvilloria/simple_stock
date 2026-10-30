@@ -236,6 +236,45 @@ RSpec.describe Cash::CloseDay do
     end
   end
 
+  describe "collections without an invoice decision" do
+    def collection_on(date, **payment_attrs)
+      payment = create(:payment, **payment_attrs)
+      create(:cash_movement, business_date: date, source_payment: payment, amount: payment.amount)
+      payment
+    end
+
+    it "refuses the close while a collection of the day is undecided and writes nothing" do
+      collection_on(day)
+
+      result = close
+      expect(result.errors).to eq([ "Hay 1 cobro sin factura decidida. Elegir Factura A, Factura B o Sin factura en cada uno." ])
+      expect(DailyClosing.count).to eq(0)
+      expect(CashMovement.where.not(daily_closing_id: nil)).to be_empty
+    end
+
+    it "pluralizes the count" do
+      2.times { collection_on(day) }
+      expect(close.errors.first).to start_with("Hay 2 cobros sin factura decidida.")
+    end
+
+    it "closes once each collection has A, B or Sin factura" do
+      collection_on(day, invoice_type: "none")
+      collection_on(day, invoice_type: "b", invoice_number: "1452")
+      expect(close(counted_cash: CashMovement.drawer_balance_on(day))).to be_success
+    end
+
+    it "ignores an undecided collection of another day" do
+      collection_on(day - 1)
+      expect(close).to be_success
+    end
+
+    it "ignores a voided collection of the day" do
+      payment = collection_on(day)
+      create(:cash_movement, business_date: day, source_payment: payment, amount: -payment.amount)
+      expect(close).to be_success
+    end
+  end
+
   describe "failure" do
     it "refuses a second close of the same date and writes nothing" do
       drawer_movement(299_700)
