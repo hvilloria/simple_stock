@@ -7,12 +7,86 @@ RSpec.describe "Web::Cash::Days", type: :request do
   let(:date)  { Date.new(2026, 8, 3) }
 
   describe "GET /web/cash/days" do
-    it "sends the admin to today" do
-      sign_in admin
+    before { sign_in admin }
+
+    def summary_rows
+      Nokogiri::HTML(response.body).css("tbody tr")
+    end
+
+    it "renders the days table" do
+      closed_day = Date.current - 2
+      create(:cash_movement, business_date: closed_day)
+      create(:daily_closing, business_date: closed_day, counted_cash: 23_000)
+      create(:cash_movement, business_date: Date.current, amount: 10_000)
 
       get "/web/cash/days"
 
-      expect(response).to redirect_to("/web/cash/days/#{Date.current}")
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Resumen de días")
+      expect(summary_rows.size).to eq(2)
+      expect(summary_rows.first.text).to include("Hoy", "10.000", "Abierto")
+      expect(summary_rows.last.text).to include(closed_day.strftime("%d/%m/%Y"), "23.000")
+      expect(summary_rows.last.text).not_to include("Abierto")
+      [ Date.current, closed_day ].each do |day|
+        expect(response.body).to include("href=\"/web/cash/days/#{day}\"")
+      end
+    end
+
+    it "links back to today's day" do
+      get "/web/cash/days"
+
+      link = Nokogiri::HTML(response.body).css("a").find { |a| a.text.include?("Caja de hoy") }
+      expect(link["href"]).to eq("/web/cash/days/#{Date.current}")
+    end
+
+    it "paginates by 15" do
+      (1..16).each { |n| create(:cash_movement, business_date: Date.current - n) }
+
+      get "/web/cash/days"
+      expect(summary_rows.size).to eq(15)
+
+      get "/web/cash/days", params: { page: 2 }
+      expect(summary_rows.size).to eq(2)
+    end
+
+    it "shows the last page for an out-of-range page" do
+      (1..16).each { |n| create(:cash_movement, business_date: Date.current - n) }
+
+      get "/web/cash/days", params: { page: 99 }
+
+      expect(response).to have_http_status(:ok)
+      expect(summary_rows.size).to eq(2)
+    end
+
+    it "turns the cashier away" do
+      sign_in create(:user, role: "caja")
+
+      get "/web/cash/days"
+
+      expect(response).to redirect_to(authenticated_root_path)
+      expect(flash[:alert]).to be_present
+    end
+  end
+
+  describe "the link to the summary" do
+    before { sign_in admin }
+
+    def summary_link
+      Nokogiri::HTML(response.body).css("a[href='/web/cash/days']").find { |a| a.text.include?("Resumen de días") }
+    end
+
+    it "is offered on an open day" do
+      get "/web/cash/days/2026-08-03"
+
+      expect(summary_link).to be_present
+    end
+
+    it "is offered on a closed day" do
+      create(:daily_closing, business_date: date)
+
+      get "/web/cash/days/2026-08-03"
+
+      expect(summary_link).to be_present
     end
   end
 

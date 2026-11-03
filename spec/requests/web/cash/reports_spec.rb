@@ -453,7 +453,8 @@ RSpec.describe "Web::Cash::Reports", type: :request do
 
         expect(response.body).to include("Balance general")
         expect(response.body).to include("Historial de movimientos")
-        expect(response.body).to include(web_cash_days_path)
+        caja = Nokogiri::HTML(response.body).css("aside a").find { |a| a.css("span").map(&:text).include?("Caja") }
+        expect(caja["href"]).to eq(web_cash_day_path(Date.current))
       end
 
       it "marks Balance general as a scale, not a trend" do
@@ -476,7 +477,8 @@ RSpec.describe "Web::Cash::Reports", type: :request do
 
         expect(response.body).not_to include("Balance general")
         expect(response.body).not_to include("Historial de movimientos")
-        expect(response.body).not_to include(web_cash_days_path)
+        hrefs = Nokogiri::HTML(response.body).css("a").map { |a| a["href"].to_s }
+        expect(hrefs.grep(%r{\A/web/cash/days})).to be_empty
       end
     end
   end
