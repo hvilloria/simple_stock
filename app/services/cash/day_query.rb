@@ -53,7 +53,11 @@ module Cash
     # The day's sales folded into the arca group each channel lands in.
     # Compensation reaches no arca, so it is left out.
     def sales_by_group
-      @sales_by_group ||= sales_by_channel.each_with_object(Hash.new(0)) do |(channel, amount), sums|
+      @sales_by_group ||= self.class.fold_by_group(sales_by_channel)
+    end
+
+    def self.fold_by_group(sales_by_channel)
+      sales_by_channel.each_with_object(Hash.new(0)) do |(channel, amount), sums|
         account = CashMovement.account_for_channel(channel)
         sums[CashMovement.reporting_group_for(account)] += amount if account
       end

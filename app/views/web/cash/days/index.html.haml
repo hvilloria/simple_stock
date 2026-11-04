@@ -1,0 +1,41 @@
+- content_for :page_title, "Caja"
+
+.container.mx-auto.px-6.py-6
+  .flex.items-center.justify-between.mb-6
+    %div
+      %h1.text-3xl.font-bold.text-slate-900 Resumen de días
+      %p.text-sm.text-slate-500.mt-1 Hacer clic en un día para ver su detalle.
+    = link_to "← Caja de hoy", web_cash_day_path(Date.current),
+              class: "px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+
+  .bg-white.border.border-slate-200.rounded-lg.overflow-x-auto
+    %table.min-w-full.divide-y.divide-slate-200
+      %thead.bg-slate-50
+        %tr
+          %th.px-4.py-3.text-left.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Fecha
+          %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Productos vendidos
+          - Cash::DayQuery::PESO_SALE_GROUPS.each do |group|
+            %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider= CashMovement::REPORTING_GROUP_LABELS.fetch(group)
+          %th.px-4.py-3.text-right.text-xs.font-medium.text-slate-500.uppercase.tracking-wider Monto fajado
+
+      %tbody.divide-y.divide-slate-100.bg-white.text-sm.tabular-nums
+        - @rows.each do |row|
+          - day_path = web_cash_day_path(row.date)
+          %tr.hover:bg-slate-50.transition-colors
+            %td.whitespace-nowrap
+              = link_to day_path, class: "block px-4 py-3 text-slate-900" do
+                = row.date.strftime("%d/%m/%Y")
+                - if row.today?
+                  %span.ml-2.text-xs.text-slate-500.border.border-slate-300.rounded.px-1.5 Hoy
+            %td
+              = link_to row.units_sold, day_path, class: "block px-4 py-3 text-right text-slate-900", tabindex: -1
+            - Cash::DayQuery::PESO_SALE_GROUPS.each do |group|
+              %td
+                = link_to number_ar(row.sales_by_group[group], precision: 0), day_path, class: "block px-4 py-3 text-right text-slate-900", tabindex: -1
+            %td
+              - if row.closed?
+                = link_to number_ar(row.counted_cash, precision: 0), day_path, class: "block px-4 py-3 text-right font-medium text-slate-900", tabindex: -1
+              - else
+                = link_to "Abierto", day_path, class: "block px-4 py-3 text-right text-slate-500", tabindex: -1
+
+  = render "shared/pagination", pagy: @pagy

@@ -8,7 +8,8 @@ module Web
       def index
         authorize CashMovement, :index?
 
-        redirect_to web_cash_day_path(Date.current)
+        @pagy, dates = pagy_array(::Cash::DaysSummaryQuery.dates, items: 15)
+        @rows = ::Cash::DaysSummaryQuery.new(dates).rows
       end
 
       def show

@@ -36,7 +36,7 @@
 
     - if policy(CashMovement).index?
       - cash_active = controller_path.start_with?('web/cash')
-      = link_to web_cash_days_path, class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{cash_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
+      = link_to web_cash_day_path(Date.current), class: "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium #{cash_active ? 'text-slate-900 bg-slate-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'}" do
         %span.text-base 💰
         %span Caja
 
