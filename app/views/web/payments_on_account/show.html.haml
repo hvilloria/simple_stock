@@ -36,7 +36,7 @@
                     - else
                       %span.text-xs.text-slate-400 pendiente
                   %td.py-2.5.text-center
-                    - if @can_edit_items && item.delivered_at.nil?
+                    - if @can_edit_items && item.delivered_at.nil? && !item.product.combo?
                       = link_to edit_web_payments_on_account_item_path(@order, item),
                         class: "inline-flex items-center gap-1 px-2.5 py-1 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50" do
                         ⇄ Cambiar

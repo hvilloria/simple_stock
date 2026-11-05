@@ -109,6 +109,21 @@ RSpec.describe "Web::Dashboard", type: :request do
     end
   end
 
+  describe "critical stock" do
+    it "neither lists nor counts a combo, which holds no stock of its own" do
+      low = create(:product, name: "Filtro bajo", current_stock: 2)
+      create(:product, :combo, name: "Combo service", components: [ [ low, 1 ], [ create(:product), 1 ] ])
+      sign_in admin
+
+      get web_dashboard_path
+
+      expect(response.body).to include("Filtro bajo")
+      expect(response.body).not_to include("Combo service")
+      count = Nokogiri::HTML(response.body).at_xpath("//p[normalize-space()='Stock Bajo']/following-sibling::h3")
+      expect(count.text.strip).to eq("1")
+    end
+  end
+
   describe "month navigation" do
     before { sign_in admin }
 

@@ -70,6 +70,16 @@ RSpec.describe "Web::PaymentsOnAccount", type: :request do
       expect(response.body).not_to include(delivered_path)
     end
 
+    it "hides the change-product action on a combo line" do
+      combo_line = create(:order_item, order: open_order, product: create(:product, :combo),
+                          quantity: 1, unit_price: 100)
+      sign_in vendedor
+      get web_payments_on_account_path(open_order)
+
+      expect(response.body).to include(edit_web_payments_on_account_item_path(open_order, open_order.order_items.first))
+      expect(response.body).not_to include(edit_web_payments_on_account_item_path(open_order, combo_line))
+    end
+
     it "hides the change-product action from caja" do
       sign_in caja
       get web_payments_on_account_path(open_order)

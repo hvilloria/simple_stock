@@ -6,6 +6,8 @@ module Sales
   # channel's price (counter price when it has none); a quantity-only edit
   # keeps the original line price.
   class ReplaceOrderItem
+    COMBO_REFUSAL = "Un combo no se puede cambiar"
+
     def self.call(order_item:, product_id:, quantity:)
       new(order_item: order_item, product_id: product_id, quantity: quantity).call
     end
@@ -56,10 +58,12 @@ module Sales
       end
 
       raise ValidationError, "El producto ya fue entregado" if @order_item.delivered_at.present?
+      raise ValidationError, COMBO_REFUSAL if @order_item.product.combo?
       raise ValidationError, "La cantidad debe ser mayor a cero" if @quantity <= 0
 
       if product_changed?
         raise ValidationError, "Producto inválido" if new_product.nil?
+        raise ValidationError, COMBO_REFUSAL if new_product.combo?
         unless catalog_price.to_d.positive?
           raise ValidationError, "El producto no tiene precio de catálogo — cargarlo en Productos"
         end

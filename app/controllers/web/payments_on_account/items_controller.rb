@@ -6,7 +6,11 @@ module Web
       def edit
         authorize @order, :edit_item?, policy_class: PaymentOnAccountPolicy
 
-        redirect_to web_payments_on_account_path(@order), alert: "El producto ya fue entregado" if @item.delivered_at.present?
+        if @item.delivered_at.present?
+          redirect_to web_payments_on_account_path(@order), alert: "El producto ya fue entregado"
+        elsif @item.product.combo?
+          redirect_to web_payments_on_account_path(@order), alert: ::Sales::ReplaceOrderItem::COMBO_REFUSAL
+        end
       end
 
       def update

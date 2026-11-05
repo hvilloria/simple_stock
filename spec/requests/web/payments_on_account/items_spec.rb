@@ -32,6 +32,15 @@ RSpec.describe "Web::PaymentsOnAccount::Items", type: :request do
       expect(response).to redirect_to(web_payments_on_account_path(order))
       expect(flash[:alert]).to eq("El producto ya fue entregado")
     end
+
+    it "redirects to the show for a combo line" do
+      combo_line = create(:order_item, order: order, product: create(:product, :combo), quantity: 1, unit_price: 500)
+      sign_in vendedor
+      get edit_web_payments_on_account_item_path(order, combo_line)
+
+      expect(response).to redirect_to(web_payments_on_account_path(order))
+      expect(flash[:alert]).to eq("Un combo no se puede cambiar")
+    end
   end
 
   describe "PATCH update" do
