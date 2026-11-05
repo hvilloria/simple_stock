@@ -476,7 +476,8 @@ RSpec.describe "Web::Orders", type: :request do
       sign_in create(:user, :admin)
       get web_order_path(order)
 
-      expect(response.body).to include("Análisis de Costos", "COSTO UNIT.", "ARS 40,00")
+      expect(response.body).to include("Análisis de Costos", "COSTO UNIT.", "ARS 40,00",
+                                       "Basado en el costo de la última compra")
       expect(Nokogiri::HTML(response.body).at_css("tfoot td")["colspan"]).to eq("5")
     end
 

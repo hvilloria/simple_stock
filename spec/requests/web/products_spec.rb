@@ -253,6 +253,51 @@ RSpec.describe "Web::Products edit/update", type: :request do
     end
   end
 
+  describe "product cost in the product form" do
+    let(:costed) { create(:product, name: "Disco", price_unit: 15_000, cost_unit: 8_100, cost_currency: "ARS") }
+
+    it "hides the cost fields from a vendedor and shows them to an admin" do
+      sign_in vendedor
+      get edit_web_product_path(costed)
+      expect(response.body).not_to include("Costo Unitario", "Moneda del Costo", "8.100,00")
+      get new_web_product_path
+      expect(response.body).not_to include("Costo Unitario", "Moneda del Costo")
+
+      sign_in admin
+      get edit_web_product_path(costed)
+      expect(response.body).to include("Costo Unitario", "Moneda del Costo", "8.100,00")
+    end
+
+    it "ignores a cost sent by a vendedor while saving the other fields" do
+      sign_in vendedor
+      patch web_product_path(costed), params: {
+        product: { name: "Disco nuevo", cost_unit: "1,00", cost_currency: "USD" }
+      }
+
+      costed.reload
+      expect(costed.name).to eq("Disco nuevo")
+      expect([ costed.cost_unit, costed.cost_currency ]).to eq([ 8_100, "ARS" ])
+    end
+
+    it "ignores a cost sent by a vendedor creating a product" do
+      sign_in vendedor
+      post web_products_path, params: {
+        product: { sku: "BUJE-COST", name: "Buje", brand: "X", product_type: "aftermarket",
+                   origin: "china", price_unit: "10.000,00", cost_unit: "5.000,00", active: "1" }
+      }
+
+      created = Product.find_by!(sku: "BUJE-COST")
+      expect(created.cost_unit).to be_nil
+    end
+
+    it "lets an admin edit the cost" do
+      sign_in admin
+      patch web_product_path(costed), params: { product: { cost_unit: "9.692,10" } }
+
+      expect(costed.reload.cost_unit).to eq(BigDecimal("9692.10"))
+    end
+  end
+
   describe "editing a combo through the product routes" do
     let!(:combo) { create(:product, :combo, name: "Kit") }
 
