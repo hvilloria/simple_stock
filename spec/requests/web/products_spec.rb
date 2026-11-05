@@ -150,6 +150,18 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(response).to have_http_status(:redirect)
       expect(Product.exists?(target.id)).to be(true)
     end
+
+    it "keeps a combo with sales and explains why" do
+      combo = create(:product, :combo)
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      sign_in admin
+
+      delete web_product_path(combo)
+
+      expect(response).to redirect_to(web_product_path(combo))
+      expect(flash[:alert]).to eq("El combo tiene ventas: solo se puede archivar")
+      expect(Product.exists?(combo.id)).to be(true)
+    end
   end
 
   describe "GET /web/products/:id — stock movements" do

@@ -64,8 +64,11 @@ module Web
       @product = Product.find(params[:id])
       authorize @product
 
-      @product.destroy
-      redirect_to web_products_path, notice: "Producto eliminado exitosamente"
+      if @product.destroy
+        redirect_to web_products_path, notice: "Producto eliminado exitosamente"
+      else
+        redirect_to web_product_path(@product), alert: @product.errors.full_messages.to_sentence
+      end
     end
 
     def search

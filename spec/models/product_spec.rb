@@ -805,5 +805,72 @@ RSpec.describe Product, type: :model do
         expect(combo.components_price_sum).to eq(2_000)
       end
     end
+
+    describe "destroy guards" do
+      it "refuses to delete a combo with sales and keeps its components" do
+        combo = create(:product, :combo)
+        create(:order_item, product: combo, order: create(:order, :cancelled))
+
+        expect(combo.destroy).to be(false)
+        expect(combo.errors[:base]).to include("El combo tiene ventas: solo se puede archivar")
+        expect(Product.find(combo.id)).to be_present
+        expect(combo.combo_components.count).to eq(2)
+      end
+
+      it "deletes a combo without sales" do
+        combo = create(:product, :combo)
+
+        expect(combo.destroy).to be_truthy
+        expect(Product.only_deleted).to include(combo)
+      end
+
+      it "refuses to delete a part of active combos, listing them" do
+        part = create(:product)
+        first = create(:product, :combo, components: [ [ part, 2 ] ])
+        second = create(:product, :combo, components: [ [ part, 3 ] ])
+
+        expect(part.destroy).to be(false)
+        expect(part.errors[:base]).to include("Forma parte de #{first.sku}, #{second.sku}; archivar esos combos primero.")
+        expect(Product.find(part.id)).to be_present
+      end
+
+      it "deletes a part of archived combos only" do
+        part = create(:product)
+        create(:product, :combo, :inactive, components: [ [ part, 2 ] ])
+
+        expect(part.destroy).to be_truthy
+      end
+    end
+
+    describe "archive guard" do
+      it "refuses to archive a part of an active combo" do
+        part = create(:product)
+        combo = create(:product, :combo, components: [ [ part, 2 ] ])
+
+        expect(part.update(active: false)).to be(false)
+        expect(part.errors[:base]).to include("Forma parte de #{combo.sku}; archivar esos combos primero.")
+        expect(part.reload).to be_active
+      end
+
+      it "archives a part of archived combos only" do
+        part = create(:product)
+        create(:product, :combo, :inactive, components: [ [ part, 2 ] ])
+
+        expect(part.update(active: false)).to be(true)
+      end
+
+      it "lets other edits through on a part of an active combo" do
+        part = create(:product)
+        create(:product, :combo, components: [ [ part, 2 ] ])
+
+        expect(part.update(name: "Otro nombre")).to be(true)
+      end
+
+      it "archives a combo itself" do
+        combo = create(:product, :combo)
+
+        expect(combo.update(active: false)).to be(true)
+      end
+    end
   end
 end

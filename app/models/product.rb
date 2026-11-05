@@ -78,12 +78,16 @@ class Product < ApplicationRecord
     allow_blank: true
   }
   validate :sku_prefix_reserved
+  validate :not_archiving_a_combo_part, on: :update
 
   # Normalization
   # The SKU (OEM code) is ALWAYS stored in uppercase, whether it comes from the form,
   # the import, or the console. It goes in before_validation so that uniqueness and
   # the other validations run on the already-normalized value.
   before_validation :normalize_sku
+
+  # Prepended so the dependent destroys above never run when the guard refuses.
+  before_destroy :guard_destroy, prepend: true
 
   # Scopes
   scope :active, -> { where(active: true) }
@@ -267,6 +271,29 @@ class Product < ApplicationRecord
     return if combo? || sku.blank?
 
     errors.add(:sku, "no puede empezar con CB- (reservado para combos)") if sku.start_with?(COMBO_SKU_PREFIX)
+  end
+
+  def not_archiving_a_combo_part
+    return if combo? || !will_save_change_to_active?(from: true, to: false)
+
+    add_combo_part_error if active_combos_containing.exists?
+  end
+
+  def guard_destroy
+    if combo? && has_sales?
+      errors.add(:base, "El combo tiene ventas: solo se puede archivar")
+      throw :abort
+    end
+
+    return unless active_combos_containing.exists?
+
+    add_combo_part_error
+    throw :abort
+  end
+
+  def add_combo_part_error
+    skus = active_combos_containing.order(:sku).pluck(:sku).join(", ")
+    errors.add(:base, "Forma parte de #{skus}; archivar esos combos primero.")
   end
 
   def normalize_sku
