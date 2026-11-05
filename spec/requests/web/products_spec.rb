@@ -19,6 +19,41 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(item["price_unit"].to_f).to eq(100.0)
       expect(item["channel_prices_map"]).to eq("mercadolibre" => 15_000.0)
     end
+
+    context "with combos" do
+      let!(:front) { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", current_stock: 4) }
+      let!(:rear)  { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho") }
+      let!(:pair) do
+        create(:product, :combo, name: "Par amortiguadores", components: [ [ front, 2 ], [ rear, 1 ] ])
+      end
+
+      it "returns regular products first and the combo with its components when asked" do
+        get search_web_products_path, params: { q: "456", include_combos: "1" }
+
+        items = JSON.parse(response.body)
+        expect(items.map { |p| p["id"] }).to eq([ rear.id, pair.id ])
+        expect(items.first).to include("combo" => false, "components" => [])
+        expect(items.second["combo"]).to be(true)
+        expect(items.second["components"]).to contain_exactly(
+          { "sku" => "12345-123-12345", "name" => "Amortiguador izquierdo", "quantity" => 2, "current_stock" => 4 },
+          { "sku" => "12345-456-12345", "name" => "Amortiguador derecho", "quantity" => 1,
+            "current_stock" => rear.current_stock }
+        )
+      end
+
+      it "leaves combos out by default" do
+        get search_web_products_path, params: { q: "456" }
+
+        expect(JSON.parse(response.body).map { |p| p["id"] }).to eq([ rear.id ])
+      end
+
+      it "never returns an archived combo" do
+        pair.update!(active: false)
+        get search_web_products_path, params: { q: "456", include_combos: "1" }
+
+        expect(JSON.parse(response.body).map { |p| p["id"] }).to eq([ rear.id ])
+      end
+    end
   end
 
   describe "GET /web/products" do

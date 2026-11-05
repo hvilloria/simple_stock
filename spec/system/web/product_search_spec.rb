@@ -66,6 +66,38 @@ RSpec.describe "Product fields in client-rendered HTML", type: :system do
     expect_text_only
   end
 
+  context "with a combo" do
+    let!(:front) { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", current_stock: 3) }
+    let!(:rear)  { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho", current_stock: 3) }
+
+    before do
+      create(:product, :combo, name: "Par amortiguadores", components: [ [ front, 1 ], [ rear, 1 ] ])
+    end
+
+    it "shows the combo and its components on the new sale" do
+      visit "/web/orders/new"
+      fill_in placeholder: "Buscar por SKU, nombre o marca...", with: "456"
+
+      within("[data-product-search-target='results']") do
+        combo_row = find("[data-action*='selectProduct']", text: "Par amortiguadores")
+        expect(combo_row).to have_text("Combo")
+        expect(combo_row).to have_text("Incluye: 12345-123-12345 · 12345-456-12345")
+        expect(combo_row).to have_no_text("Sin stock")
+      end
+    end
+
+    it "leaves the combo out of the stock adjustment picker" do
+      visit "/web/stock_adjustments/new"
+      fill_in placeholder: "Buscar por SKU, nombre o marca...", with: "456"
+
+      within("[data-product-search-target='results']") do
+        expect(page).to have_text("Amortiguador derecho")
+        expect(page).to have_no_text("Combo")
+        expect(page).to have_no_text("Par amortiguadores")
+      end
+    end
+  end
+
   it "shows a product added to the cart as text" do
     visit "/web/products"
     find("button[title='Agregar al carrito']").click

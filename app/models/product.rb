@@ -109,11 +109,19 @@ class Product < ApplicationRecord
   }
   scope :oem, -> { where(product_type: "oem") }
   scope :aftermarket, -> { where(product_type: "aftermarket") }
-  # Every word must appear, in any order, in the sku, name or brand.
+  # Every word must appear, in any order, in the sku, name or brand, or in those of any combo component.
   scope :search, lambda { |query|
     query.to_s.split.uniq.first(SEARCH_MAX_WORDS).reduce(all) do |scope, word|
-      scope.where("unaccent(sku) ILIKE unaccent(:q) OR unaccent(name) ILIKE unaccent(:q) OR unaccent(brand) ILIKE unaccent(:q)",
-                  q: "%#{sanitize_sql_like(word)}%")
+      scope.where(<<~SQL.squish, q: "%#{sanitize_sql_like(word)}%")
+        unaccent(products.sku) ILIKE unaccent(:q) OR unaccent(products.name) ILIKE unaccent(:q)
+        OR unaccent(products.brand) ILIKE unaccent(:q)
+        OR EXISTS (
+          SELECT 1 FROM combo_components cc JOIN products cp ON cp.id = cc.product_id
+          WHERE cc.combo_id = products.id
+            AND (unaccent(cp.sku) ILIKE unaccent(:q) OR unaccent(cp.name) ILIKE unaccent(:q)
+                 OR unaccent(cp.brand) ILIKE unaccent(:q))
+        )
+      SQL
     end
   }
   scope :at_location, ->(code) { where(location_code: code) if code.present? }
@@ -144,6 +152,15 @@ class Product < ApplicationRecord
 
   def active_combos_containing
     Product.combos.active.joins(:combo_components).where(combo_components: { product_id: id })
+  end
+
+  def search_components
+    return [] unless combo?
+
+    combo_components.sort_by(&:id).map do |component|
+      { sku: component.product.sku, name: component.product.name,
+        quantity: component.quantity, current_stock: component.product.current_stock }
+    end
   end
 
   def components_price_sum

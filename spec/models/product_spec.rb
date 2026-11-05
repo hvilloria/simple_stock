@@ -354,6 +354,31 @@ RSpec.describe Product, type: :model do
       expect(Product.search('%')).to be_empty
       expect(Product.search('_')).to be_empty
     end
+
+    context 'with combos' do
+      let!(:front) { create(:product, sku: '12345-123-12345', name: 'Amortiguador izquierdo', brand: 'Showa') }
+      let!(:rear)  { create(:product, sku: '12345-456-12345', name: 'Amortiguador derecho', brand: 'Showa') }
+      let!(:pair)  { create(:product, :combo, name: 'Par amortiguadores CRF250', components: [ [ front, 1 ], [ rear, 1 ] ]) }
+
+      it 'finds the combo and the part itself by a component sku' do
+        expect(Product.search('456')).to contain_exactly(rear, pair)
+      end
+
+      it 'finds the combo when each word matches a different component' do
+        expect(Product.search('izquierdo derecho')).to contain_exactly(pair)
+        expect(Product.search('123 456')).to contain_exactly(rear, pair)
+      end
+
+      it 'finds the combo by its own name' do
+        expect(Product.search('crf250')).to contain_exactly(pair)
+      end
+
+      it 'ignores accents in component names' do
+        spark = create(:product, :combo, name: 'Kit encendido', components: [ [ plug, 2 ] ])
+
+        expect(Product.search('bujia')).to contain_exactly(plug, spark)
+      end
+    end
   end
 
   describe '#low_stock?' do
