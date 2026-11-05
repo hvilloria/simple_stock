@@ -15,6 +15,7 @@ module Web
       @product = Product.find(params[:id])
       authorize @product
       if @product.combo?
+        @combo_has_sales = @product.has_sales?
         @combo_components = @product.combo_components.includes(:product).order(:id)
         @components_price_sum = @product.components_price_sum
       else
@@ -81,11 +82,9 @@ module Web
 
     def search
       authorize Product, :search?
-      scope = params[:include_combos] == "1" ? Product.active : Product.active.regular
-      @products = scope.search(params[:q])
-                       .includes(:channel_prices, combo_components: :product)
-                       .order(:combo, :name)
-                       .limit(10)
+      matches = Product.active.search(params[:q]).includes(:channel_prices, combo_components: :product).order(:name)
+      @products = matches.regular.limit(10).to_a
+      @products += matches.combos.limit(5).to_a if params[:include_combos] == "1"
 
       render json: @products.map { |product|
         product.as_json(

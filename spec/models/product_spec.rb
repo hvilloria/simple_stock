@@ -756,6 +756,21 @@ RSpec.describe Product, type: :model do
       expect(product.errors[:sku]).to include("no puede empezar con CB- (reservado para combos)")
     end
 
+    it "still saves a regular product already persisted with a CB- sku" do
+      product = create(:product, sku: "LEGACY-1")
+      product.update_column(:sku, "CB-9")
+      create(:stock_movement, product: product, stock_location: create(:stock_location),
+                              quantity: 3, movement_type: "purchase")
+
+      expect(product.reload.update(price_unit: 250)).to be(true)
+      expect { product.recalculate_current_stock! }.not_to raise_error
+      expect(product.reload.current_stock).to eq(3)
+    end
+
+    it "refuses creating a regular product with a lowercase cb- sku" do
+      expect { create(:product, sku: "cb-1") }.to raise_error(ActiveRecord::RecordInvalid, /CB-/)
+    end
+
     it "allows a CB- sku on a combo" do
       expect(build(:product, :combo, sku: "CB-0003")).to be_valid
     end

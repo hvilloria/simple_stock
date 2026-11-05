@@ -77,7 +77,7 @@ class Product < ApplicationRecord
     message: "debe tener el formato NPnn (ej: 2D31 = Pasillo 2, Derecho, posición 3, nivel 1)",
     allow_blank: true
   }
-  validate :sku_prefix_reserved
+  validate :sku_prefix_reserved, if: :will_save_change_to_sku?
   validate :not_archiving_a_combo_part, on: :update
 
   # Normalization

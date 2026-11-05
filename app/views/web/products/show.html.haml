@@ -18,7 +18,7 @@
         - else
           = link_to edit_web_product_path(@product), class: "btn-primary" do
             %span Editar Producto
-      - if policy(@product).destroy? && !(@product.combo? && @product.has_sales?)
+      - if policy(@product).destroy? && !@combo_has_sales
         = button_to web_product_path(@product), method: :delete,
                     data: { turbo_confirm: "¿Eliminar este producto? Dejará de aparecer en el sistema." },
                     class: "btn-danger" do
@@ -27,7 +27,7 @@
         - if !@product.active?
           = button_to reactivate_web_combo_path(@product), method: :patch, class: "btn-secondary" do
             %span Reactivar
-        - elsif @product.has_sales?
+        - elsif @combo_has_sales
           = button_to archive_web_combo_path(@product), method: :patch,
                       data: { turbo_confirm: "¿Archivar este combo? Dejará de aparecer en búsquedas y en la nota de pedido." },
                       class: "btn-secondary" do

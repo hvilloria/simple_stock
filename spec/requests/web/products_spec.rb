@@ -47,6 +47,16 @@ RSpec.describe "Web::Products edit/update", type: :request do
         expect(JSON.parse(response.body).map { |p| p["id"] }).to eq([ rear.id ])
       end
 
+      it "keeps the combos after a full page of regular products" do
+        regulars = Array.new(11) { |i| create(:product, name: format("Bb amortiguador %02d", i), sku: "X-456-#{i}") }
+        get search_web_products_path, params: { q: "456", include_combos: "1" }
+
+        ids = JSON.parse(response.body).map { |p| p["id"] }
+        expect(ids.size).to eq(11)
+        expect(ids.last).to eq(pair.id)
+        expect(ids.first(10)).to all(satisfy { |id| ([ rear.id ] + regulars.map(&:id)).include?(id) })
+      end
+
       it "never returns an archived combo" do
         pair.update!(active: false)
         get search_web_products_path, params: { q: "456", include_combos: "1" }
