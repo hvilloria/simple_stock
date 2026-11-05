@@ -713,4 +713,89 @@ RSpec.describe Product, type: :model do
     product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
     expect { product.destroy }.to change(ProductChannelPrice, :count).by(-1)
   end
+
+  describe "combos" do
+    it "generates increasing CB- skus" do
+      first = Product.next_combo_sku
+      second = Product.next_combo_sku
+
+      expect(first).to match(/\ACB-\d{4,}\z/)
+      expect(second).to match(/\ACB-\d{4,}\z/)
+      expect(second.delete_prefix("CB-").to_i).to be > first.delete_prefix("CB-").to_i
+    end
+
+    it "refuses a CB- sku on a regular product after normalization" do
+      product = build(:product, sku: "cb-77")
+
+      expect(product).not_to be_valid
+      expect(product.errors[:sku]).to include("no puede empezar con CB- (reservado para combos)")
+    end
+
+    it "allows a CB- sku on a combo" do
+      expect(build(:product, :combo, sku: "CB-0003")).to be_valid
+    end
+
+    it "splits products into combos and regular ones" do
+      combo = create(:product, :combo)
+      regular = create(:product)
+
+      expect(Product.combos).to include(combo)
+      expect(Product.combos).not_to include(regular)
+      expect(Product.regular).to include(regular)
+      expect(Product.regular).not_to include(combo)
+      expect(combo).to be_combo
+    end
+
+    it "lists its components through combo_components" do
+      part_a = create(:product)
+      part_b = create(:product)
+      combo = create(:product, :combo, components: [ [ part_a, 1 ], [ part_b, 4 ] ])
+
+      expect(combo.components).to contain_exactly(part_a, part_b)
+      expect(combo.combo_components.find_by(product: part_b).quantity).to eq(4)
+    end
+
+    describe "#has_sales?" do
+      it "is false without order items" do
+        expect(create(:product, :combo)).not_to have_sales
+      end
+
+      it "is true with an order item on a cancelled order" do
+        combo = create(:product, :combo)
+        create(:order_item, product: combo, order: create(:order, :cancelled))
+
+        expect(combo).to have_sales
+      end
+    end
+
+    describe "#active_combos_containing" do
+      it "returns the active combos with the product, not the archived ones" do
+        part = create(:product)
+        active_combo = create(:product, :combo, components: [ [ part, 2 ] ])
+        create(:product, :combo, :inactive, components: [ [ part, 2 ] ])
+
+        expect(part.active_combos_containing).to contain_exactly(active_combo)
+      end
+    end
+
+    describe "#components_price_sum" do
+      it "adds each component price times its quantity" do
+        combo = create(:product, :combo, components: [
+          [ create(:product, price_unit: 70_000), 1 ],
+          [ create(:product, price_unit: 70_000), 1 ]
+        ])
+
+        expect(combo.components_price_sum).to eq(140_000)
+      end
+
+      it "counts a component without price as zero" do
+        combo = create(:product, :combo, components: [
+          [ create(:product, price_unit: nil), 3 ],
+          [ create(:product, price_unit: 1_000), 2 ]
+        ])
+
+        expect(combo.components_price_sum).to eq(2_000)
+      end
+    end
+  end
 end

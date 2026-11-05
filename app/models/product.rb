@@ -4,6 +4,8 @@ class Product < ApplicationRecord
   # Associations
   has_many :stock_movements
   has_many :channel_prices, class_name: "ProductChannelPrice", dependent: :destroy
+  has_many :combo_components, foreign_key: :combo_id, dependent: :destroy
+  has_many :components, through: :combo_components, source: :product
 
   # === SKU AND VARIANTS ===
   # sku represents the OEM CODE of the part (e.g.: original Honda code)
@@ -48,6 +50,7 @@ class Product < ApplicationRecord
   # Example: "2D31" = Aisle 2, Right, position 3, level 1
   LOCATION_FORMAT = /\A[1-9][ID][0-9][0-9]\z/
   SEARCH_MAX_WORDS = 8
+  COMBO_SKU_PREFIX = "CB-"
 
   # Validations
   # SKU is the OEM code, it may repeat across variants.
@@ -74,6 +77,7 @@ class Product < ApplicationRecord
     message: "debe tener el formato NPnn (ej: 2D31 = Pasillo 2, Derecho, posición 3, nivel 1)",
     allow_blank: true
   }
+  validate :sku_prefix_reserved
 
   # Normalization
   # The SKU (OEM code) is ALWAYS stored in uppercase, whether it comes from the form,
@@ -84,6 +88,8 @@ class Product < ApplicationRecord
   # Scopes
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
+  scope :combos, -> { where(combo: true) }
+  scope :regular, -> { where(combo: false) }
   scope :with_low_stock, -> { where("current_stock < ?", 5) }
   scope :by_category, ->(cat) { where(category: cat) if cat.present? }
   scope :by_origin, ->(origin) { where(origin: origin) if origin.present? }
@@ -120,6 +126,27 @@ class Product < ApplicationRecord
 
     order("#{column} #{dir}")
   }
+
+  # The sequence lives outside db/schema.rb (standalone sequences are not dumped), so it is created on demand.
+  def self.next_combo_sku
+    connection.execute("CREATE SEQUENCE IF NOT EXISTS combo_sku_seq")
+    format("#{COMBO_SKU_PREFIX}%04d", connection.select_value("SELECT nextval('combo_sku_seq')"))
+  end
+
+  # Cancelled orders count: their lines still point at the product.
+  def has_sales?
+    OrderItem.exists?(product_id: id)
+  end
+
+  def active_combos_containing
+    Product.combos.active.joins(:combo_components).where(combo_components: { product_id: id })
+  end
+
+  def components_price_sum
+    combo_components.includes(:product).to_a.sum(0.to_d) do |component|
+      component.product.price_unit.to_d * component.quantity
+    end
+  end
 
   # Cached stock: current_stock is a column in products
   # It must ONLY be modified from inventory services using recalculate_current_stock!
@@ -235,6 +262,12 @@ class Product < ApplicationRecord
   end
 
   private
+
+  def sku_prefix_reserved
+    return if combo? || sku.blank?
+
+    errors.add(:sku, "no puede empezar con CB- (reservado para combos)") if sku.start_with?(COMBO_SKU_PREFIX)
+  end
 
   def normalize_sku
     self.sku = sku.strip.upcase if sku.present?
