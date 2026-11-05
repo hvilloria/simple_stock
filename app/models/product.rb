@@ -26,19 +26,16 @@ class Product < ApplicationRecord
   # Each variant is a separate record with its own:
   #   - product_id (unique)
   #   - current_stock (independent)
-  #   - cost_unit (independent average cost)
+  #   - cost_unit (independent last purchase cost)
   #   - price_unit (independent sale price)
   #
   # === STOCK AND COSTS ===
   # current_stock is a cached field that updates automatically
   # via callbacks in StockMovement. DO NOT update manually.
   #
-  # cost_unit represents the WEIGHTED AVERAGE COST of the inventory
-  # It is recalculated automatically when each purchase is confirmed
-  # It is NOT the "last cost" but the average of all purchases
-  # cost_currency: currency of the average cost (typically 'USD')
-  # It is updated automatically via recalculate_average_cost!
-  # DO NOT update manually from controllers/views
+  # cost_unit is the cost of the last purchase: the final unit cost in ARS
+  # (discount and IVA included) that registering a supplier invoice sets, or
+  # whatever an admin typed afterwards. Legacy rows may still hold a USD cost.
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
@@ -176,48 +173,6 @@ class Product < ApplicationRecord
     update!(current_stock: stock_movements.sum(:quantity))
   end
 
-  # Recalculates the weighted average cost based on ALL confirmed purchases
-  # Converts everything to USD for uniformity in the calculation
-  # It is called automatically from Purchasing::CreateInvoice and Purchasing::CancelInvoice
-  def recalculate_average_cost!
-    # Get ALL confirmed purchases of this product
-    invoice_items = InvoiceItem.joins(:invoice)
-                                .where(product: self)
-                                .where(invoices: { status: "confirmed" })
-
-    return if invoice_items.empty?
-
-    # Calculate weighted average cost in USD
-    # (convert everything to USD for uniformity)
-    total_cost_usd = 0.0
-    total_quantity = 0
-
-    invoice_items.find_each do |item|
-      if item.invoice.currency == "USD"
-        total_cost_usd += item.unit_cost * item.quantity
-      else
-        # If it is ARS, convert to USD using the inverse exchange_rate
-        # (this is approximate, in production it could be improved)
-        cost_in_usd = item.unit_cost / (item.invoice.exchange_rate || 1200)
-        total_cost_usd += cost_in_usd * item.quantity
-      end
-
-      total_quantity += item.quantity
-    end
-
-    if total_quantity > 0
-      average_cost = (total_cost_usd / total_quantity).round(2)
-      update_columns(
-        cost_unit: average_cost,
-        cost_currency: "USD"
-      )
-    end
-  end
-
-  # Alias for semantic clarity
-  # cost_unit represents the WEIGHTED AVERAGE COST of the inventory
-  # It is recalculated automatically when each purchase is confirmed
-  # It is NOT the "last cost" but the average of all purchases
   alias_attribute :average_cost, :cost_unit
 
   def low_stock?

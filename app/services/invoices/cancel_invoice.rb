@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module Invoices
-  # Cancels a pending invoice and takes back the stock it added, as far as
-  # there is stock to take.
+  # Cancels a pending invoice, takes back the stock it added as far as there
+  # is stock to take, and undoes the product costs it set.
   class CancelInvoice
     def self.call(invoice:)
       new(invoice: invoice).call
@@ -17,6 +17,7 @@ module Invoices
 
       ActiveRecord::Base.transaction do
         reverse_stock
+        revert_costs
         @invoice.update!(status: "cancelled")
 
         Result.new(success?: true, record: @invoice, errors: [])
@@ -57,6 +58,11 @@ module Invoices
         )
         raise ValidationError, result.errors.join(", ") if result.failure?
       end
+    end
+
+    def revert_costs
+      result = RevertPurchaseCosts.call(invoice: @invoice)
+      raise ValidationError, result.errors.join(", ") if result.failure?
     end
 
     def purchased_by_product

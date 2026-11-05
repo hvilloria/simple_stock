@@ -537,6 +537,40 @@ RSpec.describe Invoices::CreateInvoice do
           expect(invoice.amount).to eq(1_210)
         end
 
+        it "sets each product's cost to its final unit cost in pesos and keeps the previous one" do
+          filter.update!(cost_unit: 8_100, cost_currency: "USD")
+
+          result = call_with([ { product_id: filter.id, quantity: 6, unit_cost: "8900" } ],
+                             discount_percentage: 10, iva_percentage: 21)
+
+          expect(filter.reload.cost_unit).to eq(BigDecimal("9692.10"))
+          expect(filter.cost_currency).to eq("ARS")
+          item = result.record.invoice_items.first
+          expect([ item.previous_cost_unit, item.previous_cost_currency ]).to eq([ 8_100, "USD" ])
+        end
+
+        it "leaves the product cost alone when a full discount makes the line free" do
+          filter.update!(cost_unit: 8_100, cost_currency: "USD")
+
+          result = call_with([ { product_id: filter.id, quantity: 6, unit_cost: "8900" } ],
+                             discount_percentage: 100, iva_percentage: 21)
+
+          expect(result.success?).to be true
+          expect(result.record.amount).to eq(0)
+          expect([ filter.reload.cost_unit, filter.cost_currency ]).to eq([ 8_100, "USD" ])
+        end
+
+        it "rolls everything back when the cost cannot be applied" do
+          allow(Invoices::ApplyPurchaseCosts).to receive(:call)
+            .and_return(Result.new(success?: false, record: nil, errors: [ "Error applying cost" ]))
+
+          expect {
+            result = call_with(yokomitsu_items, discount_percentage: 10, iva_percentage: 21)
+            expect(result.success?).to be false
+            expect(result.errors).to eq([ "Error applying cost" ])
+          }.to not_change(Invoice, :count).and not_change(StockMovement, :count)
+        end
+
         it "refuses a discount above 100" do
           result = call_with(yokomitsu_items, discount_percentage: 101)
 

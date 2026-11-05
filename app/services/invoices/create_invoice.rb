@@ -63,6 +63,7 @@ module Invoices
         build_lines
         @invoice.save!
         move_stock
+        apply_costs
 
         Result.new(success?: true, record: @invoice, errors: [])
       end
@@ -238,6 +239,13 @@ module Invoices
         )
         raise ValidationError, result.errors.join(", ") if result.failure?
       end
+    end
+
+    def apply_costs
+      return if lines.empty?
+
+      result = ApplyPurchaseCosts.call(invoice: @invoice)
+      raise ValidationError, result.errors.join(", ") if result.failure?
     end
   end
 end
