@@ -65,7 +65,7 @@
             - totals = @invoice.totals
             .flex.items-start.gap-3
               %span.text-gray-500.w-40.flex-shrink-0 Monto:
-              .flex-1.max-w-sm.space-y-1.5.tabular-nums
+              #invoice-totals.flex-1.max-w-sm.space-y-1.5.tabular-nums
                 .flex.justify-between
                   %span.text-slate-600 Subtotal
                   %span= number_ar(totals.subtotal)

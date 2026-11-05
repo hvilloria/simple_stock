@@ -27,22 +27,8 @@
         - if with_totals
           %td.py-2.text-right.font-medium= item.final_unit_cost.nil? ? "—" : number_ar(item.final_unit_cost)
   - if with_totals
-    - totals = invoice.totals
-    %tfoot.border-t-2.border-slate-200
+    %tfoot.border-t-2.border-slate-200.font-semibold
       %tr
-        %td.pt-2.text-slate-600{ colspan: 3 } Subtotal
-        %td.pt-2.text-right= number_ar(totals.subtotal)
-        %td
-      - unless invoice.discount_percentage.to_d.zero?
-        %tr
-          %td.text-slate-600{ colspan: 3 }= "Descuento #{invoice_percentage(invoice.discount_percentage)}"
-          %td.text-right= "−#{number_ar(totals.discount)}"
-          %td
-      %tr
-        %td.text-slate-600{ colspan: 3 }= "IVA #{invoice_percentage(invoice.iva_percentage)}"
-        %td.text-right= "+#{number_ar(totals.iva)}"
-        %td
-      %tr.font-semibold
         %td.py-2{ colspan: 3 } Total a pagar
         %td.py-2.text-right= "#{symbol} #{number_ar(invoice.amount)}"
         %td

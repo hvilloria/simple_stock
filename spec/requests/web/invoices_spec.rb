@@ -395,11 +395,14 @@ RSpec.describe "Web::Invoices", type: :request do
       get "/web/invoices/#{itemized.id}"
 
       html = Nokogiri::HTML(response.body)
-      expect(response.body).to include("Subtotal", "Descuento 10%", "IVA 21%", "Total a pagar", "58.152,60")
+      totals = html.at("#invoice-totals").text
+      expect(totals).to include("Subtotal", "53.400,00", "Descuento 10%", "−5.340,00", "IVA 21%", "+10.092,60")
+      expect(totals).to include("Total a pagar", "$ 58.152,60")
       lines = html.at("#invoice-lines")
       expect(lines.at("thead").text).to include("Precio unit.", "Costo final")
       expect(lines.at("tbody").text).to include("9.692,10")
-      expect(lines.at("tfoot").text).to include("Descuento 10%", "IVA 21%", "Total a pagar", "58.152,60")
+      expect(lines.at("tfoot").text).to include("Total a pagar", "$ 58.152,60")
+      expect(lines.at("tfoot").text).not_to include("Descuento", "IVA", "Subtotal")
     end
 
     it "prints a decimal percentage the Argentine way and leaves out a zero discount" do
