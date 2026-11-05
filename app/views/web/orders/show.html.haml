@@ -310,7 +310,7 @@
 
           .flex.justify-between.text-sm
             %span.text-gray-600 Cantidad total
-            %span.font-medium.text-gray-900= "#{@order_items.sum(:quantity)} unidades"
+            %span.font-medium.text-gray-900= "#{@order_items.sum(&:quantity)} unidades"
 
           - if @order.discount_amount.positive?
             .flex.justify-between.text-sm

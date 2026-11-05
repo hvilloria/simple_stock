@@ -102,7 +102,7 @@ export default class extends Controller {
                 ${product.brand ? `<span>${escapeHtml(product.brand)}</span>` : ''}
                 ${product.brand && originText ? '<span>•</span>' : ''}
                 ${originText ? `<span>${originText}</span>` : ''}
-                <span>•</span>
+                ${product.brand || originText ? '<span>•</span>' : ''}
                 <span class="font-bold text-gray-900">$${this.formatCurrency(this.priceFor(product))}</span>
               </div>
             </div>

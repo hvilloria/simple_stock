@@ -451,6 +451,18 @@ RSpec.describe "Web::Orders", type: :request do
       expect(response.body).not_to include("Cobrado de más")
     end
 
+    it "counts a combo line once in the summary, whatever its number of components" do
+      order = create(:order, status: "confirmed")
+      line = create(:order_item, order: order, product: create(:product, :combo), quantity: 1, unit_price: 100)
+      2.times { line.components.create!(product: create(:product), quantity: 1) }
+
+      get web_order_path(order)
+
+      rows = Nokogiri::HTML(response.body).css(".flex.justify-between.text-sm").map { |row| row.text.squish }
+      expect(rows).to include("Items 1 productos")
+      expect(rows).to include("Cantidad total 1 unidades")
+    end
+
     it "names an on-account order's sale type" do
       order = create(:order, :on_account, customer: Customer.mostrador,
                      total_amount: 1_000, original_total_amount: 1_000)
