@@ -474,6 +474,16 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(response.body).not_to include("Costo (última compra)")
     end
 
+    it "shows no cost caption when the product has no cost" do
+      product.update!(cost_unit: nil)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Sin costo registrado")
+      expect(response.body).not_to include("Cargado a mano o anterior al registro de compras con IVA")
+    end
+
     it "drops the source invoice once the cost was typed by hand after the purchase" do
       register("0003-00010197")
       product.reload.update!(cost_unit: 9_000)

@@ -246,12 +246,13 @@ export default class extends Controller {
     `).join("")
 
     this.linesTarget.innerHTML = `
+      <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="text-xs uppercase tracking-wider text-slate-500">
           <tr>
             <th class="py-2 text-left font-medium">Producto</th>
             <th class="py-2 text-right font-medium">Cantidad</th>
-            <th class="py-2 text-right font-medium">Precio unit. (<span data-currency>${this.currency}</span>)</th>
+            <th class="py-2 text-right font-medium">Precio unit. (como en la factura)</th>
             <th class="py-2 pl-3 text-right font-medium">Subtotal</th>
             <th class="py-2 pl-3 text-right font-medium whitespace-nowrap">Costo final</th>
             <th class="py-2"></th>
@@ -259,6 +260,7 @@ export default class extends Controller {
         </thead>
         <tbody class="divide-y divide-slate-100">${rows}</tbody>
       </table>
+      </div>
     `
   }
 }

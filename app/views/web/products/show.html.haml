@@ -193,7 +193,7 @@
                 - else
                   %p.text-lg.text-slate-400 -
             
-              - unless @cost_source_item
+              - if @cost_source_item.nil? && @product.cost_unit.present?
                 %p.text-xs.text-slate-500.italic Cargado a mano o anterior al registro de compras con IVA
       
       - unless @product.combo?

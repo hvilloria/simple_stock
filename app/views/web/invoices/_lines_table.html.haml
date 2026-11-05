@@ -1,39 +1,40 @@
 - symbol = invoice.currency == 'USD' ? 'US$' : '$'
 - with_totals = invoice.with_totals?
-%table#invoice-lines.w-full.text-sm.tabular-nums
-  %thead.text-xs.uppercase.tracking-wider.text-slate-500
-    %tr
-      %th.py-2.text-left.font-medium Producto
-      %th.py-2.text-right.font-medium Cantidad
-      - if with_totals
-        %th.py-2.text-right.font-medium Precio unit.
-      - else
-        %th.py-2.text-right.font-medium= "Costo unit. (#{symbol})"
-      %th.py-2.text-right.font-medium Subtotal
-      - if with_totals
-        %th.py-2.text-right.font-medium Costo final
-  %tbody.divide-y.divide-slate-100
-    - invoice.invoice_items.includes(:product).each do |item|
+.overflow-x-auto
+  %table#invoice-lines.w-full.text-sm.tabular-nums
+    %thead.text-xs.uppercase.tracking-wider.text-slate-500
       %tr
-        %td.py-2
-          %span.font-mono.text-xs.text-slate-500= item.product.sku
-          %br
-          = item.product.name
-          - if item.product.brand.present?
-            %span.text-slate-400= "· #{item.product.brand}"
-        %td.py-2.text-right= item.quantity
-        %td.py-2.text-right= number_ar(item.unit_cost)
-        %td.py-2.text-right= number_ar(item.subtotal)
+        %th.py-2.text-left.font-medium Producto
+        %th.py-2.pl-3.text-right.font-medium.whitespace-nowrap Cantidad
         - if with_totals
-          %td.py-2.text-right.font-medium= item.final_unit_cost.nil? ? "—" : number_ar(item.final_unit_cost)
-  - if with_totals
-    %tfoot.border-t-2.border-slate-200.font-semibold
-      %tr
-        %td.py-2{ colspan: 3 } Total a pagar
-        %td.py-2.text-right= "#{symbol} #{number_ar(invoice.amount)}"
-        %td
-  - else
-    %tfoot.border-t-2.border-slate-200.font-semibold
-      %tr
-        %td.py-2{ colspan: 3 } Total
-        %td.py-2.text-right= "#{symbol} #{number_ar(invoice.amount)}"
+          %th.py-2.pl-3.text-right.font-medium.whitespace-nowrap Precio unit.
+        - else
+          %th.py-2.pl-3.text-right.font-medium.whitespace-nowrap= "Costo unit. (#{symbol})"
+        %th.py-2.pl-3.text-right.font-medium.whitespace-nowrap Subtotal
+        - if with_totals
+          %th.py-2.pl-3.text-right.font-medium.whitespace-nowrap Costo final
+    %tbody.divide-y.divide-slate-100
+      - invoice.invoice_items.includes(:product).each do |item|
+        %tr
+          %td.py-2
+            %span.font-mono.text-xs.text-slate-500= item.product.sku
+            %br
+            = item.product.name
+            - if item.product.brand.present?
+              %span.text-slate-400= "· #{item.product.brand}"
+          %td.py-2.pl-3.text-right.whitespace-nowrap= item.quantity
+          %td.py-2.pl-3.text-right.whitespace-nowrap= number_ar(item.unit_cost)
+          %td.py-2.pl-3.text-right.whitespace-nowrap= number_ar(item.subtotal)
+          - if with_totals
+            %td.py-2.pl-3.text-right.font-medium.whitespace-nowrap= item.final_unit_cost.nil? ? "—" : number_ar(item.final_unit_cost)
+    - if with_totals
+      %tfoot.border-t-2.border-slate-200.font-semibold
+        %tr
+          %td.py-2{ colspan: 3 } Total a pagar
+          %td.py-2.pl-3.text-right.whitespace-nowrap= "#{symbol} #{number_ar(invoice.amount)}"
+          %td
+    - else
+      %tfoot.border-t-2.border-slate-200.font-semibold
+        %tr
+          %td.py-2{ colspan: 3 } Total
+          %td.py-2.pl-3.text-right.whitespace-nowrap= "#{symbol} #{number_ar(invoice.amount)}"
