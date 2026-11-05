@@ -8,8 +8,9 @@
       %span ←
       %span Volver a Productos
     %div.flex.items-center.gap-2
-      = link_to new_web_order_path(product_id: @product.id), class: "btn-primary" do
-        %span Registrar Venta
+      - unless @product.combo? && !@product.active?
+        = link_to new_web_order_path(product_id: @product.id), class: "btn-primary" do
+          %span Registrar Venta
       - if policy(@product).edit?
         - if @product.combo?
           = link_to edit_web_combo_path(@product), class: "btn-primary" do

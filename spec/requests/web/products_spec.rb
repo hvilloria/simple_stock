@@ -162,6 +162,14 @@ RSpec.describe "Web::Products edit/update", type: :request do
 
         expect(response.body).to include("Todavía no hay combos.", "Crear el primero")
       end
+
+      it "says no combo matched when combos exist but the filter leaves none" do
+        archived.destroy
+        get web_products_path, params: { tab: "combos", combo_status: "archived" }
+
+        expect(response.body).to include("No se encontraron combos.")
+        expect(response.body).not_to include("Todavía no hay combos.", "Crear el primero")
+      end
     end
   end
 
@@ -270,7 +278,7 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(Product.exists?(target.id)).to be(false)          # hidden by default scope
       expect(Product.with_deleted.find(target.id).deleted_at).to be_present
       follow_redirect!
-      expect(response.body).to include("eliminado")
+      expect(response.body).to include("Producto eliminado exitosamente")
     end
 
     it "forbids a vendedor" do
@@ -299,6 +307,16 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(response).to redirect_to(web_product_path(combo))
       expect(flash[:alert]).to eq("El combo tiene ventas: solo se puede archivar")
       expect(Product.exists?(combo.id)).to be(true)
+    end
+
+    it "names a deleted combo as a combo" do
+      combo = create(:product, :combo)
+      sign_in admin
+
+      delete web_product_path(combo)
+
+      expect(response).to redirect_to(web_products_path)
+      expect(flash[:notice]).to eq("Combo eliminado")
     end
   end
 
@@ -418,7 +436,7 @@ RSpec.describe "Web::Products edit/update", type: :request do
       get web_product_path(combo)
 
       expect(buttons).to include("Reactivar")
-      expect(buttons).not_to include("Archivar", "Eliminar")
+      expect(buttons).not_to include("Archivar", "Eliminar", "Registrar Venta")
       expect(response.body).to include(reactivate_web_combo_path(combo))
       expect(response.body).to include("Este combo está archivado. No aparece en búsquedas ni se puede vender.")
       expect(response.body).to include("Archivado")

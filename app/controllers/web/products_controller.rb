@@ -7,6 +7,7 @@ module Web
       authorize Product
       @tab = params[:tab] == "combos" ? "combos" : "all"
       @active_combos_count = Product.combos.active.count
+      @no_combos = Product.combos.none? if @tab == "combos"
       @pagy, @products = pagy(@tab == "combos" ? combos_scope : products_scope)
     end
 
@@ -72,7 +73,7 @@ module Web
       authorize @product
 
       if @product.destroy
-        redirect_to web_products_path, notice: "Producto eliminado exitosamente"
+        redirect_to web_products_path, notice: @product.combo? ? "Combo eliminado" : "Producto eliminado exitosamente"
       else
         redirect_to web_product_path(@product), alert: @product.errors.full_messages.to_sentence
       end
