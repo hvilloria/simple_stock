@@ -1,10 +1,17 @@
+- symbol = invoice.currency == 'USD' ? 'US$' : '$'
+- with_totals = invoice.with_totals?
 %table#invoice-lines.w-full.text-sm.tabular-nums
   %thead.text-xs.uppercase.tracking-wider.text-slate-500
     %tr
       %th.py-2.text-left.font-medium Producto
       %th.py-2.text-right.font-medium Cantidad
-      %th.py-2.text-right.font-medium= "Costo unit. (#{invoice.currency == 'USD' ? 'US$' : '$'})"
+      - if with_totals
+        %th.py-2.text-right.font-medium Precio unit.
+      - else
+        %th.py-2.text-right.font-medium= "Costo unit. (#{symbol})"
       %th.py-2.text-right.font-medium Subtotal
+      - if with_totals
+        %th.py-2.text-right.font-medium Costo final
   %tbody.divide-y.divide-slate-100
     - invoice.invoice_items.includes(:product).each do |item|
       %tr
@@ -17,7 +24,30 @@
         %td.py-2.text-right= item.quantity
         %td.py-2.text-right= number_ar(item.unit_cost)
         %td.py-2.text-right= number_ar(item.subtotal)
-  %tfoot.border-t-2.border-slate-200.font-semibold
-    %tr
-      %td.py-2{ colspan: 3 } Total
-      %td.py-2.text-right= "#{invoice.currency == 'USD' ? 'US$' : '$'} #{number_ar(invoice.amount)}"
+        - if with_totals
+          %td.py-2.text-right.font-medium= item.final_unit_cost.nil? ? "—" : number_ar(item.final_unit_cost)
+  - if with_totals
+    - totals = invoice.totals
+    %tfoot.border-t-2.border-slate-200
+      %tr
+        %td.pt-2.text-slate-600{ colspan: 3 } Subtotal
+        %td.pt-2.text-right= number_ar(totals.subtotal)
+        %td
+      - unless invoice.discount_percentage.to_d.zero?
+        %tr
+          %td.text-slate-600{ colspan: 3 }= "Descuento #{invoice_percentage(invoice.discount_percentage)}"
+          %td.text-right= "−#{number_ar(totals.discount)}"
+          %td
+      %tr
+        %td.text-slate-600{ colspan: 3 }= "IVA #{invoice_percentage(invoice.iva_percentage)}"
+        %td.text-right= "+#{number_ar(totals.iva)}"
+        %td
+      %tr.font-semibold
+        %td.py-2{ colspan: 3 } Total a pagar
+        %td.py-2.text-right= "#{symbol} #{number_ar(invoice.amount)}"
+        %td
+  - else
+    %tfoot.border-t-2.border-slate-200.font-semibold
+      %tr
+        %td.py-2{ colspan: 3 } Total
+        %td.py-2.text-right= "#{symbol} #{number_ar(invoice.amount)}"

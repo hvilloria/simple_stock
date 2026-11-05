@@ -12,6 +12,11 @@ module InvoicesHelper
     "#{units} #{units == 1 ? 'unidad' : 'unidades'}"
   end
 
+  # "21%", "10,5%": decimals only when the percentage carries them.
+  def invoice_percentage(value)
+    "#{number_with_precision(value, precision: 2, strip_insignificant_zeros: true, delimiter: '.', separator: ',')}%"
+  end
+
   def invoice_cancel_confirmation(invoice)
     return "¿Estás seguro de cancelar esta factura?" if invoice_units(invoice).zero?
 

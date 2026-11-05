@@ -332,6 +332,26 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(invoice.total_amount_ars).to eq(1_480_000)
     end
 
+    it "keeps the exchange rate, discount and IVA of an invoice registered with totals" do
+      product = create(:product, current_stock: 0)
+      invoice = Invoices::CreateInvoice.call(
+        supplier: supplier, invoice_number: "FAC-8", amount: nil, currency: "ARS",
+        purchase_date: Date.current, due_date: 30.days.from_now,
+        discount_percentage: 10, iva_percentage: 21,
+        items: [ { product_id: product.id, quantity: 10, unit_cost: 100 } ]
+      ).record
+
+      patch "/web/invoices/#{invoice.id}", params: { invoice: { exchange_rate: "1.480,00", discount_percentage: "50",
+                                                                iva_percentage: "0", notes: "corregida" } }
+
+      invoice.reload
+      expect(invoice.notes).to eq("corregida")
+      expect(invoice.exchange_rate).to be_nil
+      expect(invoice.discount_percentage).to eq(10)
+      expect(invoice.iva_percentage).to eq(21)
+      expect(invoice.amount).to eq(1_089)
+    end
+
     it "still updates the amount of an amount-only invoice" do
       invoice = create(:invoice, :simple_mode, supplier: supplier, amount: 500)
 
@@ -344,25 +364,61 @@ RSpec.describe "Web::Invoices", type: :request do
   describe "GET /web/invoices/:id" do
     let!(:location) { create(:stock_location) }
 
-    def itemized
+    def itemized(discount_percentage: 10)
       product = create(:product, sku: "90915-YZZD2", name: "Filtro de aceite", current_stock: 0)
       Invoices::CreateInvoice.call(
         supplier: supplier, invoice_number: "FAC-5", amount: nil, currency: "ARS",
         purchase_date: Date.current, due_date: 30.days.from_now,
-        items: [ { product_id: product.id, quantity: 10, unit_cost: 4500 } ]
+        discount_percentage: discount_percentage, iva_percentage: 21,
+        items: [ { product_id: product.id, quantity: 6, unit_cost: 8900 } ]
       ).record
     end
 
-    it "shows the lines, the caption and the stock-aware cancel confirmation on an itemized invoice" do
+    def legacy_itemized
+      invoice = create(:invoice, :simple_mode, :in_ars, supplier: supplier, amount: 45_000)
+      invoice.invoice_items.create!(product: create(:product), quantity: 10, unit_cost: 4500)
+      invoice
+    end
+
+    it "shows the lines and the stock-aware cancel confirmation on an itemized invoice" do
       get "/web/invoices/#{itemized.id}"
 
       html = Nokogiri::HTML(response.body)
       expect(html.at("#invoice-lines")).to be_present
-      expect(html.at("#invoice-lines").text).to include("90915-YZZD2", "Filtro de aceite", "10")
-      expect(response.body).to include("calculado desde 1 producto")
-      expect(response.body).to include("Suma 10 unidades al stock")
+      expect(html.at("#invoice-lines").text).to include("90915-YZZD2", "Filtro de aceite", "6")
+      expect(response.body).to include("Suma 6 unidades al stock")
       expect(html.at("form[action$='/cancel']")["data-turbo-confirm"])
-        .to eq("¿Cancelar esta factura? Se descuentan del stock las 10 unidades que sumó, hasta donde haya.")
+        .to eq("¿Cancelar esta factura? Se descuentan del stock las 6 unidades que sumó, hasta donde haya.")
+    end
+
+    it "shows the totals breakdown and the final cost of each line on an invoice registered with totals" do
+      get "/web/invoices/#{itemized.id}"
+
+      html = Nokogiri::HTML(response.body)
+      expect(response.body).to include("Subtotal", "Descuento 10%", "IVA 21%", "Total a pagar", "58.152,60")
+      lines = html.at("#invoice-lines")
+      expect(lines.at("thead").text).to include("Precio unit.", "Costo final")
+      expect(lines.at("tbody").text).to include("9.692,10")
+      expect(lines.at("tfoot").text).to include("Descuento 10%", "IVA 21%", "Total a pagar", "58.152,60")
+    end
+
+    it "prints a decimal percentage the Argentine way and leaves out a zero discount" do
+      get "/web/invoices/#{itemized(discount_percentage: 10.5).id}"
+      expect(response.body).to include("Descuento 10,5%")
+
+      get "/web/invoices/#{itemized(discount_percentage: 0).id}"
+      expect(response.body).to include("IVA 21%")
+      expect(response.body).not_to include("Descuento 0%")
+    end
+
+    it "shows a legacy itemized invoice with its amount and without the totals breakdown" do
+      get "/web/invoices/#{legacy_itemized.id}"
+
+      html = Nokogiri::HTML(response.body)
+      expect(response.body).to include("calculado desde 1 producto")
+      expect(response.body).not_to include("Total a pagar")
+      expect(response.body).not_to include("Costo final")
+      expect(html.at("#invoice-lines thead").text).to include("Costo unit.")
     end
 
     it "shows an amount-only invoice exactly as before" do
@@ -395,6 +451,24 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(response.body).to include("Calculado desde los productos; no se edita.")
       expect(html.at("#invoice-lines")).to be_present
       expect(response.body).to include("Las líneas no se editan. Si la factura está mal cargada, cancelarla y registrarla de nuevo.")
+    end
+
+    it "shows the discount and IVA as text and offers no exchange rate on an invoice registered with totals" do
+      product = create(:product, current_stock: 0)
+      invoice = Invoices::CreateInvoice.call(
+        supplier: supplier, invoice_number: "FAC-9", amount: nil, currency: "ARS",
+        purchase_date: Date.current, due_date: 30.days.from_now,
+        discount_percentage: 10, iva_percentage: 21,
+        items: [ { product_id: product.id, quantity: 3, unit_cost: 100 } ]
+      ).record
+
+      get "/web/invoices/#{invoice.id}/edit"
+
+      html = Nokogiri::HTML(response.body)
+      expect(html.at("#invoice_exchange_rate")).to be_nil
+      expect(html.at("[name*='discount_percentage']:not([name*='early_payment'])")).to be_nil
+      expect(html.at("[name*='iva_percentage']")).to be_nil
+      expect(html.at("#invoice-totals-readonly").text).to include("10%", "21%")
     end
 
     it "keeps the amount editable on an amount-only invoice" do

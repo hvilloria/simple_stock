@@ -149,6 +149,7 @@ module Web
       update_params = invoice_update_params
       # The lines own the amount; a value typed around the read-only field is ignored.
       update_params.delete(:amount) if @invoice.invoice_items.any?
+      update_params.delete(:exchange_rate) if @invoice.with_totals?
       # The type is locked once lines exist, and an unknown key must not reach the enum.
       if @invoice.invoice_items.any? || !Invoice::EXPENSE_TYPE_LABELS.key?(update_params[:expense_type].to_s)
         update_params.delete(:expense_type)
