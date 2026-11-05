@@ -47,20 +47,19 @@ module Invoices
     # A snapshot taken while an earlier, since cancelled, purchase held the
     # cost is that purchase's cost: step back to what it replaced instead.
     def live_snapshot(item)
-      while item.previous_cost_currency == "ARS" && item.previous_cost_unit &&
-            (cancelled = latest_cancelled_purchase_before(item)) &&
-            cancelled.final_unit_cost == item.previous_cost_unit
+      while item.previous_cost_currency == "ARS" && item.previous_cost_unit&.positive? &&
+            (cancelled = cancelled_purchase_behind(item))
         item = cancelled.invoice.invoice_items.where(product_id: item.product_id)
                         .where("final_unit_cost > 0").order(:id).first
       end
       item
     end
 
-    def latest_cancelled_purchase_before(item)
+    def cancelled_purchase_behind(item)
       InvoiceItem.joins(:invoice)
                  .where(product_id: item.product_id, invoices: { status: "cancelled" })
                  .where("invoice_items.id < ?", item.id)
-                 .where("invoice_items.final_unit_cost > 0")
+                 .where(final_unit_cost: item.previous_cost_unit)
                  .order("invoice_items.id DESC")
                  .first
     end

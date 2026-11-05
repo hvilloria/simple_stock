@@ -152,6 +152,19 @@ RSpec.describe Invoices::RevertPurchaseCosts do
       expect(cost).to eq([ 500, "ARS" ])
     end
 
+    it "walks back past a cancelled purchase with the same cost, not just the latest one" do
+      first = register("8900")
+      second = register("9500")
+      cancel(second)
+      third = register("12500")
+      cancel(first)
+      expect(cost).to eq([ BigDecimal("13612.50"), "ARS" ])
+
+      cancel(third)
+
+      expect(cost).to eq([ 500, "ARS" ])
+    end
+
     it "walks back to a cost in another currency" do
       product.update!(cost_unit: 8_100, cost_currency: "USD")
       older = register("8900")
