@@ -88,6 +88,7 @@ RSpec.describe "Facturas con productos", type: :system do
   end
 
   it "brings back the typed amount and the currency when the last line is removed" do
+    choose "currency_usd"
     fill_in "amount", with: "1.000,00"
     add_line("90915", quantity: 1, cost: "100,00")
     expect(page).to have_no_field("amount")
@@ -96,7 +97,7 @@ RSpec.describe "Facturas con productos", type: :system do
     find("button[title='Quitar']").click
 
     expect(page).to have_field("amount", with: "1.000,00")
-    expect(page).to have_field("currency_usd")
+    expect(page).to have_checked_field("currency_usd")
     expect(page).to have_no_css("[data-invoice-lines-target='totals']")
     expect(page).to have_text("Sin productos: no mueve stock")
   end

@@ -55,7 +55,8 @@ export default class extends Controller {
 
   // A supplier invoice is identified by its number, every other type by its
   // period and detail. A disabled group is not posted. Product lines and every
-  // non-supplier type are in pesos, so the currency choice goes back to ARS.
+  // non-supplier type are in pesos, so the currency choice goes back to ARS
+  // and returns to the operator's pick once pesos stop being forced.
   syncIdentification() {
     const type = this.selectedExpenseType()
     if (!type) return
@@ -69,7 +70,12 @@ export default class extends Controller {
       this.currencyFieldTarget.hidden = pesosOnly
       const ars = this.element.querySelector("#currency_ars")
       if (pesosOnly && ars && !ars.checked) {
+        this.currencyBeforePesos = this.element.querySelector('input[name="currency"]:checked')
         ars.checked = true
+        this.toggleExchangeRate()
+      } else if (!pesosOnly && this.currencyBeforePesos) {
+        this.currencyBeforePesos.checked = true
+        this.currencyBeforePesos = null
         this.toggleExchangeRate()
       }
     }
