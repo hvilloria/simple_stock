@@ -24,7 +24,7 @@ RSpec.describe "Web::Products edit/update", type: :request do
       let!(:front) { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", current_stock: 4) }
       let!(:rear)  { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho") }
       let!(:pair) do
-        create(:product, :combo, name: "Par amortiguadores", components: [ [ front, 2 ], [ rear, 1 ] ])
+        create(:product, :combo, name: "Aa par amortiguadores", components: [ [ front, 2 ], [ rear, 1 ] ])
       end
 
       it "returns regular products first and the combo with its components when asked" do
@@ -83,6 +83,85 @@ RSpec.describe "Web::Products edit/update", type: :request do
 
       get web_products_path, params: { q: "FRAM", page: 2 }
       expect(response.body).to include("Filtro 25")
+    end
+  end
+
+  describe "GET /web/products with combos" do
+    let!(:left)  { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", current_stock: 7) }
+    let!(:right) { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho", current_stock: 7) }
+    let!(:pair) do
+      create(:product, :combo, name: "Par amortiguadores", price_unit: 100_000,
+                               components: [ [ left, 1 ], [ right, 2 ] ])
+    end
+    let!(:archived) do
+      create(:product, :combo, name: "Par archivado", active: false, components: [ [ left, 1 ], [ right, 1 ] ])
+    end
+
+    def combo_cells(name)
+      row = Nokogiri::HTML(response.body).css("tbody tr").find { |tr| tr.text.include?(name) }
+      row.css("td").map { |td| td.text.squish }
+    end
+
+    def combo_row(name)
+      combo_cells(name).join(" ")
+    end
+
+    context "as a vendedor" do
+      before { sign_in vendedor }
+
+      it "shows a combo in the Todos tab with its parts and no stock" do
+        get web_products_path, params: { q: "456" }
+
+        expect(combo_row("Par amortiguadores")).to include("Combo", "Incluye: 12345-123-12345 · 12345-456-12345")
+        expect(combo_cells("Par amortiguadores")[6]).to eq("—")
+        expect(response.body).to include("Amortiguador derecho")
+      end
+
+      it "lists only active combos in the Combos tab, with the active count on the tab" do
+        get web_products_path, params: { tab: "combos" }
+
+        expect(combo_row("Par amortiguadores")).to include("1 × 12345-123-12345", "2 × 12345-456-12345", "Activo")
+        expect(response.body).not_to include("Par archivado")
+        expect(response.body).not_to include("Amortiguador derecho")
+        expect(response.body).to match(/Combos\s*<span[^>]*>\(1\)/)
+      end
+
+      it "lists only archived combos when asked" do
+        get web_products_path, params: { tab: "combos", combo_status: "archived" }
+
+        expect(combo_row("Par archivado")).to include("Archivado")
+        expect(response.body).not_to include("Par amortiguadores")
+      end
+
+      it "lists every combo under Todos" do
+        get web_products_path, params: { tab: "combos", combo_status: "all" }
+
+        expect(response.body).to include("Par amortiguadores", "Par archivado")
+      end
+
+      it "offers neither creating nor editing combos" do
+        get web_products_path, params: { tab: "combos" }
+
+        expect(response.body).not_to include("Nuevo Combo")
+        expect(response.body).not_to include(edit_web_combo_path(pair))
+      end
+    end
+
+    context "as an admin" do
+      before { sign_in admin }
+
+      it "offers creating and editing combos" do
+        get web_products_path, params: { tab: "combos" }
+
+        expect(response.body).to include("Nuevo Combo", edit_web_combo_path(pair))
+      end
+
+      it "invites creating the first combo when there is none" do
+        Product.combos.destroy_all
+        get web_products_path, params: { tab: "combos" }
+
+        expect(response.body).to include("Todavía no hay combos.", "Crear el primero")
+      end
     end
   end
 

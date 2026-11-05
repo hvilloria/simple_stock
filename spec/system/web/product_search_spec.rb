@@ -83,6 +83,7 @@ RSpec.describe "Product fields in client-rendered HTML", type: :system do
         expect(combo_row).to have_text("Combo")
         expect(combo_row).to have_text("Incluye: 12345-123-12345 · 12345-456-12345")
         expect(combo_row).to have_no_text("Sin stock")
+        expect(combo_row[:class]).not_to include("opacity-50")
       end
     end
 

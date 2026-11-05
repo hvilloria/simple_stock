@@ -5,11 +5,9 @@ module Web
 
     def index
       authorize Product
-      products_scope = Product.search(params[:q])
-                              .by_category(params[:category])
-                              .by_status(params[:status])
-                              .sorted_by(params[:sort], params[:direction])
-      @pagy, @products = pagy(products_scope)
+      @tab = params[:tab] == "combos" ? "combos" : "all"
+      @active_combos_count = Product.combos.active.count
+      @pagy, @products = pagy(@tab == "combos" ? combos_scope : products_scope)
     end
 
     def show
@@ -92,6 +90,23 @@ module Web
     end
 
     private
+
+    def products_scope
+      Product.search(params[:q])
+             .by_category(params[:category])
+             .by_status(params[:status])
+             .includes(combo_components: :product)
+             .sorted_by(params[:sort], params[:direction])
+    end
+
+    def combos_scope
+      scope = Product.combos.search(params[:q]).includes(combo_components: :product).order(:sku)
+      case params[:combo_status]
+      when "archived" then scope.inactive
+      when "all" then scope
+      else scope.active
+      end
+    end
 
     def product_params
       params.require(:product).permit(
