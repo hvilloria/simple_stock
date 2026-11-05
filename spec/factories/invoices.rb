@@ -26,6 +26,12 @@ FactoryBot.define do
       exchange_rate { nil }
     end
 
+    trait :with_totals do
+      in_ars
+      discount_percentage { 0 }
+      iva_percentage { 21 }
+    end
+
     trait :cancelled do
       status { "cancelled" }
     end

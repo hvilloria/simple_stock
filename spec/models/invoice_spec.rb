@@ -77,6 +77,33 @@ RSpec.describe Invoice, type: :model do
     end
   end
 
+  describe "#with_totals?" do
+    it "is false for a legacy invoice" do
+      expect(build(:invoice)).not_to be_with_totals
+    end
+
+    it "is true once the invoice carries an IVA percentage" do
+      expect(build(:invoice, iva_percentage: 21)).to be_with_totals
+    end
+  end
+
+  describe "#totals" do
+    it "takes its subtotal from the lines and applies the invoice percentages" do
+      invoice = build(:invoice, :with_totals, discount_percentage: 10)
+      invoice.invoice_items.clear
+      invoice.invoice_items.build(product: create(:product), quantity: 6, unit_cost: 8_900)
+      invoice.invoice_items.build(product: create(:product), quantity: 4, unit_cost: 9_500)
+
+      totals = invoice.totals
+
+      expect(totals).to be_a(Invoices::Totals)
+      expect(totals.subtotal).to eq(91_400)
+      expect(totals.discount).to eq(9_140)
+      expect(totals.iva).to eq(BigDecimal("17274.60"))
+      expect(totals.total).to eq(BigDecimal("99534.60"))
+    end
+  end
+
   # === TESTS FOR SIMPLE MODE ===
 
   describe "validations for simple mode" do
