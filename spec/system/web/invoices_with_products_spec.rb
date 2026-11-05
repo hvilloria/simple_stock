@@ -2,7 +2,7 @@
 
 require "rails_helper"
 
-# The invoice form's Productos card: adding a line, the frozen amount, the
+# The invoice form's Productos card: adding a line, the totals card, the
 # summary, and the zero-cost confirmation. The server side is covered by the
 # request and service specs.
 RSpec.describe "Facturas con productos", type: :system do
@@ -33,32 +33,71 @@ RSpec.describe "Facturas con productos", type: :system do
     end
   end
 
-  it "freezes the amount to the sum, says what will be stocked, and registers the lines" do
-    add_line("90915", quantity: 10, cost: "4.500,00")
-
-    amount = find("#amount")
-    expect(amount).to be_readonly
-    expect(amount.value).to eq("45.000,00")
-    expect(page).to have_text("Suma stock: 10 unidades en 1 producto")
-    expect(page).to have_text("1 producto · 10 unidades")
-
-    click_button "Registrar Factura"
-
-    expect(page).to have_text("Factura registrada exitosamente")
-    expect(filter.reload.current_stock).to eq(10)
-    expect(Invoice.last.amount).to eq(54_450)
+  def totals_row(label)
+    find("[data-invoice-lines-target='totals'] [data-totals-row]", text: label)
   end
 
-  it "unfreezes the amount when the last line is removed" do
+  context "with the two lines of a discounted invoice" do
+    before do
+      create(:product, sku: "EXT-CRV2", name: "Extremo Honda CRV 2", current_stock: 0)
+      create(:product, sku: "EXT-CRV3", name: "Extremo Honda CRV 3", current_stock: 0)
+      add_line("EXT-CRV2", quantity: 6, cost: "8.900,00")
+      add_line("EXT-CRV3", quantity: 6, cost: "9.500,00")
+    end
+
+    it "totals the paper's discount and IVA live and registers that total" do
+      fill_in "discount_percentage", with: "10"
+
+      expect(page).to have_field("iva_percentage", with: "21")
+      expect(totals_row("Subtotal")).to have_text("110.400,00")
+      expect(totals_row("Descuento 10%")).to have_text("11.040,00")
+      expect(totals_row("IVA 21%")).to have_text("20.865,60")
+      expect(totals_row("Total a pagar")).to have_text("120.225,60")
+      expect(page).to have_text("Comparar con la factura en papel antes de registrar.")
+      expect(find("[data-controller='invoice-lines'] tbody tr:first-child [data-final-cost]")).to have_text("9.692,10")
+      expect(page).to have_no_field("amount")
+      expect(page).to have_no_field("currency_usd", visible: :visible)
+      expect(page).to have_text("El stock se suma al registrar y cada producto toma este costo.")
+      expect(page).to have_text("+6 Extremo Honda CRV 2 · $ 9.692,10")
+      expect(find("[data-invoice-form-target='summaryAmount']")).to have_text("120.225,60")
+
+      click_button "Registrar Factura"
+
+      expect(page).to have_text("Factura registrada exitosamente")
+      invoice = Invoice.last
+      expect(invoice.amount).to eq(120_225.60)
+      expect(invoice.currency).to eq("ARS")
+      expect(invoice.discount_percentage).to eq(10)
+      expect(invoice.iva_percentage).to eq(21)
+    end
+
+    it "comes back with the typed discount and the lines when the discount is out of range" do
+      fill_in "discount_percentage", with: "150"
+
+      click_button "Registrar Factura"
+
+      expect(page).to have_text("El descuento debe estar entre 0 y 100")
+      expect(page).to have_field("discount_percentage", with: "150")
+      expect(page).to have_css("[data-controller='invoice-lines'] tbody tr", count: 2)
+      expect(page).to have_text("Extremo Honda CRV 2")
+      expect(page).to have_text("Extremo Honda CRV 3")
+      expect(page).to have_no_field("currency_usd", visible: :visible)
+      expect(page).to have_no_field("amount")
+      expect(Invoice.count).to eq(0)
+    end
+  end
+
+  it "brings back the typed amount and the currency when the last line is removed" do
     fill_in "amount", with: "1.000,00"
     add_line("90915", quantity: 1, cost: "100,00")
-    expect(find("#amount").value).to eq("100,00")
+    expect(page).to have_no_field("amount")
+    expect(page).to have_no_field("currency_usd", visible: :visible)
 
     find("button[title='Quitar']").click
 
-    amount = find("#amount")
-    expect(amount).not_to be_readonly
-    expect(amount.value).to eq("1.000,00")
+    expect(page).to have_field("amount", with: "1.000,00")
+    expect(page).to have_field("currency_usd", visible: :all)
+    expect(page).to have_no_css("[data-invoice-lines-target='totals']")
     expect(page).to have_text("Sin productos: no mueve stock")
   end
 
@@ -94,7 +133,7 @@ RSpec.describe "Facturas con productos", type: :system do
 
     expect(page).to have_text("Due date cannot be before purchase date")
     expect(find("[data-cost]").value).to eq("4.500,50")
-    expect(find("#amount").value).to eq("4.500,50")
+    expect(totals_row("Total a pagar")).to have_text("5.445,61")
     expect(Invoice.count).to eq(0)
   end
 
@@ -117,7 +156,7 @@ RSpec.describe "Facturas con productos", type: :system do
     expect(Invoice.last.amount).to eq(12_500.5)
   end
 
-  it "names the free line's cost in the invoice's currency" do
+  it "puts a product invoice in pesos even when dollars were chosen" do
     choose "currency_usd"
     fill_in "exchange_rate", with: "1.480,00"
     add_line("90915", quantity: 1, cost: "")
@@ -125,11 +164,13 @@ RSpec.describe "Facturas con productos", type: :system do
     click_button "Registrar Factura"
 
     within("[data-invoice-form-target='zeroCostModal']") do
-      expect(page).to have_text("US$ 0,00")
-      expect(page).to have_text("Monto de la factura: US$")
-      click_button "Volver a revisar"
+      expect(page).to have_text("Total a pagar: $ 0,00")
+      expect(page).to have_no_text("US$")
+      click_button "Registrar"
     end
-    expect(Invoice.count).to eq(0)
+
+    expect(page).to have_text("Factura registrada exitosamente")
+    expect(Invoice.last.currency).to eq("ARS")
   end
 
   it "does not ask when every cost is above zero" do

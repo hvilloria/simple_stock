@@ -12,6 +12,7 @@ export default class extends Controller {
     "exchangeRateInput",
     "paymentTermInfo",
     "amount",
+    "amountField",
     "currencyInput",
     "earlyPaymentSection",
     "earlyPaymentInfo",
@@ -23,7 +24,6 @@ export default class extends Controller {
     "summaryEarlyDueDate",
     "summaryDiscountPct",
     "summaryDiscountedAmount",
-    "amountCaption",
     "stockTitle",
     "stockNote",
     "stockList",
@@ -54,8 +54,8 @@ export default class extends Controller {
   }
 
   // A supplier invoice is identified by its number, every other type by its
-  // period and detail. A disabled group is not posted, and a non-supplier
-  // invoice is always in pesos, so the currency choice goes back to ARS.
+  // period and detail. A disabled group is not posted. Product lines and every
+  // non-supplier type are in pesos, so the currency choice goes back to ARS.
   syncIdentification() {
     const type = this.selectedExpenseType()
     if (!type) return
@@ -65,9 +65,10 @@ export default class extends Controller {
     this.setGroup(this.hasPeriodFieldTarget && this.periodFieldTarget, !supplier)
 
     if (this.hasCurrencyFieldTarget) {
-      this.currencyFieldTarget.hidden = !supplier
+      const pesosOnly = !supplier || this.hasLines
+      this.currencyFieldTarget.hidden = pesosOnly
       const ars = this.element.querySelector("#currency_ars")
-      if (!supplier && ars && !ars.checked) {
+      if (pesosOnly && ars && !ars.checked) {
         ars.checked = true
         this.toggleExchangeRate()
       }
@@ -197,28 +198,25 @@ export default class extends Controller {
 
   // ========== PRODUCT LINES ==========
 
+  // With lines the invoice is in pesos and its amount is the lines' total to
+  // pay, so the typed amount and the currency step aside until they are gone.
   linesChanged(event) {
     const { lines, total, units, products, zeroCostLines } = event.detail
     this.zeroCostLines = zeroCostLines
     this.zeroCostConfirmed = false
+    this.hasLines = lines.length > 0
+    this.linesTotal = total
+    this.setGroup(this.hasAmountFieldTarget && this.amountFieldTarget, !this.hasLines)
+    this.syncIdentification()
 
-    if (lines.length > 0) {
-      if (!this.amountTarget.readOnly) this.typedAmount = this.amountTarget.value
-      this.amountTarget.readOnly = true
-      this.amountTarget.classList.add("bg-slate-50", "text-slate-600")
-      this.amountTarget.value = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total)
-      this.amountCaptionTarget.textContent = "Calculado desde los productos. Para escribirlo a mano, quitar todas las líneas."
+    if (this.hasLines) {
       this.stockTitleTarget.textContent = `Suma stock: ${units} ${units === 1 ? "unidad" : "unidades"} en ${products} ${products === 1 ? "producto" : "productos"}`
-      this.stockNoteTarget.textContent = "El stock se suma al registrar. El costo promedio no cambia."
+      this.stockNoteTarget.textContent = "El stock se suma al registrar y cada producto toma este costo."
       this.stockListTarget.innerHTML = lines.map(line =>
-        `<li class="flex justify-between"><span>${escapeHtml(line.name)}</span><span>+${line.quantity}</span></li>`
+        `<li>+${line.quantity} ${escapeHtml(line.name)} · <span class="font-semibold">${line.final_cost === null ? "—" : this.formatARS(line.final_cost)}</span></li>`
       ).join("")
       this.stockListTarget.classList.remove("hidden")
     } else {
-      if (this.amountTarget.readOnly) this.amountTarget.value = this.typedAmount || ""
-      this.amountTarget.readOnly = false
-      this.amountTarget.classList.remove("bg-slate-50", "text-slate-600")
-      this.amountCaptionTarget.textContent = "Monto total de la factura (formato: 1.500.000,50)"
       this.stockTitleTarget.textContent = "Sin productos: no mueve stock"
       this.stockNoteTarget.textContent = "Se registra solo la factura, con el monto que escribas."
       this.stockListTarget.innerHTML = ""
@@ -230,13 +228,11 @@ export default class extends Controller {
 
   openZeroCostModal() {
     const count = this.zeroCostLines.length
-    const checked = this.element.querySelector('input[name="currency"]:checked')
-    const symbol = checked && checked.value === "USD" ? "US$" : "$"
     this.zeroCostTitleTarget.textContent = `${count} ${count === 1 ? "línea" : "líneas"} con costo 0`
     this.zeroCostListTarget.innerHTML = this.zeroCostLines.map(line =>
-      `<li class="flex justify-between"><span>${escapeHtml(line.name)}</span><span>${line.quantity} ${line.quantity === 1 ? "unidad" : "unidades"} · ${symbol} 0,00</span></li>`
+      `<li class="flex justify-between"><span>${escapeHtml(line.name)}</span><span>${line.quantity} ${line.quantity === 1 ? "unidad" : "unidades"} · $ 0,00</span></li>`
     ).join("")
-    this.zeroCostSummaryTarget.textContent = `${this.stockTitleTarget.textContent}. Monto de la factura: ${symbol} ${this.amountTarget.value}.`
+    this.zeroCostSummaryTarget.textContent = `${this.stockTitleTarget.textContent}. Total a pagar: ${this.linesTotal === null ? "—" : this.formatARS(this.linesTotal)}.`
     this.zeroCostModalTarget.classList.remove("hidden")
   }
 
@@ -438,8 +434,8 @@ export default class extends Controller {
     if (!this.hasSummaryAmountTarget) return
 
     const raw = this.hasAmountTarget ? this.cleanAmountValue(this.amountTarget.value) : ''
-    const amount = parseFloat(raw)
-    const valid = !isNaN(amount) && amount > 0
+    const amount = this.hasLines ? this.linesTotal : parseFloat(raw)
+    const valid = amount !== null && !isNaN(amount) && amount > 0
 
     this.summaryAmountTarget.textContent = valid ? this.formatARS(amount) : '—'
 

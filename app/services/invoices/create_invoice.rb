@@ -6,6 +6,7 @@ module Invoices
   # without lines) is the amount-only invoice.
   class CreateInvoice
     Line = Struct.new(:product, :quantity, :unit_cost, keyword_init: true)
+    PLAIN_NUMBER = /\A-?\d+(\.\d+)?\z/
 
     def self.call(supplier:, amount:, currency:, invoice_number: nil,
                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
@@ -140,8 +141,9 @@ module Invoices
 
     def percentage_from(raw, default, error)
       return BigDecimal(default) if raw.to_s.strip.empty?
+      raise ValidationError, error if raw.is_a?(String) && !raw.strip.match?(PLAIN_NUMBER)
 
-      percentage = BigDecimal(raw.to_s)
+      percentage = BigDecimal(raw.to_s.strip).round(2)
       raise ValidationError, error unless percentage.between?(0, 100)
 
       percentage

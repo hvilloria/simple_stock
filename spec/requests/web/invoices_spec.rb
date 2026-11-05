@@ -224,6 +224,15 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(invoice.iva_percentage).to eq(21)
     end
 
+    it "refuses an IVA that is not a number instead of reading it as zero" do
+      post "/web/invoices", params: header(iva_percentage: "abc")
+                                      .merge(items: { "0" => line(product, quantity: 10, unit_cost: "4.500,00") })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El IVA debe estar entre 0 y 100")
+      expect(Invoice.count).to eq(0)
+    end
+
     it "registers an amount-only invoice exactly as before" do
       post "/web/invoices", params: header(amount: "12.500,50")
 

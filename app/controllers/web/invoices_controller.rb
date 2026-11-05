@@ -106,8 +106,8 @@ module Web
         expense_type: params[:expense_type].presence || "supplier",
         period: parse_period(params[:period]),
         detail: params[:detail],
-        discount_percentage: parse_amount(params[:discount_percentage]),
-        iva_percentage: parse_amount(params[:iva_percentage]),
+        discount_percentage: percentage_param(params[:discount_percentage]),
+        iva_percentage: percentage_param(params[:iva_percentage]),
         items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
@@ -120,6 +120,8 @@ module Web
         # to give them back Argentine-formatted or the retry cleans them twice.
         @amount_value        = helpers.number_ar(parse_amount(params[:amount])) if params[:amount].present?
         @exchange_rate_value = helpers.number_ar(parse_amount(params[:exchange_rate])) if params[:exchange_rate].present?
+        @discount_value      = params[:discount_percentage]
+        @iva_value           = params[:iva_percentage]
         load_suppliers
         render :new, status: :unprocessable_entity
       end
@@ -290,6 +292,14 @@ module Web
       return "" if raw.to_s.strip.empty?
 
       decimal_string_from(raw)
+    end
+
+    # Blank takes the service's default; text that is not a number is passed
+    # on as typed so the service refuses it instead of reading it as zero.
+    def percentage_param(raw)
+      return "" if raw.to_s.strip.empty?
+
+      decimal_string_from(raw) || raw.to_s
     end
 
     def parse_date(date_string)
