@@ -13,10 +13,15 @@ module Web
     def show
       @product = Product.find(params[:id])
       authorize @product
-      @recent_movements = @product.stock_movements
-                                  .order(created_at: :desc)
-                                  .limit(10)
-                                  .includes(:stock_location, :reference, :user)
+      if @product.combo?
+        @combo_components = @product.combo_components.includes(:product).order(:id)
+        @components_price_sum = @product.components_price_sum
+      else
+        @recent_movements = @product.stock_movements
+                                    .order(created_at: :desc)
+                                    .limit(10)
+                                    .includes(:stock_location, :reference, :user)
+      end
     end
 
     def new

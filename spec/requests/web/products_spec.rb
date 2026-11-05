@@ -349,6 +349,101 @@ RSpec.describe "Web::Products edit/update", type: :request do
     end
   end
 
+  describe "GET /web/products/:id for a combo" do
+    let!(:left)  { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", price_unit: 70_000, current_stock: 5) }
+    let!(:right) { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho", price_unit: 35_000, current_stock: 3) }
+    let!(:combo) do
+      create(:product, :combo, name: "Par amortiguadores", price_unit: 100_000,
+                               components: [ [ left, 1 ], [ right, 2 ] ])
+    end
+
+    def buttons
+      page = Nokogiri::HTML(response.body)
+      page.css("a, button").map { |node| node.text.squish }
+    end
+
+    it "lists the pieces, compares the price with their sum and has no stock of its own" do
+      sign_in admin
+      get web_product_path(combo)
+
+      page = Nokogiri::HTML(response.body)
+      rows = page.css("tbody tr").map { |tr| tr.css("td").map { |td| td.text.squish } }
+      expect(rows).to contain_exactly(
+        [ "12345-123-12345 Amortiguador izquierdo", "1", "5", "ARS 70.000" ],
+        [ "12345-456-12345 Amortiguador derecho", "2", "3", "ARS 35.000" ]
+      )
+      expect(page.at_css("a[href='#{web_product_path(left)}']").text.squish).to eq("12345-123-12345")
+      expect(response.body).to include("Suma de las piezas")
+      expect(page.text.squish).to include("ARS 140.000 (−ARS 40.000)")
+      expect(response.body).to include("El combo no tiene stock propio. Cada venta descuenta de sus piezas.")
+      expect(response.body).not_to include("Ajustar stock")
+      expect(response.body).not_to include("Movimientos de Stock Recientes")
+      expect(response.body).not_to include("Stock Actual")
+    end
+
+    it "shows no difference when the price is not below the sum of the pieces" do
+      combo.update!(price_unit: 150_000)
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(Nokogiri::HTML(response.body).text).not_to include("(−")
+    end
+
+    it "lets an admin edit and delete a combo without sales" do
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(buttons).to include("Registrar Venta", "Editar Combo", "Eliminar")
+      expect(buttons).not_to include("Archivar", "Reactivar")
+      expect(response.body).to include(edit_web_combo_path(combo))
+    end
+
+    it "offers an admin to archive, not delete, a combo with sales" do
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(buttons).to include("Archivar")
+      expect(buttons).not_to include("Eliminar", "Reactivar")
+      form = Nokogiri::HTML(response.body).at_css("form[action='#{archive_web_combo_path(combo)}']")
+      expect(form.at_css("input[name='_method']")["value"]).to eq("patch")
+      expect(form.at_css("button")["data-turbo-confirm"])
+        .to eq("¿Archivar este combo? Dejará de aparecer en búsquedas y en la nota de pedido.")
+    end
+
+    it "shows an archived combo with its banner and lets an admin reactivate it" do
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      combo.update!(active: false)
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(buttons).to include("Reactivar")
+      expect(buttons).not_to include("Archivar", "Eliminar")
+      expect(response.body).to include(reactivate_web_combo_path(combo))
+      expect(response.body).to include("Este combo está archivado. No aparece en búsquedas ni se puede vender.")
+      expect(response.body).to include("Archivado")
+      expect(response.body).not_to include("Este producto está inactivo")
+    end
+
+    it "shows a vendedor neither the edit nor the archive actions" do
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      sign_in vendedor
+      get web_product_path(combo)
+
+      expect(buttons).to include("Registrar Venta")
+      expect(buttons).not_to include("Editar Combo", "Archivar", "Eliminar", "Reactivar")
+    end
+
+    it "keeps the inactive banner and the stock card for a regular product" do
+      product.update!(active: false)
+      sign_in admin
+      get web_product_path(product)
+
+      expect(response.body).to include("Este producto está inactivo", "Stock Actual", "Ajustar stock")
+      expect(response.body).not_to include("Suma de las piezas", "El combo no tiene stock propio")
+    end
+  end
+
   describe "channel prices" do
     before { sign_in vendedor }
 

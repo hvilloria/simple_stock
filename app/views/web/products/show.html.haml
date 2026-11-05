@@ -11,16 +11,33 @@
       = link_to new_web_order_path(product_id: @product.id), class: "btn-primary" do
         %span Registrar Venta
       - if policy(@product).edit?
-        = link_to edit_web_product_path(@product), class: "btn-primary" do
-          %span Editar Producto
-      - if policy(@product).destroy?
+        - if @product.combo?
+          = link_to edit_web_combo_path(@product), class: "btn-primary" do
+            %span Editar Combo
+        - else
+          = link_to edit_web_product_path(@product), class: "btn-primary" do
+            %span Editar Producto
+      - if policy(@product).destroy? && !(@product.combo? && @product.has_sales?)
         = button_to web_product_path(@product), method: :delete,
                     data: { turbo_confirm: "¿Eliminar este producto? Dejará de aparecer en el sistema." },
                     class: "btn-danger" do
           %span Eliminar
+      - if policy(@product).archive?
+        - if !@product.active?
+          = button_to reactivate_web_combo_path(@product), method: :patch, class: "btn-secondary" do
+            %span Reactivar
+        - elsif @product.has_sales?
+          = button_to archive_web_combo_path(@product), method: :patch,
+                      data: { turbo_confirm: "¿Archivar este combo? Dejará de aparecer en búsquedas y en la nota de pedido." },
+                      class: "btn-secondary" do
+            %span Archivar
+
+  - if @product.combo? && !@product.active?
+    .mb-6.rounded-xl.border-l-4.border-slate-400.bg-white.p-4
+      %p.text-sm.font-medium.text-slate-700 Este combo está archivado. No aparece en búsquedas ni se puede vender.
 
   -# Alert if product inactive
-  - unless @product.active?
+  - if !@product.combo? && !@product.active?
     .mb-6.rounded-xl.border-l-4.border-amber-500.bg-amber-50.p-4
       .flex.gap-3.items-center
         .text-2xl ⚠
@@ -47,7 +64,11 @@
               Activo
           - else
             %span.inline-flex.items-center.gap-1.px-3.py-1.rounded-md.text-sm.font-medium.bg-slate-100.text-slate-700
-              Inactivo
+              = @product.combo? ? "Archivado" : "Inactivo"
+
+          - if @product.combo?
+            %span.inline-flex.items-center.px-3.py-1.rounded-md.border.border-slate-400.text-xs.font-medium.text-slate-700
+              Combo
           
           -# Type badge
           - if @product.oem?
@@ -71,26 +92,47 @@
         -# Separator
         .border-t.border-slate-200.my-6
         
-        -# Info grid
-        .grid.grid-cols-2.gap-4.mb-6
-          .div
-            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Marca
-            %p.text-sm.text-slate-900= @product.brand.presence || "Sin especificar"
+        - if @product.combo?
+          %h3.text-base.font-semibold.text-slate-900.mb-3 Piezas
+          %table.w-full.text-sm
+            %thead
+              %tr.text-xs.font-medium.text-slate-500.uppercase.text-left
+                %th.py-2 Pieza
+                %th.py-2 Cant.
+                %th.py-2 Stock
+                %th.py-2.text-right Precio unit.
+            %tbody.divide-y.divide-slate-100
+              - @combo_components.each do |component|
+                %tr
+                  %td.py-2.5
+                    = link_to component.product.sku, web_product_path(component.product),
+                              class: "font-mono font-semibold text-slate-900 underline hover:text-slate-600"
+                    .text-slate-600= component.product.name
+                  %td.py-2.5.text-slate-900= component.quantity
+                  %td.py-2.5.text-slate-900= component.product.current_stock
+                  %td.py-2.5.text-right.text-slate-900= currency_ar_int(component.product.price_unit || 0)
+
+        - else
+          -# Info grid
+          .grid.grid-cols-2.gap-4.mb-6
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Marca
+              %p.text-sm.text-slate-900= @product.brand.presence || "Sin especificar"
           
-          .div
-            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Categoría
-            %p.text-sm.text-slate-900= @product.category&.titleize || "Sin especificar"
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Categoría
+              %p.text-sm.text-slate-900= @product.category&.titleize || "Sin especificar"
           
-          .div
-            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Origen
-            %p.text-sm.text-slate-900= @product.origin&.titleize || "Sin especificar"
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Origen
+              %p.text-sm.text-slate-900= @product.origin&.titleize || "Sin especificar"
           
-          .div
-            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Tipo
-            - if @product.product_type.present?
-              %p.text-sm.text-slate-900= @product.product_type == 'oem' ? 'Original' : 'Alternativo'
-            - else
-              %p.text-sm.text-slate-900 Sin especificar
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Tipo
+              - if @product.product_type.present?
+                %p.text-sm.text-slate-900= @product.product_type == 'oem' ? 'Original' : 'Alternativo'
+              - else
+                %p.text-sm.text-slate-900 Sin especificar
         
         -# Separator
         .border-t.border-slate-200.my-6
@@ -104,6 +146,14 @@
               %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Precio de Venta
               %p.text-2xl.font-bold.text-slate-900= currency_ar_int(@product.price_unit || 0)
 
+            - if @product.combo?
+              .div
+                %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Suma de las piezas
+                %p.text-lg.text-slate-600
+                  = currency_ar_int(@components_price_sum)
+                  - if @product.price_unit.to_d < @components_price_sum
+                    %span.text-sm= "(−#{currency_ar_int(@components_price_sum - @product.price_unit.to_d)})"
+
             - ProductChannelPrice::CHANNELS.each do |channel|
               .div
                 %p.text-xs.font-medium.text-slate-500.uppercase.mb-1= "Precio #{ProductChannelPrice.label(channel)}"
@@ -112,136 +162,143 @@
                 - else
                   %p.text-sm.text-slate-400 Usa el de mostrador
 
-            .div
-              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
-              - if @product.cost_unit.present?
-                %p.text-lg.text-slate-600
-                  = currency_ar(@product.cost_unit, unit: "#{@product.cost_currency} ")
-              - else
-                %p.text-lg.text-slate-400 Sin costo registrado
+            - unless @product.combo?
+              .div
+                %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
+                - if @product.cost_unit.present?
+                  %p.text-lg.text-slate-600
+                    = currency_ar(@product.cost_unit, unit: "#{@product.cost_currency} ")
+                - else
+                  %p.text-lg.text-slate-400 Sin costo registrado
             
-            .div
-              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Margen
-              - if @product.cost_unit.present? && @product.price_unit.present?
-                - margin = @product.margin
-                - margin_pct = @product.margin_percentage
-                %p.text-lg{class: margin >= 0 ? 'text-emerald-600' : 'text-red-600'}
-                  = currency_ar_int(margin)
-                  %span.text-sm.ml-1= "(#{margin_pct}%)"
-              - else
-                %p.text-lg.text-slate-400 -
+              .div
+                %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Margen
+                - if @product.cost_unit.present? && @product.price_unit.present?
+                  - margin = @product.margin
+                  - margin_pct = @product.margin_percentage
+                  %p.text-lg{class: margin >= 0 ? 'text-emerald-600' : 'text-red-600'}
+                    = currency_ar_int(margin)
+                    %span.text-sm.ml-1= "(#{margin_pct}%)"
+                - else
+                  %p.text-lg.text-slate-400 -
             
-            %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
+              %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
       
-      -# Card 2 - Recent movements
-      .bg-white.border.border-slate-200.rounded-lg
-        .px-6.py-4.border-b.border-slate-200
-          %h3.text-base.font-semibold.text-slate-900 Movimientos de Stock Recientes
+      - unless @product.combo?
+        -# Card 2 - Recent movements
+        .bg-white.border.border-slate-200.rounded-lg
+          .px-6.py-4.border-b.border-slate-200
+            %h3.text-base.font-semibold.text-slate-900 Movimientos de Stock Recientes
         
-        - if @recent_movements.any?
-          .divide-y.divide-slate-100
-            - @recent_movements.each do |movement|
-              .px-6.py-4.hover:bg-slate-50.transition-colors
-                .flex.items-center.justify-between
-                  .flex-1
-                    .flex.items-center.gap-3.mb-1
-                      -# Type badge
-                      - case movement.movement_type
-                      - when 'sale'
-                        %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-red-100.text-red-700
-                          Venta
-                      - when 'purchase'
-                        %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-emerald-100.text-emerald-700
-                          Compra
-                      - when 'adjustment'
-                        %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-amber-100.text-amber-700
-                          Ajuste
+          - if @recent_movements.any?
+            .divide-y.divide-slate-100
+              - @recent_movements.each do |movement|
+                .px-6.py-4.hover:bg-slate-50.transition-colors
+                  .flex.items-center.justify-between
+                    .flex-1
+                      .flex.items-center.gap-3.mb-1
+                        -# Type badge
+                        - case movement.movement_type
+                        - when 'sale'
+                          %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-red-100.text-red-700
+                            Venta
+                        - when 'purchase'
+                          %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-emerald-100.text-emerald-700
+                            Compra
+                        - when 'adjustment'
+                          %span.inline-flex.px-2.py-0.5.rounded.text-xs.font-medium.bg-amber-100.text-amber-700
+                            Ajuste
                       
-                      -# Date and time
-                      %span.text-xs.text-slate-500
-                        = l(movement.created_at, format: :short)
+                        -# Date and time
+                        %span.text-xs.text-slate-500
+                          = l(movement.created_at, format: :short)
                     
-                    -# Reference
-                    - if movement.user.present?
-                      %p.text-sm.text-slate-600 #{movement.user.name} · #{movement.note}
-                    - elsif movement.reference.present?
-                      %p.text-sm.text-slate-600
-                        - if movement.reference_type == 'OrderItem'
-                          Nota #{movement.reference.order.paper_number}
-                        - elsif movement.reference_type == 'Order'
-                          Order ##{movement.reference_id}
-                        - elsif movement.reference_type == 'Invoice'
-                          Invoice ##{movement.reference_id}
-                        - else
-                          = movement.note || "-"
-                    - elsif movement.note.present?
-                      %p.text-sm.text-slate-600= movement.note
+                      -# Reference
+                      - if movement.user.present?
+                        %p.text-sm.text-slate-600 #{movement.user.name} · #{movement.note}
+                      - elsif movement.reference.present?
+                        %p.text-sm.text-slate-600
+                          - if movement.reference_type == 'OrderItem'
+                            Nota #{movement.reference.order.paper_number}
+                          - elsif movement.reference_type == 'Order'
+                            Order ##{movement.reference_id}
+                          - elsif movement.reference_type == 'Invoice'
+                            Invoice ##{movement.reference_id}
+                          - else
+                            = movement.note || "-"
+                      - elsif movement.note.present?
+                        %p.text-sm.text-slate-600= movement.note
                   
-                  -# Quantity
-                  .text-right
-                    %p.text-base.font-bold{class: movement.quantity >= 0 ? 'text-emerald-600' : 'text-red-600'}
-                      = movement.quantity >= 0 ? "+#{movement.quantity}" : movement.quantity
+                    -# Quantity
+                    .text-right
+                      %p.text-base.font-bold{class: movement.quantity >= 0 ? 'text-emerald-600' : 'text-red-600'}
+                        = movement.quantity >= 0 ? "+#{movement.quantity}" : movement.quantity
           
-          .px-6.py-3.border-t.border-slate-200.bg-slate-50
-            %p.text-sm.text-slate-600.text-center Mostrando últimos 10 movimientos
-        - else
-          .px-6.py-12.text-center
-            .text-4xl.mb-3 📦
-            %p.text-sm.text-slate-500 Sin movimientos de stock aún
+            .px-6.py-3.border-t.border-slate-200.bg-slate-50
+              %p.text-sm.text-slate-600.text-center Mostrando últimos 10 movimientos
+          - else
+            .px-6.py-12.text-center
+              .text-4xl.mb-3 📦
+              %p.text-sm.text-slate-500 Sin movimientos de stock aún
     
     -# RIGHT COLUMN
     .lg:col-span-1
-      .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
-        %h3.text-base.font-semibold.text-slate-900.mb-6 Stock Actual
+      - if @product.combo?
+        .bg-white.border.border-slate-200.rounded-lg.p-6
+          %h3.text-base.font-semibold.text-slate-900.mb-3 Stock
+          %p.text-sm.text-slate-600 El combo no tiene stock propio. Cada venta descuenta de sus piezas.
+      - else
+        .bg-white.border.border-slate-200.rounded-lg.p-6.lg:sticky.lg:top-24
+          %h3.text-base.font-semibold.text-slate-900.mb-6 Stock Actual
         
-        -# Large stock number
-        .text-center.mb-6
-          %p.text-5xl.font-bold.mb-3{class: @product.current_stock > 10 ? 'text-emerald-600' : (@product.current_stock > 0 ? 'text-amber-600' : 'text-red-600')}
-            = @product.current_stock || 0
-          
-          -# Status badge
-          - if @product.current_stock > 10
-            %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-emerald-100.text-emerald-800
-              ✓
-              Stock Alto
-          - elsif @product.current_stock > 0
-            %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-amber-100.text-amber-800
-              ⚠
-              Stock Bajo
-          - else
-            %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800
-              ✕
-              Sin Stock
-
-        - if policy(@product).adjust_stock?
+          -# Large stock number
           .text-center.mb-6
-            = link_to "Ajustar stock", new_web_stock_adjustment_path(product_id: @product.id), class: "btn-secondary"
-        
-        -# Separator
-        .border-t.border-slate-200.my-6
-        
-        -# Physical location
-        .mb-6
-          %p.text-xs.font-medium.text-slate-500.uppercase.mb-2 Ubicación en Depósito
-          - if @product.location_code.present?
-            .bg-slate-50.border.border-slate-200.rounded-lg.p-4
-              %p.font-mono.text-lg.font-bold.text-slate-900.text-center.mb-2= @product.location_code
-              %p.text-xs.text-slate-600.text-center= @product.location_human
-          - else
-            .bg-amber-50.border.border-amber-200.rounded-lg.p-4
-              %p.text-sm.text-amber-700.text-center.font-medium
-                ⚠️ Sin ubicación asignada
-        
-        -# Separator
-        .border-t.border-slate-200.my-6
-        
-        -# Additional info
-        .space-y-3.text-sm
-          .div
-            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Creado
-            %p.text-slate-700= l(@product.created_at, format: :long)
+            %p.text-5xl.font-bold.mb-3{class: @product.current_stock > 10 ? 'text-emerald-600' : (@product.current_stock > 0 ? 'text-amber-600' : 'text-red-600')}
+              = @product.current_stock || 0
           
-          .div
-            %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Última actualización
-            %p.text-slate-700= l(@product.updated_at, format: :long)
+            -# Status badge
+            - if @product.current_stock > 10
+              %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-emerald-100.text-emerald-800
+                ✓
+                Stock Alto
+            - elsif @product.current_stock > 0
+              %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-amber-100.text-amber-800
+                ⚠
+                Stock Bajo
+            - else
+              %span.inline-flex.items-center.gap-2.px-4.py-2.rounded-lg.text-sm.font-medium.bg-red-100.text-red-800
+                ✕
+                Sin Stock
+
+          - if policy(@product).adjust_stock?
+            .text-center.mb-6
+              = link_to "Ajustar stock", new_web_stock_adjustment_path(product_id: @product.id), class: "btn-secondary"
+        
+          -# Separator
+          .border-t.border-slate-200.my-6
+        
+          -# Physical location
+          .mb-6
+            %p.text-xs.font-medium.text-slate-500.uppercase.mb-2 Ubicación en Depósito
+            - if @product.location_code.present?
+              .bg-slate-50.border.border-slate-200.rounded-lg.p-4
+                %p.font-mono.text-lg.font-bold.text-slate-900.text-center.mb-2= @product.location_code
+                %p.text-xs.text-slate-600.text-center= @product.location_human
+            - else
+              .bg-amber-50.border.border-amber-200.rounded-lg.p-4
+                %p.text-sm.text-amber-700.text-center.font-medium
+                  ⚠️ Sin ubicación asignada
+        
+          -# Separator
+          .border-t.border-slate-200.my-6
+        
+          -# Additional info
+          .space-y-3.text-sm
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Creado
+              %p.text-slate-700= l(@product.created_at, format: :long)
+          
+            .div
+              %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Última actualización
+              %p.text-slate-700= l(@product.updated_at, format: :long)
 
