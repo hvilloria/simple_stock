@@ -36,11 +36,33 @@ module Invoices
       return unless product.cost_currency == "ARS" && product.cost_unit == last.final_unit_cost
 
       previous = newest_other_purchase(product)
-      if previous
-        product.update!(cost_unit: previous.final_unit_cost, cost_currency: "ARS")
-      elsif first.previous_cost_currency.present?
-        product.update!(cost_unit: first.previous_cost_unit, cost_currency: first.previous_cost_currency)
+      return product.update!(cost_unit: previous.final_unit_cost, cost_currency: "ARS") if previous
+
+      snapshot = live_snapshot(first)
+      return if snapshot.previous_cost_currency.blank?
+
+      product.update!(cost_unit: snapshot.previous_cost_unit, cost_currency: snapshot.previous_cost_currency)
+    end
+
+    # A snapshot taken while an earlier, since cancelled, purchase held the
+    # cost is that purchase's cost: step back to what it replaced instead.
+    def live_snapshot(item)
+      while item.previous_cost_currency == "ARS" && item.previous_cost_unit &&
+            (cancelled = latest_cancelled_purchase_before(item)) &&
+            cancelled.final_unit_cost == item.previous_cost_unit
+        item = cancelled.invoice.invoice_items.where(product_id: item.product_id)
+                        .where("final_unit_cost > 0").order(:id).first
       end
+      item
+    end
+
+    def latest_cancelled_purchase_before(item)
+      InvoiceItem.joins(:invoice)
+                 .where(product_id: item.product_id, invoices: { status: "cancelled" })
+                 .where("invoice_items.id < ?", item.id)
+                 .where("invoice_items.final_unit_cost > 0")
+                 .order("invoice_items.id DESC")
+                 .first
     end
 
     def newest_other_purchase(product)

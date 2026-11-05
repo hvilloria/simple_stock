@@ -179,7 +179,7 @@ class Product < ApplicationRecord
     current_stock.to_i < 5
   end
 
-  # Converts the weighted average cost to ARS using the current exchange rate
+  # Converts the last purchase cost to ARS using the current exchange rate
   # If cost_currency is already ARS, returns cost_unit directly
   def cost_in_ars(exchange_rate = nil)
     return 0 if cost_unit.nil?
@@ -189,13 +189,13 @@ class Product < ApplicationRecord
     cost_unit * rate
   end
 
-  # Calculates the profit margin in ARS using the weighted average cost
+  # Calculates the profit margin in ARS using the last purchase cost
   def margin(exchange_rate = nil)
     return 0 if price_unit.nil?
     price_unit - cost_in_ars(exchange_rate)
   end
 
-  # Calculates the margin percentage based on the weighted average cost
+  # Calculates the margin percentage based on the last purchase cost
   def margin_percentage(exchange_rate = nil)
     cost = cost_in_ars(exchange_rate)
     return 0 if cost.zero? || price_unit.nil?
