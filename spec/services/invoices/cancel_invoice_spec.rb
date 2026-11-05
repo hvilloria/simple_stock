@@ -92,6 +92,31 @@ RSpec.describe Invoices::CancelInvoice do
     expect(Product.with_deleted.find(filter.id).current_stock).to eq(0)
   end
 
+  it "puts back the cost the purchase replaced, besides reversing the stock" do
+    product = create(:product, cost_unit: 8_100, cost_currency: "USD", current_stock: 0)
+    invoice = itemized([ { product_id: product.id, quantity: 5, unit_cost: 8_900 } ])
+    expect(product.reload.cost_unit).to eq(10_769)
+
+    result = described_class.call(invoice: invoice)
+
+    expect(result.success?).to be true
+    expect(product.reload.current_stock).to eq(0)
+    expect([ product.cost_unit, product.cost_currency ]).to eq([ 8_100, "USD" ])
+  end
+
+  it "rolls back the stock and the status when the cost cannot be reverted" do
+    invoice = itemized([ { product_id: filter.id, quantity: 10, unit_cost: 100 } ])
+    allow(Invoices::RevertPurchaseCosts).to receive(:call)
+      .and_return(Result.new(success?: false, record: nil, errors: [ "Error reverting cost" ]))
+
+    result = described_class.call(invoice: invoice)
+
+    expect(result.success?).to be false
+    expect(result.errors).to eq([ "Error reverting cost" ])
+    expect(invoice.reload.status).to eq("pending")
+    expect(filter.reload.current_stock).to eq(10)
+  end
+
   it "rolls the status back when a reversal fails" do
     invoice = itemized([ { product_id: filter.id, quantity: 10, unit_cost: 100 } ])
     allow(Inventory::AdjustStock).to receive(:call)

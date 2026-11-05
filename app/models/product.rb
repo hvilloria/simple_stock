@@ -6,6 +6,7 @@ class Product < ApplicationRecord
   has_many :channel_prices, class_name: "ProductChannelPrice", dependent: :destroy
   has_many :combo_components, foreign_key: :combo_id, dependent: :destroy
   has_many :components, through: :combo_components, source: :product
+  belongs_to :cost_source_invoice_item, class_name: "InvoiceItem", optional: true
 
   # === SKU AND VARIANTS ===
   # sku represents the OEM CODE of the part (e.g.: original Honda code)
@@ -26,19 +27,18 @@ class Product < ApplicationRecord
   # Each variant is a separate record with its own:
   #   - product_id (unique)
   #   - current_stock (independent)
-  #   - cost_unit (independent average cost)
+  #   - cost_unit (independent last purchase cost)
   #   - price_unit (independent sale price)
   #
   # === STOCK AND COSTS ===
   # current_stock is a cached field that updates automatically
   # via callbacks in StockMovement. DO NOT update manually.
   #
-  # cost_unit represents the WEIGHTED AVERAGE COST of the inventory
-  # It is recalculated automatically when each purchase is confirmed
-  # It is NOT the "last cost" but the average of all purchases
-  # cost_currency: currency of the average cost (typically 'USD')
-  # It is updated automatically via recalculate_average_cost!
-  # DO NOT update manually from controllers/views
+  # cost_unit is the cost of the last purchase: the final unit cost in ARS
+  # (discount and IVA included) that registering a supplier invoice sets, or
+  # whatever an admin typed afterwards. Legacy rows may still hold a USD cost.
+  # cost_source_invoice_item is the purchase line that set the current cost;
+  # any normal save that changes the cost makes it a hand cost and clears it.
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
@@ -85,6 +85,7 @@ class Product < ApplicationRecord
   # the import, or the console. It goes in before_validation so that uniqueness and
   # the other validations run on the already-normalized value.
   before_validation :normalize_sku
+  before_save :clear_cost_source, if: :hand_cost_change?
 
   # Prepended so the dependent destroys above never run when the guard refuses.
   before_destroy :guard_destroy, prepend: true
@@ -176,55 +177,13 @@ class Product < ApplicationRecord
     update!(current_stock: stock_movements.sum(:quantity))
   end
 
-  # Recalculates the weighted average cost based on ALL confirmed purchases
-  # Converts everything to USD for uniformity in the calculation
-  # It is called automatically from Purchasing::CreateInvoice and Purchasing::CancelInvoice
-  def recalculate_average_cost!
-    # Get ALL confirmed purchases of this product
-    invoice_items = InvoiceItem.joins(:invoice)
-                                .where(product: self)
-                                .where(invoices: { status: "confirmed" })
-
-    return if invoice_items.empty?
-
-    # Calculate weighted average cost in USD
-    # (convert everything to USD for uniformity)
-    total_cost_usd = 0.0
-    total_quantity = 0
-
-    invoice_items.find_each do |item|
-      if item.invoice.currency == "USD"
-        total_cost_usd += item.unit_cost * item.quantity
-      else
-        # If it is ARS, convert to USD using the inverse exchange_rate
-        # (this is approximate, in production it could be improved)
-        cost_in_usd = item.unit_cost / (item.invoice.exchange_rate || 1200)
-        total_cost_usd += cost_in_usd * item.quantity
-      end
-
-      total_quantity += item.quantity
-    end
-
-    if total_quantity > 0
-      average_cost = (total_cost_usd / total_quantity).round(2)
-      update_columns(
-        cost_unit: average_cost,
-        cost_currency: "USD"
-      )
-    end
-  end
-
-  # Alias for semantic clarity
-  # cost_unit represents the WEIGHTED AVERAGE COST of the inventory
-  # It is recalculated automatically when each purchase is confirmed
-  # It is NOT the "last cost" but the average of all purchases
   alias_attribute :average_cost, :cost_unit
 
   def low_stock?
     current_stock.to_i < 5
   end
 
-  # Converts the weighted average cost to ARS using the current exchange rate
+  # Converts the last purchase cost to ARS using the current exchange rate
   # If cost_currency is already ARS, returns cost_unit directly
   def cost_in_ars(exchange_rate = nil)
     return 0 if cost_unit.nil?
@@ -234,13 +193,13 @@ class Product < ApplicationRecord
     cost_unit * rate
   end
 
-  # Calculates the profit margin in ARS using the weighted average cost
+  # Calculates the profit margin in ARS using the last purchase cost
   def margin(exchange_rate = nil)
     return 0 if price_unit.nil?
     price_unit - cost_in_ars(exchange_rate)
   end
 
-  # Calculates the margin percentage based on the weighted average cost
+  # Calculates the margin percentage based on the last purchase cost
   def margin_percentage(exchange_rate = nil)
     cost = cost_in_ars(exchange_rate)
     return 0 if cost.zero? || price_unit.nil?
@@ -311,6 +270,15 @@ class Product < ApplicationRecord
   def add_combo_part_error
     skus = active_combos_containing.order(:sku).pluck(:sku).join(", ")
     errors.add(:base, "Forma parte de #{skus}; archivar esos combos primero.")
+  end
+
+  def hand_cost_change?
+    (will_save_change_to_cost_unit? || will_save_change_to_cost_currency?) &&
+      !will_save_change_to_cost_source_invoice_item_id?
+  end
+
+  def clear_cost_source
+    self.cost_source_invoice_item_id = nil
   end
 
   def normalize_sku

@@ -116,6 +116,8 @@
             Productos Vendidos
             %span.text-gray-500.font-normal (#{@order_items.count})
 
+        - view_cost = policy(Product).view_cost?
+        - label_colspan = view_cost ? "5" : "4"
         .overflow-x-auto
           %table.min-w-full.divide-y.divide-gray-200
             %thead.bg-gray-50
@@ -124,7 +126,8 @@
                 %th.px-6.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase.tracking-wider PRODUCTO
                 %th.px-6.py-3.text-center.text-xs.font-medium.text-gray-500.uppercase.tracking-wider CANTIDAD
                 %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider PRECIO UNIT.
-                %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider COSTO UNIT.
+                - if view_cost
+                  %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider COSTO UNIT.
                 %th.px-6.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase.tracking-wider SUBTOTAL
             
             %tbody.divide-y.divide-gray-100.bg-white
@@ -151,8 +154,9 @@
                   %td.px-6.py-4.whitespace-nowrap.text-right
                     %span.text-sm.text-gray-900= currency_ar(item.unit_price)
                   
-                  %td.px-6.py-4.whitespace-nowrap.text-right
-                    %span.text-sm.text-gray-500= currency_ar(item.unit_cost_in_ars)
+                  - if view_cost
+                    %td.px-6.py-4.whitespace-nowrap.text-right
+                      %span.text-sm.text-gray-500= currency_ar(item.unit_cost_in_ars)
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
                     %span.text-sm.font-bold.text-gray-900= currency_ar(item.quantity * item.unit_price)
@@ -160,28 +164,28 @@
             %tfoot.bg-gray-50
               - if @order.discount_amount.positive?
                 %tr
-                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Subtotal
+                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: label_colspan} Subtotal
                   %td.px-6.py-2.text-right.text-sm.text-gray-500.line-through= currency_ar(@order.original_total_amount)
                 %tr
-                  %td.px-6.py-2.text-right.text-sm.text-amber-700{colspan: "5"}= "Descuento −#{@order.discount_percent_display}%"
+                  %td.px-6.py-2.text-right.text-sm.text-amber-700{colspan: label_colspan}= "Descuento −#{@order.discount_percent_display}%"
                   %td.px-6.py-2.text-right.text-sm.text-amber-700.font-semibold= "−#{currency_ar(@order.discount_amount)}"
                 - unless @order.rounding_amount.zero?
                   %tr
-                    %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Redondeo
+                    %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: label_colspan} Redondeo
                     %td.px-6.py-2.text-right.text-sm.text-gray-500= "#{@order.rounding_amount.positive? ? '+' : '−'}#{currency_ar(@order.rounding_amount.abs)}"
               - elsif @order.on_account_order_type? && @order.discounts_total.positive?
                 %tr
-                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Subtotal
+                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: label_colspan} Subtotal
                   %td.px-6.py-2.text-right.text-sm.text-gray-500.line-through= currency_ar(@order.original_total_amount)
                 %tr
-                  %td.px-6.py-2.text-right.text-sm.text-amber-700{colspan: "5"} Descuentos
+                  %td.px-6.py-2.text-right.text-sm.text-amber-700{colspan: label_colspan} Descuentos
                   %td.px-6.py-2.text-right.text-sm.text-amber-700.font-semibold= "−#{currency_ar(@order.discounts_total)}"
               - if @order.overpaid_amount.positive?
                 %tr
-                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: "5"} Cobrado de más
+                  %td.px-6.py-2.text-right.text-sm.text-gray-500{colspan: label_colspan} Cobrado de más
                   %td.px-6.py-2.text-right.text-sm.text-gray-500= "+#{currency_ar(@order.overpaid_amount)}"
               %tr
-                %td.px-6.py-4{colspan: "5"}
+                %td.px-6.py-4{colspan: label_colspan}
                   %span.text-base.font-bold.text-gray-900 Total:
                 %td.px-6.py-4.text-right
                   %span.text-xl.font-bold.text-gray-900= currency_ar(@order.total_amount)
@@ -340,32 +344,33 @@
               %span.font-medium.text-gray-900= "+#{currency_ar(@order.overpaid_amount)}"
 
         -# Cost analysis
-        .border-t.border-gray-200.py-4
-          %h4.text-sm.font-semibold.text-gray-900.mb-3 Análisis de Costos
+        - if policy(Product).view_cost?
+          .border-t.border-gray-200.py-4
+            %h4.text-sm.font-semibold.text-gray-900.mb-3 Análisis de Costos
 
-          - costo_total = @order_items.sum { |item| item.unit_cost_in_ars * item.quantity }
-          - margen_bruto = @order.total_amount - costo_total
-          - porcentaje_margen = costo_total > 0 ? ((margen_bruto / costo_total) * 100).round(1) : 0
+            - costo_total = @order_items.sum { |item| item.unit_cost_in_ars * item.quantity }
+            - margen_bruto = @order.total_amount - costo_total
+            - porcentaje_margen = costo_total > 0 ? ((margen_bruto / costo_total) * 100).round(1) : 0
 
-          .space-y-2
-            .flex.justify-between.text-sm
-              %span.text-gray-600 Costo Total
-              %span.font-medium.text-gray-700= currency_ar(costo_total)
+            .space-y-2
+              .flex.justify-between.text-sm
+                %span.text-gray-600 Costo Total
+                %span.font-medium.text-gray-700= currency_ar(costo_total)
             
-            .flex.justify-between.text-sm
-              %span.text-gray-600 Margen Bruto
-              %span.font-medium.text-gray-900= currency_ar(margen_bruto)
+              .flex.justify-between.text-sm
+                %span.text-gray-600 Margen Bruto
+                %span.font-medium.text-gray-900= currency_ar(margen_bruto)
             
-            .flex.justify-between.text-sm
-              %span.text-gray-600 % Margen
-              - if porcentaje_margen > 0
-                %span.font-bold.text-green-600= "#{porcentaje_margen}%"
-              - elsif porcentaje_margen < 0
-                %span.font-bold.text-red-600= "#{porcentaje_margen}%"
-              - else
-                %span.font-medium.text-gray-500= "#{porcentaje_margen}%"
+              .flex.justify-between.text-sm
+                %span.text-gray-600 % Margen
+                - if porcentaje_margen > 0
+                  %span.font-bold.text-green-600= "#{porcentaje_margen}%"
+                - elsif porcentaje_margen < 0
+                  %span.font-bold.text-red-600= "#{porcentaje_margen}%"
+                - else
+                  %span.font-medium.text-gray-500= "#{porcentaje_margen}%"
             
-            %p.text-xs.text-gray-500.italic.mt-2 Basado en costos promedio
+              %p.text-xs.text-gray-500.italic.mt-2 Basado en el costo de la última compra
 
         -# Customer info (only if credit sale)
         - if @order.credit_order_type? && @order.customer

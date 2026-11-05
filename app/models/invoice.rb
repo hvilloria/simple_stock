@@ -289,6 +289,19 @@ class Invoice < ApplicationRecord
     invoice_items.sum { |item| item.quantity * item.unit_cost }
   end
 
+  # Registered with the discount/IVA flow; legacy invoices carry no IVA.
+  def with_totals?
+    iva_percentage.present?
+  end
+
+  def totals
+    Invoices::Totals.new(
+      subtotal: invoice_items.sum(&:subtotal),
+      discount_percentage: discount_percentage,
+      iva_percentage: iva_percentage
+    )
+  end
+
   # Calculate total cost in ARS
   def calculate_total_ars
     if currency == "USD"

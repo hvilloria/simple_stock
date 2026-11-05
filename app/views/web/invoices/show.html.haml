@@ -61,13 +61,32 @@
                   %span.ml-2.text-sm.text-gray-500
                     (en #{@invoice.days_until_due} días)
 
-          .flex.items-start.gap-3
-            %span.text-gray-500.w-40.flex-shrink-0 Monto:
-            %span.text-2xl.font-bold.text-gray-900
-              = @invoice.currency
-              = number_ar(@invoice.total_amount)
-            - if @invoice.invoice_items.any?
-              %span.ml-2.text-xs.text-slate-500= "calculado desde #{@invoice.invoice_items.size} #{'producto'.pluralize(@invoice.invoice_items.size)}"
+          - if @invoice.with_totals?
+            - totals = @invoice.totals
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-40.flex-shrink-0 Monto:
+              #invoice-totals.flex-1.max-w-sm.space-y-1.5.tabular-nums
+                .flex.justify-between
+                  %span.text-slate-600 Subtotal
+                  %span= number_ar(totals.subtotal)
+                - unless @invoice.discount_percentage.to_d.zero?
+                  .flex.justify-between
+                    %span.text-slate-600= "Descuento #{invoice_percentage(@invoice.discount_percentage)}"
+                    %span= "−#{number_ar(totals.discount)}"
+                .flex.justify-between
+                  %span.text-slate-600= "IVA #{invoice_percentage(@invoice.iva_percentage)}"
+                  %span= "+#{number_ar(totals.iva)}"
+                .flex.justify-between.items-baseline.border-t.border-slate-200.pt-2
+                  %span.font-semibold.text-gray-900 Total a pagar
+                  %span.text-2xl.font-bold.text-gray-900= "$ #{number_ar(@invoice.amount)}"
+          - else
+            .flex.items-start.gap-3
+              %span.text-gray-500.w-40.flex-shrink-0 Monto:
+              %span.text-2xl.font-bold.text-gray-900
+                = @invoice.currency
+                = number_ar(@invoice.total_amount)
+              - if @invoice.invoice_items.any?
+                %span.ml-2.text-xs.text-slate-500= "calculado desde #{@invoice.invoice_items.size} #{'producto'.pluralize(@invoice.invoice_items.size)}"
 
           - if @invoice.eligible_for_discount?
             .flex.items-start.gap-3

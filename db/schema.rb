@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_05_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -125,7 +125,12 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
     t.decimal "unit_cost", precision: 10, scale: 2, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "final_unit_cost", precision: 10, scale: 2
+    t.decimal "previous_cost_unit", precision: 10, scale: 2
+    t.string "previous_cost_currency"
+    t.bigint "previous_cost_source_id"
     t.index ["invoice_id"], name: "index_invoice_items_on_invoice_id"
+    t.index ["previous_cost_source_id"], name: "index_invoice_items_on_previous_cost_source_id"
     t.index ["product_id"], name: "index_invoice_items_on_product_id"
   end
 
@@ -151,6 +156,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
     t.bigint "cash_movement_id"
     t.date "period"
     t.string "detail"
+    t.decimal "discount_percentage", precision: 5, scale: 2
+    t.decimal "iva_percentage", precision: 5, scale: 2
     t.index ["cash_movement_id"], name: "index_invoices_on_cash_movement_id"
     t.index ["due_date"], name: "index_invoices_on_due_date"
     t.index ["early_payment_due_date"], name: "index_invoices_on_early_payment_due_date"
@@ -274,7 +281,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
     t.string "location_code"
     t.datetime "deleted_at"
     t.boolean "combo", default: false, null: false
+    t.bigint "cost_source_invoice_item_id"
     t.index ["combo"], name: "index_products_on_combo"
+    t.index ["cost_source_invoice_item_id"], name: "index_products_on_cost_source_invoice_item_id"
     t.index ["deleted_at"], name: "index_products_on_deleted_at"
     t.index ["location_code"], name: "index_products_on_location_code"
     t.index ["sku", "product_type", "brand", "origin"], name: "index_products_on_variant_uniqueness", unique: true, where: "(deleted_at IS NULL)"
@@ -366,6 +375,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
   add_foreign_key "credit_notes", "invoices"
   add_foreign_key "credit_notes", "suppliers"
   add_foreign_key "daily_closings", "users"
+  add_foreign_key "invoice_items", "invoice_items", column: "previous_cost_source_id", on_delete: :nullify
   add_foreign_key "invoice_items", "invoices"
   add_foreign_key "invoice_items", "products"
   add_foreign_key "invoices", "cash_movements"
@@ -381,6 +391,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
   add_foreign_key "payments", "customers"
   add_foreign_key "payments", "users", column: "voided_by_id"
   add_foreign_key "product_channel_prices", "products"
+  add_foreign_key "products", "invoice_items", column: "cost_source_invoice_item_id", on_delete: :nullify
   add_foreign_key "stock_movements", "products"
   add_foreign_key "stock_movements", "stock_locations"
   add_foreign_key "stock_movements", "users"

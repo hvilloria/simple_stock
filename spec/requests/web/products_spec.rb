@@ -253,6 +253,51 @@ RSpec.describe "Web::Products edit/update", type: :request do
     end
   end
 
+  describe "product cost in the product form" do
+    let(:costed) { create(:product, name: "Disco", price_unit: 15_000, cost_unit: 8_100, cost_currency: "ARS") }
+
+    it "hides the cost fields from a vendedor and shows them to an admin" do
+      sign_in vendedor
+      get edit_web_product_path(costed)
+      expect(response.body).not_to include("Costo Unitario", "Moneda del Costo", "8.100,00")
+      get new_web_product_path
+      expect(response.body).not_to include("Costo Unitario", "Moneda del Costo")
+
+      sign_in admin
+      get edit_web_product_path(costed)
+      expect(response.body).to include("Costo Unitario", "Moneda del Costo", "8.100,00")
+    end
+
+    it "ignores a cost sent by a vendedor while saving the other fields" do
+      sign_in vendedor
+      patch web_product_path(costed), params: {
+        product: { name: "Disco nuevo", cost_unit: "1,00", cost_currency: "USD" }
+      }
+
+      costed.reload
+      expect(costed.name).to eq("Disco nuevo")
+      expect([ costed.cost_unit, costed.cost_currency ]).to eq([ 8_100, "ARS" ])
+    end
+
+    it "ignores a cost sent by a vendedor creating a product" do
+      sign_in vendedor
+      post web_products_path, params: {
+        product: { sku: "BUJE-COST", name: "Buje", brand: "X", product_type: "aftermarket",
+                   origin: "china", price_unit: "10.000,00", cost_unit: "5.000,00", active: "1" }
+      }
+
+      created = Product.find_by!(sku: "BUJE-COST")
+      expect(created.cost_unit).to be_nil
+    end
+
+    it "lets an admin edit the cost" do
+      sign_in admin
+      patch web_product_path(costed), params: { product: { cost_unit: "9.692,10" } }
+
+      expect(costed.reload.cost_unit).to eq(BigDecimal("9692.10"))
+    end
+  end
+
   describe "editing a combo through the product routes" do
     let!(:combo) { create(:product, :combo, name: "Kit") }
 
@@ -374,6 +419,146 @@ RSpec.describe "Web::Products edit/update", type: :request do
       sign_in vendedor
       get "/web/products/#{product.id}"
       expect(response.body).not_to include(new_web_stock_adjustment_path(product_id: product.id))
+    end
+  end
+
+  describe "GET /web/products/:id — cost" do
+    let!(:location) { create(:stock_location) }
+    let(:supplier)  { create(:supplier) }
+    let(:product)   { create(:product, price_unit: 15_000, cost_unit: 8_100, cost_currency: "USD") }
+
+    # Discount 10 and IVA 21: 8.900 printed is 9.692,10 final.
+    def register(number, purchase_date: Date.new(2026, 11, 4), discount: 10, iva: 21)
+      Invoices::CreateInvoice.call(
+        supplier: supplier, invoice_number: number, amount: nil, currency: "ARS",
+        purchase_date: purchase_date, due_date: purchase_date + 30, discount_percentage: discount, iva_percentage: iva,
+        items: [ { product_id: product.id, quantity: 1, unit_cost: "8900" } ]
+      ).record
+    end
+
+    def financial_text
+      Nokogiri::HTML(response.body).text.squish
+    end
+
+    it "shows an admin the last purchase cost with its source invoice" do
+      invoice = register("0003-00010197")
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo (última compra) ARS 9.692,10")
+      expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 · con IVA y descuento")
+      link = Nokogiri::HTML(response.body).at_css("a[href='#{web_invoice_path(invoice)}']")
+      expect(link.text.squish).to eq(invoice.reference)
+      expect(response.body).not_to include("Cargado a mano o anterior al registro de compras con IVA")
+      expect(response.body).to include("Margen")
+    end
+
+    it "links the purchase that set the cost when two share the same cost" do
+      register("0003-00000001", purchase_date: Date.new(2026, 11, 10))
+      newer = register("0003-00000002", purchase_date: Date.new(2026, 11, 1))
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{newer.reference} · 01/11/2026")
+    end
+
+    it "links the invoice recorded as the cost source" do
+      older = register("0003-00000001")
+      register("0003-00000002")
+      product.update_columns(cost_source_invoice_item_id: older.invoice_items.first.id)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{older.reference} · 04/11/2026")
+    end
+
+    it "shows no source invoice once that invoice is cancelled" do
+      invoice = register("0003-00010197")
+      invoice.update_columns(status: "cancelled")
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo ARS 9.692,10")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "treats a hand cost equal to an old purchase's cost as a hand cost" do
+      register("0003-00010197")
+      product.reload.update!(cost_unit: 9_000)
+      product.update!(cost_unit: BigDecimal("9692.10"))
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo ARS 9.692,10", "Cargado a mano o anterior al registro de compras con IVA")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "names only the IVA when the invoice had no discount" do
+      invoice = register("0003-00010197", discount: 0)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 · con IVA Margen")
+    end
+
+    it "adds nothing after the date when the invoice had neither discount nor IVA" do
+      invoice = register("0003-00010197", discount: 0, iva: 0)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 Margen")
+    end
+
+    it "shows a legacy cost in its stored currency without a source invoice" do
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo USD 8.100,00")
+      expect(response.body).to include("Cargado a mano o anterior al registro de compras con IVA")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "shows no cost caption when the product has no cost" do
+      product.update!(cost_unit: nil)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Sin costo registrado")
+      expect(response.body).not_to include("Cargado a mano o anterior al registro de compras con IVA")
+    end
+
+    it "drops the source invoice once the cost was typed by hand after the purchase" do
+      register("0003-00010197")
+      product.reload.update!(cost_unit: 9_000)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo ARS 9.000,00", "Cargado a mano o anterior al registro de compras con IVA")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "hides the cost and the margin from a vendedor and a caja" do
+      register("0003-00010197")
+
+      [ vendedor, caja ].each do |user|
+        sign_in user
+        get web_product_path(product)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include("Costo (última compra)", "Margen",
+                                             "Cargado a mano o anterior al registro de compras con IVA",
+                                             "9.692,10")
+      end
     end
   end
 

@@ -91,12 +91,13 @@ module Web
     def create
       authorize Invoice, :create?
 
+      currency = submitted_lines? ? "ARS" : params[:currency] || "USD"
       result = Invoices::CreateInvoice.call(
         supplier: find_supplier,
         invoice_number: params[:invoice_number],
         amount: parse_amount(params[:amount]),
-        currency: params[:currency] || "USD",
-        exchange_rate: parse_exchange_rate(params[:exchange_rate], params[:currency]),
+        currency: currency,
+        exchange_rate: parse_exchange_rate(params[:exchange_rate], currency),
         purchase_date: parse_date(params[:purchase_date]),
         due_date: parse_date(params[:due_date]),
         notes: params[:notes],
@@ -105,6 +106,8 @@ module Web
         expense_type: params[:expense_type].presence || "supplier",
         period: parse_period(params[:period]),
         detail: params[:detail],
+        discount_percentage: percentage_param(params[:discount_percentage]),
+        iva_percentage: percentage_param(params[:iva_percentage]),
         items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
@@ -117,6 +120,8 @@ module Web
         # to give them back Argentine-formatted or the retry cleans them twice.
         @amount_value        = helpers.number_ar(parse_amount(params[:amount])) if params[:amount].present?
         @exchange_rate_value = helpers.number_ar(parse_amount(params[:exchange_rate])) if params[:exchange_rate].present?
+        @discount_value      = params[:discount_percentage]
+        @iva_value           = params[:iva_percentage]
         load_suppliers
         render :new, status: :unprocessable_entity
       end
@@ -144,6 +149,7 @@ module Web
       update_params = invoice_update_params
       # The lines own the amount; a value typed around the read-only field is ignored.
       update_params.delete(:amount) if @invoice.invoice_items.any?
+      update_params.delete(:exchange_rate) if @invoice.with_totals?
       # The type is locked once lines exist, and an unknown key must not reach the enum.
       if @invoice.invoice_items.any? || !Invoice::EXPENSE_TYPE_LABELS.key?(update_params[:expense_type].to_s)
         update_params.delete(:expense_type)
@@ -276,12 +282,25 @@ module Web
         end
     end
 
+    # Product lines are always bought in pesos, whatever currency the form sent.
+    def submitted_lines?
+      submitted_items.any? { |item| item[:product_id].present? && item[:quantity].positive? }
+    end
+
     # Blank means free; anything that is not a number stays nil so the
     # service refuses it instead of reading it as zero.
     def unit_cost_param(raw)
       return "" if raw.to_s.strip.empty?
 
       decimal_string_from(raw)
+    end
+
+    # Blank takes the service's default; text that is not a number is passed
+    # on as typed so the service refuses it instead of reading it as zero.
+    def percentage_param(raw)
+      return "" if raw.to_s.strip.empty?
+
+      decimal_string_from(raw) || raw.to_s
     end
 
     def parse_date(date_string)

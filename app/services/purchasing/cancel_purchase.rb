@@ -16,7 +16,6 @@ module Purchasing
       ActiveRecord::Base.transaction do
         cancel_invoice_record
         # reverse_stock_movements, commented out until we have a updated stock.
-        recalculate_product_costs
 
         Result.new(success?: true, record: @invoice, errors: [])
       end
@@ -53,12 +52,6 @@ module Purchasing
         )
 
         raise ValidationError, result.errors.join(", ") if result.failure?
-      end
-    end
-
-    def recalculate_product_costs
-      @invoice.invoice_items.each do |item|
-        item.product.recalculate_average_cost!
       end
     end
   end

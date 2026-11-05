@@ -57,23 +57,10 @@ RSpec.describe Purchasing::CancelPurchase do
       expect(reverse_movement.reference_id).to eq(invoice.id)
     end
 
-    it "recalculates product costs" do
-      # Make another purchase at a different price
-      Purchasing::CreatePurchase.call(
-        supplier: supplier,
-        items: [ { product_id: product.id, quantity: 50, unit_cost: 40 } ],
-        currency: "USD",
-        exchange_rate: 1200
-      )
-
-      # Average cost: (50×30 + 50×40) / 100 = 35
-      expect(product.reload.cost_unit.to_f).to eq(35.0)
-
-      # Cancel the first purchase
+    it "leaves product costs untouched" do
       described_class.call(invoice: invoice)
 
-      # Cost now reflects only the second purchase: 40
-      expect(product.reload.cost_unit.to_f).to eq(40.0)
+      expect(product.reload.cost_unit.to_f).to eq(0.0)
     end
 
     it "fails if already cancelled" do
@@ -117,22 +104,6 @@ RSpec.describe Purchasing::CancelPurchase do
         expect do
           described_class.call(invoice: multi_invoice)
         end.to change(StockMovement, :count).by(2)
-      end
-
-      it "recalculates costs for all products" do
-        # Before cancelling, they have costs from the purchase
-        expect(product_a.reload.cost_unit.to_f).to eq(30.0)
-        expect(product_b.reload.cost_unit.to_f).to eq(45.0)
-
-        described_class.call(invoice: multi_invoice)
-
-        # After cancelling, recalculate_average_cost! runs
-        # but since there are no confirmed purchases, it keeps the previous cost
-        # (the method returns early if invoice_items.empty?)
-        # In a real scenario, we might want to reset to 0, but for now
-        # the behavior is to keep the cost
-        expect(product_a.reload.cost_unit.to_f).to eq(30.0)
-        expect(product_b.reload.cost_unit.to_f).to eq(45.0)
       end
     end
 

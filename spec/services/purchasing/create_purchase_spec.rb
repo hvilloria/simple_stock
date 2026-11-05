@@ -73,7 +73,7 @@ RSpec.describe Purchasing::CreatePurchase do
         end.to change(StockMovement, :count).by(2)
       end
 
-      it "updates product costs" do
+      it "leaves product costs untouched" do
         described_class.call(
           supplier: supplier,
           items: [ { product_id: product1.id, quantity: 10, unit_cost: 50.0 } ],
@@ -81,7 +81,7 @@ RSpec.describe Purchasing::CreatePurchase do
           exchange_rate: 1200
         )
 
-        expect(product1.reload.cost_unit).to eq(50.0)
+        expect(product1.reload.cost_unit).to eq(0)
         expect(product1.cost_currency).to eq("USD")
       end
 
@@ -124,19 +124,6 @@ RSpec.describe Purchasing::CreatePurchase do
         expect(result.success?).to be true
         expect(result.record.currency).to eq("ARS")
         expect(result.record.exchange_rate).to be_nil
-      end
-
-      it "updates product cost in USD (converts from ARS)" do
-        result = described_class.call(
-          supplier: supplier,
-          items: [ { product_id: product1.id, quantity: 10, unit_cost: 60000 } ],
-          currency: "ARS",
-          exchange_rate: 1200
-        )
-
-        # 60000 ARS / 1200 = 50 USD
-        expect(product1.reload.cost_unit).to eq(50.0)
-        expect(product1.cost_currency).to eq("USD")
       end
     end
 

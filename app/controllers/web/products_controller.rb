@@ -23,6 +23,7 @@ module Web
                                     .order(created_at: :desc)
                                     .limit(10)
                                     .includes(:stock_location, :reference, :user)
+        @cost_source_item = cost_source_item if policy(@product).view_cost?
       end
     end
 
@@ -96,6 +97,13 @@ module Web
 
     private
 
+    def cost_source_item
+      return unless @product.cost_currency == "ARS"
+
+      item = @product.cost_source_invoice_item
+      item unless item.nil? || item.invoice.cancelled_status?
+    end
+
     def products_scope
       Product.search(params[:q])
              .by_category(params[:category])
@@ -116,8 +124,12 @@ module Web
     def product_params
       params.require(:product).permit(
         :sku, :name, :brand, :category, :product_type, :origin,
-        :price_unit, :cost_unit, :cost_currency, :active
+        :price_unit, :active, *permitted_cost_params
       )
+    end
+
+    def permitted_cost_params
+      policy(Product).view_cost? ? %i[cost_unit cost_currency] : []
     end
 
     def sanitized_product_params
@@ -133,7 +145,7 @@ module Web
     def update_product_params
       params_hash = params.require(:product).permit(
         :name, :brand, :category, :product_type, :origin,
-        :price_unit, :cost_unit, :cost_currency, :active
+        :price_unit, :active, *permitted_cost_params
       ).to_h
 
       params_hash[:price_unit] = parse_amount(params_hash[:price_unit]) if params_hash[:price_unit].present?

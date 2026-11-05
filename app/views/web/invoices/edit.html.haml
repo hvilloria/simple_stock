@@ -88,6 +88,16 @@
                           required: true,
                           data: { invoice_form_target: "amount", action: "blur->invoice-form#formatAmount focus->invoice-form#unformatAmount" }
 
+        - if @invoice.with_totals?
+          #invoice-totals-readonly.grid.grid-cols-2.gap-4
+            %div
+              %p.block.text-sm.font-medium.text-gray-700.mb-2 Descuento de la factura
+              %p.w-full.px-4.py-3.border.border-slate-200.bg-slate-50.rounded-xl.text-slate-600= invoice_percentage(@invoice.discount_percentage || 0)
+            %div
+              %p.block.text-sm.font-medium.text-gray-700.mb-2 IVA
+              %p.w-full.px-4.py-3.border.border-slate-200.bg-slate-50.rounded-xl.text-slate-600= invoice_percentage(@invoice.iva_percentage)
+            %p.col-span-2.text-xs.text-slate-500 El descuento y el IVA no se editan. Si están mal cargados, cancelar la factura y registrarla de nuevo.
+
         -# Currency (readonly - cannot be changed)
         %div
           = f.label :currency, "Moneda", class: "block text-sm font-medium text-gray-700 mb-2"

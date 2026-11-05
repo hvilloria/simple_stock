@@ -6,11 +6,13 @@ module Invoices
   # without lines) is the amount-only invoice.
   class CreateInvoice
     Line = Struct.new(:product, :quantity, :unit_cost, keyword_init: true)
+    PLAIN_NUMBER = /\A-?\d+(\.\d+)?\z/
 
     def self.call(supplier:, amount:, currency:, invoice_number: nil,
                   exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
                   early_payment_due_date: nil, early_payment_discount_percentage: nil,
-                  items: [], expense_type: "supplier", period: nil, detail: nil)
+                  items: [], expense_type: "supplier", period: nil, detail: nil,
+                  discount_percentage: nil, iva_percentage: nil)
       new(
         supplier: supplier,
         invoice_number: invoice_number,
@@ -25,14 +27,17 @@ module Invoices
         items: items,
         expense_type: expense_type,
         period: period,
-        detail: detail
+        detail: detail,
+        discount_percentage: discount_percentage,
+        iva_percentage: iva_percentage
       ).call
     end
 
     def initialize(supplier:, amount:, currency:, invoice_number: nil,
                    exchange_rate: nil, purchase_date: nil, due_date:, notes: nil,
                    early_payment_due_date: nil, early_payment_discount_percentage: nil,
-                   items: [], expense_type: "supplier", period: nil, detail: nil)
+                   items: [], expense_type: "supplier", period: nil, detail: nil,
+                   discount_percentage: nil, iva_percentage: nil)
       @supplier = supplier
       @invoice_number = invoice_number
       @amount = amount
@@ -47,6 +52,8 @@ module Invoices
       @expense_type = expense_type.to_s
       @period = period
       @detail = detail
+      @discount_percentage = discount_percentage
+      @iva_percentage = iva_percentage
     end
 
     def call
@@ -57,6 +64,7 @@ module Invoices
         build_lines
         @invoice.save!
         move_stock
+        apply_costs
 
         Result.new(success?: true, record: @invoice, errors: [])
       end
@@ -81,6 +89,7 @@ module Invoices
       end
 
       validate_identification
+      validate_totals if lines.any?
 
       unless %w[USD ARS].include?(@currency)
         raise ValidationError, "Invalid currency. Must be USD or ARS"
@@ -120,6 +129,28 @@ module Invoices
       end
     end
 
+    # Product lines are bought in pesos, with the discount and IVA printed on
+    # the paper: a blank discount is none, a blank IVA the general 21%.
+    def validate_totals
+      raise ValidationError, "Las facturas con productos se cargan en pesos" unless @currency == "ARS"
+
+      @exchange_rate = nil
+      @discount_percentage = percentage_from(@discount_percentage, 0, "El descuento debe estar entre 0 y 100")
+      @iva_percentage = percentage_from(@iva_percentage, 21, "El IVA debe estar entre 0 y 100")
+    end
+
+    def percentage_from(raw, default, error)
+      return BigDecimal(default) if raw.to_s.strip.empty?
+      raise ValidationError, error if raw.is_a?(String) && !raw.strip.match?(PLAIN_NUMBER)
+
+      percentage = BigDecimal(raw.to_s.strip)
+      raise ValidationError, error unless percentage.between?(0, 100) && percentage.round(2) == percentage
+
+      percentage
+    rescue ArgumentError
+      raise ValidationError, error
+    end
+
     # A row counts only with a product and a positive quantity; anything else
     # is an unfinished row the form left behind.
     def complete_items
@@ -155,15 +186,20 @@ module Invoices
       raise ValidationError, "Unit cost is not a number"
     end
 
-    def computed_amount
-      lines.sum { |line| line.quantity * line.unit_cost }
+    def totals
+      Totals.new(subtotal: lines.sum { |line| line.quantity * line.unit_cost },
+                 discount_percentage: @discount_percentage, iva_percentage: @iva_percentage)
+    end
+
+    def final_unit_cost(line)
+      Totals.final_unit_cost(line.unit_cost, discount_percentage: @discount_percentage, iva_percentage: @iva_percentage)
     end
 
     def build_invoice
       @invoice = Invoice.new(
         supplier: @supplier,
         invoice_number: @invoice_number,
-        amount: lines.any? ? computed_amount : @amount,
+        amount: lines.any? ? totals.total : @amount,
         currency: @currency,
         exchange_rate: @exchange_rate,
         purchase_date: @purchase_date,
@@ -175,7 +211,9 @@ module Invoices
         detail: @detail,
         notes: @notes,
         early_payment_due_date: @early_payment_due_date,
-        early_payment_discount_percentage: @early_payment_discount_percentage
+        early_payment_discount_percentage: @early_payment_discount_percentage,
+        discount_percentage: lines.any? ? @discount_percentage : nil,
+        iva_percentage: lines.any? ? @iva_percentage : nil
       )
     end
 
@@ -183,7 +221,8 @@ module Invoices
     # memory to know the amount may be zero.
     def build_lines
       lines.each do |line|
-        @invoice.invoice_items.build(product: line.product, quantity: line.quantity, unit_cost: line.unit_cost)
+        @invoice.invoice_items.build(product: line.product, quantity: line.quantity, unit_cost: line.unit_cost,
+                                     final_unit_cost: final_unit_cost(line))
       end
     end
 
@@ -202,6 +241,13 @@ module Invoices
         )
         raise ValidationError, result.errors.join(", ") if result.failure?
       end
+    end
+
+    def apply_costs
+      return if lines.empty?
+
+      result = ApplyPurchaseCosts.call(invoice: @invoice)
+      raise ValidationError, result.errors.join(", ") if result.failure?
     end
   end
 end
