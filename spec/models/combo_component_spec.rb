@@ -21,8 +21,10 @@ RSpec.describe ComboComponent do
 
   it "still resolves a soft-deleted component" do
     record = described_class.create!(combo: combo, product: part, quantity: 1)
-    part.destroy
+    combo.update!(active: false)
+    expect(part.destroy).to be_truthy
 
     expect(record.reload.product).to eq(part)
+    expect(part.reload.deleted_at).to be_present
   end
 end

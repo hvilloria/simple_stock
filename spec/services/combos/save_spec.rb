@@ -122,7 +122,7 @@ RSpec.describe Combos::Save do
       result = call_new(components: components_for([ part_a, 2 ], [ part_b, 0 ]))
 
       expect(result).to be_failure
-      expect(result.errors).to include("La cantidad de cada pieza debe ser mayor a 0")
+      expect(result.errors).to include("La cantidad de cada pieza debe ser un número entero mayor a 0")
       expect(result.record).not_to be_persisted
     end
 

@@ -79,6 +79,35 @@ RSpec.describe "Web::Combos", type: :request do
       )
     end
 
+    it "refuses a negative price" do
+      expect {
+        post web_combos_path, params: combo_params(components: [ [ part_a, 1 ], [ part_b, 1 ] ], price: "-5.000,00")
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El precio de venta debe ser mayor a 0")
+    end
+
+    it "refuses a non-numeric price" do
+      expect {
+        post web_combos_path, params: combo_params(components: [ [ part_a, 1 ], [ part_b, 1 ] ], price: "abc")
+      }.not_to change(Product, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("El precio de venta debe ser mayor a 0")
+    end
+
+    [ "1.9", "2pieces" ].each do |quantity|
+      it "refuses a component quantity of #{quantity.inspect}" do
+        expect {
+          post web_combos_path, params: combo_params(components: [ [ part_a, quantity ], [ part_b, 1 ] ])
+        }.not_to change(Product, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("La cantidad de cada pieza debe ser un número entero mayor a 0")
+      end
+    end
+
     it "refuses an empty component list" do
       post web_combos_path, params: { combo: { name: "Kit", price_unit: "100.000,00" } }
 
