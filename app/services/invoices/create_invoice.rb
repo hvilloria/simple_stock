@@ -143,8 +143,8 @@ module Invoices
       return BigDecimal(default) if raw.to_s.strip.empty?
       raise ValidationError, error if raw.is_a?(String) && !raw.strip.match?(PLAIN_NUMBER)
 
-      percentage = BigDecimal(raw.to_s.strip).round(2)
-      raise ValidationError, error unless percentage.between?(0, 100)
+      percentage = BigDecimal(raw.to_s.strip)
+      raise ValidationError, error unless percentage.between?(0, 100) && percentage.round(2) == percentage
 
       percentage
     rescue ArgumentError

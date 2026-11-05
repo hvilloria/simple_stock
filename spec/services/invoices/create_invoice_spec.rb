@@ -586,12 +586,20 @@ RSpec.describe Invoices::CreateInvoice do
           expect(result.errors).to eq([ "El IVA debe estar entre 0 y 100" ])
         end
 
-        it "rounds a percentage to two decimals before using it" do
+        it "takes a percentage with two decimals" do
           result = call_with([ { product_id: filter.id, quantity: 1, unit_cost: "10000" } ],
-                             discount_percentage: "10.555")
+                             discount_percentage: "10.55")
 
-          expect(result.record.discount_percentage).to eq(BigDecimal("10.56"))
-          expect(result.record.amount).to eq(8_944)
+          expect(result.record.discount_percentage).to eq(BigDecimal("10.55"))
+          expect(result.record.amount).to eq(8_945)
+        end
+
+        it "refuses a percentage with more than two decimals, like the screen" do
+          result = call_with(yokomitsu_items, discount_percentage: "10.555")
+
+          expect(result.success?).to be false
+          expect(result.errors).to eq([ "El descuento debe estar entre 0 y 100" ])
+          expect(Invoice.count).to eq(0)
         end
 
         it "refuses an IVA that is not a number" do

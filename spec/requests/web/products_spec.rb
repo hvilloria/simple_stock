@@ -450,8 +450,7 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 · con IVA y descuento")
       link = Nokogiri::HTML(response.body).at_css("a[href='#{web_invoice_path(invoice)}']")
       expect(link.text.squish).to eq(invoice.reference)
-      expect(response.body).not_to include("Costo Promedio")
-      expect(response.body).not_to include("El costo es el promedio ponderado de todas las compras")
+      expect(response.body).not_to include("Cargado a mano o anterior al registro de compras con IVA")
       expect(response.body).to include("Margen")
     end
 
@@ -465,24 +464,24 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(financial_text).to include("Factura #{newer.reference} · 01/11/2026")
     end
 
-    it "keeps the average cost block for a legacy cost" do
+    it "shows a legacy cost in its stored currency without a source invoice" do
       sign_in admin
 
       get web_product_path(product)
 
-      expect(financial_text).to include("Costo Promedio USD 8.100,00")
-      expect(response.body).to include("El costo es el promedio ponderado de todas las compras")
+      expect(financial_text).to include("Costo USD 8.100,00")
+      expect(response.body).to include("Cargado a mano o anterior al registro de compras con IVA")
       expect(response.body).not_to include("Costo (última compra)")
     end
 
-    it "keeps the average cost block once the cost was typed by hand after the purchase" do
+    it "drops the source invoice once the cost was typed by hand after the purchase" do
       register("0003-00010197")
       product.reload.update!(cost_unit: 9_000)
       sign_in admin
 
       get web_product_path(product)
 
-      expect(response.body).to include("Costo Promedio")
+      expect(financial_text).to include("Costo ARS 9.000,00", "Cargado a mano o anterior al registro de compras con IVA")
       expect(response.body).not_to include("Costo (última compra)")
     end
 
@@ -494,8 +493,8 @@ RSpec.describe "Web::Products edit/update", type: :request do
         get web_product_path(product)
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).not_to include("Costo (última compra)", "Costo Promedio", "Margen",
-                                             "El costo es el promedio ponderado de todas las compras",
+        expect(response.body).not_to include("Costo (última compra)", "Margen",
+                                             "Cargado a mano o anterior al registro de compras con IVA",
                                              "9.692,10")
       end
     end

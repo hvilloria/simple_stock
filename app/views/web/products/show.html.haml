@@ -175,7 +175,7 @@
                     = "· #{@cost_source_item.invoice.purchase_date.strftime('%d/%m/%Y')} · con IVA y descuento"
               - else
                 .div
-                  %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
+                  %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo
                   - if @product.cost_unit.present?
                     %p.text-lg.text-slate-600
                       = currency_ar(@product.cost_unit, unit: "#{@product.cost_currency} ")
@@ -194,7 +194,7 @@
                   %p.text-lg.text-slate-400 -
             
               - unless @cost_source_item
-                %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
+                %p.text-xs.text-slate-500.italic Cargado a mano o anterior al registro de compras con IVA
       
       - unless @product.combo?
         -# Card 2 - Recent movements

@@ -148,7 +148,7 @@ These rules must NEVER be violated:
 ### Purchases
 
 * Purchases create positive stock movements
-* Weighted average cost recalculation is **deferred** (decision of 2026-09-21): invoices registered with lines keep each line's `unit_cost` but leave `product.cost_unit` untouched
+* Registering a supplier invoice with product lines sets each product's `cost_unit` to the line's final ARS cost (discount and IVA included); cancelling the invoice reverts it while the product still carries that cost — see WORKING_CONTEXT "Invoices"
 * Currency handling must be consistent
 
 ---

@@ -233,6 +233,18 @@ RSpec.describe "Web::Invoices", type: :request do
       expect(Invoice.count).to eq(0)
     end
 
+    it "refuses a percentage with more than two decimals" do
+      [ [ { discount_percentage: "10,555" }, "El descuento debe estar entre 0 y 100" ],
+        [ { iva_percentage: "10.5555" }, "El IVA debe estar entre 0 y 100" ] ].each do |percentages, error|
+        post "/web/invoices", params: header(percentages)
+                                        .merge(items: { "0" => line(product, quantity: 10, unit_cost: "4.500,00") })
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include(error)
+      end
+      expect(Invoice.count).to eq(0)
+    end
+
     it "registers an amount-only invoice exactly as before" do
       post "/web/invoices", params: header(amount: "12.500,50")
 

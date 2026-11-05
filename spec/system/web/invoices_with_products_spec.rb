@@ -96,7 +96,7 @@ RSpec.describe "Facturas con productos", type: :system do
     find("button[title='Quitar']").click
 
     expect(page).to have_field("amount", with: "1.000,00")
-    expect(page).to have_field("currency_usd", visible: :all)
+    expect(page).to have_field("currency_usd")
     expect(page).to have_no_css("[data-invoice-lines-target='totals']")
     expect(page).to have_text("Sin productos: no mueve stock")
   end
