@@ -19,6 +19,51 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(item["price_unit"].to_f).to eq(100.0)
       expect(item["channel_prices_map"]).to eq("mercadolibre" => 15_000.0)
     end
+
+    context "with combos" do
+      let!(:front) { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", current_stock: 4) }
+      let!(:rear)  { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho") }
+      let!(:pair) do
+        create(:product, :combo, name: "Aa par amortiguadores", components: [ [ front, 2 ], [ rear, 1 ] ])
+      end
+
+      it "returns regular products first and the combo with its components when asked" do
+        get search_web_products_path, params: { q: "456", include_combos: "1" }
+
+        items = JSON.parse(response.body)
+        expect(items.map { |p| p["id"] }).to eq([ rear.id, pair.id ])
+        expect(items.first).to include("combo" => false, "components" => [])
+        expect(items.second["combo"]).to be(true)
+        expect(items.second["components"]).to contain_exactly(
+          { "sku" => "12345-123-12345", "name" => "Amortiguador izquierdo", "quantity" => 2, "current_stock" => 4 },
+          { "sku" => "12345-456-12345", "name" => "Amortiguador derecho", "quantity" => 1,
+            "current_stock" => rear.current_stock }
+        )
+      end
+
+      it "leaves combos out by default" do
+        get search_web_products_path, params: { q: "456" }
+
+        expect(JSON.parse(response.body).map { |p| p["id"] }).to eq([ rear.id ])
+      end
+
+      it "keeps the combos after a full page of regular products" do
+        regulars = Array.new(11) { |i| create(:product, name: format("Bb amortiguador %02d", i), sku: "X-456-#{i}") }
+        get search_web_products_path, params: { q: "456", include_combos: "1" }
+
+        ids = JSON.parse(response.body).map { |p| p["id"] }
+        expect(ids.size).to eq(11)
+        expect(ids.last).to eq(pair.id)
+        expect(ids.first(10)).to all(satisfy { |id| ([ rear.id ] + regulars.map(&:id)).include?(id) })
+      end
+
+      it "never returns an archived combo" do
+        pair.update!(active: false)
+        get search_web_products_path, params: { q: "456", include_combos: "1" }
+
+        expect(JSON.parse(response.body).map { |p| p["id"] }).to eq([ rear.id ])
+      end
+    end
   end
 
   describe "GET /web/products" do
@@ -48,6 +93,93 @@ RSpec.describe "Web::Products edit/update", type: :request do
 
       get web_products_path, params: { q: "FRAM", page: 2 }
       expect(response.body).to include("Filtro 25")
+    end
+  end
+
+  describe "GET /web/products with combos" do
+    let!(:left)  { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", current_stock: 7) }
+    let!(:right) { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho", current_stock: 7) }
+    let!(:pair) do
+      create(:product, :combo, name: "Par amortiguadores", price_unit: 100_000,
+                               components: [ [ left, 1 ], [ right, 2 ] ])
+    end
+    let!(:archived) do
+      create(:product, :combo, name: "Par archivado", active: false, components: [ [ left, 1 ], [ right, 1 ] ])
+    end
+
+    def combo_cells(name)
+      row = Nokogiri::HTML(response.body).css("tbody tr").find { |tr| tr.text.include?(name) }
+      row.css("td").map { |td| td.text.squish }
+    end
+
+    def combo_row(name)
+      combo_cells(name).join(" ")
+    end
+
+    context "as a vendedor" do
+      before { sign_in vendedor }
+
+      it "shows a combo in the Todos tab with its parts and no stock" do
+        get web_products_path, params: { q: "456" }
+
+        expect(combo_row("Par amortiguadores")).to include("Combo", "Incluye: 12345-123-12345 · 12345-456-12345")
+        expect(combo_cells("Par amortiguadores")[6]).to eq("—")
+        expect(response.body).to include("Amortiguador derecho")
+      end
+
+      it "lists only active combos in the Combos tab, with the active count on the tab" do
+        get web_products_path, params: { tab: "combos" }
+
+        expect(combo_row("Par amortiguadores")).to include("1 × 12345-123-12345", "2 × 12345-456-12345", "Activo")
+        expect(response.body).not_to include("Par archivado")
+        expect(response.body).not_to include("Amortiguador derecho")
+        expect(response.body).to match(/Combos\s*<span[^>]*>\(1\)/)
+      end
+
+      it "lists only archived combos when asked" do
+        get web_products_path, params: { tab: "combos", combo_status: "archived" }
+
+        expect(combo_row("Par archivado")).to include("Archivado")
+        expect(response.body).not_to include("Par amortiguadores")
+      end
+
+      it "lists every combo under Todos" do
+        get web_products_path, params: { tab: "combos", combo_status: "all" }
+
+        expect(response.body).to include("Par amortiguadores", "Par archivado")
+      end
+
+      it "offers neither creating nor editing combos" do
+        get web_products_path, params: { tab: "combos" }
+
+        expect(response.body).not_to include("Nuevo Combo")
+        expect(response.body).not_to include(edit_web_combo_path(pair))
+      end
+    end
+
+    context "as an admin" do
+      before { sign_in admin }
+
+      it "offers creating and editing combos" do
+        get web_products_path, params: { tab: "combos" }
+
+        expect(response.body).to include("Nuevo Combo", edit_web_combo_path(pair))
+      end
+
+      it "invites creating the first combo when there is none" do
+        Product.combos.destroy_all
+        get web_products_path, params: { tab: "combos" }
+
+        expect(response.body).to include("Todavía no hay combos.", "Crear el primero")
+      end
+
+      it "says no combo matched when combos exist but the filter leaves none" do
+        archived.destroy
+        get web_products_path, params: { tab: "combos", combo_status: "archived" }
+
+        expect(response.body).to include("No se encontraron combos.")
+        expect(response.body).not_to include("Todavía no hay combos.", "Crear el primero")
+      end
     end
   end
 
@@ -121,6 +253,30 @@ RSpec.describe "Web::Products edit/update", type: :request do
     end
   end
 
+  describe "editing a combo through the product routes" do
+    let!(:combo) { create(:product, :combo, name: "Kit") }
+
+    it "refuses a vendedor PATCH and leaves the combo unchanged" do
+      sign_in vendedor
+      patch web_product_path(combo), params: { product: { name: "Hackeado", price_unit: "1,00" } }
+
+      expect(response).to have_http_status(:redirect)
+      expect(flash[:alert]).to eq("No tiene permiso para realizar esta acción.")
+      expect(combo.reload.name).to eq("Kit")
+    end
+
+    it "sends an admin to the combo form" do
+      sign_in admin
+
+      get edit_web_product_path(combo)
+      expect(response).to redirect_to(edit_web_combo_path(combo))
+
+      patch web_product_path(combo), params: { product: { name: "Otro" } }
+      expect(response).to redirect_to(edit_web_combo_path(combo))
+      expect(combo.reload.name).to eq("Kit")
+    end
+  end
+
   describe "DELETE /web/products/:id" do
     let!(:target) { create(:product, name: "Para borrar") }
 
@@ -132,7 +288,7 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(Product.exists?(target.id)).to be(false)          # hidden by default scope
       expect(Product.with_deleted.find(target.id).deleted_at).to be_present
       follow_redirect!
-      expect(response.body).to include("eliminado")
+      expect(response.body).to include("Producto eliminado exitosamente")
     end
 
     it "forbids a vendedor" do
@@ -149,6 +305,28 @@ RSpec.describe "Web::Products edit/update", type: :request do
 
       expect(response).to have_http_status(:redirect)
       expect(Product.exists?(target.id)).to be(true)
+    end
+
+    it "keeps a combo with sales and explains why" do
+      combo = create(:product, :combo)
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      sign_in admin
+
+      delete web_product_path(combo)
+
+      expect(response).to redirect_to(web_product_path(combo))
+      expect(flash[:alert]).to eq("El combo tiene ventas: solo se puede archivar")
+      expect(Product.exists?(combo.id)).to be(true)
+    end
+
+    it "names a deleted combo as a combo" do
+      combo = create(:product, :combo)
+      sign_in admin
+
+      delete web_product_path(combo)
+
+      expect(response).to redirect_to(web_products_path)
+      expect(flash[:notice]).to eq("Combo eliminado")
     end
   end
 
@@ -196,6 +374,101 @@ RSpec.describe "Web::Products edit/update", type: :request do
       sign_in vendedor
       get "/web/products/#{product.id}"
       expect(response.body).not_to include(new_web_stock_adjustment_path(product_id: product.id))
+    end
+  end
+
+  describe "GET /web/products/:id for a combo" do
+    let!(:left)  { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", price_unit: 70_000, current_stock: 5) }
+    let!(:right) { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho", price_unit: 35_000, current_stock: 3) }
+    let!(:combo) do
+      create(:product, :combo, name: "Par amortiguadores", price_unit: 100_000,
+                               components: [ [ left, 1 ], [ right, 2 ] ])
+    end
+
+    def buttons
+      page = Nokogiri::HTML(response.body)
+      page.css("a, button").map { |node| node.text.squish }
+    end
+
+    it "lists the pieces, compares the price with their sum and has no stock of its own" do
+      sign_in admin
+      get web_product_path(combo)
+
+      page = Nokogiri::HTML(response.body)
+      rows = page.css("tbody tr").map { |tr| tr.css("td").map { |td| td.text.squish } }
+      expect(rows).to contain_exactly(
+        [ "12345-123-12345 Amortiguador izquierdo", "1", "5", "ARS 70.000" ],
+        [ "12345-456-12345 Amortiguador derecho", "2", "3", "ARS 35.000" ]
+      )
+      expect(page.at_css("a[href='#{web_product_path(left)}']").text.squish).to eq("12345-123-12345")
+      expect(response.body).to include("Suma de las piezas")
+      expect(page.text.squish).to include("ARS 140.000 (−ARS 40.000)")
+      expect(response.body).to include("El combo no tiene stock propio. Cada venta descuenta de sus piezas.")
+      expect(response.body).not_to include("Ajustar stock")
+      expect(response.body).not_to include("Movimientos de Stock Recientes")
+      expect(response.body).not_to include("Stock Actual")
+    end
+
+    it "shows no difference when the price is not below the sum of the pieces" do
+      combo.update!(price_unit: 150_000)
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(Nokogiri::HTML(response.body).text).not_to include("(−")
+    end
+
+    it "lets an admin edit and delete a combo without sales" do
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(buttons).to include("Registrar Venta", "Editar Combo", "Eliminar")
+      expect(buttons).not_to include("Archivar", "Reactivar")
+      expect(response.body).to include(edit_web_combo_path(combo))
+    end
+
+    it "offers an admin to archive, not delete, a combo with sales" do
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(buttons).to include("Archivar")
+      expect(buttons).not_to include("Eliminar", "Reactivar")
+      form = Nokogiri::HTML(response.body).at_css("form[action='#{archive_web_combo_path(combo)}']")
+      expect(form.at_css("input[name='_method']")["value"]).to eq("patch")
+      expect(form.at_css("button")["data-turbo-confirm"])
+        .to eq("¿Archivar este combo? Dejará de aparecer en búsquedas y en la nota de pedido.")
+    end
+
+    it "shows an archived combo with its banner and lets an admin reactivate it" do
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      combo.update!(active: false)
+      sign_in admin
+      get web_product_path(combo)
+
+      expect(buttons).to include("Reactivar")
+      expect(buttons).not_to include("Archivar", "Eliminar", "Registrar Venta")
+      expect(response.body).to include(reactivate_web_combo_path(combo))
+      expect(response.body).to include("Este combo está archivado. No aparece en búsquedas ni se puede vender.")
+      expect(response.body).to include("Archivado")
+      expect(response.body).not_to include("Este producto está inactivo")
+    end
+
+    it "shows a vendedor neither the edit nor the archive actions" do
+      create(:order_item, product: combo, order: create(:order, :cancelled))
+      sign_in vendedor
+      get web_product_path(combo)
+
+      expect(buttons).to include("Registrar Venta")
+      expect(buttons).not_to include("Editar Combo", "Archivar", "Eliminar", "Reactivar")
+    end
+
+    it "keeps the inactive banner and the stock card for a regular product" do
+      product.update!(active: false)
+      sign_in admin
+      get web_product_path(product)
+
+      expect(response.body).to include("Este producto está inactivo", "Stock Actual", "Ajustar stock")
+      expect(response.body).not_to include("Suma de las piezas", "El combo no tiene stock propio")
     end
   end
 

@@ -3,7 +3,12 @@ import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
   static targets = ["input", "results"]
-  static values = { url: String, channel: String, dimOutOfStock: { type: Boolean, default: true } }
+  static values = {
+    url: String,
+    channel: String,
+    dimOutOfStock: { type: Boolean, default: true },
+    includeCombos: { type: Boolean, default: false }
+  }
 
   connect() {
     this.timeout = null
@@ -25,7 +30,8 @@ export default class extends Controller {
 
   async performSearch(query) {
     try {
-      const response = await fetch(`${this.urlValue}?q=${encodeURIComponent(query)}`, {
+      const combosParam = this.includeCombosValue ? '&include_combos=1' : ''
+      const response = await fetch(`${this.urlValue}?q=${encodeURIComponent(query)}${combosParam}`, {
         headers: { 'Accept': 'application/json' }
       })
       
@@ -54,7 +60,9 @@ export default class extends Controller {
 
     this.products = products
     const html = products.map((product, index) => {
-      const stockBadge = product.current_stock <= 0 
+      const stockBadge = product.combo
+        ? '<span class="px-2 py-0.5 border border-slate-400 text-slate-700 text-xs font-medium rounded">Combo</span>'
+        : product.current_stock <= 0
         ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium">Sin stock</span>'
         : product.current_stock < 5
         ? '<span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">Stock bajo</span>'
@@ -67,10 +75,14 @@ export default class extends Controller {
         : ''
       
       const originText = product.origin ? `🌍 ${escapeHtml(product.origin)}` : ''
+      const componentsLine = product.combo
+        ? `<p class="text-xs text-slate-500 mt-1 truncate">Incluye: ${(product.components || []).map((c) => escapeHtml(c.sku)).join(' · ')}</p>`
+        : ''
+      const dimmed = this.dimOutOfStockValue && !product.combo && product.current_stock <= 0
 
       return `
         <div 
-          class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${this.dimOutOfStockValue && product.current_stock <= 0 ? 'opacity-50' : ''}"
+          class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${dimmed ? 'opacity-50' : ''}"
           data-action="click->product-search#selectProduct"
           data-index="${index}"
         >
@@ -85,11 +97,12 @@ export default class extends Controller {
                 ${typeBadge}
               </div>
               <p class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(product.name)}</p>
+              ${componentsLine}
               <div class="flex items-center gap-2 text-xs text-gray-600 mt-1">
                 ${product.brand ? `<span>${escapeHtml(product.brand)}</span>` : ''}
                 ${product.brand && originText ? '<span>•</span>' : ''}
                 ${originText ? `<span>${originText}</span>` : ''}
-                <span>•</span>
+                ${product.brand || originText ? '<span>•</span>' : ''}
                 <span class="font-bold text-gray-900">$${this.formatCurrency(this.priceFor(product))}</span>
               </div>
             </div>

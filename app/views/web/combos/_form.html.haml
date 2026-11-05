@@ -1,0 +1,81 @@
+- input_class = "w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+- currency_actions = "blur->currency-input#format focus->currency-input#unformat"
+
+.flex.items-center.justify-between.mb-6
+  = link_to web_products_path(tab: "combos"), class: "inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors" do
+    %span ←
+    %span Volver a Productos
+  .text-right
+    %h1.text-2xl.font-bold.text-slate-900= title
+    - if combo.persisted?
+      %p.text-sm.font-mono.text-slate-500.mt-1= combo.sku
+    - else
+      %p.text-sm.text-slate-500.mt-1 El código se asigna al guardar
+
+= form_with model: combo, scope: :combo, url: (combo.persisted? ? web_combo_path(combo) : web_combos_path), local: true,
+  data: { controller: "product-form combo-form",
+          action: "submit->product-form#handleSubmit product-selected->combo-form#addProduct",
+          combo_form_items_value: @component_items.to_json,
+          combo_form_editable_value: @components_editable.to_s,
+          combo_form_price_touched_value: (combo.persisted? || combo.price_unit.present?).to_s } do |f|
+  .space-y-6
+    .bg-white.border.border-slate-200.rounded-lg.p-6
+      = f.label :name, class: "block text-sm font-medium text-slate-700 mb-2" do
+        Nombre
+        %span.text-red-500.ml-0.5 *
+      = f.text_field :name, required: true, autofocus: combo.new_record?, class: input_class,
+                    placeholder: "Ej: Par amortiguadores delanteros CRF250"
+
+    .bg-white.border.border-slate-200.rounded-lg.p-6
+      %h3.text-base.font-semibold.text-slate-900.mb-4 Piezas
+      - if @components_editable
+        %div{ data: { controller: "product-search", product_search_url_value: search_web_products_path, action: "click@window->product-search#clickOutside" }, class: "mb-4 relative" }
+          %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: input_class, data: { product_search_target: "input", action: "input->product-search#search" } }
+          %div{ data: { product_search_target: "results" }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: auto;" }
+      - else
+        %p.mb-4.rounded-lg.bg-slate-50.px-4.py-3.text-sm.text-slate-600
+          Las piezas no se pueden cambiar porque el combo ya tiene ventas. Para cambiarlas, archivar este combo y crear uno nuevo.
+
+      %table.w-full.text-sm
+        %thead
+          %tr.border-b.border-slate-200.text-left.text-xs.font-medium.text-slate-500
+            %th.py-2 Pieza
+            %th.py-2.text-center Cantidad
+            %th.py-2.text-right Precio unit.
+            %th.py-2.text-right Subtotal
+            - if @components_editable
+              %th.py-2
+        %tbody{ data: { combo_form_target: "rows" } }
+      %p.py-4.text-center.text-sm.text-slate-400{ data: { combo_form_target: "empty" } } Todavía no hay piezas.
+
+    .bg-white.border.border-slate-200.rounded-lg.p-6
+      %h3.text-base.font-semibold.text-slate-900.mb-4 Precio
+
+      .space-y-4
+        .flex.items-center.justify-between.rounded-lg.bg-slate-50.px-4.py-3
+          %span.text-sm.text-slate-600 Suma de las piezas
+          %span.text-base.font-semibold.text-slate-900{ data: { combo_form_target: "sum" } } $0
+
+        %div
+          = f.label :price_unit, class: "block text-sm font-medium text-slate-700 mb-2" do
+            Precio de Venta (ARS)
+            %span.text-red-500.ml-0.5 *
+          = f.text_field :price_unit,
+                        value: (number_with_precision(combo.price_unit, precision: 2, delimiter: ".", separator: ",") if combo.price_unit.present?),
+                        required: true, placeholder: "0,00", class: input_class,
+                        data: { controller: "currency-input", combo_form_target: "price",
+                                action: "#{currency_actions} input->combo-form#priceTyped" }
+          %p.text-sm.text-slate-600.mt-1{ hidden: true, data: { combo_form_target: "hint" } }
+
+        - ProductChannelPrice::CHANNELS.each do |channel|
+          - label = ProductChannelPrice.label(channel)
+          %div
+            = label_tag "channel_prices_#{channel}", "Precio #{label} (ARS)", class: "block text-sm font-medium text-slate-700 mb-2"
+            = text_field_tag "channel_prices[#{channel}]", @channel_price_values.to_h[channel],
+                id: "channel_prices_#{channel}", placeholder: "Usa el de mostrador",
+                data: { controller: "currency-input", action: currency_actions }, class: input_class
+            %p.text-xs.text-slate-500.mt-1= "Vacío = usa el precio de mostrador. Una venta por #{label} puede sobrescribirlo."
+
+    .flex.gap-3.justify-end
+      = link_to "Cancelar", web_products_path(tab: "combos"), class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-slate-700 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+      = f.submit submit_label, class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"

@@ -10,8 +10,7 @@
     
     %h1.text-3xl.font-bold.text-gray-900 Nueva Venta
 
-  - initial_items = @order.order_items.select { |oi| oi.product.present? }.map { |oi| { product_id: oi.product_id, sku: oi.product.sku, name: oi.product.name, brand: oi.product.brand, quantity: oi.quantity, price_unit: oi.unit_price.to_f, channel_prices: oi.product.channel_prices_map, base_price: oi.product.price_unit.to_f, max_stock: oi.product.current_stock, origin: oi.product.origin, product_type: oi.product.product_type } }
-  = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form", order_form_initial_items_value: initial_items.to_json, order_form_own_price_channels_value: ProductChannelPrice::CHANNELS.to_json, order_form_channel_labels_value: { "counter" => "Mostrador", "whatsapp" => "WhatsApp", "mercadolibre" => "Mercado Libre" }.to_json } do |f|
+  = form_with model: @order, url: web_orders_path, local: true, data: { controller: "order-form", order_form_initial_items_value: order_form_initial_items(@order).to_json, order_form_own_price_channels_value: ProductChannelPrice::CHANNELS.to_json, order_form_channel_labels_value: { "counter" => "Mostrador", "whatsapp" => "WhatsApp", "mercadolibre" => "Mercado Libre" }.to_json } do |f|
     = hidden_field_tag :source, "from_paper"
 
     -# Sales-lite fields
@@ -98,7 +97,7 @@
           %h3.text-lg.font-semibold.text-gray-900.mb-4 Productos
 
           -# Search input with dropdown
-          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, 'product-search-channel-value': "counter", 'order-form-target': "productSearch", action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
+          %div{ data: { controller: "product-search", 'product-search-url-value': search_web_products_path, 'product-search-channel-value': "counter", 'product-search-include-combos-value': "true", 'order-form-target': "productSearch", action: "click@window->product-search#clickOutside product-selected->order-form#addProduct" }, class: "mb-6 relative" }
             %input{ type: "text", placeholder: "Buscar por SKU, nombre o marca...", autocomplete: "off", class: "w-full px-5 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all", data: { 'product-search-target': 'input', action: 'input->product-search#search' } }
             %div{ data: { 'product-search-target': 'results' }, class: "absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg hidden", style: "max-height: 400px; overflow-y: scroll;" }
 
@@ -109,6 +108,7 @@
                 %p.text-5xl.mb-3 📦
                 %p.text-gray-600.font-medium No hay productos agregados
                 %p.text-sm.text-gray-500.mt-1 Buscar y seleccionar productos con el campo de arriba
+            %p.text-sm.text-slate-600.mt-4.hidden{ data: { 'order-form-target': 'comboNotice' } } Los combos todavía no se pueden vender en pago a cuenta. Quitar el combo o cambiar el tipo de venta.
 
       -# ============ Right column: Sticky summary ============
       .lg:col-span-1

@@ -12,6 +12,7 @@ if Rails.env.development?
   # Product is soft-deleted (acts_as_paranoid), so destroy_all would leave ghost
   # rows that pile up on every re-seed. Hard-delete all rows (incl. already
   # soft-deleted ones) after their children are gone, so the dev reset is clean.
+  ComboComponent.delete_all
   Product.with_deleted.delete_all
   puts "✅ Base de datos limpiada"
 end

@@ -4,7 +4,7 @@ module Web
       authorize :dashboard, :index?
       # Main metrics
       @sales_today = calculate_sales_today
-      @low_stock_count = Product.with_low_stock.count
+      @low_stock_count = Product.regular.with_low_stock.count
       @total_receivable = calculate_total_receivable
       @invoices_this_month = calculate_invoices_this_month
 
@@ -14,7 +14,8 @@ module Web
                             .limit(5)
                             .includes(:customer)
 
-      @low_stock_products = Product.with_low_stock
+      @low_stock_products = Product.regular
+                                   .with_low_stock
                                    .order(:current_stock)
                                    .limit(10)
 

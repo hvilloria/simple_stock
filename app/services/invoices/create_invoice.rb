@@ -135,7 +135,10 @@ module Invoices
     end
 
     def find_product(id)
-      Product.find_by(id: id) || raise(ValidationError, "Product not found: #{id}")
+      product = Product.find_by(id: id) || raise(ValidationError, "Product not found: #{id}")
+      raise ValidationError, "Un combo no se puede comprar: cargar sus piezas" if product.combo?
+
+      product
     end
 
     # A blank cost is a free line; a nil one is an amount the controller could

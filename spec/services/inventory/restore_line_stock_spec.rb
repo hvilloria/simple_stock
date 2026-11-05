@@ -76,4 +76,50 @@ RSpec.describe Inventory::RestoreLineStock do
 
     expect { described_class.call(order_item: line) }.not_to change(StockMovement, :count)
   end
+
+  context "with a combo line" do
+    let(:a) { create(:product, current_stock: 0) }
+    let(:b) { create(:product, current_stock: 0) }
+    let(:combo) { create(:product, :combo, components: [ [ a, 1 ], [ b, 4 ] ]) }
+    let(:combo_line) do
+      create(:order_item, order: order, product: combo, quantity: 2, unit_price: 100).tap do |item|
+        item.components.create!(product: a, quantity: 1)
+        item.components.create!(product: b, quantity: 4)
+      end
+    end
+
+    def stock_component!(component, quantity)
+      create(:stock_movement, product: component, stock_location: location, quantity: quantity, movement_type: "purchase")
+      component.recalculate_current_stock!
+    end
+
+    it "puts back on each component what left for it" do
+      stock_component!(a, 5)
+      stock_component!(b, 5)
+      Inventory::DeductLineStock.call(order_item: combo_line)
+      expect([ a.reload.current_stock, b.reload.current_stock ]).to eq([ 3, 0 ])
+
+      result = described_class.call(order_item: combo_line, note: "Cancelación nota 7")
+
+      expect(result.success?).to be true
+      expect(a.reload.current_stock).to eq(5)
+      expect(b.reload.current_stock).to eq(5)
+      expect(combo.reload.current_stock).to eq(0)
+      expect(combo_line.stock_movements.where(movement_type: "adjustment").order(:product_id).pluck(:product_id, :quantity))
+        .to eq([ [ a.id, 2 ], [ b.id, 5 ] ])
+    end
+
+    it "restores only the components the line's movements took" do
+      stock_component!(a, 5)
+      stock_component!(b, 5)
+      create(:stock_movement, product: a, stock_location: location, quantity: -2, movement_type: "sale", reference: combo_line)
+      a.recalculate_current_stock!
+
+      described_class.call(order_item: combo_line)
+
+      expect(a.reload.current_stock).to eq(5)
+      expect(b.reload.current_stock).to eq(5)
+      expect(combo_line.stock_movements.where(product: b)).to be_empty
+    end
+  end
 end

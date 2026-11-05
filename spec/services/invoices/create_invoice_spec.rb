@@ -451,6 +451,18 @@ RSpec.describe Invoices::CreateInvoice do
         expect(result.errors).to include("Product not found: 999999")
       end
 
+      it "rejects a combo, whose components are what is bought" do
+        combo = create(:product, :combo, components: [ [ filter, 1 ], [ pads, 1 ] ])
+
+        result = nil
+        expect { result = call_with([ { product_id: combo.id, quantity: 1, unit_cost: 100 } ]) }
+          .not_to change(StockMovement, :count)
+
+        expect(result.success?).to be false
+        expect(result.errors).to eq([ "Un combo no se puede comprar: cargar sus piezas" ])
+        expect(Invoice.count).to eq(0)
+      end
+
       it "does not require a typed amount when there are complete lines" do
         result = call_with([ { product_id: filter.id, quantity: 1, unit_cost: 100 } ], amount: nil)
 

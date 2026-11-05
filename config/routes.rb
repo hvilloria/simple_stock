@@ -23,6 +23,12 @@ Rails.application.routes.draw do
   namespace :web do
     get "dashboard", to: "dashboard#index"
 
+    resources :combos, path: "products/combos", only: [ :new, :create, :edit, :update ] do
+      member do
+        patch :archive
+        patch :reactivate
+      end
+    end
     resources :products, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
       collection do
         get :search

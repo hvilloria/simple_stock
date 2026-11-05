@@ -52,6 +52,7 @@ module Inventory
       @lines.each do |line|
         id = product_id(line)
         raise ValidationError, "Producto no encontrado" if id.nil?
+        raise ValidationError, AdjustStock::COMBO_HAS_NO_STOCK if Product.combos.exists?(id: id)
 
         count = parse(line[:counted])
         raise ValidationError, "El stock real de #{label(id)} debe ser un número entero mayor o igual a 0" if count.nil? || count.negative?

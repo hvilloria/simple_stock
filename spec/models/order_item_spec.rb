@@ -4,6 +4,7 @@ RSpec.describe OrderItem, type: :model do
   describe 'associations' do
     it { is_expected.to belong_to(:order) }
     it { is_expected.to belong_to(:product) }
+    it { is_expected.to have_many(:components).class_name("OrderItemComponent").dependent(:destroy) }
   end
 
   describe "product association after soft-delete" do
@@ -99,6 +100,45 @@ RSpec.describe OrderItem, type: :model do
     it "is valid with discount_percent = 0 in any order_type" do
       expect(build_item(order: immediate_order, percent: 0)).to be_valid
       expect(build_item(order: credit_order, percent: 0)).to be_valid
+    end
+  end
+
+  describe "#stock_lines" do
+    it "returns the product and quantity for a regular line" do
+      item = create(:order_item, quantity: 3)
+
+      expect(item.stock_lines).to eq([ [ item.product_id, 3 ] ])
+    end
+
+    it "multiplies each snapshot component by the line quantity, ordered by product id" do
+      part_a = create(:product)
+      part_b = create(:product)
+      combo = create(:product, :combo, components: [ [ part_a, 5 ] ])
+      item = create(:order_item, product: combo, quantity: 2)
+      item.components.create!(product: part_b, quantity: 4)
+      item.components.create!(product: part_a, quantity: 1)
+
+      expect(item.stock_lines).to eq([ [ part_a.id, 2 ], [ part_b.id, 8 ] ])
+    end
+  end
+
+  describe "#unit_cost_in_ars" do
+    it "is the product cost for a regular line" do
+      product = create(:product, cost_unit: 40_000, cost_currency: "ARS")
+      item = create(:order_item, product: product)
+
+      expect(item.unit_cost_in_ars).to eq(40_000)
+    end
+
+    it "sums each snapshot component cost times its quantity for a combo line" do
+      part_a = create(:product, cost_unit: 60_000, cost_currency: "ARS")
+      part_b = create(:product, cost_unit: 50_000, cost_currency: "ARS")
+      combo = create(:product, :combo, components: [ [ part_a, 1 ], [ part_b, 1 ] ])
+      item = create(:order_item, product: combo, quantity: 2)
+      item.components.create!(product: part_a, quantity: 1)
+      item.components.create!(product: part_b, quantity: 1)
+
+      expect(item.unit_cost_in_ars).to eq(110_000)
     end
   end
 end

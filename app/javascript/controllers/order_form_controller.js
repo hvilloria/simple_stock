@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { escapeHtml } from "helpers/html_escape"
 
 export default class extends Controller {
-  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal", "channelSelect", "channelNotice", "channelHelp", "productSearch"]
+  static targets = ["items", "total", "itemCount", "totalQuantity", "submitButton", "orderTypeInfo", "creditRadio", "immediateRadio", "onAccountRadio", "contactSection", "deliveredLabel", "discountSection", "discountSelect", "suggestedTotal", "channelSelect", "channelNotice", "channelHelp", "productSearch", "comboNotice"]
   static values = { initialItems: Array, ownPriceChannels: Array, channelLabels: Object }
 
   connect() {
@@ -12,6 +12,7 @@ export default class extends Controller {
     this.applyCreditRadioState()
     this.applyDiscountSectionVisibility(this.currentOrderType())
     this.updateChannelHelp()
+    this.applyComboAvailability()
   }
 
   customerChanged(event) {
@@ -66,7 +67,9 @@ export default class extends Controller {
         base_price: basePrice,
         max_stock: product.current_stock,
         origin: product.origin,
-        product_type: product.product_type
+        product_type: product.product_type,
+        combo: !!product.combo,
+        components: product.components || []
       })
     }
 
@@ -217,6 +220,16 @@ export default class extends Controller {
 
     this.toggleDeliveredLabels()
     this.applyDiscountSectionVisibility(orderType)
+    this.applyComboAvailability()
+  }
+
+  applyComboAvailability() {
+    this.productSearchTarget.setAttribute("data-product-search-include-combos-value", String(!this.isOnAccount()))
+    this.updateSubmitButton()
+  }
+
+  comboBlocked() {
+    return this.isOnAccount() && this.items.some(item => item.combo)
   }
 
   isOnAccount() {
@@ -257,16 +270,17 @@ export default class extends Controller {
             <span class="font-mono text-xs text-gray-500 font-semibold">${escapeHtml(item.sku)}</span>
             ${item.product_type === 'oem' ? '<span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">OEM</span>' : ''}
             ${item.product_type === 'aftermarket' ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">ALT</span>' : ''}
+            ${item.combo ? '<span class="px-2 py-0.5 border border-slate-400 text-slate-700 text-xs font-medium rounded">Combo</span>' : ''}
           </div>
           <h4 class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(item.name)}</h4>
-          <p class="text-xs text-gray-500 mt-0.5">${escapeHtml(item.brand)} ${item.origin ? '• ' + escapeHtml(item.origin) : ''}</p>
+          ${item.combo ? this.componentsHtml(item.components) : `<p class="text-xs text-gray-500 mt-0.5">${escapeHtml(item.brand)} ${item.origin ? '• ' + escapeHtml(item.origin) : ''}</p>`}
           <input type="hidden" name="purchase_items[][product_id]" value="${item.product_id}" />
           <input type="hidden" name="purchase_items[][quantity]" value="${item.quantity}" />
           <input type="hidden" name="purchase_items[][unit_price]" value="${item.price_unit}" />
-          <label class="mt-2 inline-flex items-center gap-2 text-xs text-gray-600" data-order-form-target="deliveredLabel" style="${this.isOnAccount() ? '' : 'display:none'}">
+          ${item.combo ? '' : `<label class="mt-2 inline-flex items-center gap-2 text-xs text-gray-600" data-order-form-target="deliveredLabel" style="${this.isOnAccount() ? '' : 'display:none'}">
             <input type="checkbox" name="delivered_product_ids[]" value="${item.product_id}" data-index="${index}" data-action="change->order-form#toggleDelivered" ${item.delivered ? "checked" : ""} class="rounded border-gray-300" />
             <span>se lo lleva ahora</span>
-          </label>
+          </label>`}
         </div>
 
         <div class="flex items-center gap-3">
@@ -313,6 +327,13 @@ export default class extends Controller {
     `).join('')
 
     this.itemsTarget.innerHTML = html
+  }
+
+  componentsHtml(components) {
+    const lines = (components || []).map(c =>
+      `<p>↳ ${escapeHtml(c.quantity)} × ${escapeHtml(c.sku)} · stock ${escapeHtml(c.current_stock)}</p>`
+    ).join('')
+    return `<div class="text-xs text-slate-500 mt-1">${lines}</div>`
   }
 
   updateSummary() {
@@ -365,6 +386,8 @@ export default class extends Controller {
   }
 
   updateSubmitButton() {
+    const comboBlocked = this.comboBlocked()
+    if (this.hasComboNoticeTarget) this.comboNoticeTarget.classList.toggle("hidden", !comboBlocked)
     if (!this.hasSubmitButtonTarget) return
 
     const customerSelect = this.element.querySelector('select[name="order[customer_id]"]')
@@ -375,7 +398,7 @@ export default class extends Controller {
 
     const allPricesValid = this.items.every(item => item.price_unit > 0)
 
-    const disabled = this.items.length === 0 || !customerValid || !paperNumberValid || !allPricesValid
+    const disabled = this.items.length === 0 || !customerValid || !paperNumberValid || !allPricesValid || comboBlocked
     this.submitButtonTarget.disabled = disabled
     if (disabled) {
       this.submitButtonTarget.classList.add("opacity-50", "cursor-not-allowed")

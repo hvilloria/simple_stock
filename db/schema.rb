@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_24_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_04_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "unaccent"
@@ -49,6 +49,17 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_24_120000) do
     t.index ["supplier_id"], name: "index_cash_movements_on_supplier_id"
     t.index ["transfer_group_id"], name: "index_cash_movements_on_transfer_group_id"
     t.index ["user_id"], name: "index_cash_movements_on_user_id"
+  end
+
+  create_table "combo_components", force: :cascade do |t|
+    t.bigint "combo_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "quantity", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["combo_id", "product_id"], name: "index_combo_components_on_combo_id_and_product_id", unique: true
+    t.index ["product_id"], name: "index_combo_components_on_product_id"
+    t.check_constraint "quantity > 0", name: "combo_components_quantity_positive"
   end
 
   create_table "credit_note_items", force: :cascade do |t|
@@ -151,6 +162,17 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_24_120000) do
     t.index ["supplier_id"], name: "index_invoices_on_supplier_id"
   end
 
+  create_table "order_item_components", force: :cascade do |t|
+    t.bigint "order_item_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "quantity", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_item_id"], name: "index_order_item_components_on_order_item_id"
+    t.index ["product_id"], name: "index_order_item_components_on_product_id"
+    t.check_constraint "quantity > 0", name: "order_item_components_quantity_positive"
+  end
+
   create_table "order_items", force: :cascade do |t|
     t.bigint "order_id", null: false
     t.bigint "product_id", null: false
@@ -251,9 +273,12 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_24_120000) do
     t.string "brand"
     t.string "location_code"
     t.datetime "deleted_at"
+    t.boolean "combo", default: false, null: false
+    t.index ["combo"], name: "index_products_on_combo"
     t.index ["deleted_at"], name: "index_products_on_deleted_at"
     t.index ["location_code"], name: "index_products_on_location_code"
     t.index ["sku", "product_type", "brand", "origin"], name: "index_products_on_variant_uniqueness", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["sku"], name: "index_products_on_combo_sku_unique", unique: true, where: "combo"
     t.index ["sku"], name: "index_products_on_sku"
   end
 
@@ -334,6 +359,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_24_120000) do
   add_foreign_key "cash_movements", "payments", column: "source_payment_id"
   add_foreign_key "cash_movements", "suppliers"
   add_foreign_key "cash_movements", "users"
+  add_foreign_key "combo_components", "products"
+  add_foreign_key "combo_components", "products", column: "combo_id"
   add_foreign_key "credit_note_items", "credit_notes"
   add_foreign_key "credit_note_items", "products"
   add_foreign_key "credit_notes", "invoices"
@@ -343,6 +370,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_24_120000) do
   add_foreign_key "invoice_items", "products"
   add_foreign_key "invoices", "cash_movements"
   add_foreign_key "invoices", "suppliers"
+  add_foreign_key "order_item_components", "order_items"
+  add_foreign_key "order_item_components", "products"
   add_foreign_key "order_items", "orders"
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "customers"

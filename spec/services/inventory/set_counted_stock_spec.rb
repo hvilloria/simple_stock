@@ -169,6 +169,13 @@ RSpec.describe Inventory::SetCountedStock do
       expect(refused([ { product_id: gone.id, counted: "2" } ])).to eq([ "Producto no encontrado" ])
     end
 
+    it "refuses a combo, whose stock lives in its components" do
+      combo = create(:product, :combo, components: [ [ plug, 1 ], [ create(:product), 1 ] ])
+
+      expect(refused([ { product_id: filter.id, counted: "2" }, { product_id: combo.id, counted: "3" } ]))
+        .to eq([ "Un combo no tiene stock propio: ajustar sus piezas" ])
+    end
+
     it "refuses a line without a product" do
       expect(refused([ { product_id: "", counted: "2" } ])).to eq([ "Producto no encontrado" ])
     end

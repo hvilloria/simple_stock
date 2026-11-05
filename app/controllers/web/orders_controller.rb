@@ -20,7 +20,7 @@ module Web
 
     def show
       authorize @order
-      @order_items = @order.order_items.includes(:product)
+      @order_items = @order.order_items.includes(:product, components: :product)
       @stock_movements = @order.sale_movements.includes(:product, :stock_location).order(created_at: :desc)
     end
 

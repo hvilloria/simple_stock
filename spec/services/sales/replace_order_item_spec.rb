@@ -124,6 +124,28 @@ RSpec.describe Sales::ReplaceOrderItem do
     expect(result).to be_failure
   end
 
+  it "rejects swapping in a combo" do
+    combo = create(:product, :combo, price_unit: 300)
+
+    result = described_class.call(order_item: item, product_id: combo.id, quantity: 2)
+
+    expect(result).to be_failure
+    expect(result.errors).to eq([ "Un combo no se puede cambiar" ])
+    expect(item.reload.product).to eq(old_product)
+  end
+
+  it "rejects changing a combo line, even only its quantity" do
+    combo_line = create(:order_item, order: order, product: create(:product, :combo), quantity: 1, unit_price: 500)
+
+    [ new_product.id, combo_line.product_id ].each do |product_id|
+      result = described_class.call(order_item: combo_line, product_id: product_id, quantity: 2)
+
+      expect(result).to be_failure
+      expect(result.errors).to eq([ "Un combo no se puede cambiar" ])
+    end
+    expect(combo_line.reload.quantity).to eq(1)
+  end
+
   it "rejects a product without catalog price" do
     no_price = create(:product, price_unit: 0)
     result = described_class.call(order_item: item, product_id: no_price.id, quantity: 2)

@@ -1,5 +1,7 @@
 module Inventory
   class AdjustStock
+    COMBO_HAS_NO_STOCK = "Un combo no tiene stock propio: ajustar sus piezas"
+
     def self.call(product:, stock_location:, movement_type:, quantity:, reference: nil, note: nil, allow_negative: false, user: nil)
       new(
         product:        product,
@@ -45,6 +47,7 @@ module Inventory
     class ValidationError < StandardError; end
 
     def validate_params
+      raise ValidationError, COMBO_HAS_NO_STOCK if @product.combo?
       raise ValidationError, "Quantity cannot be zero" if @quantity.zero?
 
       return if @allow_negative

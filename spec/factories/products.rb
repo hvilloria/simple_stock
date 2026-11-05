@@ -16,6 +16,25 @@ FactoryBot.define do
       active { false }
     end
 
+    trait :combo do
+      transient do
+        components { [ [ association(:product), 1 ], [ association(:product), 1 ] ] }
+      end
+
+      combo { true }
+      sku { Product.next_combo_sku }
+      current_stock { 0 }
+      brand { nil }
+      category { nil }
+      cost_unit { nil }
+
+      after(:create) do |product, evaluator|
+        evaluator.components.each do |component, quantity|
+          product.combo_components.create!(product: component, quantity: quantity)
+        end
+      end
+    end
+
     trait :low_stock do
       current_stock { 3 }
     end

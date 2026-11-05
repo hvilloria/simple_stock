@@ -354,6 +354,31 @@ RSpec.describe Product, type: :model do
       expect(Product.search('%')).to be_empty
       expect(Product.search('_')).to be_empty
     end
+
+    context 'with combos' do
+      let!(:front) { create(:product, sku: '12345-123-12345', name: 'Amortiguador izquierdo', brand: 'Showa') }
+      let!(:rear)  { create(:product, sku: '12345-456-12345', name: 'Amortiguador derecho', brand: 'Showa') }
+      let!(:pair)  { create(:product, :combo, name: 'Par amortiguadores CRF250', components: [ [ front, 1 ], [ rear, 1 ] ]) }
+
+      it 'finds the combo and the part itself by a component sku' do
+        expect(Product.search('456')).to contain_exactly(rear, pair)
+      end
+
+      it 'finds the combo when each word matches a different component' do
+        expect(Product.search('izquierdo derecho')).to contain_exactly(pair)
+        expect(Product.search('123 456')).to contain_exactly(rear, pair)
+      end
+
+      it 'finds the combo by its own name' do
+        expect(Product.search('crf250')).to contain_exactly(pair)
+      end
+
+      it 'ignores accents in component names' do
+        spark = create(:product, :combo, name: 'Kit encendido', components: [ [ plug, 2 ] ])
+
+        expect(Product.search('bujia')).to contain_exactly(plug, spark)
+      end
+    end
   end
 
   describe '#low_stock?' do
@@ -712,5 +737,180 @@ RSpec.describe Product, type: :model do
     product = create(:product)
     product.channel_prices.create!(channel: "mercadolibre", price: 15_000)
     expect { product.destroy }.to change(ProductChannelPrice, :count).by(-1)
+  end
+
+  describe "combos" do
+    it "generates increasing CB- skus" do
+      first = Product.next_combo_sku
+      second = Product.next_combo_sku
+
+      expect(first).to match(/\ACB-\d{4,}\z/)
+      expect(second).to match(/\ACB-\d{4,}\z/)
+      expect(second.delete_prefix("CB-").to_i).to be > first.delete_prefix("CB-").to_i
+    end
+
+    it "refuses a CB- sku on a regular product after normalization" do
+      product = build(:product, sku: "cb-77")
+
+      expect(product).not_to be_valid
+      expect(product.errors[:sku]).to include("no puede empezar con CB- (reservado para combos)")
+    end
+
+    it "still saves a regular product already persisted with a CB- sku" do
+      product = create(:product, sku: "LEGACY-1")
+      product.update_column(:sku, "CB-9")
+      create(:stock_movement, product: product, stock_location: create(:stock_location),
+                              quantity: 3, movement_type: "purchase")
+
+      expect(product.reload.update(price_unit: 250)).to be(true)
+      expect { product.recalculate_current_stock! }.not_to raise_error
+      expect(product.reload.current_stock).to eq(3)
+    end
+
+    it "refuses creating a regular product with a lowercase cb- sku" do
+      expect { create(:product, sku: "cb-1") }.to raise_error(ActiveRecord::RecordInvalid, /CB-/)
+    end
+
+    it "allows a CB- sku on a combo" do
+      expect(build(:product, :combo, sku: "CB-0003")).to be_valid
+    end
+
+    it "refuses a second combo with the same sku, even after the first is deleted" do
+      first = create(:product, :combo)
+      first.destroy
+
+      expect { create(:product, :combo, sku: first.sku, components: []) }
+        .to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
+    it "splits products into combos and regular ones" do
+      combo = create(:product, :combo)
+      regular = create(:product)
+
+      expect(Product.combos).to include(combo)
+      expect(Product.combos).not_to include(regular)
+      expect(Product.regular).to include(regular)
+      expect(Product.regular).not_to include(combo)
+      expect(combo).to be_combo
+    end
+
+    it "lists its components through combo_components" do
+      part_a = create(:product)
+      part_b = create(:product)
+      combo = create(:product, :combo, components: [ [ part_a, 1 ], [ part_b, 4 ] ])
+
+      expect(combo.components).to contain_exactly(part_a, part_b)
+      expect(combo.combo_components.find_by(product: part_b).quantity).to eq(4)
+    end
+
+    describe "#has_sales?" do
+      it "is false without order items" do
+        expect(create(:product, :combo)).not_to have_sales
+      end
+
+      it "is true with an order item on a cancelled order" do
+        combo = create(:product, :combo)
+        create(:order_item, product: combo, order: create(:order, :cancelled))
+
+        expect(combo).to have_sales
+      end
+    end
+
+    describe "#active_combos_containing" do
+      it "returns the active combos with the product, not the archived ones" do
+        part = create(:product)
+        active_combo = create(:product, :combo, components: [ [ part, 2 ] ])
+        create(:product, :combo, :inactive, components: [ [ part, 2 ] ])
+
+        expect(part.active_combos_containing).to contain_exactly(active_combo)
+      end
+    end
+
+    describe "#components_price_sum" do
+      it "adds each component price times its quantity" do
+        combo = create(:product, :combo, components: [
+          [ create(:product, price_unit: 70_000), 1 ],
+          [ create(:product, price_unit: 70_000), 1 ]
+        ])
+
+        expect(combo.components_price_sum).to eq(140_000)
+      end
+
+      it "counts a component without price as zero" do
+        combo = create(:product, :combo, components: [
+          [ create(:product, price_unit: nil), 3 ],
+          [ create(:product, price_unit: 1_000), 2 ]
+        ])
+
+        expect(combo.components_price_sum).to eq(2_000)
+      end
+    end
+
+    describe "destroy guards" do
+      it "refuses to delete a combo with sales and keeps its components" do
+        combo = create(:product, :combo)
+        create(:order_item, product: combo, order: create(:order, :cancelled))
+
+        expect(combo.destroy).to be(false)
+        expect(combo.errors[:base]).to include("El combo tiene ventas: solo se puede archivar")
+        expect(Product.find(combo.id)).to be_present
+        expect(combo.combo_components.count).to eq(2)
+      end
+
+      it "deletes a combo without sales" do
+        combo = create(:product, :combo)
+
+        expect(combo.destroy).to be_truthy
+        expect(Product.only_deleted).to include(combo)
+      end
+
+      it "refuses to delete a part of active combos, listing them" do
+        part = create(:product)
+        first = create(:product, :combo, components: [ [ part, 2 ] ])
+        second = create(:product, :combo, components: [ [ part, 3 ] ])
+
+        expect(part.destroy).to be(false)
+        expect(part.errors[:base]).to include("Forma parte de #{first.sku}, #{second.sku}; archivar esos combos primero.")
+        expect(Product.find(part.id)).to be_present
+      end
+
+      it "deletes a part of archived combos only" do
+        part = create(:product)
+        create(:product, :combo, :inactive, components: [ [ part, 2 ] ])
+
+        expect(part.destroy).to be_truthy
+      end
+    end
+
+    describe "archive guard" do
+      it "refuses to archive a part of an active combo" do
+        part = create(:product)
+        combo = create(:product, :combo, components: [ [ part, 2 ] ])
+
+        expect(part.update(active: false)).to be(false)
+        expect(part.errors[:base]).to include("Forma parte de #{combo.sku}; archivar esos combos primero.")
+        expect(part.reload).to be_active
+      end
+
+      it "archives a part of archived combos only" do
+        part = create(:product)
+        create(:product, :combo, :inactive, components: [ [ part, 2 ] ])
+
+        expect(part.update(active: false)).to be(true)
+      end
+
+      it "lets other edits through on a part of an active combo" do
+        part = create(:product)
+        create(:product, :combo, components: [ [ part, 2 ] ])
+
+        expect(part.update(name: "Otro nombre")).to be(true)
+      end
+
+      it "archives a combo itself" do
+        combo = create(:product, :combo)
+
+        expect(combo.update(active: false)).to be(true)
+      end
+    end
   end
 end

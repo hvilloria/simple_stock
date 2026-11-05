@@ -140,6 +140,10 @@
                         %span.px-2.py-0.5.bg-gray-100.text-gray-700.rounded.text-xs.font-medium OEM
                       - elsif item.product.aftermarket?
                         %span.px-2.py-0.5.bg-blue-50.text-blue-700.rounded.text-xs.font-medium ALT
+                    - if item.product.combo?
+                      .mt-1.text-xs.text-slate-500
+                        - item.components.sort_by(&:id).each do |component|
+                          %p= "↳ #{component.quantity} × #{component.product.sku} · #{component.product.name}"
                   
                   %td.px-6.py-4.whitespace-nowrap.text-center
                     %span.text-sm.font-medium.text-gray-900= quantity_ar(item.quantity)
@@ -148,7 +152,7 @@
                     %span.text-sm.text-gray-900= currency_ar(item.unit_price)
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
-                    %span.text-sm.text-gray-500= currency_ar(item.product.cost_in_ars)
+                    %span.text-sm.text-gray-500= currency_ar(item.unit_cost_in_ars)
                   
                   %td.px-6.py-4.whitespace-nowrap.text-right
                     %span.text-sm.font-bold.text-gray-900= currency_ar(item.quantity * item.unit_price)
@@ -306,7 +310,7 @@
 
           .flex.justify-between.text-sm
             %span.text-gray-600 Cantidad total
-            %span.font-medium.text-gray-900= "#{@order_items.sum(:quantity)} unidades"
+            %span.font-medium.text-gray-900= "#{@order_items.sum(&:quantity)} unidades"
 
           - if @order.discount_amount.positive?
             .flex.justify-between.text-sm
@@ -339,7 +343,7 @@
         .border-t.border-gray-200.py-4
           %h4.text-sm.font-semibold.text-gray-900.mb-3 Análisis de Costos
 
-          - costo_total = @order_items.sum { |item| item.product.cost_in_ars * item.quantity }
+          - costo_total = @order_items.sum { |item| item.unit_cost_in_ars * item.quantity }
           - margen_bruto = @order.total_amount - costo_total
           - porcentaje_margen = costo_total > 0 ? ((margen_bruto / costo_total) * 100).round(1) : 0
 
