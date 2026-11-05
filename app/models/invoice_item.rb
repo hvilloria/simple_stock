@@ -2,6 +2,7 @@ class InvoiceItem < ApplicationRecord
   # Associations
   belongs_to :invoice
   belongs_to :product, -> { with_deleted }
+  belongs_to :previous_cost_source, class_name: "InvoiceItem", optional: true
 
   # Validations
   validates :quantity, numericality: { greater_than: 0 }

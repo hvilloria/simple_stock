@@ -575,6 +575,31 @@ RSpec.describe Product, type: :model do
     end
   end
 
+  describe "cost source" do
+    let(:product) { create(:product, cost_unit: 9_000, cost_currency: "ARS") }
+    let(:item)    { create(:invoice_item, product: product) }
+
+    before { product.update_columns(cost_source_invoice_item_id: item.id) }
+
+    it "is cleared when the cost is changed by hand" do
+      product.update!(cost_unit: 9_500)
+
+      expect(product.reload.cost_source_invoice_item_id).to be_nil
+    end
+
+    it "is cleared when the cost currency is changed by hand" do
+      product.update!(cost_currency: "USD")
+
+      expect(product.reload.cost_source_invoice_item_id).to be_nil
+    end
+
+    it "is kept by a save that leaves the cost alone" do
+      product.update!(name: "Disco ventilado", cost_unit: 9_000)
+
+      expect(product.reload.cost_source_invoice_item).to eq(item)
+    end
+  end
+
   describe '#average_cost' do
     it 'is an alias for cost_unit' do
       product = create(:product, cost_unit: 50.0)

@@ -98,12 +98,10 @@ module Web
     private
 
     def cost_source_item
-      return unless @product.cost_currency == "ARS" && @product.cost_unit.to_d.positive?
+      return unless @product.cost_currency == "ARS"
 
-      InvoiceItem.joins(:invoice).includes(:invoice)
-                 .where(product_id: @product.id, final_unit_cost: @product.cost_unit)
-                 .where.not(invoices: { status: "cancelled" })
-                 .order(id: :desc).first
+      item = @product.cost_source_invoice_item
+      item unless item.nil? || item.invoice.cancelled_status?
     end
 
     def products_scope

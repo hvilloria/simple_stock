@@ -17,6 +17,15 @@ module InvoicesHelper
     "#{number_with_precision(value, precision: 2, strip_insignificant_zeros: true, delimiter: '.', separator: ',')}%"
   end
 
+  # "04/11/2026 · con IVA y descuento": the purchase date and what the cost the
+  # purchase set on a product already includes.
+  def invoice_cost_source_caption(invoice)
+    included = []
+    included << "IVA" if invoice.iva_percentage.to_d.positive?
+    included << "descuento" if invoice.discount_percentage.to_d.positive?
+    [ invoice.purchase_date.strftime("%d/%m/%Y"), ("con #{included.join(' y ')}" if included.any?) ].compact.join(" · ")
+  end
+
   def invoice_cancel_confirmation(invoice)
     return "¿Estás seguro de cancelar esta factura?" if invoice_units(invoice).zero?
 

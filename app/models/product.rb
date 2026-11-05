@@ -6,6 +6,7 @@ class Product < ApplicationRecord
   has_many :channel_prices, class_name: "ProductChannelPrice", dependent: :destroy
   has_many :combo_components, foreign_key: :combo_id, dependent: :destroy
   has_many :components, through: :combo_components, source: :product
+  belongs_to :cost_source_invoice_item, class_name: "InvoiceItem", optional: true
 
   # === SKU AND VARIANTS ===
   # sku represents the OEM CODE of the part (e.g.: original Honda code)
@@ -36,6 +37,8 @@ class Product < ApplicationRecord
   # cost_unit is the cost of the last purchase: the final unit cost in ARS
   # (discount and IVA included) that registering a supplier invoice sets, or
   # whatever an admin typed afterwards. Legacy rows may still hold a USD cost.
+  # cost_source_invoice_item is the purchase line that set the current cost;
+  # any normal save that changes the cost makes it a hand cost and clears it.
 
   # Constants
   CATEGORIES = %w[frenos motor suspension transmision electrico carroceria filtros lubricantes].freeze
@@ -82,6 +85,7 @@ class Product < ApplicationRecord
   # the import, or the console. It goes in before_validation so that uniqueness and
   # the other validations run on the already-normalized value.
   before_validation :normalize_sku
+  before_save :clear_cost_source, if: :hand_cost_change?
 
   # Prepended so the dependent destroys above never run when the guard refuses.
   before_destroy :guard_destroy, prepend: true
@@ -266,6 +270,15 @@ class Product < ApplicationRecord
   def add_combo_part_error
     skus = active_combos_containing.order(:sku).pluck(:sku).join(", ")
     errors.add(:base, "Forma parte de #{skus}; archivar esos combos primero.")
+  end
+
+  def hand_cost_change?
+    (will_save_change_to_cost_unit? || will_save_change_to_cost_currency?) &&
+      !will_save_change_to_cost_source_invoice_item_id?
+  end
+
+  def clear_cost_source
+    self.cost_source_invoice_item_id = nil
   end
 
   def normalize_sku

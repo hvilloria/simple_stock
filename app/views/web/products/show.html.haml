@@ -172,7 +172,7 @@
                     Factura
                     = link_to @cost_source_item.invoice.reference, web_invoice_path(@cost_source_item.invoice),
                               class: "text-slate-900 underline hover:text-slate-600"
-                    = "· #{@cost_source_item.invoice.purchase_date.strftime('%d/%m/%Y')} · con IVA y descuento"
+                    = "· #{invoice_cost_source_caption(@cost_source_item.invoice)}"
               - else
                 .div
                   %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo

@@ -7,7 +7,7 @@ RSpec.describe Invoices::RevertPurchaseCosts do
   let(:supplier)  { create(:supplier) }
   let(:product)   { create(:product, cost_unit: 8_100, cost_currency: "USD", current_stock: 0) }
 
-  # Discount 10 and IVA 21: 8.900 printed is 9.692,10 final, 9.500 is 10.345,50.
+  # Discount 10 and IVA 21: 8.900 printed is 9.692,10 final, 9.500 is 10.345,50, 12.500 is 13.612,50.
   def register(*unit_costs, discount: 10)
     items = unit_costs.map { |unit_cost| { product_id: product.id, quantity: 1, unit_cost: unit_cost } }
     Invoices::CreateInvoice.call(
@@ -17,90 +17,67 @@ RSpec.describe Invoices::RevertPurchaseCosts do
     ).record
   end
 
-  def cost
-    product.reload.then { |reloaded| [ reloaded.cost_unit, reloaded.cost_currency ] }
+  def cancel(invoice)
+    expect(Invoices::CancelInvoice.call(invoice: invoice).success?).to be true
   end
 
-  it "falls back to the newest other purchase of the product" do
-    register("8900")
-    newer = register("9500")
+  def cost
+    product.reload.then { |reloaded| [ reloaded.cost_unit, reloaded.cost_currency, reloaded.cost_source_invoice_item_id ] }
+  end
 
-    result = described_class.call(invoice: newer)
+  def line_of(invoice)
+    invoice.invoice_items.order(:id).last
+  end
+
+  it "restores the cost the purchase replaced" do
+    invoice = register("8900")
+
+    result = described_class.call(invoice: invoice)
 
     expect(result.success?).to be true
-    expect(cost).to eq([ BigDecimal("9692.10"), "ARS" ])
+    expect(cost).to eq([ 8_100, "USD", nil ])
   end
 
-  it "restores the snapshot when no other purchase exists" do
-    invoice = register("8900")
-
-    described_class.call(invoice: invoice)
-
-    expect(cost).to eq([ 8_100, "USD" ])
-  end
-
-  it "ignores purchases on cancelled invoices" do
-    invoice = register("8900")
-    register("9500").update!(status: "cancelled")
-    product.reload.update!(cost_unit: BigDecimal("9692.10"), cost_currency: "ARS")
-
-    described_class.call(invoice: invoice)
-
-    expect(cost).to eq([ 8_100, "USD" ])
-  end
-
-  it "restores the pre-invoice cost when the product was on two lines" do
-    invoice = register("8900", "9500")
-    expect(cost).to eq([ BigDecimal("10345.50"), "ARS" ])
-
-    described_class.call(invoice: invoice)
-
-    expect(cost).to eq([ 8_100, "USD" ])
-  end
-
-  it "keeps a cost an admin typed after the purchase" do
-    invoice = register("8900")
-    product.reload.update!(cost_unit: 12_000)
-
-    described_class.call(invoice: invoice)
-
-    expect(cost).to eq([ 12_000, "ARS" ])
-  end
-
-  it "keeps the cost a newer purchase set" do
+  it "goes back to the previous purchase, then to the cost before it" do
     older = register("8900")
-    register("9500")
+    newer = register("9500")
 
-    described_class.call(invoice: older)
+    cancel(newer)
+    expect(cost).to eq([ BigDecimal("9692.10"), "ARS", line_of(older).id ])
 
-    expect(cost).to eq([ BigDecimal("10345.50"), "ARS" ])
+    cancel(older)
+    expect(cost).to eq([ 8_100, "USD", nil ])
   end
 
-  it "keeps a cost with the same number in another currency" do
-    invoice = register("8900")
-    product.reload.update!(cost_currency: "USD")
+  it "keeps the newer purchase's cost, then walks past the cancelled older one" do
+    older = register("8900")
+    newer = register("9500")
 
-    described_class.call(invoice: invoice)
+    cancel(older)
+    expect(cost).to eq([ BigDecimal("10345.50"), "ARS", line_of(newer).id ])
 
-    expect(cost).to eq([ BigDecimal("9692.10"), "USD" ])
+    cancel(newer)
+    expect(cost).to eq([ 8_100, "USD", nil ])
   end
 
-  it "does not touch the cost for an invoice whose lines cost nothing" do
-    invoice = register("8900", discount: 100)
-    product.reload.update!(cost_unit: 0, cost_currency: "ARS")
+  it "restores a cost typed by hand between two purchases" do
+    register("8900")
+    product.reload.update!(cost_unit: 150)
+    newer = register("9500")
 
-    described_class.call(invoice: invoice)
+    cancel(newer)
 
-    expect(cost).to eq([ 0, "ARS" ])
+    expect(cost).to eq([ 150, "ARS", nil ])
   end
 
-  it "leaves the cost alone for a line that carries no snapshot" do
-    invoice = register("8900")
-    invoice.invoice_items.update_all(previous_cost_unit: nil, previous_cost_currency: nil)
+  it "does not walk past a hand cost equal to a cancelled purchase's cost" do
+    cancel(register("8900"))
+    product.reload.update!(cost_unit: BigDecimal("9692.10"), cost_currency: "ARS")
+    newer = register("9500")
 
-    described_class.call(invoice: invoice)
+    cancel(newer)
 
-    expect(cost).to eq([ BigDecimal("9692.10"), "ARS" ])
+    expect(cost).to eq([ BigDecimal("9692.10"), "ARS", nil ])
   end
 
   it "restores an empty cost when the product had none before the purchase" do
@@ -109,36 +86,60 @@ RSpec.describe Invoices::RevertPurchaseCosts do
 
     described_class.call(invoice: invoice)
 
-    expect(cost).to eq([ nil, "ARS" ])
+    expect(cost).to eq([ nil, "ARS", nil ])
+  end
+
+  it "restores the pre-invoice cost when the product was on two lines" do
+    invoice = register("8900", "9500")
+    expect(cost).to eq([ BigDecimal("10345.50"), "ARS", line_of(invoice).id ])
+
+    described_class.call(invoice: invoice)
+
+    expect(cost).to eq([ 8_100, "USD", nil ])
+  end
+
+  it "keeps a cost an admin typed after the purchase" do
+    invoice = register("8900")
+    product.reload.update!(cost_unit: 12_000)
+
+    described_class.call(invoice: invoice)
+
+    expect(cost).to eq([ 12_000, "ARS", nil ])
+  end
+
+  it "keeps a cost with the same number moved to another currency" do
+    invoice = register("8900")
+    product.reload.update!(cost_currency: "USD")
+
+    described_class.call(invoice: invoice)
+
+    expect(cost).to eq([ BigDecimal("9692.10"), "USD", nil ])
+  end
+
+  it "does not touch the cost for an invoice whose lines cost nothing" do
+    invoice = register("8900", discount: 100)
+    product.reload.update!(cost_unit: 0, cost_currency: "ARS")
+
+    described_class.call(invoice: invoice)
+
+    expect(cost).to eq([ 0, "ARS", nil ])
+  end
+
+  it "reverts the cost of a product that fails a current validation" do
+    invoice = create(:invoice, :simple_mode, :in_ars)
+    create(:invoice_item, invoice: invoice, product: product, quantity: 1,
+                          unit_cost: BigDecimal("9692.10"), final_unit_cost: BigDecimal("9692.10"))
+    Invoices::ApplyPurchaseCosts.call(invoice: invoice)
+    product.update_column(:location_code, "bad")
+
+    result = described_class.call(invoice: invoice)
+
+    expect(result.success?).to be true
+    expect(cost).to eq([ 8_100, "USD", nil ])
   end
 
   context "when earlier purchases were cancelled" do
-    def cancel(invoice)
-      expect(Invoices::CancelInvoice.call(invoice: invoice).success?).to be true
-    end
-
     before { product.update!(cost_unit: 500, cost_currency: "ARS") }
-
-    it "skips the cost a cancelled purchase had set" do
-      older = register("8900")
-      newer = register("9500")
-
-      cancel(older)
-      expect(cost).to eq([ BigDecimal("10345.50"), "ARS" ])
-      cancel(newer)
-
-      expect(cost).to eq([ 500, "ARS" ])
-    end
-
-    it "lands on the same cost when they are cancelled newest first" do
-      older = register("8900")
-      newer = register("9500")
-
-      cancel(newer)
-      cancel(older)
-
-      expect(cost).to eq([ 500, "ARS" ])
-    end
 
     it "walks back over several cancelled purchases" do
       first = register("8900")
@@ -149,20 +150,31 @@ RSpec.describe Invoices::RevertPurchaseCosts do
       cancel(second)
       cancel(third)
 
-      expect(cost).to eq([ 500, "ARS" ])
+      expect(cost).to eq([ 500, "ARS", nil ])
     end
 
-    it "walks back past a cancelled purchase with the same cost, not just the latest one" do
+    it "walks back past cancelled purchases registered in between" do
       first = register("8900")
       second = register("9500")
       cancel(second)
       third = register("12500")
       cancel(first)
-      expect(cost).to eq([ BigDecimal("13612.50"), "ARS" ])
+      expect(cost).to eq([ BigDecimal("13612.50"), "ARS", line_of(third).id ])
 
       cancel(third)
 
-      expect(cost).to eq([ 500, "ARS" ])
+      expect(cost).to eq([ 500, "ARS", nil ])
+    end
+
+    it "stops at a live purchase behind a cancelled one" do
+      first = register("8900")
+      second = register("9500")
+      third = register("12500")
+
+      cancel(second)
+      cancel(third)
+
+      expect(cost).to eq([ BigDecimal("9692.10"), "ARS", line_of(first).id ])
     end
 
     it "walks back to a cost in another currency" do
@@ -173,7 +185,7 @@ RSpec.describe Invoices::RevertPurchaseCosts do
       cancel(older)
       cancel(newer)
 
-      expect(cost).to eq([ 8_100, "USD" ])
+      expect(cost).to eq([ 8_100, "USD", nil ])
     end
   end
 end

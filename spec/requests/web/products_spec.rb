@@ -428,10 +428,10 @@ RSpec.describe "Web::Products edit/update", type: :request do
     let(:product)   { create(:product, price_unit: 15_000, cost_unit: 8_100, cost_currency: "USD") }
 
     # Discount 10 and IVA 21: 8.900 printed is 9.692,10 final.
-    def register(number, purchase_date: Date.new(2026, 11, 4))
+    def register(number, purchase_date: Date.new(2026, 11, 4), discount: 10, iva: 21)
       Invoices::CreateInvoice.call(
         supplier: supplier, invoice_number: number, amount: nil, currency: "ARS",
-        purchase_date: purchase_date, due_date: purchase_date + 30, discount_percentage: 10, iva_percentage: 21,
+        purchase_date: purchase_date, due_date: purchase_date + 30, discount_percentage: discount, iva_percentage: iva,
         items: [ { product_id: product.id, quantity: 1, unit_cost: "8900" } ]
       ).record
     end
@@ -454,7 +454,7 @@ RSpec.describe "Web::Products edit/update", type: :request do
       expect(response.body).to include("Margen")
     end
 
-    it "links the newest purchase when two share the same cost" do
+    it "links the purchase that set the cost when two share the same cost" do
       register("0003-00000001", purchase_date: Date.new(2026, 11, 10))
       newer = register("0003-00000002", purchase_date: Date.new(2026, 11, 1))
       sign_in admin
@@ -462,6 +462,58 @@ RSpec.describe "Web::Products edit/update", type: :request do
       get web_product_path(product)
 
       expect(financial_text).to include("Factura #{newer.reference} · 01/11/2026")
+    end
+
+    it "links the invoice recorded as the cost source" do
+      older = register("0003-00000001")
+      register("0003-00000002")
+      product.update_columns(cost_source_invoice_item_id: older.invoice_items.first.id)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{older.reference} · 04/11/2026")
+    end
+
+    it "shows no source invoice once that invoice is cancelled" do
+      invoice = register("0003-00010197")
+      invoice.update_columns(status: "cancelled")
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo ARS 9.692,10")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "treats a hand cost equal to an old purchase's cost as a hand cost" do
+      register("0003-00010197")
+      product.reload.update!(cost_unit: 9_000)
+      product.update!(cost_unit: BigDecimal("9692.10"))
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo ARS 9.692,10", "Cargado a mano o anterior al registro de compras con IVA")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "names only the IVA when the invoice had no discount" do
+      invoice = register("0003-00010197", discount: 0)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 · con IVA Margen")
+    end
+
+    it "adds nothing after the date when the invoice had neither discount nor IVA" do
+      invoice = register("0003-00010197", discount: 0, iva: 0)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 Margen")
     end
 
     it "shows a legacy cost in its stored currency without a source invoice" do

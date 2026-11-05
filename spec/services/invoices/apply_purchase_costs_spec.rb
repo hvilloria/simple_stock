@@ -27,6 +27,20 @@ RSpec.describe Invoices::ApplyPurchaseCosts do
     expect(item.previous_cost_currency).to eq("USD")
   end
 
+  it "makes the line the product's cost source and keeps the source it replaced" do
+    older = invoice_with(BigDecimal("9692.10"))
+    described_class.call(invoice: older)
+    newer = invoice_with(BigDecimal("10345.50"))
+
+    described_class.call(invoice: newer)
+
+    older_item = older.invoice_items.reload.first
+    newer_item = newer.invoice_items.reload.first
+    expect(product.reload.cost_source_invoice_item_id).to eq(newer_item.id)
+    expect(older_item.reload.previous_cost_source_id).to be_nil
+    expect(newer_item.reload.previous_cost_source_id).to eq(older_item.id)
+  end
+
   it "leaves the cost alone and takes no snapshot for a line whose final cost is zero" do
     invoice = invoice_with(BigDecimal("0"))
 
@@ -48,15 +62,17 @@ RSpec.describe Invoices::ApplyPurchaseCosts do
     first, second = invoice.invoice_items.order(:id)
     expect([ first.previous_cost_unit, first.previous_cost_currency ]).to eq([ 8_100, "USD" ])
     expect([ second.previous_cost_unit, second.previous_cost_currency ]).to eq([ BigDecimal("9692.10"), "ARS" ])
+    expect(second.previous_cost_source_id).to eq(first.id)
+    expect(product.cost_source_invoice_item_id).to eq(second.id)
   end
 
-  it "fails with the record's errors when the product cannot be saved" do
+  it "sets the cost of a product that fails a current validation" do
     invoice = invoice_with(BigDecimal("9692.10"))
-    product.update_column(:sku, "")
+    product.update_column(:location_code, "bad")
 
     result = described_class.call(invoice: invoice)
 
-    expect(result.success?).to be false
-    expect(result.errors).not_to be_empty
+    expect(result.success?).to be true
+    expect([ product.reload.cost_unit, product.cost_currency ]).to eq([ BigDecimal("9692.10"), "ARS" ])
   end
 end
