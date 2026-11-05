@@ -677,4 +677,64 @@ RSpec.describe Sales::CreateOrder do
       expect(result.errors).to include(a_string_matching(/contacto/i))
     end
   end
+
+  describe "combo lines" do
+    let(:a) { create(:product, current_stock: 0, price_unit: 10) }
+    let(:b) { create(:product, current_stock: 0, price_unit: 10) }
+    let(:combo) { create(:product, :combo, price_unit: 100, components: [ [ a, 1 ], [ b, 2 ] ]) }
+
+    before do
+      stock!(a, 10)
+      stock!(b, 10)
+    end
+
+    def sell_combo(order_type: "immediate", channel: nil, quantity: 2, unit_price: 120, customer: customer_with_credit, **extra)
+      described_class.call(
+        customer: customer, order_type: order_type, paper_number: "CB-1", user: user,
+        channel: channel, items: [ { product_id: combo.id, quantity: quantity, unit_price: unit_price } ], **extra
+      )
+    end
+
+    it "sells one line for the combo, snapshots its components and takes them off the shelf" do
+      result = sell_combo
+
+      expect(result.success?).to be true
+      line = result.record.order_items.sole
+      expect(line.product).to eq(combo)
+      expect(line.quantity).to eq(2)
+      expect(line.components.order(:product_id).pluck(:product_id, :quantity)).to eq([ [ a.id, 1 ], [ b.id, 2 ] ])
+      expect(combo.reload.price_unit).to eq(120)
+      expect(a.reload.current_stock).to eq(8)
+      expect(b.reload.current_stock).to eq(6)
+      expect(combo.current_stock).to eq(0)
+    end
+
+    it "writes an ML sale price to the combo's own ML price" do
+      result = sell_combo(channel: "mercadolibre", unit_price: 150)
+
+      expect(result.success?).to be true
+      expect(combo.reload.price_for("mercadolibre")).to eq(150)
+      expect(combo.price_unit).to eq(100)
+    end
+
+    it "refuses a combo on an on_account order" do
+      result = nil
+      expect {
+        result = sell_combo(order_type: "on_account", customer: Customer.mostrador, contact_name: "Ana", contact_phone: "11 0000 0000")
+      }.not_to change(Order, :count)
+
+      expect(result).to be_failure
+      expect(result.errors).to eq([ "Los combos todavía no se pueden vender en pago a cuenta" ])
+    end
+
+    it "refuses an archived combo" do
+      combo.update!(active: false)
+
+      result = sell_combo
+
+      expect(result).to be_failure
+      expect(result.errors).to eq([ "El combo #{combo.sku} está archivado" ])
+      expect(a.reload.current_stock).to eq(10)
+    end
+  end
 end

@@ -92,6 +92,24 @@ module Sales
           raise ValidationError, "El precio no puede tener más de 2 decimales"
         end
       end
+
+      validate_combos
+    end
+
+    def validate_combos
+      combos = products.values.select(&:combo?)
+      return if combos.empty?
+
+      if @order_type == "on_account"
+        raise ValidationError, "Los combos todavía no se pueden vender en pago a cuenta"
+      end
+
+      archived = combos.find { |combo| !combo.active? }
+      raise ValidationError, "El combo #{archived.sku} está archivado" if archived
+    end
+
+    def products
+      @products ||= Product.where(id: @items.map(&:product_id)).index_by(&:id)
     end
 
     def create_order
@@ -118,7 +136,7 @@ module Sales
 
     def create_order_items
       @items.each do |item|
-        product     = Product.find(item.product_id)
+        product     = products.fetch(item.product_id.to_i)
         final_price = item.unit_price
 
         order_item = OrderItem.create!(
@@ -130,8 +148,17 @@ module Sales
           delivered_at:     (@delivered_product_ids.include?(product.id) ? Time.current : nil)
         )
 
+        snapshot_components(order_item, product) if product.combo?
         remember_price(product, final_price)
         take_from_shelf(order_item) if leaves_the_shelf?(order_item)
+      end
+    end
+
+    # The line keeps its own copy of the recipe, so later edits to the combo
+    # never change what this sale took. It must exist before the deduction.
+    def snapshot_components(order_item, combo)
+      combo.combo_components.each do |component|
+        order_item.components.create!(product_id: component.product_id, quantity: component.quantity)
       end
     end
 

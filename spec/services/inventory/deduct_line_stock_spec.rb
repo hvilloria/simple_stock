@@ -72,4 +72,34 @@ RSpec.describe Inventory::DeductLineStock do
     expect(result.success?).to be false
     expect(product.reload.current_stock).to eq(3)
   end
+
+  context "with a combo line" do
+    let(:a) { create(:product, current_stock: 0) }
+    let(:b) { create(:product, current_stock: 0) }
+    let(:combo) { create(:product, :combo, components: [ [ a, 1 ], [ b, 4 ] ]) }
+
+    def combo_line(quantity)
+      create(:order_item, order: order, product: combo, quantity: quantity, unit_price: 100).tap do |item|
+        item.components.create!(product: a, quantity: 1)
+        item.components.create!(product: b, quantity: 4)
+      end
+    end
+
+    it "takes each component times the line quantity, floored per component" do
+      [ a, b ].each do |component|
+        create(:stock_movement, product: component, stock_location: location, quantity: 5, movement_type: "purchase")
+        component.recalculate_current_stock!
+      end
+      item = combo_line(2)
+
+      result = described_class.call(order_item: item, note: "Nota 7")
+
+      expect(result.success?).to be true
+      expect(a.reload.current_stock).to eq(3)
+      expect(b.reload.current_stock).to eq(0)
+      expect(combo.reload.current_stock).to eq(0)
+      expect(item.stock_movements.order(:product_id).pluck(:product_id, :quantity, :movement_type, :note))
+        .to eq([ [ a.id, -2, "sale", "Nota 7" ], [ b.id, -5, "sale", "Nota 7" ] ])
+    end
+  end
 end

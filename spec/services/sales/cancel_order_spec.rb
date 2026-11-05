@@ -300,6 +300,28 @@ RSpec.describe Sales::CancelOrder do
       end
     end
 
+    context 'with the same product sold alone and inside a combo' do
+      let(:other) { create(:product, current_stock: 0, price_unit: 50) }
+      let(:combo) { create(:product, :combo, price_unit: 120, components: [ [ product, 1 ], [ other, 1 ] ]) }
+
+      it 'gives back to each product exactly what each line took' do
+        stock!(other, 10)
+        order = Sales::CreateOrder.call(
+          customer: customer, order_type: 'immediate', paper_number: 'L-2010', user: user,
+          items: [ { product_id: product.id, quantity: 1, unit_price: 100 },
+                   { product_id: combo.id, quantity: 1, unit_price: 120 } ]
+        ).record
+        expect([ product.reload.current_stock, other.reload.current_stock ]).to eq([ 48, 9 ])
+
+        expect(described_class.call(order: order, user: user).success?).to be true
+
+        expect(product.reload.current_stock).to eq(50)
+        expect(other.reload.current_stock).to eq(10)
+        expect(combo.reload.current_stock).to eq(0)
+        order.order_items.each { |line| expect(line.stock_movements.sum(:quantity)).to eq(0) }
+      end
+    end
+
     context 'on_account with a partial delivery' do
       let(:kept)  { create(:product, current_stock: 0, price_unit: 100) }
       let(:taken) { create(:product, current_stock: 0, price_unit: 100) }
