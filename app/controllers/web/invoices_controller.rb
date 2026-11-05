@@ -91,12 +91,13 @@ module Web
     def create
       authorize Invoice, :create?
 
+      currency = submitted_lines? ? "ARS" : params[:currency] || "USD"
       result = Invoices::CreateInvoice.call(
         supplier: find_supplier,
         invoice_number: params[:invoice_number],
         amount: parse_amount(params[:amount]),
-        currency: params[:currency] || "USD",
-        exchange_rate: parse_exchange_rate(params[:exchange_rate], params[:currency]),
+        currency: currency,
+        exchange_rate: parse_exchange_rate(params[:exchange_rate], currency),
         purchase_date: parse_date(params[:purchase_date]),
         due_date: parse_date(params[:due_date]),
         notes: params[:notes],
@@ -105,6 +106,8 @@ module Web
         expense_type: params[:expense_type].presence || "supplier",
         period: parse_period(params[:period]),
         detail: params[:detail],
+        discount_percentage: parse_amount(params[:discount_percentage]),
+        iva_percentage: parse_amount(params[:iva_percentage]),
         items: submitted_items.map { |item| item.merge(unit_cost: unit_cost_param(item[:unit_cost])) }
       )
 
@@ -274,6 +277,11 @@ module Web
               quantity: row[:quantity].to_i, unit_cost: row[:unit_cost].to_s }
           end
         end
+    end
+
+    # Product lines are always bought in pesos, whatever currency the form sent.
+    def submitted_lines?
+      submitted_items.any? { |item| item[:product_id].present? && item[:quantity].positive? }
     end
 
     # Blank means free; anything that is not a number stays nil so the

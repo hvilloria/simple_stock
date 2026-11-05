@@ -85,6 +85,10 @@ RSpec.describe Invoice, type: :model do
     it "is true once the invoice carries an IVA percentage" do
       expect(build(:invoice, iva_percentage: 21)).to be_with_totals
     end
+
+    it "is true with IVA 0, for prices that already include it" do
+      expect(build(:invoice, iva_percentage: 0)).to be_with_totals
+    end
   end
 
   describe "#totals" do

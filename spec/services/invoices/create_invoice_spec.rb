@@ -356,10 +356,13 @@ RSpec.describe Invoices::CreateInvoice do
         end
       end
 
+      # IVA 0 keeps the amount equal to the sum of the lines unless a test
+      # is about the totals.
       def call_with(items, amount: nil, **overrides)
         described_class.call(
           **{ supplier: supplier, invoice_number: "FAC-100", amount: amount, currency: "ARS",
-              purchase_date: Date.current, due_date: 30.days.from_now, items: items }.merge(overrides)
+              purchase_date: Date.current, due_date: 30.days.from_now, items: items,
+              iva_percentage: 0 }.merge(overrides)
         )
       end
 
@@ -505,6 +508,78 @@ RSpec.describe Invoices::CreateInvoice do
         invoice = result.record
         expect(invoice.early_payment_discount_percentage).to eq(5)
         expect(invoice.amount_with_discount).to eq(42_750)
+      end
+
+      context "with discount and IVA" do
+        let(:yokomitsu_items) do
+          [ [ 6, "8900" ], [ 6, "9500" ], [ 4, "9500" ], [ 4, "9500" ], [ 3, "12500" ], [ 3, "12500" ], [ 8, "9619.30" ] ]
+            .map { |quantity, unit_cost| { product_id: filter.id, quantity: quantity, unit_cost: unit_cost } }
+        end
+
+        it "takes the amount from the discounted total plus IVA and stores both percentages" do
+          result = call_with(yokomitsu_items, discount_percentage: 10, iva_percentage: 21)
+
+          expect(result.success?).to be true
+          invoice = result.record
+          expect(invoice.amount).to eq(BigDecimal("368467.94"))
+          expect(invoice.discount_percentage).to eq(10)
+          expect(invoice.iva_percentage).to eq(21)
+          expect(invoice.invoice_items.order(:id).first.final_unit_cost).to eq(BigDecimal("9692.10"))
+        end
+
+        it "reads a blank discount as 0 and a blank IVA as 21" do
+          result = call_with([ { product_id: filter.id, quantity: 1, unit_cost: "1000" } ],
+                             discount_percentage: "", iva_percentage: nil)
+
+          invoice = result.record
+          expect(invoice.discount_percentage).to eq(0)
+          expect(invoice.iva_percentage).to eq(21)
+          expect(invoice.amount).to eq(1_210)
+        end
+
+        it "refuses a discount above 100" do
+          result = call_with(yokomitsu_items, discount_percentage: 101)
+
+          expect(result.success?).to be false
+          expect(result.errors).to eq([ "El descuento debe estar entre 0 y 100" ])
+          expect(Invoice.count).to eq(0)
+        end
+
+        it "refuses a negative IVA" do
+          result = call_with(yokomitsu_items, iva_percentage: -1)
+
+          expect(result.success?).to be false
+          expect(result.errors).to eq([ "El IVA debe estar entre 0 y 100" ])
+        end
+
+        it "refuses product lines in dollars" do
+          result = call_with(yokomitsu_items, currency: "USD", exchange_rate: 1200)
+
+          expect(result.success?).to be false
+          expect(result.errors).to eq([ "Las facturas con productos se cargan en pesos" ])
+          expect(Invoice.count).to eq(0)
+        end
+
+        it "drops an exchange rate sent along with pesos" do
+          result = call_with(yokomitsu_items, exchange_rate: 1200)
+
+          expect(result.record.exchange_rate).to be_nil
+        end
+      end
+    end
+
+    context "amount-only invoice with percentages" do
+      it "ignores them and keeps the typed amount" do
+        result = described_class.call(
+          supplier: supplier, invoice_number: "FAC-200", amount: 5000, currency: "ARS",
+          purchase_date: Date.current, due_date: 30.days.from_now,
+          discount_percentage: 10, iva_percentage: 21
+        )
+
+        invoice = result.record
+        expect(invoice.amount).to eq(5000)
+        expect(invoice.discount_percentage).to be_nil
+        expect(invoice.iva_percentage).to be_nil
       end
     end
   end

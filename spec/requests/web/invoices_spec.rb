@@ -201,14 +201,27 @@ RSpec.describe "Web::Invoices", type: :request do
         quantity: quantity, unit_cost: unit_cost }
     end
 
-    it "registers an itemized invoice, sums the lines and stocks them" do
+    it "registers an itemized invoice, totals the lines with IVA and stocks them" do
       post "/web/invoices", params: header.merge(items: { "0" => line(product, quantity: 10, unit_cost: "4.500,00") })
 
       invoice = Invoice.last
       expect(response).to redirect_to("/web/invoices/#{invoice.id}")
-      expect(invoice.amount).to eq(45_000)
+      expect(invoice.amount).to eq(54_450)
       expect(invoice.invoice_items.count).to eq(1)
       expect(product.reload.current_stock).to eq(10)
+    end
+
+    it "reads Argentine percentages, defaults a blank IVA to 21 and registers lines in pesos" do
+      post "/web/invoices", params: header(currency: "USD", exchange_rate: "1.480,00",
+                                           discount_percentage: "10,5", iva_percentage: "")
+                                      .merge(items: { "0" => line(product, quantity: 10, unit_cost: "4.500,00") })
+
+      invoice = Invoice.last
+      expect(response).to redirect_to("/web/invoices/#{invoice.id}")
+      expect(invoice.currency).to eq("ARS")
+      expect(invoice.exchange_rate).to be_nil
+      expect(invoice.discount_percentage).to eq(10.5)
+      expect(invoice.iva_percentage).to eq(21)
     end
 
     it "registers an amount-only invoice exactly as before" do
@@ -295,17 +308,13 @@ RSpec.describe "Web::Invoices", type: :request do
 
       patch "/web/invoices/#{invoice.id}", params: { invoice: { amount: "1,00", notes: "corregida" } }
 
-      expect(invoice.reload.amount).to eq(1_000)
+      expect(invoice.reload.amount).to eq(1_210)
       expect(invoice.notes).to eq("corregida")
     end
 
-    it "updates the exchange rate of an itemized invoice without touching its amount" do
-      product = create(:product, current_stock: 0)
-      invoice = Invoices::CreateInvoice.call(
-        supplier: supplier, invoice_number: "FAC-8", amount: nil, currency: "USD", exchange_rate: 1200,
-        purchase_date: Date.current, due_date: 30.days.from_now,
-        items: [ { product_id: product.id, quantity: 10, unit_cost: 100 } ]
-      ).record
+    it "updates the exchange rate of a legacy itemized invoice in dollars without touching its amount" do
+      invoice = create(:invoice, :simple_mode, supplier: supplier, currency: "USD", exchange_rate: 1200, amount: 1_000)
+      invoice.invoice_items.create!(product: create(:product), quantity: 10, unit_cost: 100)
 
       patch "/web/invoices/#{invoice.id}", params: { invoice: { exchange_rate: "1.480,00" } }
 

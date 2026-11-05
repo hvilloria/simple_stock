@@ -46,7 +46,7 @@ RSpec.describe "Facturas con productos", type: :system do
 
     expect(page).to have_text("Factura registrada exitosamente")
     expect(filter.reload.current_stock).to eq(10)
-    expect(Invoice.last.amount).to eq(45_000)
+    expect(Invoice.last.amount).to eq(54_450)
   end
 
   it "unfreezes the amount when the last line is removed" do
