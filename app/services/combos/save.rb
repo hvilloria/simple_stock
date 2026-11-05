@@ -55,6 +55,7 @@ module Combos
     def component_errors
       errors = []
       errors << "El combo necesita al menos 2 unidades en total" if @components.sum { |row| row[:quantity] } < MIN_UNITS
+      errors << "La cantidad de cada pieza debe ser mayor a 0" if @components.any? { |row| row[:quantity] <= 0 }
       errors << "Una pieza no puede repetirse en el combo" if product_ids.uniq.size != product_ids.size
 
       products = Product.with_deleted.where(id: product_ids).index_by(&:id)

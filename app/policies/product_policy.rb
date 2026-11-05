@@ -18,6 +18,8 @@ class ProductPolicy < ApplicationPolicy
   end
 
   def update?
+    return user.admin? if combo?
+
     user.admin? || user.vendedor?  # Admin and vendedor edit products; caja does not
   end
 
@@ -35,5 +37,19 @@ class ProductPolicy < ApplicationPolicy
 
   def search?
     true  # Everyone can search products
+  end
+
+  def create_combo?
+    user.admin?
+  end
+
+  def archive?
+    user.admin? && combo?
+  end
+
+  private
+
+  def combo?
+    record.is_a?(Product) && record.combo?
   end
 end

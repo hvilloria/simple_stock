@@ -118,6 +118,14 @@ RSpec.describe Combos::Save do
       expect(result.errors).to include("Pieza inválida")
     end
 
+    it "refuses a part with a quantity of zero or less" do
+      result = call_new(components: components_for([ part_a, 2 ], [ part_b, 0 ]))
+
+      expect(result).to be_failure
+      expect(result.errors).to include("La cantidad de cada pieza debe ser mayor a 0")
+      expect(result.record).not_to be_persisted
+    end
+
     it "refuses a combo price of zero" do
       result = call_new(attributes: { name: "Kit", price_unit: 0 }, components: components_for([ part_a, 1 ], [ part_b, 1 ]))
 

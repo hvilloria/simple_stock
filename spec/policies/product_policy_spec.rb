@@ -84,4 +84,31 @@ RSpec.describe ProductPolicy do
       expect(subject.create?).to be false
     end
   end
+
+  describe "combos" do
+    let(:combo) { build(:product, combo: true) }
+
+    it "lets only an admin edit a combo" do
+      expect(described_class.new(build(:user, :admin), combo).update?).to be true
+      expect(described_class.new(build(:user, role: "vendedor"), combo).update?).to be false
+      expect(described_class.new(build(:user, role: "vendedor"), combo).edit?).to be false
+      expect(described_class.new(build(:user, role: "caja"), combo).update?).to be false
+    end
+
+    it "still lets a vendedor edit a regular product" do
+      expect(described_class.new(build(:user, role: "vendedor"), build(:product)).update?).to be true
+    end
+
+    it "lets only an admin create a combo" do
+      expect(described_class.new(build(:user, :admin), Product.new).create_combo?).to be true
+      expect(described_class.new(build(:user, role: "vendedor"), Product.new).create_combo?).to be false
+      expect(described_class.new(build(:user, role: "caja"), Product.new).create_combo?).to be false
+    end
+
+    it "lets only an admin archive, and only a combo" do
+      expect(described_class.new(build(:user, :admin), combo).archive?).to be true
+      expect(described_class.new(build(:user, :admin), build(:product)).archive?).to be false
+      expect(described_class.new(build(:user, role: "vendedor"), combo).archive?).to be false
+    end
+  end
 end

@@ -121,6 +121,30 @@ RSpec.describe "Web::Products edit/update", type: :request do
     end
   end
 
+  describe "editing a combo through the product routes" do
+    let!(:combo) { create(:product, :combo, name: "Kit") }
+
+    it "refuses a vendedor PATCH and leaves the combo unchanged" do
+      sign_in vendedor
+      patch web_product_path(combo), params: { product: { name: "Hackeado", price_unit: "1,00" } }
+
+      expect(response).to have_http_status(:redirect)
+      expect(flash[:alert]).to eq("No tiene permiso para realizar esta acción.")
+      expect(combo.reload.name).to eq("Kit")
+    end
+
+    it "sends an admin to the combo form" do
+      sign_in admin
+
+      get edit_web_product_path(combo)
+      expect(response).to redirect_to(edit_web_combo_path(combo))
+
+      patch web_product_path(combo), params: { product: { name: "Otro" } }
+      expect(response).to redirect_to(edit_web_combo_path(combo))
+      expect(combo.reload.name).to eq("Kit")
+    end
+  end
+
   describe "DELETE /web/products/:id" do
     let!(:target) { create(:product, name: "Para borrar") }
 
