@@ -463,6 +463,23 @@ RSpec.describe "Web::Orders", type: :request do
       expect(rows).to include("Cantidad total 1 unidades")
     end
 
+    it "shows the line costs and the cost analysis to an admin only" do
+      order = create(:order, status: "confirmed")
+      create(:order_item, order: order, product: create(:product, cost_unit: 40, cost_currency: "ARS"),
+                          quantity: 1, unit_price: 100)
+
+      get web_order_path(order)
+
+      expect(response.body).not_to include("Análisis de Costos", "COSTO UNIT.")
+      expect(Nokogiri::HTML(response.body).at_css("tfoot td")["colspan"]).to eq("4")
+
+      sign_in create(:user, :admin)
+      get web_order_path(order)
+
+      expect(response.body).to include("Análisis de Costos", "COSTO UNIT.", "ARS 40,00")
+      expect(Nokogiri::HTML(response.body).at_css("tfoot td")["colspan"]).to eq("5")
+    end
+
     it "names an on-account order's sale type" do
       order = create(:order, :on_account, customer: Customer.mostrador,
                      total_amount: 1_000, original_total_amount: 1_000)

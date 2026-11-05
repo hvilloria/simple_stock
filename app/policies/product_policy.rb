@@ -39,6 +39,10 @@ class ProductPolicy < ApplicationPolicy
     true  # Everyone can search products
   end
 
+  def view_cost?
+    user.admin?
+  end
+
   def create_combo?
     user.admin?
   end

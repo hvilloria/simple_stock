@@ -377,6 +377,85 @@ RSpec.describe "Web::Products edit/update", type: :request do
     end
   end
 
+  describe "GET /web/products/:id — cost" do
+    let!(:location) { create(:stock_location) }
+    let(:supplier)  { create(:supplier) }
+    let(:product)   { create(:product, price_unit: 15_000, cost_unit: 8_100, cost_currency: "USD") }
+
+    # Discount 10 and IVA 21: 8.900 printed is 9.692,10 final.
+    def register(number, purchase_date: Date.new(2026, 11, 4))
+      Invoices::CreateInvoice.call(
+        supplier: supplier, invoice_number: number, amount: nil, currency: "ARS",
+        purchase_date: purchase_date, due_date: purchase_date + 30, discount_percentage: 10, iva_percentage: 21,
+        items: [ { product_id: product.id, quantity: 1, unit_cost: "8900" } ]
+      ).record
+    end
+
+    def financial_text
+      Nokogiri::HTML(response.body).text.squish
+    end
+
+    it "shows an admin the last purchase cost with its source invoice" do
+      invoice = register("0003-00010197")
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo (última compra) ARS 9.692,10")
+      expect(financial_text).to include("Factura #{invoice.reference} · 04/11/2026 · con IVA y descuento")
+      link = Nokogiri::HTML(response.body).at_css("a[href='#{web_invoice_path(invoice)}']")
+      expect(link.text.squish).to eq(invoice.reference)
+      expect(response.body).not_to include("Costo Promedio")
+      expect(response.body).not_to include("El costo es el promedio ponderado de todas las compras")
+      expect(response.body).to include("Margen")
+    end
+
+    it "links the newest purchase when two share the same cost" do
+      register("0003-00000001", purchase_date: Date.new(2026, 11, 10))
+      newer = register("0003-00000002", purchase_date: Date.new(2026, 11, 1))
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Factura #{newer.reference} · 01/11/2026")
+    end
+
+    it "keeps the average cost block for a legacy cost" do
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(financial_text).to include("Costo Promedio USD 8.100,00")
+      expect(response.body).to include("El costo es el promedio ponderado de todas las compras")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "keeps the average cost block once the cost was typed by hand after the purchase" do
+      register("0003-00010197")
+      product.reload.update!(cost_unit: 9_000)
+      sign_in admin
+
+      get web_product_path(product)
+
+      expect(response.body).to include("Costo Promedio")
+      expect(response.body).not_to include("Costo (última compra)")
+    end
+
+    it "hides the cost and the margin from a vendedor and a caja" do
+      register("0003-00010197")
+
+      [ vendedor, caja ].each do |user|
+        sign_in user
+        get web_product_path(product)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include("Costo (última compra)", "Costo Promedio", "Margen",
+                                             "El costo es el promedio ponderado de todas las compras",
+                                             "9.692,10")
+      end
+    end
+  end
+
   describe "GET /web/products/:id for a combo" do
     let!(:left)  { create(:product, sku: "12345-123-12345", name: "Amortiguador izquierdo", price_unit: 70_000, current_stock: 5) }
     let!(:right) { create(:product, sku: "12345-456-12345", name: "Amortiguador derecho", price_unit: 35_000, current_stock: 3) }

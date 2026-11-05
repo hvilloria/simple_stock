@@ -163,14 +163,24 @@
                 - else
                   %p.text-sm.text-slate-400 Usa el de mostrador
 
-            - unless @product.combo?
-              .div
-                %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
-                - if @product.cost_unit.present?
-                  %p.text-lg.text-slate-600
-                    = currency_ar(@product.cost_unit, unit: "#{@product.cost_currency} ")
-                - else
-                  %p.text-lg.text-slate-400 Sin costo registrado
+            - if !@product.combo? && policy(@product).view_cost?
+              - if @cost_source_item
+                .div
+                  %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo (última compra)
+                  %p.text-lg.text-slate-600= currency_ar(@product.cost_unit, unit: "ARS ")
+                  %p.text-xs.text-slate-500
+                    Factura
+                    = link_to @cost_source_item.invoice.reference, web_invoice_path(@cost_source_item.invoice),
+                              class: "text-slate-900 underline hover:text-slate-600"
+                    = "· #{@cost_source_item.invoice.purchase_date.strftime('%d/%m/%Y')} · con IVA y descuento"
+              - else
+                .div
+                  %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Costo Promedio
+                  - if @product.cost_unit.present?
+                    %p.text-lg.text-slate-600
+                      = currency_ar(@product.cost_unit, unit: "#{@product.cost_currency} ")
+                  - else
+                    %p.text-lg.text-slate-400 Sin costo registrado
             
               .div
                 %p.text-xs.font-medium.text-slate-500.uppercase.mb-1 Margen
@@ -183,7 +193,8 @@
                 - else
                   %p.text-lg.text-slate-400 -
             
-              %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
+              - unless @cost_source_item
+                %p.text-xs.text-slate-500.italic El costo es el promedio ponderado de todas las compras
       
       - unless @product.combo?
         -# Card 2 - Recent movements

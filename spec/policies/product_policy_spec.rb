@@ -85,6 +85,14 @@ RSpec.describe ProductPolicy do
     end
   end
 
+  describe "#view_cost?" do
+    it "lets only an admin see product costs" do
+      expect(described_class.new(build(:user, :admin), product).view_cost?).to be true
+      expect(described_class.new(build(:user, role: "vendedor"), product).view_cost?).to be false
+      expect(described_class.new(build(:user, role: "caja"), product).view_cost?).to be false
+    end
+  end
+
   describe "combos" do
     let(:combo) { build(:product, combo: true) }
 

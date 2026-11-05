@@ -23,6 +23,7 @@ module Web
                                     .order(created_at: :desc)
                                     .limit(10)
                                     .includes(:stock_location, :reference, :user)
+        @cost_source_item = cost_source_item if policy(@product).view_cost?
       end
     end
 
@@ -95,6 +96,15 @@ module Web
     end
 
     private
+
+    def cost_source_item
+      return unless @product.cost_currency == "ARS" && @product.cost_unit.to_d.positive?
+
+      InvoiceItem.joins(:invoice).includes(:invoice)
+                 .where(product_id: @product.id, final_unit_cost: @product.cost_unit)
+                 .where.not(invoices: { status: "cancelled" })
+                 .order(id: :desc).first
+    end
 
     def products_scope
       Product.search(params[:q])
