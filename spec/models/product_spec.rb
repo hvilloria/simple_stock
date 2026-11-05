@@ -735,6 +735,14 @@ RSpec.describe Product, type: :model do
       expect(build(:product, :combo, sku: "CB-0003")).to be_valid
     end
 
+    it "refuses a second combo with the same sku, even after the first is deleted" do
+      first = create(:product, :combo)
+      first.destroy
+
+      expect { create(:product, :combo, sku: first.sku, components: []) }
+        .to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
     it "splits products into combos and regular ones" do
       combo = create(:product, :combo)
       regular = create(:product)

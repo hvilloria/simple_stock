@@ -2,6 +2,12 @@ class CreateCombos < ActiveRecord::Migration[7.2]
   def change
     add_column :products, :combo, :boolean, null: false, default: false
     add_index :products, :combo
+    add_index :products, :sku, unique: true, where: "combo", name: "index_products_on_combo_sku_unique"
+
+    reversible do |dir|
+      dir.up { execute "CREATE SEQUENCE IF NOT EXISTS combo_sku_seq" }
+      dir.down { execute "DROP SEQUENCE IF EXISTS combo_sku_seq" }
+    end
 
     create_table :combo_components do |t|
       t.references :combo, null: false, index: false, foreign_key: { to_table: :products }

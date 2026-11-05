@@ -113,7 +113,7 @@ RSpec.describe OrderItem, type: :model do
     it "multiplies each snapshot component by the line quantity, ordered by product id" do
       part_a = create(:product)
       part_b = create(:product)
-      combo = create(:product, :combo, components: [ [ part_a, 1 ], [ part_b, 4 ] ])
+      combo = create(:product, :combo, components: [ [ part_a, 5 ] ])
       item = create(:order_item, product: combo, quantity: 2)
       item.components.create!(product: part_b, quantity: 4)
       item.components.create!(product: part_a, quantity: 1)
