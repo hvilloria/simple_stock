@@ -21,6 +21,12 @@ class OrderItem < ApplicationRecord
     components.sort_by(&:product_id).map { |component| [ component.product_id, component.quantity * quantity ] }
   end
 
+  def unit_cost_in_ars
+    return product.cost_in_ars unless product.combo?
+
+    components.sum { |component| component.product.cost_in_ars * component.quantity }
+  end
+
   private
 
   def discount_within_order_type_cap

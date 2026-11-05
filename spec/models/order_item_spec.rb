@@ -121,4 +121,24 @@ RSpec.describe OrderItem, type: :model do
       expect(item.stock_lines).to eq([ [ part_a.id, 2 ], [ part_b.id, 8 ] ])
     end
   end
+
+  describe "#unit_cost_in_ars" do
+    it "is the product cost for a regular line" do
+      product = create(:product, cost_unit: 40_000, cost_currency: "ARS")
+      item = create(:order_item, product: product)
+
+      expect(item.unit_cost_in_ars).to eq(40_000)
+    end
+
+    it "sums each snapshot component cost times its quantity for a combo line" do
+      part_a = create(:product, cost_unit: 60_000, cost_currency: "ARS")
+      part_b = create(:product, cost_unit: 50_000, cost_currency: "ARS")
+      combo = create(:product, :combo, components: [ [ part_a, 1 ], [ part_b, 1 ] ])
+      item = create(:order_item, product: combo, quantity: 2)
+      item.components.create!(product: part_a, quantity: 1)
+      item.components.create!(product: part_b, quantity: 1)
+
+      expect(item.unit_cost_in_ars).to eq(110_000)
+    end
+  end
 end
